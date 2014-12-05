@@ -75,6 +75,12 @@ and formula = {
     mutable f_hash  : int; (* lazy hash *)
 }
 
+(* Exceptions *)
+(* ************************************************************************ *)
+
+exception Type_error_equal of ty * ty
+exception Type_error_doublon of string * int
+
 (* Hashs *)
 (* ************************************************************************ *)
 
@@ -263,16 +269,59 @@ let equal_formula u v =
 (* Constructors *)
 (* ************************************************************************ *)
 
+(* Variables and ids *)
 let n_var = ref 0
 let mk_var name ty =
     incr n_var;
-    {
-        var_name = name;
-        var_id = !n_var;
-        var_type = ty;
-    }
+    { var_name = name; var_id = !n_var; var_type = ty; }
 
-let meta_index = ()
+let type_var_htbl : (string, ttype var) Hashtbl.t = Hashtbl.create 43
+let mk_type_var name = Misc.find_wrap type_var_htbl name (fun () -> mk_var name Type)
+
+let type_const_htbl : (string, ttype function_descr id) Hashtbl.t = Hashtbl.create 43
+let mk_type_constr name n =
+    Misc.find_wrap type_const_htbl name (fun () -> mk_var name {
+            fun_vars = [];
+            fun_args = Misc.list_const n Type;
+            fun_ret = Type;
+    })
+
+(* Types *)
+let mk_ty ty = { ty; ty_hash = -1 }
+
+(*
+let type_var name =
+    try
+        Hashtbl.find ty_hashtbl (name, 0)
+    with Not_found ->
+        let res = mk_ty (TyVar (mk_var name Type)) in
+        Hashtbl.add ty_hashtbl (name, 0) res;
+        res
+
+let type_meta = assert false
+
+let type_app f args = mk_ty (TyApp (f, args))
+
+let type_constr name n =
+    let aux ty = match ty.ty with
+        | TyApp (s, []) -> s
+        | TyApp _ -> assert false
+        | _ -> raise (Type_error_doublon (name, n))
+    in
+    try
+        aux (Hashtbl.find ty_hashtbl (name, n))
+    with Not_found ->
+        } in
+        Hashtbl.add ty_hashtbl (name, n) (mk_ty (TyApp (res, [])));
+        res
+
+let type_const name = type_constr name 0
+*)
+
+(* Formulas *)
+let mk_formula formula = { formula; f_hash = -1 }
+
+let mk_equal a b = assert false
 
 (* Substitutions *)
 (* ************************************************************************ *)
