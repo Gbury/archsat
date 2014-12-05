@@ -1,0 +1,4 @@
+src/_build
+src/*.native
+.*.swp
+*.docdir

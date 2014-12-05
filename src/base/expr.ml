@@ -57,6 +57,8 @@ and formula_descr =
     | Pred of term
 
     (* Prop constructors *)
+    | True
+    | False
     | Not of formula
     | And of formula list
     | Or of formula list
@@ -109,6 +111,8 @@ and get_term_hash t =
 
 let h_eq    = 1
 let h_pred  = 1
+let h_true  = 1
+let h_false = 1
 let h_not   = 1
 let h_and   = 1
 let h_or    = 1
@@ -123,6 +127,8 @@ let rec hash_formula f =
     let h = match f.formula with
         | Equal (t1, t2) -> aux h_eq [get_term_hash t1; get_term_hash t2]
         | Pred t -> aux h_pred (get_term_hash t)
+        | True -> h_true
+        | False -> h_false
         | Not f -> aux h_not (get_formula_hash f)
         | And l -> aux h_and (List.map get_formula_hash l)
         | Or l -> aux h_or (List.map get_formula_hash l)
@@ -209,21 +215,24 @@ let equal_term u v =
 
 (* Formulas *)
 let formula_discr f = match f.formula with
-    | Equal _ -> 0
-    | Pred _ -> 1
-    | Not _ -> 2
-    | And _ -> 3
-    | Or _ -> 4
-    | Imply _ -> 5
-    | Equiv _ -> 6
-    | All _ -> 7
-    | AllTy _ -> 8
-    | Ex _ -> 9
+    | Equal _ -> 1
+    | Pred _ -> 2
+    | True -> 3
+    | False -> 4
+    | Not _ -> 5
+    | And _ -> 6
+    | Or _ -> 7
+    | Imply _ -> 8
+    | Equiv _ -> 9
+    | All _ -> 10
+    | AllTy _ -> 11
+    | Ex _ -> 12
 
 let rec compare_formula f g =
     let hf = get_formula_hash f and hg = get_formula_hash g in
     if hf <> hg then Pervasives.compare hf hg
     else match f.formula, g.formula with
+    | True, True | False, False -> 0
     | Equal (u1, v1), Equal(u2, v2) -> lexico compare_term [u1; v1] [u2; v2]
     | Pred t1, Pred t2 -> compare_term t1 t2
     | Not h1, Not h2 -> compare_formula h1 h2
@@ -251,6 +260,20 @@ let rec compare_formula f g =
 let equal_formula u v =
     u == v || (get_formula_hash u = get_formula_hash v && compare_formula u v = 0)
 
+(* Constructors *)
+(* ************************************************************************ *)
+
+let n_var = ref 0
+let mk_var name ty =
+    incr n_var;
+    {
+        var_name = name;
+        var_id = !n_var;
+        var_type = ty;
+    }
+
+let meta_index = ()
+
 (* Substitutions *)
 (* ************************************************************************ *)
 
@@ -264,3 +287,32 @@ end)
 type 'a subst = 'a IntMap.t
 
 *)
+
+(* Modules for simple names *)
+(* ************************************************************************ *)
+
+module Var = struct
+    type 'a t = 'a var
+    let hash v = v.var_id
+    let compare = compare_var
+    let equal = equal_var
+end
+module Ty = struct
+    type t = ty
+    let hash = get_ty_hash
+    let compare = compare_ty
+    let equal = equal_ty
+end
+module Term = struct
+    type t = term
+    let hash = get_term_hash
+    let compare = compare_term
+    let equal = equal_term
+end
+module Formula = struct
+    type t = formula
+    let hash = get_formula_hash
+    let compare = compare_formula
+    let equal = equal_formula
+end
+
