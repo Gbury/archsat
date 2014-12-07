@@ -1,11 +1,17 @@
 
-(* Wrapper for hashconsing *)
-let find_wrap tbl key f =
-    try Hashtbl.find tbl key
-    with Not_found ->
-        let res = f () in
-        Hashtbl.add tbl key res;
-        res
+(* Printing utilities *)
+let rec print_list f sep fmt = function
+    | [] -> ()
+    | [x] -> Format.fprintf fmt "%a%s" f x sep
+    | x :: r ->
+            Format.fprintf fmt "%a%s" f x sep;
+            print_list f sep fmt r
+
+let rec print_list_pre f sep fmt = function
+    | [] -> ()
+    | x :: r ->
+            Format.fprintf fmt "%s%a" sep f x;
+            print_list_pre f sep fmt r
 
 (* Builds the list with n times the value c. Tail-rec. *)
 let list_const n c =

@@ -5,9 +5,12 @@ COMP=ocamlbuild -log $(LOG) -use-ocamlfind -classic-display
 FLAGS=
 DIRS=-Is util,base
 DOC=
-TEST=tabsat.native
+TEST=main.native
 
-all: test
+NAME=tabsat
+LIB=$(addprefix $(NAME), .cma .cmxa .cmxs)
+
+all: build-lib test
 
 doc:
 	$(COMP) $(FLAGS) $(DIRS) $(DOC)
@@ -16,7 +19,13 @@ build-test:
 	$(COMP) $(FLAGS) $(DIRS) $(TEST)
 
 test: build-test
-	@echo "Done."
+	./$(TEST)
+
+build-lib:
+	$(COMP) $(FLAGS) $(DIRS) $(LIB)
+
+lib: build-lib
+	@echo "Lib compiled."
 
 log:
 	cat _build/$(LOG) || true
