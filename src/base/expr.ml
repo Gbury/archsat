@@ -20,15 +20,13 @@ type 'ty tau = {
     tau_index : int;
 }
 
-type 'ty id = 'ty var
-
 (* Type for first order types *)
 type ttype = Type
 
 type ty_descr =
     | TyVar of ttype var
     | TyMeta of ttype meta
-    | TyApp of ttype function_descr id * ty list
+    | TyApp of ttype function_descr var * ty list
 
 and ty = {
     ty : ty_descr;
@@ -46,7 +44,7 @@ type term_descr =
     | Var of ty var
     | Meta of ty meta
     | Tau of ty tau
-    | App of ty function_descr id * ty list * term list
+    | App of ty function_descr var * ty list * term list
 
 and term = {
     term    : term_descr;
@@ -84,9 +82,12 @@ and formula = {
 (* ************************************************************************ *)
 
 exception Type_error_doublon of string * int
-exception Type_error_app of ty function_descr id * ty list * term list
-exception Type_error_ty_app of ttype function_descr id * ty list
+exception Type_error_app of ty function_descr var * ty list * term list
+exception Type_error_ty_app of ttype function_descr var * ty list
 exception Type_error_mismatch of ty * ty
+
+exception Subst_error_ty_scope of ttype var
+exception Subst_error_term_scope of ty var
 
 (* Debug printing functions *)
 (* ************************************************************************ *)
@@ -371,10 +372,26 @@ let equal_formula u v =
 (* Module making *)
 (* ************************************************************************ *)
 
-module Mi = Map.Make(struct type t = int let compare = Pervasives.compare end)
+module Subst = struct
+    module Mi = Map.Make(struct type t = int let compare = Pervasives.compare end)
 
-let subst_of_list =
-    List.fold_left (fun acc (v, v') -> Mi.add v.var_id v' acc) Mi.empty
+    type ('a, 'b) t = ('a * 'b) Mi.t
+
+    let empty = Mi.empty
+
+    let is_empty = Mi.is_empty
+
+    let bind v t s = Mi.add v.var_id (v, t) s
+
+    let remove v s = Mi.remove v.var_id s
+
+    let get v s = snd (Mi.find v.var_id s)
+
+    let iter f = Mi.iter (fun _ (v, t) -> f v t)
+end
+
+type ty_subst = (ttype var, ty) Subst.t
+type term_subst = (ty var, term) Subst.t
 
 module Hst = Hashtbl.Make(struct
     type t = string * ty
@@ -392,9 +409,9 @@ let mk_var name ty =
 
 (* Variables are hashconsed, except for meta variables *)
 let type_var_htbl : (string, ttype var) Hashtbl.t = Hashtbl.create 43
-let type_const_htbl : (string, ttype function_descr id) Hashtbl.t = Hashtbl.create 43
+let type_const_htbl : (string, ttype function_descr var) Hashtbl.t = Hashtbl.create 43
 let term_var_htbl : ty var Hst.t = Hst.create 43
-let term_const_htbl : (string, ty function_descr id) Hashtbl.t = Hashtbl.create 43
+let term_const_htbl : (string, ty function_descr var) Hashtbl.t = Hashtbl.create 43
 
 let mk_ttype_var name =
     try Hashtbl.find type_var_htbl name
@@ -432,7 +449,9 @@ let mk_ty_fn_id name tys args ret =
         Hashtbl.add term_const_htbl name res;
         res
 
-(* Constructors for constants *)
+(* Constructors for variables and constants *)
+let ttype_var = mk_ttype_var
+let ty_var = mk_ty_var
 let type_const = mk_ttype_fn_id
 let term_const = mk_ty_fn_id
 
@@ -441,7 +460,7 @@ let term_const = mk_ty_fn_id
 
 let mk_ty ty = { ty; ty_hash = -1 }
 
-let type_var name = mk_ty (TyVar (mk_ttype_var name))
+let type_var v = mk_ty (TyVar v)
 
 let type_app f args =
     assert (f.var_type.fun_vars = []);
@@ -451,15 +470,15 @@ let type_app f args =
         mk_ty (TyApp (f, args))
 
 (* builtin constant types *)
-let type_prop = type_var "$Prop"
+let type_prop = type_var (ttype_var "$Prop")
 
 (* substitutions *)
 let rec type_subst_aux map t = match t.ty with
-    | TyVar {var_id} -> begin try Mi.find var_id map with Not_found -> t end
+    | TyVar v -> begin try Subst.get v map with Not_found -> t end
     | TyMeta _ -> t
     | TyApp (f, args) -> type_app f (List.map (type_subst_aux map) args)
 
-let type_subst map t = if Mi.is_empty map then t else type_subst_aux map t
+let type_subst map t = if Subst.is_empty map then t else type_subst_aux map t
 
 (* typechecking *)
 let type_inst f tys args =
@@ -467,7 +486,7 @@ let type_inst f tys args =
        List.length f.var_type.fun_args <> List.length args then
            raise (Type_error_app (f, tys, args))
     else
-        let map = subst_of_list (List.combine f.var_type.fun_vars tys) in
+        let map = List.fold_left (fun acc (v, ty) -> Subst.bind v ty acc) Subst.empty (List.combine f.var_type.fun_vars tys) in
         let fun_args = List.map (type_subst map) f.var_type.fun_args in
         if List.for_all2 equal_ty (List.map (fun x -> x.t_type) args) fun_args then
             type_subst map f.var_type.fun_ret
@@ -479,23 +498,23 @@ let type_inst f tys args =
 
 let mk_term t ty = { term = t; t_type = ty; t_hash = -1; t_constr = None; }
 
-let term_var name ty =
-    mk_term (Var (mk_ty_var name ty)) ty
+let term_var v =
+    mk_term (Var v) v.var_type
 
 let term_app f ty_args t_args =
     mk_term (App (f, ty_args, t_args)) (type_inst f ty_args t_args)
 
 let rec term_subst_aux ty_map t_map t = match t.term with
     | Tau _ -> t
-    | Var {var_id} ->
-            begin try Mi.find var_id t_map with Not_found -> t end
+    | Var v ->
+            begin try Subst.get v t_map with Not_found -> t end
     | Meta m ->
-            begin try Mi.find m.meta_var.var_id t_map with Not_found -> t end
+            begin try Subst.get m.meta_var t_map with Not_found -> t end
     | App (f, tys, args) ->
             term_app f (List.map (type_subst ty_map) tys) (List.map (term_subst_aux ty_map t_map) args)
 
 let term_subst ty_map t_map t =
-    if Mi.is_empty ty_map && Mi.is_empty t_map then t else term_subst_aux ty_map t_map t
+    if Subst.is_empty ty_map && Subst.is_empty t_map then t else term_subst_aux ty_map t_map t
 
 (* Formulas & substitutions *)
 (* ************************************************************************ *)
@@ -570,13 +589,63 @@ let f_ex l f =
     in
     mk_formula (Ex (l, f))
 
-(* Metas *)
+let rec new_binder_subst ty_map subst acc = function
+    | [] -> List.rev acc, subst
+    | v :: r ->
+            let ty = type_subst ty_map v.var_type in
+            if not (equal_ty ty v.var_type) then
+                let nv = ty_var v.var_name ty in
+                new_binder_subst ty_map (Subst.bind v (term_var nv) subst) (nv :: acc) r
+            else
+                new_binder_subst ty_map (Subst.remove v subst) (v :: acc) r
+
+let rec formula_subst ty_map t_map f = match f.formula with
+    | True | False -> f
+    | Equal (a, b) -> f_equal (term_subst ty_map t_map a) (term_subst ty_map t_map b)
+    | Pred t -> f_pred (term_subst ty_map t_map t)
+    | Not f -> f_not (formula_subst ty_map t_map f)
+    | And l -> f_and (List.map (formula_subst ty_map t_map) l)
+    | Or l -> f_or (List.map (formula_subst ty_map t_map) l)
+    | Imply (p, q) -> f_imply (formula_subst ty_map t_map p) (formula_subst ty_map t_map q)
+    | Equiv (p, q) -> f_equiv (formula_subst ty_map t_map p) (formula_subst ty_map t_map q)
+
+    | All (l, f) ->
+            let l', t_map = new_binder_subst ty_map t_map [] l in
+            Subst.iter (fun _ t -> match t.term with
+                | Var v ->
+                        begin try raise (Subst_error_term_scope (List.find (equal_var v) l))
+                        with Not_found -> () end
+                | _ -> ()
+                ) t_map;
+            f_all l' (formula_subst ty_map t_map f)
+    | Ex (l, f) ->
+            let l', t_map = new_binder_subst ty_map t_map [] l in
+            Subst.iter (fun _ t -> match t.term with
+                | Var v ->
+                        begin try raise (Subst_error_term_scope (List.find (equal_var v) l))
+                        with Not_found -> () end
+                | _ -> ()
+                ) t_map;
+            f_ex l' (formula_subst ty_map t_map f)
+    | AllTy (l, f) ->
+            Subst.iter (fun _ ty -> match ty.ty with
+                | TyVar v ->
+                        begin try raise (Subst_error_ty_scope (List.find (equal_var v) l))
+                        with Not_found -> () end
+                | _ -> ()
+                ) ty_map;
+            f_allty l (formula_subst ty_map t_map f)
+
+(* Metas & Taus *)
 (* ************************************************************************ *)
 
+(* Metas/Taus refer to an index which stores the defining formula for the variable *)
+let meta_index = Vec.make 13 { formula = True; f_hash = -1 }
+let tau_index = Vec.make 13 { formula = True; f_hash = -1 }
+
+(* Metas *)
 let mk_meta v i = { meta_var = v;meta_index = i; }
 
-(* Metas refer to an index which stores the defining formula for the meta *)
-let meta_index = Vec.make 13 { formula = True; f_hash = -1 }
 let get_meta_def i = Vec.get meta_index i
 
 (* expects f to be All (l, _) or AllTy(l, _) *)
@@ -592,6 +661,22 @@ let type_metas f = match f.formula with
 let term_metas f = match f.formula with
     | All (l, _) -> List.map (fun m -> mk_term (Meta m) m.meta_var.var_type) (mk_metas l f)
     | _ -> invalid_arg "type_metas"
+
+(* Taus *)
+let mk_tau v i = { tau_var = v; tau_index = i }
+
+let get_tau_def i = Vec.get tau_index i
+
+(* expects f to be  Ex(l, _) *)
+let mk_taus l f =
+    let i = Vec.size tau_index in
+    Vec.push tau_index f;
+    List.map (fun v -> mk_tau (mk_var v.var_name v.var_type) i) l
+
+let term_taus f = match f.formula with
+    | Ex (l, _) -> List.map (fun t -> mk_term (Tau t) t.tau_var.var_type) (mk_taus l f)
+    | _ -> invalid_arg "type_metas"
+
 
 (* Modules for simple names *)
 (* ************************************************************************ *)

@@ -4,7 +4,7 @@ LOG=build.log
 COMP=ocamlbuild -log $(LOG) -use-ocamlfind -classic-display
 FLAGS=
 DIRS=-Is util,base
-DOC=
+DOC=tabsat.docdir/index.html
 TEST=main.native
 
 NAME=tabsat
