@@ -678,7 +678,7 @@ let term_taus f = match f.formula with
     | _ -> invalid_arg "type_metas"
 
 
-(* Modules for simple names *)
+(* Modules for simpler function names *)
 (* ************************************************************************ *)
 
 module Var = struct
@@ -686,23 +686,27 @@ module Var = struct
     let hash v = v.var_id
     let compare = compare_var
     let equal = equal_var
+    let print = print_var
 end
 module Ty = struct
     type t = ty
     let hash = get_ty_hash
     let compare = compare_ty
     let equal = equal_ty
+    let print = print_ty
 end
 module Term = struct
     type t = term
     let hash = get_term_hash
     let compare = compare_term
     let equal = equal_term
+    let print = print_term
 end
 module Formula = struct
     type t = formula
     let hash = get_formula_hash
     let compare = compare_formula
     let equal = equal_formula
+    let print = print_formula
 end
 

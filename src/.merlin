@@ -1,5 +1,7 @@
 S base
 S util
+S core
 
 B _build/base
 B _build/util
+B _build/core

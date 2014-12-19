@@ -1,3 +1,9 @@
+# Misc modules
 Vec
 Misc
+
+# Base modules
 Expr
+
+# Solver modules
+Solver

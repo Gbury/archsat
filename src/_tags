@@ -1,10 +1,11 @@
 <util/*.cmx>: for-pack(Tabsat)
 <base/*.cmx>: for-pack(Tabsat)
+<core/*>: for-pack(Tabsat), package(msat)
 
 # enable stronger inlining everywhere
 <util/vec.cmx>: inline(15)
 
 # more warnings
 <**/*.ml>: warn_K, warn_Y, warn_X
-
 <**/*.cm*>: debug
+

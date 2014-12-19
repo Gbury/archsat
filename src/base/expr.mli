@@ -129,24 +129,28 @@ module Var : sig
     val hash : 'a t -> int
     val equal : 'a t -> 'a t -> bool
     val compare : 'a t -> 'a t -> int
+    val print : Format.formatter -> 'a t -> unit
 end
 module Ty : sig
     type t = ty
     val hash : t -> int
     val equal : t -> t -> bool
     val compare : t -> t -> int
+    val print : Format.formatter -> t -> unit
 end
 module Term : sig
     type t = term
     val hash : t -> int
     val equal : t -> t -> bool
     val compare : t -> t -> int
+    val print : Format.formatter -> t -> unit
 end
 module Formula : sig
     type t = formula
     val hash : t -> int
     val equal : t -> t -> bool
     val compare : t -> t -> int
+    val print : Format.formatter -> t -> unit
 end
 
 (** {2 Constructors} *)

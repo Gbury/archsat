@@ -1,0 +1,4 @@
+PKG msat
+
+S ../base
+B ../_build/base
