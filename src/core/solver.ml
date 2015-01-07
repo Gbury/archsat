@@ -18,53 +18,10 @@ module SatExpr = struct
       | f -> f, false
 end
 
-(* Wrapper around dispatcher *)
+(* Dispatcher *)
 (* ************************************************************************ *)
 
-module SatPlugin = struct
-
-    (* Type definitions *)
-    type term = Expr.term
-    type formula = Expr.formula
-    type proof = unit
-
-    type assumption =
-      | Lit of formula
-      | Assign of term * term
-
-    type slice = {
-      start : int;
-      length : int;
-      get : int -> assumption * int;
-      push : formula list -> proof -> unit;
-    }
-
-    type level = unit
-
-    type res =
-        | Sat of level
-        | Unsat of formula list * proof
-
-    type eval_res =
-        | Valued of bool * int
-        | Unknown
-
-
-    (* Functions and valued *)
-    let dummy = ()
-    let current_level () = ()
-
-    let assume s = Sat (current_level ())
-
-    let backtrack () = ()
-
-    let assign t = assert false
-
-    let iter_assignable f p = ()
-
-    let eval f = Unknown
-
-end
+module SatPlugin = Dispatcher
 
 (* Solving module *)
 (* ************************************************************************ *)
