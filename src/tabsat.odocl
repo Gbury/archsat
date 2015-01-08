@@ -1,3 +1,5 @@
-util/Vec
+util/Vector
 util/Misc
 base/Expr
+core/Dispatcher
+core/Solver

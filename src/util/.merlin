@@ -1,5 +1,9 @@
 S ./
 S ../base
+S ../core
+S ../input
 
 B ../_build/base
+B ../_build/core
 B ../_build/util
+B ../_build/input

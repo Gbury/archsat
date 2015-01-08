@@ -3,7 +3,7 @@
 LOG=build.log
 COMP=ocamlbuild -log $(LOG) -use-ocamlfind -classic-display
 FLAGS=
-DIRS=-Is util,base,core
+DIRS=-Is util,base,core,input
 DOC=tabsat.docdir/index.html
 TEST=main.native
 

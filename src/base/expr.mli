@@ -1,23 +1,24 @@
 
+(** Expressions for TabSat *)
 
 (** {2 Type definitions} *)
 
 (** {3 Variables} *)
 
 type 'ty var = private {
-    var_name : string;
-    var_id : int; (** unique *)
-    var_type : 'ty;
+  var_name : string;
+  var_id : int; (** unique *)
+  var_type : 'ty;
 }
 
 type 'ty meta = private {
-    meta_var : 'ty var;
-    meta_index : int;
+  meta_var : 'ty var;
+  meta_index : int;
 }
 
 type 'ty tau = private {
-    tau_var : 'ty var;
-    tau_index : int;
+  tau_var : 'ty var;
+  tau_index : int;
 }
 
 (** {3 Types} *)
@@ -26,59 +27,59 @@ type ttype = Type
 (** The type of types in the AST *)
 
 and 'ty function_descr = private {
-    fun_vars : ttype var list; (** prenex forall *)
-    fun_args : 'ty list;
-    fun_ret : 'ty;
+  fun_vars : ttype var list; (** prenex forall *)
+  fun_args : 'ty list;
+  fun_ret : 'ty;
 }
 
 type ty_descr = private
-    | TyVar of ttype var
-    | TyMeta of ttype meta
-    | TyApp of ttype function_descr var * ty list
+  | TyVar of ttype var
+  | TyMeta of ttype meta
+  | TyApp of ttype function_descr var * ty list
 
 and ty = private {
-    ty : ty_descr;
-    mutable ty_hash : int; (** Use Ty.hash instead *)
+  ty : ty_descr;
+  mutable ty_hash : int; (** Use Ty.hash instead *)
 }
 
 (** {3 Terms} *)
 
 type term_descr = private
-    | Var of ty var
-    | Meta of ty meta
-    | Tau of ty tau
-    | App of ty function_descr var * ty list * term list
+  | Var of ty var
+  | Meta of ty meta
+  | Tau of ty tau
+  | App of ty function_descr var * ty list * term list
 
 and term = private {
-    term    : term_descr;
-    t_type  : ty;
-    mutable t_hash : int; (** Use Term.hash instead *)
-    t_constr : (ty var * formula list) option; (** Not used yet *)
+  term    : term_descr;
+  t_type  : ty;
+  mutable t_hash : int; (** Use Term.hash instead *)
+  t_constr : (ty var * formula list) option; (** Not used yet *)
 }
 
 (** {3 Formulas} *)
 
 and formula_descr = private
-    | Equal of term * term
-    | Pred of term (** Atoms *)
+  | Equal of term * term
+  | Pred of term (** Atoms *)
 
-    (** Prop constructors *)
-    | True
-    | False
-    | Not of formula
-    | And of formula list
-    | Or of formula list
-    | Imply of formula * formula
-    | Equiv of formula * formula
+  (** Prop constructors *)
+  | True
+  | False
+  | Not of formula
+  | And of formula list
+  | Or of formula list
+  | Imply of formula * formula
+  | Equiv of formula * formula
 
-    (** Quantifiers *)
-    | All of ty var list * formula
-    | AllTy of ttype var list * formula
-    | Ex of ty var list * formula
+  (** Quantifiers *)
+  | All of ty var list * formula
+  | AllTy of ttype var list * formula
+  | Ex of ty var list * formula
 
 and formula = private {
-    formula : formula_descr;
-    mutable f_hash : int; (** Use Formula.hash instead *)
+  formula : formula_descr;
+  mutable f_hash : int; (** Use Formula.hash instead *)
 }
 
 (** {3 Exceptions} *)
@@ -125,32 +126,32 @@ val print_formula : Format.formatter -> formula -> unit
 (** {2 Hashs & Comparisons} *)
 
 module Var : sig
-    type 'a t = 'a var
-    val hash : 'a t -> int
-    val equal : 'a t -> 'a t -> bool
-    val compare : 'a t -> 'a t -> int
-    val print : Format.formatter -> 'a t -> unit
+  type 'a t = 'a var
+  val hash : 'a t -> int
+  val equal : 'a t -> 'a t -> bool
+  val compare : 'a t -> 'a t -> int
+  val print : Format.formatter -> 'a t -> unit
 end
 module Ty : sig
-    type t = ty
-    val hash : t -> int
-    val equal : t -> t -> bool
-    val compare : t -> t -> int
-    val print : Format.formatter -> t -> unit
+  type t = ty
+  val hash : t -> int
+  val equal : t -> t -> bool
+  val compare : t -> t -> int
+  val print : Format.formatter -> t -> unit
 end
 module Term : sig
-    type t = term
-    val hash : t -> int
-    val equal : t -> t -> bool
-    val compare : t -> t -> int
-    val print : Format.formatter -> t -> unit
+  type t = term
+  val hash : t -> int
+  val equal : t -> t -> bool
+  val compare : t -> t -> int
+  val print : Format.formatter -> t -> unit
 end
 module Formula : sig
-    type t = formula
-    val hash : t -> int
-    val equal : t -> t -> bool
-    val compare : t -> t -> int
-    val print : Format.formatter -> t -> unit
+  type t = formula
+  val hash : t -> int
+  val equal : t -> t -> bool
+  val compare : t -> t -> int
+  val print : Format.formatter -> t -> unit
 end
 
 (** {2 Constructors} *)
@@ -204,31 +205,31 @@ val f_ex : ty var list -> formula -> formula
 (** {2 Substitutions} *)
 
 module Subst : sig
-    (** Module to handle substitutions *)
+  (** Module to handle substitutions *)
 
-    type ('a, 'b) t
-    (** The type of substitutions from values of type ['a] to values of type ['b].
-        Only substitutions from values of type ['a Expr.var] should ever be used. *)
+  type ('a, 'b) t
+  (** The type of substitutions from values of type ['a] to values of type ['b].
+      Only substitutions from values of type ['a Expr.var] should ever be used. *)
 
-    val empty : ('a var, 'b) t
-    (** The empty substitution *)
+  val empty : ('a var, 'b) t
+  (** The empty substitution *)
 
-    val is_empty : ('a var, 'b) t -> bool
-    (** Test wether a substitution is empty *)
+  val is_empty : ('a var, 'b) t -> bool
+  (** Test wether a substitution is empty *)
 
-    val get : 'a var -> ('a var, 'b) t -> 'b
-    (** [get v subst] returns the value associated with [v] in [subst], if it exists.
-        @raise Not_found if there is no binding for [v]. *)
+  val get : 'a var -> ('a var, 'b) t -> 'b
+  (** [get v subst] returns the value associated with [v] in [subst], if it exists.
+      @raise Not_found if there is no binding for [v]. *)
 
-    val bind : 'a var -> 'b -> ('a var, 'b) t -> ('a var, 'b) t
-    (** [bind v t subst] returns the same substitution as [subst] with the additional binding from [v] to [t].
-        Erases the previous binding of [v] if it exists. *)
+  val bind : 'a var -> 'b -> ('a var, 'b) t -> ('a var, 'b) t
+  (** [bind v t subst] returns the same substitution as [subst] with the additional binding from [v] to [t].
+      Erases the previous binding of [v] if it exists. *)
 
-    val remove : 'a var -> ('a var, 'b) t -> ('a var, 'b) t
-    (** [remove v subst] returns the same substitution as [subst] except for [v] which is unbound in the returned substitution. *)
+  val remove : 'a var -> ('a var, 'b) t -> ('a var, 'b) t
+  (** [remove v subst] returns the same substitution as [subst] except for [v] which is unbound in the returned substitution. *)
 
-    val iter : ('a var -> 'b -> unit) -> ('a var, 'b) t -> unit
-    (** Iterates over the bindings of the substitution. *)
+  val iter : ('a var -> 'b -> unit) -> ('a var, 'b) t -> unit
+  (** Iterates over the bindings of the substitution. *)
 end
 
 type ty_subst = (ttype var, ty) Subst.t

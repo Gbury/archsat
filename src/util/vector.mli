@@ -11,6 +11,8 @@
 (*                                                                        *)
 (**************************************************************************)
 
+(** Module for extensible arrays *)
+
 type 'a t
 (** Abstract type of vectors of 'a *)
 

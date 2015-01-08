@@ -1,7 +1,9 @@
 PKG msat
 
+S ./
 S ../base
 S ../util
 
+B ../_build/core
 B ../_build/base
 B ../_build/util

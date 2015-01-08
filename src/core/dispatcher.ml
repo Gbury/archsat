@@ -24,7 +24,7 @@ type level = {
   eval_map : (term * int) M.t;
   wait_eval : term list M.t;
   watch_map : ((term * term) -> unit) list M.t;
-  ext_levels : int Vec.t;
+  ext_levels : int Vector.t;
 }
 
 type res =
@@ -41,11 +41,16 @@ type eval_res =
 exception Absurd of formula list
 exception Extension_not_found of string
 
+type term_eval =
+  | Interpreted of term * int
+  | Waiting of term
+
 type extension = {
   name : string;
   assume : slice -> unit;
   assign : term -> term option;
-  eval : term -> (bool * int) option;
+  eval_term : term -> term_eval;
+  eval_pred : term -> (bool * int) option;
   interprets : Expr.ty Expr.function_descr Expr.var -> bool;
   backtrack : int -> unit;
   current_level : unit -> int;
@@ -55,7 +60,8 @@ let dummy_ext = {
   name = "";
   assume = (fun _ -> assert false);
   assign = (fun _ -> assert false);
-  eval = (fun _ -> assert false);
+  eval_term = (fun _ -> assert false);
+  eval_pred = (fun _ -> assert false);
   interprets = (fun _ -> assert false);
   backtrack = (fun _ -> assert false);
   current_level = (fun _ -> assert false);
@@ -63,27 +69,45 @@ let dummy_ext = {
 
 let extensions = ref []
 
-let active = Vec.make 10 dummy_ext
+let active = Vector.make 10 dummy_ext
 
-let register r = extensions := r :: !extensions
+let register r =
+  assert (not (List.exists (fun r' -> r'.name = r.name) !extensions));
+  extensions := r :: !extensions
 
 let activate ext =
   let aux r = r.name = ext in
   try
     let r = List.find aux !extensions in
-    assert (not (Vec.exists aux active));
-    Vec.push active r
+    assert (not (Vector.exists aux active));
+    Vector.push active r
   with Not_found ->
     raise (Extension_not_found ext)
 
-let n_ext () = Vec.size active
+let list_extensions () = List.map (fun r -> r.name) !extensions
 
-let ext_get i = Vec.get active i
+(* Acces functions for active extensions *)
+let n_ext () = Vector.size active
 
-let is_interpreted f = Vec.exists (fun r -> r.interprets f) active
+let ext_get i = Vector.get active i
+
+let is_interpreted f = Vector.exists (fun r -> r.interprets f) active
 
 (* Evaluation/Watching functions *)
 (* ************************************************************************ *)
+
+(* Internal exceptions (not exported) *)
+exception Wait_eval of term
+exception Found_eval of term
+
+(* Exported exceptions *)
+exception Not_assigned of term
+
+(* Convenience function *)
+let pop key map_ref =
+  let res = M.find key !map_ref in
+  map_ref := M.remove key !map_ref;
+  res
 
 (* The current assignment map, term -> value *)
 let eval_map = ref M.empty
@@ -92,23 +116,70 @@ let wait_eval = ref M.empty
 (* Map of terms watched by extensions, term -> continuation list *)
 let watch_map = ref M.empty
 
-let is_assigned t = try ignore(M.find t !eval_map); true with Not_found -> false
+let is_assigned t =
+  try ignore (M.find t !eval_map); true with Not_found -> false
 
-let get_assign t = M.find t !eval_map
+let get_assign t =
+  try M.find t !eval_map with Not_found -> raise (Not_assigned t)
+
+let pop_wait_eval t = pop t wait_eval
+
+let pop_watch t = pop t watch_map
 
 let add_wait_eval t t' =
-    let l = try M.find t' !wait_eval with Not_found -> [] in
-    wait_eval := M.add t' (t :: l) !wait_eval
+  assert (not (is_assigned t));
+  let l = try M.find t' !wait_eval with Not_found -> [] in
+  wait_eval := M.add t' (List.sort_uniq Expr.Term.compare (t :: l)) !wait_eval
 
-let try_eval t =
-    assert (not (is_assigned t));
-    match Expr.(t.term) with
-    | Expr.App (f, _, l) when is_interpreted f -> () (* TODO *)
-    | Expr.App (f, _, l) -> () (* Can't do anything but wait for it to be assigned *)
-    | _ -> ()
+let add_watch t f =
+  let l = try M.find t !watch_map with Not_found -> [] in
+  watch_map := M.add t (f :: l) !watch_map
 
-let set_assign t v lvl =
-    eval_map := M.add t (v, lvl) !eval_map
+let rec try_eval t =
+  assert (not (is_assigned t));
+  match Expr.(t.term) with
+  | Expr.App (f, _, l) ->
+    begin try
+        for i = 0 to n_ext () do
+          if (ext_get i).interprets f then
+            begin match (ext_get i).eval_term t with
+              | Interpreted (v, lvl) ->
+                set_assign t v lvl;
+                raise (Found_eval v)
+              | Waiting t' ->
+                raise (Wait_eval t')
+            end
+        done;
+        None
+      with
+      | Found_eval v -> Some v
+      | Wait_eval t' -> begin match try_eval t' with
+          | None -> add_wait_eval t t'; None
+          | Some _ -> try_eval t
+        end
+    end
+  | _ ->
+    begin try
+        Some (fst (get_assign t))
+      with Not_assigned _ ->
+        None
+    end
+
+and set_assign t v lvl =
+  eval_map := M.add t (v, lvl) !eval_map;
+  begin try
+      let l = pop_watch t in
+      List.iter (fun f -> f (t, v)) l
+    with Not_found -> () end;
+  begin try
+      let l = pop_wait_eval t in
+      List.iter (fun t' -> ignore (try_eval t')) l
+    with Not_found -> () end
+
+let watch t f =
+  match try_eval t with
+  | None -> add_watch t f
+  | Some v -> f (t, v)
 
 (* Mcsat Plugin functions *)
 (* ************************************************************************ *)
@@ -117,14 +188,14 @@ let dummy = {
   eval_map = M.empty;
   wait_eval = M.empty;
   watch_map = M.empty;
-  ext_levels = Vec.make_empty ~-1;
+  ext_levels = Vector.make_empty ~-1;
 }
 
 let current_level () = {
   eval_map = !eval_map;
   wait_eval = !wait_eval;
   watch_map = !watch_map;
-  ext_levels = Vec.init (Vec.size active)
+  ext_levels = Vector.init (Vector.size active)
       (fun i -> (ext_get i).current_level ()) ~-1;
 }
 
@@ -134,72 +205,72 @@ let backtrack s =
   watch_map := s.watch_map
 
 let assume s =
-    for i = s.start to s.start + s.length - 1 do
-        match s.get i with
-        | Lit _, _ -> ()
-        | Assign (t, v), lvl -> set_assign t v lvl
+  for i = s.start to s.start + s.length - 1 do
+    match s.get i with
+    | Lit _, _ -> ()
+    | Assign (t, v), lvl -> set_assign t v lvl
+  done;
+  let i = ref 0 in
+  try
+    while !i < Vector.size active do
+      (ext_get !i).assume s
     done;
-    let i = ref 0 in
-    try
-        while !i < Vec.size active do
-            (ext_get !i).assume s
-        done;
-        Sat (current_level ())
-    with Absurd l ->
-        Unsat (l, !i)
+    Sat (current_level ())
+  with Absurd l ->
+    Unsat (l, !i)
 
 let assign t =
-    let res = ref None in
-    begin try
-        for i = 0 to n_ext () - 1 do
-            match (ext_get i).assign t with
-            | None -> ()
-            | Some v -> res := Some v; raise Exit
-        done;
+  let res = ref None in
+  begin try
+      for i = 0 to n_ext () - 1 do
+        match (ext_get i).assign t with
+        | None -> ()
+        | Some v -> res := Some v; raise Exit
+      done;
     with Exit ->
-        ()
-    end;
-    match !res with
-    | None -> assert false
-    | Some v -> v
+      ()
+  end;
+  match !res with
+  | None -> assert false
+  | Some v -> v
 
 let rec iter_assign_aux f e = match Expr.(e.term) with
-    | Expr.App (p, _, l) ->
-            if not (is_interpreted p) then f e;
-            List.iter (iter_assign_aux f) l
-    | _ -> f e
+  | Expr.App (p, _, l) ->
+    if not (is_interpreted p) then f e;
+    List.iter (iter_assign_aux f) l
+  | _ -> f e
 
 let iter_assignable f e = match Expr.(e.formula) with
-    | Expr.Equal (a, b) -> iter_assign_aux f a; iter_assign_aux f b
-    | Expr.Pred p -> iter_assign_aux f p
-    | _ -> ()
+  | Expr.Equal (a, b) -> iter_assign_aux f a; iter_assign_aux f b
+  | Expr.Pred p -> iter_assign_aux f p
+  | _ -> ()
 
 let rec eval f = match Expr.(f.formula) with
-    | Expr.Equal (a, b) ->
-            begin try
-                let a', lvl_a = get_assign a in
-                let b', lvl_b = get_assign b in
-                Valued (Expr.Term.equal a' b', max lvl_a lvl_b)
-            with Not_found ->
-                Unknown
-            end
-    | Expr.Pred p ->
-            let res = ref Unknown in
-            begin try
-                for i = 0 to n_ext () - 1 do
-                    match (ext_get i).eval p with
-                    | None -> ()
-                    | Some (b, lvl) -> res := Valued (b, lvl); raise Exit
-                done;
-                raise Exit
-            with Exit ->
-                !res
-            end
-    | Expr.Not f' -> begin match eval f' with
-        | Valued (b, lvl) -> Valued (not b, lvl)
-        | Unknown -> Unknown
+  | Expr.Equal (a, b) ->
+    begin try
+        let a', lvl_a = get_assign a in
+        let b', lvl_b = get_assign b in
+        Valued (Expr.Term.equal a' b', max lvl_a lvl_b)
+      with Not_assigned _ ->
+        Unknown
     end
-    | _ -> Unknown
+  | Expr.Pred p ->
+    let res = ref Unknown in
+    begin try
+        for i = 0 to n_ext () - 1 do
+          match (ext_get i).eval_pred p with
+          | Some (b, lvl) -> res := Valued (b, lvl); raise Exit
+          | _ -> ()
+        done;
+        raise Exit
+      with Exit ->
+        !res
+    end
+  | Expr.Not f' -> begin match eval f' with
+      | Valued (b, lvl) -> Valued (not b, lvl)
+      | Unknown -> Unknown
+    end
+  | _ -> Unknown
 
 
 
