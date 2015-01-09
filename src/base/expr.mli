@@ -94,18 +94,18 @@ exception Subst_error_term_scope of ty var
 
 (** {2 Printing} *)
 
-val debug_var : Format.formatter -> 'a var -> unit
-val debug_var_ty : Format.formatter -> ty var -> unit
-val debug_var_ttype : Format.formatter -> ttype var -> unit
+val debug_var : Buffer.t -> 'a var -> unit
+val debug_var_ty : Buffer.t -> ty var -> unit
+val debug_var_ttype : Buffer.t -> ttype var -> unit
 
-val debug_tau : Format.formatter -> 'a tau -> unit
-val debug_meta : Format.formatter -> 'a meta -> unit
+val debug_tau : Buffer.t -> 'a tau -> unit
+val debug_meta : Buffer.t -> 'a meta -> unit
 
-val debug_ty : Format.formatter -> ty -> unit
-val debug_ttype : Format.formatter -> ttype -> unit
+val debug_ty : Buffer.t -> ty -> unit
+val debug_ttype : Buffer.t -> ttype -> unit
 
-val debug_term : Format.formatter -> term -> unit
-val debug_formula : Format.formatter -> formula -> unit
+val debug_term : Buffer.t -> term -> unit
+val debug_formula : Buffer.t -> formula -> unit
 (** Verbose printing functions for debug pruposes *)
 
 val print_var : Format.formatter -> 'a var -> unit

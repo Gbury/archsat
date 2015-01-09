@@ -61,7 +61,7 @@ let parse_with_input file = function
   | Auto -> assert false
   | Dimacs ->
     try
-      List.rev_map (List.rev_map Bool.mk_prop) (Parsedimacs.parse file)
+      List.rev_map (List.rev_map Sat.mk_prop) (Parsedimacs.parse file)
     with Parsedimacs.Syntax_error l ->
       raise (Syntax_error (l, 0, "Dimacs parsing error"))
 
@@ -73,17 +73,21 @@ let parse_input file =
 (* Output functions *)
 (* ************************************************************************ *)
 
-let print_with pre post fmt format =
-    Format.fprintf fmt "%s@[<hov>" pre;
-    let res = Format.fprintf fmt format in
-    Format.fprintf fmt "@]%s" post;
+let print_with pre post f fmt format =
+    Format.fprintf fmt "%s@[<hov> " pre;
+    Format.kfprintf (fun fmt -> Format.fprintf fmt "@] %s" post; f fmt) fmt format
+
+let flush fmt = Format.fprintf fmt "@."
+
+let fprintf fmt format =
+    let res = match !output with
+      | Standard -> Format.kfprintf flush fmt format
+      | Dot -> print_with "/*" "*/" flush fmt format
+    in
     res
 
-let fprintf fmt format = match !output with
-    | Standard -> Format.fprintf fmt format
-    | Dot -> print_with "/*" "*/" fmt format
-
-
-
+let print_model fmt l =
+    let aux (t, v) = fprintf fmt "%a -> %a" Expr.print_term t Expr.print_term v in
+    List.iter aux l
 
 

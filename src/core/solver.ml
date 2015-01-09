@@ -44,13 +44,7 @@ let assume l =
     Smt.assume l !_i
   with Smt.Unsat -> ()
 
-  (*
-  let get_proof () =
-    Smt.Proof.learn (Smt.history ());
-    match Smt.unsat_conflict () with
-    | None -> assert false
-    | Some c -> Smt.Proof.prove_unsat c
+let model = Smt.model
 
-  let unsat_core = Smt.Proof.unsat_core
-  *)
+let full_model = Dispatcher.model
 

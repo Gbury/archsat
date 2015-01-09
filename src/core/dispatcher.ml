@@ -1,4 +1,6 @@
 
+let log = Debug.log
+
 (* Type definitions *)
 (* ************************************************************************ *)
 
@@ -137,6 +139,7 @@ let add_watch t f =
 
 let rec try_eval t =
   assert (not (is_assigned t));
+  log 7 "Try-Eval of %a" Expr.debug_term t;
   match Expr.(t.term) with
   | Expr.App (f, _, l) ->
     begin try
@@ -166,13 +169,17 @@ let rec try_eval t =
     end
 
 and set_assign t v lvl =
+  log 5 "Assign (%d) : %a -> %a" lvl Expr.debug_term t Expr.debug_term v;
   eval_map := M.add t (v, lvl) !eval_map;
   begin try
       let l = pop_watch t in
+      log 10 "Found %d watchers" (List.length l);
       List.iter (fun f -> f (t, v)) l
     with Not_found -> () end;
   begin try
       let l = pop_wait_eval t in
+      log 10 "Waiting for %a :" Expr.debug_term t;
+      List.iter (fun t' -> log 10 " -> %a" Expr.debug_term t') l;
       List.iter (fun t' -> ignore (try_eval t')) l
     with Not_found -> () end
 
@@ -180,6 +187,8 @@ let watch t f =
   match try_eval t with
   | None -> add_watch t f
   | Some v -> f (t, v)
+
+let model () = M.fold (fun t (v, _) acc -> (t, v) :: acc) !eval_map []
 
 (* Mcsat Plugin functions *)
 (* ************************************************************************ *)
@@ -200,11 +209,13 @@ let current_level () = {
 }
 
 let backtrack s =
+  log 3 "Backtracking";
   eval_map := s.eval_map;
   wait_eval := s.wait_eval;
   watch_map := s.watch_map
 
 let assume s =
+  log 5 "New slice of length %d" s.length;
   for i = s.start to s.start + s.length - 1 do
     match s.get i with
     | Lit _, _ -> ()
@@ -213,13 +224,15 @@ let assume s =
   let i = ref 0 in
   try
     while !i < Vector.size active do
-      (ext_get !i).assume s
+        (ext_get !i).assume s;
+        incr i
     done;
     Sat (current_level ())
   with Absurd l ->
     Unsat (l, !i)
 
 let assign t =
+  log 5 "Finding assignment for %a" Expr.debug_term t;
   let res = ref None in
   begin try
       for i = 0 to n_ext () - 1 do
@@ -245,7 +258,9 @@ let iter_assignable f e = match Expr.(e.formula) with
   | Expr.Pred p -> iter_assign_aux f p
   | _ -> ()
 
-let rec eval f = match Expr.(f.formula) with
+let rec eval f =
+  log 5 "Evaluating formula : %a" Expr.debug_formula f;
+  match Expr.(f.formula) with
   | Expr.Equal (a, b) ->
     begin try
         let a', lvl_a = get_assign a in

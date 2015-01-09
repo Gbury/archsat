@@ -4,8 +4,15 @@
 exception Out_of_time
 exception Out_of_space
 
+type model =
+  | None
+  | Simple
+  | Full
+
 (* Argument parsing *)
+let std = Format.std_formatter
 let file = ref ""
+let p_model = ref None
 let time_limit = ref 300.
 let size_limit = ref 1000_000_000.
 
@@ -46,12 +53,18 @@ let argspec = Arg.align [
     " Outputs statistics about the GC";
     "-i", Arg.String Io.set_input,
     " Sets the input format (default auto)";
+    "-model", Arg.Unit (fun () -> p_model := Simple),
+    " Print the model found (if sat).";
+    "-model-full", Arg.Unit (fun () -> p_model := Full),
+    " Print the model found (if sat)(including sub-expressions).";
     "-o", Arg.String Io.set_output,
     " Sets the output format (default none)";
     "-size", Arg.String (int_arg size_limit),
     "<s>[kMGT] Sets the size limit for the sat solver";
     "-time", Arg.String (int_arg time_limit),
     "<t>[smhd] Sets the time limit for the sat solver";
+    "-v", Arg.Int Debug.set_debug,
+    "<lvl> Sets the debug verbose level";
     "-x", Arg.String Dispatcher.activate,
     "<name> Activate the given extension";
   ]
@@ -66,26 +79,44 @@ let check () =
   else if s > !size_limit then
     raise Out_of_space
 
+(* Model printing *)
+let get_model () =
+    List.sort (fun (t, _) (t', _) -> Expr.Term.compare t t')
+    (match !p_model with
+    | None -> assert false
+    | Simple -> Solver.model ()
+    | Full -> Solver.full_model ())
+
+(* Main function *)
 let main () =
-  (* Administrative duties *)
   let _ = Gc.create_alarm check in
   begin try
     Arg.parse argspec input_file usage
   with Dispatcher.Extension_not_found s ->
-      Format.fprintf Format.std_formatter "Extension '%s' not found. Available extensions are :@\n%a@." s
+      Format.fprintf std "Extension '%s' not found. Available extensions are :@\n%a@." s
       (fun fmt -> List.iter (fun s -> Format.fprintf fmt "%s " s)) (Dispatcher.list_extensions ())
   end;
   if !file = "" then begin
     Arg.usage argspec usage;
     exit 2
   end;
-
-  (* Interesting stuff happening *)
+  Debug.log 1 "========== Start parse ==========";
   let cnf = Io.parse_input !file in
+  Debug.log 1 "=========== End parse ===========";
   Solver.assume cnf;
-  match Solver.solve () with
-  | Solver.Sat -> Io.fprintf Format.std_formatter "Sat"
-  | Solver.Unsat -> Io.fprintf Format.std_formatter "Unsat"
+  Debug.log 1 "========== Start solve ==========";
+  let res = Solver.solve () in
+  Debug.log 1 "=========== End solve ===========";
+  match res with
+  | Solver.Sat ->
+    Io.fprintf std "Sat";
+    begin match !p_model with
+      | None -> () | _ ->
+        Io.fprintf std "Model :";
+        Io.print_model std (get_model ())
+    end
+  | Solver.Unsat ->
+    Io.fprintf std "Unsat"
 ;;
 
 main ()

@@ -12,3 +12,11 @@ val solve : unit -> res
 val assume : Expr.formula list list -> unit
 (** Add a list of assumptions as cnf formulas. *)
 
+val model : unit -> (Expr.term * Expr.term) list
+(** Returns the current model of the sat solver.
+    Contains only the variables and applications of uninterpreted functions. *)
+
+val full_model : unit -> (Expr.term * Expr.term) list
+(** Returns the current full model of the sat solver. *)
+
+

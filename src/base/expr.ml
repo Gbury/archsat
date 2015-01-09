@@ -92,51 +92,75 @@ exception Subst_error_term_scope of ty var
 (* Debug printing functions *)
 (* ************************************************************************ *)
 
-let debug_var fmt v = Format.fprintf fmt "v%i_%s" v.var_id v.var_name
+let rec print_list f sep b = function
+  | [] -> ()
+  | x :: r ->
+    Printf.bprintf b "%a%s" f x sep;
+    print_list f sep b r
 
-let debug_meta fmt m = Format.fprintf fmt "m%d_%a" m.meta_index debug_var m.meta_var
+let rec print_list_pre f sep b = function
+  | [] -> ()
+  | x :: r ->
+    Printf.bprintf b "%s%a" sep f x;
+    print_list_pre f sep b r
 
-let debug_tau fmt t = Format.fprintf fmt "t%d_%a" t.tau_index debug_var t.tau_var
+let debug_var b v = Printf.bprintf b "v%i_%s" v.var_id v.var_name
 
-let debug_ttype fmt = function Type -> Format.fprintf fmt "$tType"
+let debug_meta b m = Printf.bprintf b "m%d_%a" m.meta_index debug_var m.meta_var
 
-let rec debug_ty fmt ty = match ty.ty with
-  | TyVar v -> debug_var fmt v
-  | TyMeta m -> debug_meta fmt m
+let debug_tau b t = Printf.bprintf b "t%d_%a" t.tau_index debug_var t.tau_var
+
+let debug_ttype b = function Type -> Printf.bprintf b "$tType"
+
+let rec debug_ty b ty = match ty.ty with
+  | TyVar v -> debug_var b v
+  | TyMeta m -> debug_meta b m
   | TyApp (f, l) ->
-    Format.fprintf fmt "(%a%a)" debug_var f (Misc.print_list_pre debug_ty " ") l
+    Printf.bprintf b "(%a%a)" debug_var f (print_list_pre debug_ty " ") l
 
-let debug_var_ttype fmt v = Format.fprintf fmt "%a : %a" debug_var v debug_ttype v.var_type
-let debug_var_ty fmt v = Format.fprintf fmt "%a : %a" debug_var v debug_ty v.var_type
+let debug_var_ttype b v = Printf.bprintf b "%a : %a" debug_var v debug_ttype v.var_type
+let debug_var_ty b v = Printf.bprintf b "%a : %a" debug_var v debug_ty v.var_type
 
-let rec debug_term fmt t = match t.term with
-  | Var v -> debug_var fmt v
-  | Meta m -> debug_meta fmt m
-  | Tau t -> debug_tau fmt t
+let rec debug_term b t = match t.term with
+  | Var v -> debug_var b v
+  | Meta m -> debug_meta b m
+  | Tau t -> debug_tau b t
   | App (f, tys, args) ->
-    Format.fprintf fmt "(%a%a%a)" debug_var f
-      (Misc.print_list_pre debug_ty " ") tys
-      (Misc.print_list_pre debug_term " ") args
+    Printf.bprintf b "(%a%a%a)" debug_var f
+      (print_list_pre debug_ty " ") tys
+      (print_list_pre debug_term " ") args
 
-let rec debug_formula fmt f = match f.formula with
-  | Equal (a, b) -> Format.fprintf fmt "(%a = %a)" debug_term a debug_term b
-  | Pred t -> Format.fprintf fmt "(%a)" debug_term t
-  | True -> Format.fprintf fmt "⊤"
-  | False -> Format.fprintf fmt "⊥"
-  | Not f -> Format.fprintf fmt "¬"
-  | And l -> Format.fprintf fmt "(%a)" (Misc.print_list debug_formula " ∧ ") l
-  | Or l -> Format.fprintf fmt "(%a)" (Misc.print_list debug_formula " ∨ ") l
-  | Imply (p, q) -> Format.fprintf fmt "(%a ⇒ %a)" debug_formula p debug_formula q
-  | Equiv (p, q) -> Format.fprintf fmt "(%a ⇔ %a)" debug_formula p debug_formula q
-  | All (l, f) -> Format.fprintf fmt "∀ %a. %a"
-                    (Misc.print_list debug_var_ty ", ") l debug_formula f
-  | AllTy (l, f) -> Format.fprintf fmt "∀ %a. %a"
-                      (Misc.print_list debug_var_ttype ", ") l debug_formula f
-  | Ex (l, f) -> Format.fprintf fmt "∀ %a. %a"
-                   (Misc.print_list debug_var_ty ", ") l debug_formula f
+let rec debug_formula b f = match f.formula with
+  | Equal (x, y) -> Printf.bprintf b "(%a = %a)" debug_term x debug_term y
+  | Pred t -> Printf.bprintf b "(%a)" debug_term t
+  | True -> Printf.bprintf b "⊤"
+  | False -> Printf.bprintf b "⊥"
+  | Not f -> Printf.bprintf b "¬"
+  | And l -> Printf.bprintf b "(%a)" (print_list debug_formula " ∧ ") l
+  | Or l -> Printf.bprintf b "(%a)" (print_list debug_formula " ∨ ") l
+  | Imply (p, q) -> Printf.bprintf b "(%a ⇒ %a)" debug_formula p debug_formula q
+  | Equiv (p, q) -> Printf.bprintf b "(%a ⇔ %a)" debug_formula p debug_formula q
+  | All (l, f) -> Printf.bprintf b "∀ %a. %a"
+                    (print_list debug_var_ty ", ") l debug_formula f
+  | AllTy (l, f) -> Printf.bprintf b "∀ %a. %a"
+                      (print_list debug_var_ttype ", ") l debug_formula f
+  | Ex (l, f) -> Printf.bprintf b "∀ %a. %a"
+                   (print_list debug_var_ty ", ") l debug_formula f
 
 (* Printing functions *)
 (* ************************************************************************ *)
+
+let rec print_list f sep fmt = function
+  | [] -> ()
+  | x :: r ->
+    Format.fprintf fmt "%a%s" f x sep;
+    print_list f sep fmt r
+
+let rec print_list_pre f sep fmt = function
+  | [] -> ()
+  | x :: r ->
+    Format.fprintf fmt "%s%a" sep f x;
+    print_list_pre f sep fmt r
 
 let print_var fmt v = Format.fprintf fmt "%s" v.var_name
 
@@ -150,7 +174,7 @@ let rec print_ty fmt ty = match ty.ty with
   | TyVar v -> print_var fmt v
   | TyMeta m -> print_meta fmt m
   | TyApp (f, l) ->
-    Format.fprintf fmt "(%a%a)" print_var f (Misc.print_list_pre print_ty " ") l
+    Format.fprintf fmt "(%a%a)" print_var f (print_list_pre print_ty " ") l
 
 let print_var_ttype fmt v = Format.fprintf fmt "%a : %a" print_var v print_ttype v.var_type
 let print_var_ty fmt v = Format.fprintf fmt "%a : %a" print_var v print_ty v.var_type
@@ -161,8 +185,8 @@ let rec print_term fmt t = match t.term with
   | Tau t -> print_tau fmt t
   | App (f, tys, args) ->
     Format.fprintf fmt "(%a%a%a)" print_var f
-      (Misc.print_list_pre print_ty " ") tys
-      (Misc.print_list_pre print_term " ") args
+      (print_list_pre print_ty " ") tys
+      (print_list_pre print_term " ") args
 
 let rec print_formula fmt f = match f.formula with
   | Equal (a, b) -> Format.fprintf fmt "(%a = %a)" print_term a print_term b
@@ -170,16 +194,16 @@ let rec print_formula fmt f = match f.formula with
   | True -> Format.fprintf fmt "⊤"
   | False -> Format.fprintf fmt "⊥"
   | Not f -> Format.fprintf fmt "¬"
-  | And l -> Format.fprintf fmt "(%a)" (Misc.print_list print_formula " ∧ ") l
-  | Or l -> Format.fprintf fmt "(%a)" (Misc.print_list print_formula " ∨ ") l
+  | And l -> Format.fprintf fmt "(%a)" (print_list print_formula " ∧ ") l
+  | Or l -> Format.fprintf fmt "(%a)" (print_list print_formula " ∨ ") l
   | Imply (p, q) -> Format.fprintf fmt "(%a ⇒ %a)" print_formula p print_formula q
   | Equiv (p, q) -> Format.fprintf fmt "(%a ⇔ %a)" print_formula p print_formula q
   | All (l, f) -> Format.fprintf fmt "∀ %a. %a"
-                    (Misc.print_list print_var_ty ", ") l print_formula f
+                    (print_list print_var_ty ", ") l print_formula f
   | AllTy (l, f) -> Format.fprintf fmt "∀ %a. %a"
-                      (Misc.print_list print_var_ttype ", ") l print_formula f
+                      (print_list print_var_ttype ", ") l print_formula f
   | Ex (l, f) -> Format.fprintf fmt "∀ %a. %a"
-                   (Misc.print_list print_var_ty ", ") l print_formula f
+                   (print_list print_var_ty ", ") l print_formula f
 
 (* Hashs *)
 (* ************************************************************************ *)
@@ -420,12 +444,19 @@ let mk_ttype_var name =
     Hashtbl.add type_var_htbl name res;
     res
 
+let list_const n c =
+  let rec aux acc n c =
+    if n <= 0 then acc
+    else aux (c :: acc) (n - 1) c
+  in
+  aux [] n c
+
 let mk_ttype_fn_id name n =
   try Hashtbl.find type_const_htbl name
   with Not_found ->
     let res = mk_var name {
         fun_vars = [];
-        fun_args = Misc.list_const n Type;
+        fun_args = list_const n Type;
         fun_ret = Type;
       } in
     Hashtbl.add type_const_htbl name res;

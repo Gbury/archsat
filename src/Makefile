@@ -19,7 +19,6 @@ build-test:
 	$(COMP) $(FLAGS) $(DIRS) $(TEST)
 
 test: build-test
-	./$(TEST)
 
 build-lib:
 	$(COMP) $(FLAGS) $(DIRS) $(LIB)

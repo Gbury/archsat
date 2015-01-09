@@ -15,3 +15,7 @@ val parse_input : string -> Expr.formula list list
 
 val fprintf : Format.formatter -> ('a, Format.formatter, unit) format -> 'a
 (** Wrapper around Format.fprintf to print inside comments according to the output format. *)
+
+val print_model : Format.formatter -> (Expr.term * Expr.term) list -> unit
+(** Prints the assignemnts in the model, one by line. *)
+

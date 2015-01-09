@@ -5,6 +5,8 @@ include Msat.Plugin_intf.S
   with type term = Expr.term and type formula = Expr.formula
 (** This module is a valid Plugin for Mcsat *)
 
+
+
 (** {2 Exceptions} *)
 
 exception Not_assigned of term
@@ -15,6 +17,8 @@ exception Absurd of formula list
 
 exception Extension_not_found of string
 (** Raised by activate *)
+
+
 
 (** {2 Extension Registering} *)
 
@@ -42,7 +46,9 @@ val activate : string -> unit
     use the functions provided by the extension. *)
 
 val list_extensions : unit -> string list
-(** Reutrns the current list of extensions known to the dispatcher. *)
+(** Returns the current list of extensions known to the dispatcher. *)
+
+
 
 (** {2 Assignment functions} *)
 
@@ -62,4 +68,5 @@ val watch : term -> (term * term -> unit) -> unit
 (** Set a callback function to be called once the given term has been evaluated. The callback function is called
     with the pair term, assigned value. *)
 
-
+val model : unit -> (term * term) list
+(** Returns the fulla ssignment in the current model. *)

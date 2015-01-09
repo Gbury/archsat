@@ -1,6 +1,5 @@
 # Misc modules
 Vector
-Misc
 
 # Base modules
 Expr
@@ -10,7 +9,7 @@ Dispatcher
 Solver
 
 # Extension Modules
-Bool
+Sat
 
 # Input Modules
 Parsedimacs
