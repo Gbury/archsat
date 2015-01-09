@@ -93,20 +93,29 @@ let main () =
   begin try
     Arg.parse argspec input_file usage
   with Dispatcher.Extension_not_found s ->
-      Format.fprintf std "Extension '%s' not found. Available extensions are :@\n%a@." s
+    Format.fprintf std "Extension '%s' not found. Available extensions are :@\n%a@." s
       (fun fmt -> List.iter (fun s -> Format.fprintf fmt "%s " s)) (Dispatcher.list_extensions ())
   end;
   if !file = "" then begin
     Arg.usage argspec usage;
     exit 2
   end;
+
   Debug.log 1 "========== Start parse ==========";
-  let cnf = Io.parse_input !file in
+  let cnf =
+      begin try
+          Io.parse_input !file
+      with Io.Syntax_error (l, c, msg) ->
+          Format.fprintf std "Syntax error in file %s at line %d, character %d :@\n%s@." !file l c msg;
+          exit 2
+      end in
   Debug.log 1 "=========== End parse ===========";
+
   Solver.assume cnf;
   Debug.log 1 "========== Start solve ==========";
   let res = Solver.solve () in
   Debug.log 1 "=========== End solve ===========";
+
   match res with
   | Solver.Sat ->
     Io.fprintf std "Sat";
