@@ -81,8 +81,10 @@ let activate ext =
   let aux r = r.name = ext in
   try
     let r = List.find aux !extensions in
-    assert (not (Vector.exists aux active));
-    Vector.push active r
+    if not (Vector.exists aux active) then
+        Vector.push active r
+    else
+        Debug.log 0 "WARNING: Extension %s already activated" r.name
   with Not_found ->
     raise (Extension_not_found ext)
 
