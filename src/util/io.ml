@@ -1,7 +1,9 @@
 
 (* Type definitions *)
 (* ************************************************************************ *)
+
 exception Syntax_error of int * int * string
+exception Setting_not_found of string * string * string list
 
 type input =
   | Auto
@@ -26,16 +28,9 @@ let output_list = [
   "dot", Dot;
 ]
 
-let error_msg opt arg l =
-  Format.fprintf Format.str_formatter "'%s' is not a valid argument for '%s', valid arguments are : %a"
-    arg opt (fun fmt -> List.iter (fun (s, _) -> Format.fprintf fmt "%s, " s)) l;
-  Format.flush_str_formatter ()
-
 let set_flag opt arg flag l =
-  try
-    flag := List.assoc arg l
-  with Not_found ->
-    invalid_arg (error_msg opt arg l)
+  try flag := List.assoc arg l
+  with Not_found -> raise (Setting_not_found (opt, arg, List.map fst l))
 
 let set_input s = set_flag "Input" s input input_list
 let set_output s = set_flag "Output" s output output_list
@@ -90,4 +85,7 @@ let print_model fmt l =
     let aux (t, v) = fprintf fmt "%a -> %a" Expr.print_term t Expr.print_term v in
     List.iter aux l
 
-
+let print_proof fmt p =
+    match !output with
+    | Standard -> fprintf fmt "Standar proof output not supported yet."
+    | Dot -> Solver.print_proof_dot fmt p

@@ -168,7 +168,7 @@ let print_meta fmt m = Format.fprintf fmt "m_%a" print_var m.meta_var
 
 let print_tau fmt t = Format.fprintf fmt "t_%a" print_var t.tau_var
 
-let print_ttype fmt = function Type -> Format.fprintf fmt "$tType"
+let print_ttype fmt = function Type -> Format.fprintf fmt "Type"
 
 let rec print_ty fmt ty = match ty.ty with
   | TyVar v -> print_var fmt v
@@ -193,7 +193,7 @@ let rec print_formula fmt f = match f.formula with
   | Pred t -> Format.fprintf fmt "(%a)" print_term t
   | True -> Format.fprintf fmt "⊤"
   | False -> Format.fprintf fmt "⊥"
-  | Not f -> Format.fprintf fmt "¬"
+  | Not f -> Format.fprintf fmt "¬ %a" print_formula f
   | And l -> Format.fprintf fmt "(%a)" (print_list print_formula " ∧ ") l
   | Or l -> Format.fprintf fmt "(%a)" (print_list print_formula " ∨ ") l
   | Imply (p, q) -> Format.fprintf fmt "(%a ⇒ %a)" print_formula p print_formula q
@@ -240,18 +240,19 @@ and get_term_hash t =
   assert (t.t_hash >= 0);
   t.t_hash
 
+(* TODO: FIXME *)
 let h_eq    = 1
-let h_pred  = 1
-let h_true  = 1
-let h_false = 1
-let h_not   = 1
-let h_and   = 1
-let h_or    = 1
-let h_imply = 1
-let h_equiv = 1
-let h_all   = 1
-let h_allty = 1
-let h_ex    = 1
+let h_pred  = 2
+let h_true  = 3
+let h_false = 4
+let h_not   = 5
+let h_and   = 6
+let h_or    = 7
+let h_imply = 8
+let h_equiv = 9
+let h_all   = 10
+let h_allty = 11
+let h_ex    = 12
 
 let rec hash_formula f =
   let aux h_skel l = Hashtbl.hash (h_skel, l) in
@@ -560,7 +561,10 @@ let f_equal a b =
   else if (equal_ty type_prop b.t_type) then
     raise (Type_error_mismatch (type_prop, b.t_type))
   else
-    mk_formula (Equal (a, b))
+    if compare_term a b < 0 then
+        mk_formula (Equal (a, b))
+    else
+        mk_formula (Equal (b, a))
 
 let f_pred t =
   if not (equal_ty type_prop t.t_type) then

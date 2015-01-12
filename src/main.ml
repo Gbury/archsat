@@ -13,6 +13,7 @@ type model =
 let std = Format.std_formatter
 let file = ref ""
 let p_model = ref None
+let p_proof = ref false
 let time_limit = ref 300.
 let size_limit = ref 1000_000_000.
 
@@ -59,6 +60,8 @@ let argspec = Arg.align [
     " Print the model found (if sat)(including sub-expressions).";
     "-o", Arg.String Io.set_output,
     " Sets the output format (default none)";
+    "-proof", Arg.Set p_proof,
+    " Compute and print the proof if unsat.";
     "-size", Arg.String (int_arg size_limit),
     "<s>[kMGT] Sets the size limit for the sat solver";
     "-time", Arg.String (int_arg time_limit),
@@ -114,7 +117,10 @@ let main () =
         Io.print_model std (get_model ())
     end
   | Solver.Unsat ->
-    Io.fprintf std "Unsat"
+    Io.fprintf std "Unsat";
+    if !p_proof then
+      let proof = Solver.get_proof () in
+      Io.print_proof std proof
 ;;
 
 try
@@ -123,7 +129,13 @@ with
 | Io.Syntax_error (l, c, msg) ->
   Format.fprintf std "Syntax error in file %s at line %d, character %d :@\n%s@." !file l c msg;
   exit 2
+| Io.Setting_not_found (opt, arg, l) ->
+  Format.fprintf std "'%s' is not a valid argument for %s, valid arguments are :@\n%a@."
+    arg opt (fun fmt -> List.iter (fun s -> Format.fprintf fmt "%s " s)) l;
+  exit 2
 | Dispatcher.Extension_not_found s ->
   Format.fprintf std "Extension '%s' not found. Available extensions are :@\n%a@." s
     (fun fmt -> List.iter (fun s -> Format.fprintf fmt "%s " s)) (Dispatcher.list_extensions ());
-    exit 2
+  exit 2
+
+

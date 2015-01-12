@@ -28,6 +28,7 @@ module SatPlugin = Dispatcher
 
 module Smt = Msat.Mcsolver.Make(SatExpr)(SatPlugin)
 
+(* Solving *)
 type res = Sat | Unsat
 
 let _i = ref 0
@@ -44,7 +45,20 @@ let assume l =
     Smt.assume l !_i
   with Smt.Unsat -> ()
 
+(* Model output *)
 let model = Smt.model
 
 let full_model = Dispatcher.model
+
+(* Proof output *)
+type proof = Smt.Proof.proof
+
+let get_proof () =
+  Smt.Proof.learn (Smt.history ());
+  match Smt.unsat_conflict () with
+  | None -> assert false
+  | Some c -> Smt.Proof.prove_unsat c
+
+let print_proof_dot = Smt.Proof.print_dot
+
 

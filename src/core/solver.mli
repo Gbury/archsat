@@ -1,6 +1,9 @@
 
 (** mSAT solver instanciated with Dispatcher Plugin *)
 
+type proof
+(** The abstract type of proofs given by the solver. *)
+
 type res =
   | Sat
   | Unsat
@@ -19,4 +22,8 @@ val model : unit -> (Expr.term * Expr.term) list
 val full_model : unit -> (Expr.term * Expr.term) list
 (** Returns the current full model of the sat solver. *)
 
+val get_proof : unit -> proof
+(** Returns a proof of unsatisfiability of the current assumptions. *)
 
+val print_proof_dot : Format.formatter -> proof -> unit
+(** Prints the proof on the given formatter. *)
