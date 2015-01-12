@@ -46,7 +46,7 @@ let sat_eval = function
 
 ;;
 
-Dispatcher.(register {
+D.(register {
     name = "sat";
     assume = sat_assume;
     assign = sat_assign;

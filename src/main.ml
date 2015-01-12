@@ -1,6 +1,12 @@
 
 (* TabSat *)
 
+
+(* Dummy module renaming for extensions *)
+module Eq = Eq
+module Sat = Sat
+
+(* Types and exceptions *)
 exception Out_of_time
 exception Out_of_space
 

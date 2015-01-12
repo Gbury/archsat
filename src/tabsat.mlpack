@@ -9,6 +9,7 @@ Dispatcher
 Solver
 
 # Extension Modules
+Eq
 Sat
 
 # Input Modules
