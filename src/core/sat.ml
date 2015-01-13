@@ -10,41 +10,41 @@ let mk_prop i =
     Expr.f_pred (Expr.term_app c [] [])
   in
   if i >= 0 then
-      aux i
+    aux i
   else
-      Expr.f_not (aux ~-i)
+    Expr.f_not (aux ~-i)
 ;;
 
 let sat_assume = function
-    | {Expr.formula = Expr.Pred ({Expr.term = Expr.App (p, [], [])} as t)}, lvl ->
-      D.set_assign t p_true lvl
-    | {Expr.formula = Expr.Not {Expr.formula = Expr.Pred ({Expr.term = Expr.App (p, [], [])} as t)}}, lvl ->
-      D.set_assign t p_false lvl
-    | _ -> ()
+  | {Expr.formula = Expr.Pred ({Expr.term = Expr.App (p, [], [])} as t)}, lvl ->
+    D.set_assign t p_true lvl
+  | {Expr.formula = Expr.Not {Expr.formula = Expr.Pred ({Expr.term = Expr.App (p, [], [])} as t)}}, lvl ->
+    D.set_assign t p_false lvl
+  | _ -> ()
 
 let sat_assign = function
-    | {Expr.term = Expr.App (p, [], [])} as t when Expr.(Ty.equal t.t_type type_prop) ->
-            begin try
-                Some (fst (D.get_assign t))
-            with D.Not_assigned _ ->
-                Some (p_true)
-            end
-    | _ -> None
+  | {Expr.term = Expr.App (p, [], [])} as t when Expr.(Ty.equal t.t_type type_prop) ->
+    begin try
+        Some (fst (D.get_assign t))
+      with D.Not_assigned _ ->
+        Some (p_true)
+    end
+  | _ -> None
 
 let sat_eval = function
-    | {Expr.formula = Expr.Pred ({Expr.term = Expr.App (p, [], [])} as t)} ->
-        begin try
-            let b, lvl = D.get_assign t in
-            if Expr.Term.equal p_true b then
-                Some (true, lvl)
-            else if Expr.Term.equal p_false b then
-                Some (false, lvl)
-            else
-                assert false
-        with D.Not_assigned _ ->
-            None
-        end
-    | _ -> None
+  | {Expr.formula = Expr.Pred ({Expr.term = Expr.App (p, [], [])} as t)} ->
+    begin try
+        let b, lvl = D.get_assign t in
+        if Expr.Term.equal p_true b then
+          Some (true, lvl)
+        else if Expr.Term.equal p_false b then
+          Some (false, lvl)
+        else
+          assert false
+      with D.Not_assigned _ ->
+        None
+    end
+  | _ -> None
 
 ;;
 

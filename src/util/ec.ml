@@ -30,9 +30,9 @@ module Make(T : Map.OrderedType) = struct
     | Repr of repr_info
 
   type t = {
-      size : int M.t;
-      expl : var M.t;
-      mutable repr : node M.t;
+    size : int M.t;
+    expl : var M.t;
+    mutable repr : node M.t;
   }
 
   let empty = { size = M.empty; expl = M.empty; repr = M.empty }
@@ -45,67 +45,67 @@ module Make(T : Map.OrderedType) = struct
     with Not_found -> default
 
   let rec find_aux m i =
-      match find_map m i self_repr with
-      | Repr r -> m, r, i
-      | Follow j ->
-        let m', r, k = find_aux m j in
-        M.add i (Follow k) m', r, k
+    match find_map m i self_repr with
+    | Repr r -> m, r, i
+    | Follow j ->
+      let m', r, k = find_aux m j in
+      M.add i (Follow k) m', r, k
 
   let get_repr h x =
-      let m, r, y = find_aux h.repr x in
-      h.repr <- m;
-      y, r
+    let m, r, y = find_aux h.repr x in
+    h.repr <- m;
+    y, r
 
   let find h x = fst (get_repr h x)
 
   let forbid_aux m x =
-      try
-          let a, b = M.find x m in
-          raise (Equal (a, b))
-      with Not_found -> ()
+    try
+      let a, b = M.find x m in
+      raise (Equal (a, b))
+    with Not_found -> ()
 
   let link h x mx y my =
     let mx = {
-        rank = if mx.rank = my.rank then mx.rank + 1 else mx.rank;
-        forbidden = M.merge (fun _ b1 b2 -> match b1, b2 with
-            | Some r, _ | None, Some r -> Some r | _ -> assert false)
-            mx.forbidden my.forbidden;
+      rank = if mx.rank = my.rank then mx.rank + 1 else mx.rank;
+      forbidden = M.merge (fun _ b1 b2 -> match b1, b2 with
+          | Some r, _ | None, Some r -> Some r | _ -> assert false)
+          mx.forbidden my.forbidden;
     } in
     let aux z eq m =
-        match M.find z m with
-        | Repr r ->
-          let r' = { r with
-            forbidden = M.add x eq (M.remove y r.forbidden) }
-          in
-          M.add z (Repr r') m
-        | _ -> assert false
+      match M.find z m with
+      | Repr r ->
+        let r' = { r with
+                   forbidden = M.add x eq (M.remove y r.forbidden) }
+        in
+        M.add z (Repr r') m
+      | _ -> assert false
     in
     let map = M.fold aux my.forbidden h.repr in
     { h with repr = M.add x (Repr mx)
-        (M.add y (Follow x) map) }
+                 (M.add y (Follow x) map) }
 
   let union h x y =
     let rx, mx = get_repr h x in
     let ry, my = get_repr h y in
     if T.compare rx ry <> 0 then begin
-        forbid_aux mx.forbidden ry;
-        forbid_aux my.forbidden rx;
-        if mx.rank > my.rank then
-            link h rx mx ry my
-        else
-            link h ry my rx mx
+      forbid_aux mx.forbidden ry;
+      forbid_aux my.forbidden rx;
+      if mx.rank > my.rank then
+        link h rx mx ry my
+      else
+        link h ry my rx mx
     end else
-        h
+      h
 
   let forbid h x y =
     let rx, mx = get_repr h x in
     let ry, my = get_repr h y in
     if T.compare rx ry = 0 then
-        raise (Equal (x, y))
+      raise (Equal (x, y))
     else
-        { h with repr =
-            M.add rx (Repr { mx with forbidden = M.add ry (x, y) mx.forbidden })
-           (M.add ry (Repr { my with forbidden = M.add rx (x, y) mx.forbidden }) h.repr) }
+      { h with repr =
+                 M.add rx (Repr { mx with forbidden = M.add ry (x, y) mx.forbidden })
+                   (M.add ry (Repr { my with forbidden = M.add rx (x, y) mx.forbidden }) h.repr) }
 
   (* Equivalence closure with explanation output *)
   let find_parent v m = find_map m v v

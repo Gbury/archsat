@@ -561,10 +561,10 @@ let f_equal a b =
   else if (equal_ty type_prop b.t_type) then
     raise (Type_error_mismatch (type_prop, b.t_type))
   else
-    if compare_term a b < 0 then
-        mk_formula (Equal (a, b))
-    else
-        mk_formula (Equal (b, a))
+  if compare_term a b < 0 then
+    mk_formula (Equal (a, b))
+  else
+    mk_formula (Equal (b, a))
 
 let f_pred t =
   if not (equal_ty type_prop t.t_type) then

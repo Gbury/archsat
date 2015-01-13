@@ -39,13 +39,13 @@ let get_total_time, get_start_time =
 let log l format =
   let b = Buffer.create 15 in
   if l <= !debug_level_
-    then (
-      Printf.bprintf b "%% [%.3f] " (get_total_time ());
-      Printf.kbprintf
-        (fun b -> print_endline (Buffer.contents b))
-        b format)
-    else
-      Printf.ifprintf b format
+  then (
+    Printf.bprintf b "%% [%.3f] " (get_total_time ());
+    Printf.kbprintf
+      (fun b -> print_endline (Buffer.contents b))
+      b format)
+  else
+    Printf.ifprintf b format
 
 let on_buffer pp x =
   let buf = Buffer.create 24 in

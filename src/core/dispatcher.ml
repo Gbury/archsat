@@ -84,9 +84,9 @@ let activate ext =
   try
     let r = List.find aux !extensions in
     if not (Vector.exists aux active) then
-        Vector.push active r
+      Vector.push active r
     else
-        Debug.log 0 "WARNING: Extension %s already activated" r.name
+      Debug.log 0 "WARNING: Extension %s already activated" r.name
   with Not_found ->
     raise (Extension_not_found ext)
 
@@ -151,24 +151,24 @@ let add_job job_id t =
 let set_job id job = job_map := I.add id job !job_map
 
 let update_watch x job_id =
-    try
-        let k, args, f = popi job_id job_map in
-        let rec find not_assigned acc = function
-            | [] -> f ()
-            | y :: r when not (is_assigned y) ->
-                    let l = List.rev_append (y :: not_assigned) (x :: r) in
-                    set_job job_id (k, l, f)
-            | y :: r -> find not_assigned (y :: acc) r
-        in
-        let rec split i acc = function
-            | [] -> find acc [] []
-            | l when i <= 0 -> find acc [] l
-            | y :: r when Expr.Term.equal x y -> split (i - 1) acc r
-            | y :: r -> split (i - 1) (y :: acc) r
-        in
-        split k [] args
-    with Not_found ->
-        ()
+  try
+    let k, args, f = popi job_id job_map in
+    let rec find not_assigned acc = function
+      | [] -> f ()
+      | y :: r when not (is_assigned y) ->
+        let l = List.rev_append (y :: not_assigned) (x :: r) in
+        set_job job_id (k, l, f)
+      | y :: r -> find not_assigned (y :: acc) r
+    in
+    let rec split i acc = function
+      | [] -> find acc [] []
+      | l when i <= 0 -> find acc [] l
+      | y :: r when Expr.Term.equal x y -> split (i - 1) acc r
+      | y :: r -> split (i - 1) (y :: acc) r
+    in
+    split k [] args
+  with Not_found ->
+    ()
 
 let rec try_eval t =
   assert (not (is_assigned t));
@@ -177,14 +177,14 @@ let rec try_eval t =
   | Expr.App (f, _, l) ->
     begin try
         ext_iter (fun ext ->
-          if ext.interprets f then
-            match ext.eval_term t with
+            if ext.interprets f then
+              match ext.eval_term t with
               | Interpreted (v, lvl) ->
                 set_assign t v lvl;
                 raise (Found_eval v)
               | Waiting t' ->
                 raise (Wait_eval t')
-        );
+          );
         None
       with
       | Found_eval v -> Some v
@@ -218,20 +218,20 @@ and set_assign t v lvl =
 let job_max = ref 0
 
 let watch k args f =
-    let rec split assigned not_assigned i = function
-        | l when i <= 0 ->
-                incr job_max;
-                List.iter (add_job !job_max) not_assigned;
-                let l = List.rev_append not_assigned (List.rev_append l assigned) in
-                set_job !job_max (k, l, f)
-        | [] (* i > 0 *) -> f ()
-        | y :: r ->
-                if is_assigned y then
-                    split (y :: assigned) not_assigned i r
-                else
-                    split assigned (y :: not_assigned) (i - 1) r
-    in
-    split [] [] k args
+  let rec split assigned not_assigned i = function
+    | l when i <= 0 ->
+      incr job_max;
+      List.iter (add_job !job_max) not_assigned;
+      let l = List.rev_append not_assigned (List.rev_append l assigned) in
+      set_job !job_max (k, l, f)
+    | [] (* i > 0 *) -> f ()
+    | y :: r ->
+      if is_assigned y then
+        split (y :: assigned) not_assigned i r
+      else
+        split assigned (y :: not_assigned) (i - 1) r
+  in
+  split [] [] k args
 
 let model () = M.fold (fun t (v, _) acc -> (t, v) :: acc) !eval_map []
 
@@ -270,8 +270,8 @@ let assume s =
     for i = s.start to s.start + s.length - 1 do
       match s.get i with
       | Lit f, lvl ->
-          log 8 "Assuming (%d) %a" lvl Expr.debug_formula f;
-          ext_iteri (fun j ext ->
+        log 8 "Assuming (%d) %a" lvl Expr.debug_formula f;
+        ext_iteri (fun j ext ->
             try
               ext.assume (f, lvl)
             with Absurd l ->
@@ -280,20 +280,20 @@ let assume s =
     done;
     Sat
   with Exit_unsat (l, j) ->
-      Unsat (l, j)
+    Unsat (l, j)
 
 exception Found_value of term
 let assign t =
   log 5 "Finding assignment for %a" Expr.debug_term t;
-    try
-        ext_iter (fun ext ->
-          match ext.assign t with
-          | None -> ()
-          | Some v ->
-                log 5 " |- Found %a from extension : %s" Expr.debug_term v ext.name;
-                raise (Found_value v));
-      assert false
-    with Found_value v -> v
+  try
+    ext_iter (fun ext ->
+        match ext.assign t with
+        | None -> ()
+        | Some v ->
+          log 5 " |- Found %a from extension : %s" Expr.debug_term v ext.name;
+          raise (Found_value v));
+    assert false
+  with Found_value v -> v
 
 let rec iter_assign_aux f e = match Expr.(e.term) with
   | Expr.App (p, _, l) ->
@@ -310,10 +310,10 @@ exception Found_eval of bool * int
 let rec eval f =
   log 5 "Evaluating formula : %a" Expr.debug_formula f;
   try
-      ext_iter (fun ext ->
-      match ext.eval_pred f with
-      | Some (b, lvl) -> raise (Found_eval (b, lvl))
-      | _ -> ());
-      Unknown
+    ext_iter (fun ext ->
+        match ext.eval_pred f with
+        | Some (b, lvl) -> raise (Found_eval (b, lvl))
+        | _ -> ());
+    Unknown
   with Found_eval (b, lvl) ->
-      Valued (b, lvl)
+    Valued (b, lvl)

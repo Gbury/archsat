@@ -69,23 +69,23 @@ let parse_input file =
 (* ************************************************************************ *)
 
 let print_with pre post f fmt format =
-    Format.fprintf fmt "%s@[<hov> " pre;
-    Format.kfprintf (fun fmt -> Format.fprintf fmt "@] %s" post; f fmt) fmt format
+  Format.fprintf fmt "%s@[<hov> " pre;
+  Format.kfprintf (fun fmt -> Format.fprintf fmt "@] %s" post; f fmt) fmt format
 
 let flush fmt = Format.fprintf fmt "@."
 
 let fprintf fmt format =
-    let res = match !output with
-      | Standard -> Format.kfprintf flush fmt format
-      | Dot -> print_with "/*" "*/" flush fmt format
-    in
-    res
+  let res = match !output with
+    | Standard -> Format.kfprintf flush fmt format
+    | Dot -> print_with "/*" "*/" flush fmt format
+  in
+  res
 
 let print_model fmt l =
-    let aux (t, v) = fprintf fmt "%a -> %a" Expr.print_term t Expr.print_term v in
-    List.iter aux l
+  let aux (t, v) = fprintf fmt "%a -> %a" Expr.print_term t Expr.print_term v in
+  List.iter aux l
 
 let print_proof fmt p =
-    match !output with
-    | Standard -> fprintf fmt "Standar proof output not supported yet."
-    | Dot -> Solver.print_proof_dot fmt p
+  match !output with
+  | Standard -> fprintf fmt "Standar proof output not supported yet."
+  | Dot -> Solver.print_proof_dot fmt p
