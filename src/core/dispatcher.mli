@@ -6,7 +6,6 @@ include Msat.Plugin_intf.S
 (** This module is a valid Plugin for Mcsat *)
 
 
-
 (** {2 Exceptions} *)
 
 exception Not_assigned of term
@@ -19,7 +18,6 @@ exception Extension_not_found of string
 (** Raised by activate *)
 
 
-
 (** {2 Extension Registering} *)
 
 type term_eval =
@@ -28,10 +26,10 @@ type term_eval =
 
 type extension = {
   name : string;
-  assume : slice -> unit;
+  assume : formula * int -> unit;
   assign : term -> term option;
   eval_term : term -> term_eval;
-  eval_pred : term -> (bool * int) option;
+  eval_pred : formula -> (bool * int) option;
   interprets : Expr.ty Expr.function_descr Expr.var -> bool;
   backtrack : int -> unit;
   current_level : unit -> int;
@@ -49,7 +47,6 @@ val list_extensions : unit -> string list
 (** Returns the current list of extensions known to the dispatcher. *)
 
 
-
 (** {2 Assignment functions} *)
 
 val get_assign : term -> term * int
@@ -61,12 +58,12 @@ val set_assign : term -> term -> int -> unit
     May erase previous assignment of [t]. *)
 
 val try_eval : term -> term option
-(** Try and eval the given term. In case it fails, sets up a watching scheme to
-    evaluate as soon as possible. *)
+(** Try and eval the given term. In case it fails (and returns [None]),
+    it sets up a watching scheme to evaluate the given term as soon as possible. *)
 
-val watch : term -> (term * term -> unit) -> unit
-(** Set a callback function to be called once the given term has been evaluated. The callback function is called
-    with the pair term, assigned value. *)
+val watch : int -> term list -> (unit -> unit) -> unit
+(** [watch k l f] sets up a k-watching among the terms in l, calling f once there is less
+    then k termsnot assigned in l. *)
 
 val model : unit -> (term * term) list
 (** Returns the fulla ssignment in the current model. *)

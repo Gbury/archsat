@@ -128,6 +128,11 @@ let iter f t =
     f t.data.(i)
   done
 
+let iteri f t =
+  for i = 0 to size t - 1 do
+    f i t.data.(i)
+  done
+
 let fold f acc t =
   let rec _fold f acc t i =
     if i=t.sz

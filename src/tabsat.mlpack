@@ -1,10 +1,11 @@
-# Misc modules
+# Useful modules
 Vector
+Backtrack
 
 # Base modules
 Expr
 
-# Solver modules
+# Core modules
 Dispatcher
 Solver
 

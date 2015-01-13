@@ -15,22 +15,24 @@ let mk_prop i =
       Expr.f_not (aux ~-i)
 ;;
 
-let sat_assume s =
-    for i = D.(s.start) to D.(s.start + s.length - 1) do
-        match D.(s.get i) with
-        | D.Lit {Expr.formula = Expr.Pred ({Expr.term = Expr.App (p, [], [])} as t)}, lvl ->
-                D.set_assign t p_true lvl
-        | D.Lit {Expr.formula = Expr.Not {Expr.formula = Expr.Pred ({Expr.term = Expr.App (p, [], [])} as t)}}, lvl ->
-                D.set_assign t p_false lvl
-        | _ -> ()
-    done
+let sat_assume = function
+    | {Expr.formula = Expr.Pred ({Expr.term = Expr.App (p, [], [])} as t)}, lvl ->
+      D.set_assign t p_true lvl
+    | {Expr.formula = Expr.Not {Expr.formula = Expr.Pred ({Expr.term = Expr.App (p, [], [])} as t)}}, lvl ->
+      D.set_assign t p_false lvl
+    | _ -> ()
 
 let sat_assign = function
-    | {Expr.term = Expr.App (p, [], [])} -> Some (p_true)
+    | {Expr.term = Expr.App (p, [], [])} as t when Expr.(Ty.equal t.t_type type_prop) ->
+            begin try
+                Some (fst (D.get_assign t))
+            with D.Not_assigned _ ->
+                Some (p_true)
+            end
     | _ -> None
 
 let sat_eval = function
-    | {Expr.term = Expr.App (p, [], [])} as t ->
+    | {Expr.formula = Expr.Pred ({Expr.term = Expr.App (p, [], [])} as t)} ->
         begin try
             let b, lvl = D.get_assign t in
             if Expr.Term.equal p_true b then

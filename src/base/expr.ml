@@ -135,7 +135,7 @@ let rec debug_formula b f = match f.formula with
   | Pred t -> Printf.bprintf b "(%a)" debug_term t
   | True -> Printf.bprintf b "⊤"
   | False -> Printf.bprintf b "⊥"
-  | Not f -> Printf.bprintf b "¬"
+  | Not f -> Printf.bprintf b "¬ %a" debug_formula f
   | And l -> Printf.bprintf b "(%a)" (print_list debug_formula " ∧ ") l
   | Or l -> Printf.bprintf b "(%a)" (print_list debug_formula " ∨ ") l
   | Imply (p, q) -> Printf.bprintf b "(%a ⇒ %a)" debug_formula p debug_formula q

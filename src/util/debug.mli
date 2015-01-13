@@ -25,6 +25,8 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 (** {1 Some helpers} *)
 
+val get_start_time : unit -> float
+
 val set_debug : int -> unit     (** Set debug level *)
 val get_debug : unit -> int     (** Current debug level *)
 
@@ -33,3 +35,4 @@ val log : int -> ('a, Buffer.t, unit, unit) format4 -> 'a
 
 val on_buffer : (Buffer.t -> 'a -> unit) -> 'a -> string
 val on_fmt : (Format.formatter -> 'a -> 'b) -> 'a -> string
+

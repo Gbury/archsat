@@ -92,6 +92,9 @@ val sort : 'a t -> ('a -> 'a -> int) -> unit
 val iter : ('a -> unit) -> 'a t -> unit
 (** Iterate on elements *)
 
+val iteri : (int -> 'a -> unit) -> 'a t -> unit
+(** Iterate on elements *)
+
 val fold : ('b -> 'a -> 'b) -> 'b -> 'a t -> 'b
 (** Fold over elements *)
 

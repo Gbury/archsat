@@ -169,11 +169,13 @@ module Make(T : Map.OrderedType) = struct
     with Equal (a, b) ->
       raise (Unsat (a, b, expl t a b))
 
+  (*
   let are_neq t a b =
     try
       ignore (union t a b);
       false
     with Equal _ ->
       true
+  *)
 
 end
