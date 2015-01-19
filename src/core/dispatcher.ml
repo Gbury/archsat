@@ -4,8 +4,8 @@ let log = Debug.log
 (* Type definitions *)
 (* ************************************************************************ *)
 
-module M = Map.Make(Expr.Term)
-module I = Map.Make(struct type t = int let compare = Pervasives.compare end)
+module M = Assoc.Make(Expr.Term)
+module I = Assoc.Make(struct type t = int let equal i j = i=j let hash i = i land max_int end)
 
 type term = Expr.term
 type formula = Expr.formula
@@ -24,10 +24,10 @@ type slice = {
 }
 
 type level = {
-  eval_map : (term * int) M.t;
-  wait_eval : term list M.t;
-  watch_map : int list M.t;
-  job_map : (int * term list * (unit -> unit)) I.t;
+  eval_map : M.level;
+  wait_eval : M.level;
+  watch_map : M.level;
+  job_map : I.level;
   ext_levels : int Vector.t;
 }
 
@@ -45,17 +45,10 @@ type eval_res =
 exception Absurd of formula list
 exception Extension_not_found of string
 
-type term_eval =
-  | Interpreted of term * int
-  | Waiting of term
-
 type extension = {
   name : string;
   assume : formula * int -> unit;
-  assign : term -> term option;
-  eval_term : term -> term_eval;
   eval_pred : formula -> (bool * int) option;
-  interprets : Expr.ty Expr.function_descr Expr.var -> bool;
   backtrack : int -> unit;
   current_level : unit -> int;
 }
@@ -63,10 +56,7 @@ type extension = {
 let dummy_ext = {
   name = "";
   assume = (fun _ -> assert false);
-  assign = (fun _ -> assert false);
-  eval_term = (fun _ -> assert false);
   eval_pred = (fun _ -> assert false);
-  interprets = (fun _ -> assert false);
   backtrack = (fun _ -> assert false);
   current_level = (fun _ -> assert false);
 }
@@ -100,8 +90,6 @@ let ext_get i = Vector.get active i
 let ext_iter f = Vector.iter f active
 let ext_iteri f = Vector.iteri f active
 
-let is_interpreted f = Vector.exists (fun r -> r.interprets f) active
-
 (* Evaluation/Watching functions *)
 (* ************************************************************************ *)
 
@@ -113,46 +101,44 @@ exception Found_eval of term
 exception Not_assigned of term
 
 (* Convenience function *)
-let pop key map_ref =
-  let res = M.find key !map_ref in
-  map_ref := M.remove key !map_ref;
+let pop assoc key =
+  let res = M.find assoc key in
+  M.remove assoc key;
   res
 
-let popi key map_ref =
-  let res = I.find key !map_ref in
-  map_ref := I.remove key !map_ref;
+let popi assoc key =
+  let res = I.find assoc key in
+  I.remove assoc key;
   res
 
 (* The current assignment map, term -> value *)
-let eval_map = ref M.empty
+let eval_map = M.create 107
 (* Map of terms watching other terms, term -> list of terms to evaluate when arg has value *)
-let wait_eval = ref M.empty
+let wait_eval = M.create 107
 (* Map of terms watched by extensions, term -> continuation list *)
-let watch_map = ref M.empty
-let job_map = ref I.empty
+let watch_map = M.create 107
+let job_map = I.create 107
 
 let is_assigned t =
-  try ignore (M.find t !eval_map); true with Not_found -> false
+  try ignore (M.find eval_map t); true with Not_found -> false
 
 let get_assign t =
-  try M.find t !eval_map with Not_found -> raise (Not_assigned t)
+  try M.find eval_map t with Not_found -> raise (Not_assigned t)
 
 let add_wait_eval t t' =
   assert (not (is_assigned t));
-  let l = try M.find t' !wait_eval with Not_found -> [] in
-  wait_eval := M.add t' (List.sort_uniq Expr.Term.compare (t :: l)) !wait_eval
-
-let icompare : int -> int -> int = Pervasives.compare
+  let l = try M.find wait_eval t' with Not_found -> [] in
+  M.add wait_eval t' (List.sort_uniq Expr.Term.compare (t :: l))
 
 let add_job job_id t =
-  let l = try M.find t !watch_map with Not_found -> [] in
-  watch_map := M.add t (List.sort_uniq icompare (job_id :: l)) !watch_map
+  let l = try M.find watch_map t with Not_found -> [] in
+  M.add watch_map t (List.sort_uniq compare (job_id :: l))
 
-let set_job id job = job_map := I.add id job !job_map
+let set_job id job = I.add job_map id job
 
 let update_watch x job_id =
   try
-    let k, args, f = popi job_id job_map in
+    let k, args, f = popi job_map job_id in
     let rec find not_assigned acc = function
       | [] -> f ()
       | y :: r when not (is_assigned y) ->
@@ -176,17 +162,16 @@ let rec try_eval t =
   match Expr.(t.term) with
   | Expr.App (f, _, l) ->
     begin try
-        ext_iter (fun ext ->
-            if ext.interprets f then
-              match ext.eval_term t with
-              | Interpreted (v, lvl) ->
+        begin match Expr.eval t with
+              | Expr.Interpreted (v, lvl) ->
                 set_assign t v lvl;
                 raise (Found_eval v)
-              | Waiting t' ->
+              | Expr.Waiting t' ->
                 raise (Wait_eval t')
-          );
+        end;
         None
       with
+      | Expr.Cannot_interpret _ -> None
       | Found_eval v -> Some v
       | Wait_eval t' -> begin match try_eval t' with
           | None -> add_wait_eval t t'; None
@@ -202,14 +187,14 @@ let rec try_eval t =
 
 and set_assign t v lvl =
   log 5 "Assign (%d) : %a -> %a" lvl Expr.debug_term t Expr.debug_term v;
-  eval_map := M.add t (v, lvl) !eval_map;
+  M.add eval_map t (v, lvl);
   begin try
-      let l = pop t watch_map in
+      let l = pop watch_map t in
       log 10 "Found %d watchers" (List.length l);
       List.iter (update_watch t) l
     with Not_found -> () end;
   begin try
-      let l = pop t wait_eval in
+      let l = pop wait_eval t in
       log 10 "Waiting for %a :" Expr.debug_term t;
       List.iter (fun t' -> log 10 " -> %a" Expr.debug_term t') l;
       List.iter (fun t' -> ignore (try_eval t')) l
@@ -233,34 +218,34 @@ let watch k args f =
   in
   split [] [] k args
 
-let model () = M.fold (fun t (v, _) acc -> (t, v) :: acc) !eval_map []
+let model () = M.fold eval_map (fun t (v, _) acc -> (t, v) :: acc) []
 
 (* Mcsat Plugin functions *)
 (* ************************************************************************ *)
 
 let dummy = {
-  eval_map = M.empty;
-  wait_eval = M.empty;
-  watch_map = M.empty;
-  job_map = I.empty;
+  eval_map = M.dummy_level;
+  wait_eval = M.dummy_level;
+  watch_map = M.dummy_level;
+  job_map = I.dummy_level;
   ext_levels = Vector.make_empty ~-1;
 }
 
 let current_level () = {
-  eval_map = !eval_map;
-  wait_eval = !wait_eval;
-  watch_map = !watch_map;
-  job_map = !job_map;
+  eval_map = M.current_level eval_map;
+  wait_eval = M.current_level wait_eval;
+  watch_map = M.current_level watch_map;
+  job_map = I.current_level job_map;
   ext_levels = Vector.init (n_ext ())
       (fun i -> (ext_get i).current_level ()) ~-1;
 }
 
 let backtrack s =
   log 3 "Backtracking";
-  eval_map := s.eval_map;
-  wait_eval := s.wait_eval;
-  watch_map := s.watch_map;
-  job_map := !job_map;
+  M.backtrack eval_map s.eval_map;
+  M.backtrack wait_eval s.wait_eval;
+  M.backtrack watch_map s.watch_map;
+  I.backtrack job_map s.job_map;
   ext_iteri (fun i ext -> ext.backtrack (Vector.get s.ext_levels i))
 
 exception Exit_unsat of formula list * int
@@ -282,22 +267,16 @@ let assume s =
   with Exit_unsat (l, j) ->
     Unsat (l, j)
 
-exception Found_value of term
 let assign t =
   log 5 "Finding assignment for %a" Expr.debug_term t;
   try
-    ext_iter (fun ext ->
-        match ext.assign t with
-        | None -> ()
-        | Some v ->
-          log 5 " |- Found %a from extension : %s" Expr.debug_term v ext.name;
-          raise (Found_value v));
-    assert false
-  with Found_value v -> v
+      Expr.assign t
+  with Expr.Cannot_assign _ ->
+      assert false
 
 let rec iter_assign_aux f e = match Expr.(e.term) with
   | Expr.App (p, _, l) ->
-    if not (is_interpreted p) then f e;
+    if not (Expr.is_interpreted p) then f e;
     List.iter (iter_assign_aux f) l
   | _ -> f e
 
@@ -317,3 +296,5 @@ let rec eval f =
     Unknown
   with Found_eval (b, lvl) ->
     Valued (b, lvl)
+
+

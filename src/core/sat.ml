@@ -51,10 +51,7 @@ let sat_eval = function
 D.(register {
     name = "sat";
     assume = sat_assume;
-    assign = sat_assign;
-    eval_term = (fun _ -> assert false);
     eval_pred = sat_eval;
-    interprets = (fun _ -> false);
     backtrack = (fun _ -> ());
     current_level = (fun _ -> 0);
   })

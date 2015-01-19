@@ -1,57 +1,62 @@
 
-
 (* Type definitions *)
 (* ************************************************************************ *)
 
-(* Variables, parametrized by the kind of the type of the variable *)
-type 'ty var = {
+(* TODO: Find something smart to say *)
+type 't eval =
+    | Interpreted of 't * int
+    | Waiting of 't
+
+(* Variables, parametrized by the kind of the type of the variable, 
+    and the type of terms *)
+type ('ty, 't) var = {
   var_name : string;
   var_id : int; (* unique *)
   var_type : 'ty;
+  mutable var_eval : (int * ('t -> 't eval)) option;
+  mutable var_assign : (int * ('t -> 't)) option;
 }
 
-type 'ty meta = {
-  meta_var : 'ty var;
+type ('ty, 't) meta = {
+  meta_var : ('ty, 't) var;
   meta_index : int;
 }
 
-type 'ty tau = {
-  tau_var : 'ty var;
+type ('ty, 't) tau = {
+  tau_var : ('ty, 't) var;
   tau_index : int;
 }
 
 (* Type for first order types *)
 type ttype = Type
 
+type 'ty function_descr = {
+  fun_vars : (ttype, unit) var list; (* prenex forall *)
+  fun_args : 'ty list;
+  fun_ret : 'ty;
+}
+
 type ty_descr =
-  | TyVar of ttype var
-  | TyMeta of ttype meta
-  | TyApp of ttype function_descr var * ty list
+  | TyVar of (ttype, unit) var
+  | TyMeta of (ttype, unit) meta
+  | TyApp of (ttype function_descr, unit) var * ty list
 
 and ty = {
   ty : ty_descr;
   mutable ty_hash : int;
 }
 
-and 'ty function_descr = {
-  fun_vars : ttype var list; (* prenex forall *)
-  fun_args : 'ty list;
-  fun_ret : 'ty;
-}
-
 (* Terms & formulas *)
 type term_descr =
-  | Var of ty var
-  | Meta of ty meta
-  | Tau of ty tau
-  | App of ty function_descr var * ty list * term list
+  | Var of (ty, term) var
+  | Meta of (ty, term) meta
+  | Tau of (ty, term) tau
+  | App of (ty function_descr, term) var * ty list * term list
 
 and term = {
   term    : term_descr;
   t_type  : ty;
   mutable t_hash : int; (* lazy hash *)
-  t_constr : (ty var * formula list) option;
-  (* Constrained expression equal to var that verifies the formulas given *)
 }
 
 and formula_descr =
@@ -69,9 +74,9 @@ and formula_descr =
   | Equiv of formula * formula
 
   (* Quantifiers *)
-  | All of ty var list * formula
-  | AllTy of ttype var list * formula
-  | Ex of ty var list * formula
+  | All of (ty, term) var list * formula
+  | AllTy of (ttype, unit) var list * formula
+  | Ex of (ty, term) var list * formula
 
 and formula = {
   formula : formula_descr;
@@ -82,12 +87,15 @@ and formula = {
 (* ************************************************************************ *)
 
 exception Type_error_doublon of string * int
-exception Type_error_app of ty function_descr var * ty list * term list
-exception Type_error_ty_app of ttype function_descr var * ty list
+exception Type_error_app of (ty function_descr, term) var * ty list * term list
+exception Type_error_ty_app of (ttype function_descr, unit) var * ty list
 exception Type_error_mismatch of ty * ty
 
-exception Subst_error_ty_scope of ttype var
-exception Subst_error_term_scope of ty var
+exception Cannot_assign of term
+exception Cannot_interpret of term
+
+exception Subst_error_ty_scope of (ttype, unit) var
+exception Subst_error_term_scope of (ty, term) var
 
 (* Debug printing functions *)
 (* ************************************************************************ *)
@@ -292,7 +300,7 @@ let rec lexico compare l1 l2 = match l1, l2 with
   | _, [] -> 1
 
 (* Variables *)
-let compare_var: 'a. 'a var -> 'a var -> int =
+let compare_var: 'a 'b. ('a, 'b) var -> ('a, 'b) var -> int =
   fun v1 v2 -> Pervasives.compare v1.var_id v2.var_id
 
 let equal_var v1 v2 = compare_var v1 v2 = 0
@@ -415,8 +423,8 @@ module Subst = struct
   let iter f = Mi.iter (fun _ (v, t) -> f v t)
 end
 
-type ty_subst = (ttype var, ty) Subst.t
-type term_subst = (ty var, term) Subst.t
+type ty_subst = ((ttype, unit) var, ty) Subst.t
+type term_subst = ((ty, term) var, term) Subst.t
 
 module Hst = Hashtbl.Make(struct
     type t = string * ty
@@ -430,13 +438,14 @@ module Hst = Hashtbl.Make(struct
 let n_var = ref 0
 let mk_var name ty =
   incr n_var;
-  { var_name = name; var_id = !n_var; var_type = ty; }
+  { var_name = name; var_id = !n_var; var_type = ty;
+    var_eval = None; var_assign = None; }
 
 (* Variables are hashconsed, except for meta variables *)
-let type_var_htbl : (string, ttype var) Hashtbl.t = Hashtbl.create 43
-let type_const_htbl : (string, ttype function_descr var) Hashtbl.t = Hashtbl.create 43
-let term_var_htbl : ty var Hst.t = Hst.create 43
-let term_const_htbl : (string, ty function_descr var) Hashtbl.t = Hashtbl.create 43
+let type_var_htbl : (string, (ttype, unit) var) Hashtbl.t = Hashtbl.create 43
+let type_const_htbl : (string, (ttype function_descr, unit) var) Hashtbl.t = Hashtbl.create 43
+let term_var_htbl : (ty, term) var Hst.t = Hst.create 43
+let term_const_htbl : (string, (ty function_descr, term) var) Hashtbl.t = Hashtbl.create 43
 
 let mk_ttype_var name =
   try Hashtbl.find type_var_htbl name
@@ -528,7 +537,11 @@ let type_inst f tys args =
 (* Terms & substitutions *)
 (* ************************************************************************ *)
 
-let mk_term t ty = { term = t; t_type = ty; t_hash = -1; t_constr = None; }
+let mk_term t ty = {
+    term = t;
+    t_type = ty;
+    t_hash = -1;
+}
 
 let term_var v =
   mk_term (Var v) v.var_type
@@ -712,12 +725,54 @@ let term_taus f = match f.formula with
   | Ex (l, _) -> List.map (fun t -> mk_term (Tau t) t.tau_var.var_type) (mk_taus l f)
   | _ -> invalid_arg "type_metas"
 
+(* Interpreting and assigning *)
+(* ************************************************************************ *)
+
+let is_interpreted f = f.var_eval = None
+
+let interpreter v = match v.var_eval with
+    | None -> raise Exit
+    | Some (_, f) -> f
+
+let eval t =
+    try match t.term with
+    | Var v -> (interpreter v) t
+    | Meta m -> (interpreter m.meta_var) t
+    | Tau e -> (interpreter e.tau_var) t
+    | App (f, _, _) -> (interpreter f) t
+    with Exit -> raise (Cannot_interpret t)
+
+let assigner v = match v.var_assign with
+    | None -> raise Exit
+    | Some (_, f) -> f
+
+let assign t =
+    try match t.term with
+    | Var v -> (assigner v) t
+    | Meta m -> (assigner m.meta_var) t
+    | Tau e -> (assigner e.tau_var) t
+    | App (f, _, _) -> (assigner f) t
+    with Exit -> raise (Cannot_assign t)
+
+let set_eval v prio f = match v.var_eval with
+    | None ->
+            v.var_eval <- Some (prio, f)
+    | Some (i, _) when i < prio ->
+            v.var_eval <- Some (prio, f)
+    | _ -> ()
+
+let set_assign v prio f = match v.var_assign with
+    | None ->
+            v.var_assign <- Some (prio, f)
+    | Some (i, _) when i < prio ->
+            v.var_assign <- Some (prio, f)
+    | _ -> ()
 
 (* Modules for simpler function names *)
 (* ************************************************************************ *)
 
 module Var = struct
-  type 'a t = 'a var
+  type ('a, 'b) t = ('a, 'b) var
   let hash v = v.var_id
   let compare = compare_var
   let equal = equal_var

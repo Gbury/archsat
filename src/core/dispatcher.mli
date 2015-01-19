@@ -20,17 +20,10 @@ exception Extension_not_found of string
 
 (** {2 Extension Registering} *)
 
-type term_eval =
-  | Interpreted of term * int
-  | Waiting of term
-
 type extension = {
   name : string;
   assume : formula * int -> unit;
-  assign : term -> term option;
-  eval_term : term -> term_eval;
   eval_pred : formula -> (bool * int) option;
-  interprets : Expr.ty Expr.function_descr Expr.var -> bool;
   backtrack : int -> unit;
   current_level : unit -> int;
 }
