@@ -808,3 +808,62 @@ module Formula = struct
   let print = print_formula
 end
 
+module Untyped = struct
+
+    type location = ParseLocation.t
+
+    type term_descr =
+        | Wildcard
+        | Var of string
+        | TVar of string * term
+        | Const of string
+
+        | Eq of term * term
+        | App of term * term list
+
+        | True
+        | False
+        | Not of term
+        | And of term list
+        | Or of term list
+        | Imply of term * term
+        | Equiv of term * term
+
+        | All of term list * term
+        | Ex of term list * term
+        | AllTy of term list * term
+
+    and term = {
+        loc : location option;
+        term : term_descr;
+    }
+
+    let make ?loc descr =
+        { loc = loc; term = descr; }
+
+    let at_loc ~loc t =
+        { t with loc = Some loc; }
+
+
+    let true_ = make True
+    let false_ = make False
+    let wildcard = make Wildcard
+
+    let var ?loc ?ty s = match ty with
+      | None -> make ?loc (Var s)
+      | Some t -> make ?loc (TVar (s, t))
+    let const ?loc s = make ?loc (Const s)
+    let app ?loc f l = make ?loc (App (f, l))
+    let not_ ?loc f = make ?loc (Not f)
+    let eq ?loc a b = make ?loc (Eq (a, b))
+    let neq ?loc a b = not_ ?loc (eq ?loc a b)
+    let and_ ?loc l = make ?loc (And l)
+    let or_ ?loc l = make ?loc (Or l)
+    let imply ?loc p q = make ?loc (Imply (p, q))
+    let equiv ?loc p q = make ?loc (Equiv (p, q))
+    let forall ?loc vars f = make ?loc (All (vars, f))
+    let forall_ty ?loc vars f = make ?loc (AllTy (vars, f))
+    let exists ?loc vars f = make ?loc (Ex (vars, f))
+
+
+end
