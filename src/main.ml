@@ -109,6 +109,10 @@ let main () =
   let cnf = Io.parse_input !file in
   Debug.log 1 "=========== End parse ===========";
 
+  Debug.log 1 "========== Start parse ==========";
+  List.iter (List.iter Solver.preprocess) cnf;
+  Debug.log 1 "=========== End parse ===========";
+
   Solver.assume cnf;
   Debug.log 1 "========== Start solve ==========";
   let res = Solver.solve () in

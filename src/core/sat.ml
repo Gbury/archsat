@@ -24,12 +24,18 @@ let sat_assume = function
 
 let sat_assign = function
   | {Expr.term = Expr.App (p, [], [])} as t when Expr.(Ty.equal t.t_type type_prop) ->
+    D.watch 1 [t] (fun () ->
+        let v, lvl = D.get_assign t in
+        if Expr.Term.equal v p_true then
+            D.propagate (Expr.f_pred t) lvl
+        else
+            D.propagate (Expr.f_not (Expr.f_pred t)) lvl);
     begin try
-        Some (fst (D.get_assign t))
+        fst (D.get_assign t)
       with D.Not_assigned _ ->
-        Some (p_true)
+        p_true
     end
-  | _ -> None
+  | _ -> assert false
 
 let sat_eval = function
   | {Expr.formula = Expr.Pred ({Expr.term = Expr.App (p, [], [])} as t)} ->
@@ -46,12 +52,32 @@ let sat_eval = function
     end
   | _ -> None
 
-;;
 
+let rec sat_preprocess = function
+  | { Expr.formula = Expr.Pred ({Expr.term = Expr.App (p, [], [])} as t)}
+    when Expr.(Ty.equal t.t_type type_prop) ->
+          Expr.set_assign p 0 sat_assign
+  | { Expr.formula = Expr.Not f } ->
+          sat_preprocess f
+  | { Expr.formula = Expr.And l }
+  | { Expr.formula = Expr.Or l } ->
+          List.iter sat_preprocess l
+  | { Expr.formula = Expr.Imply (p, q) }
+  | { Expr.formula = Expr.Equiv (p, q) } ->
+          sat_preprocess p;
+          sat_preprocess q
+  | { Expr.formula = Expr.All (_, f) }
+  | { Expr.formula = Expr.AllTy (_, f) }
+  | { Expr.formula = Expr.Ex (_, f) } ->
+          sat_preprocess f
+  | _ -> ()
+
+;;
 D.(register {
     name = "sat";
     assume = sat_assume;
     eval_pred = sat_eval;
+    preprocess = sat_preprocess;
     backtrack = (fun _ -> ());
     current_level = (fun _ -> 0);
   })

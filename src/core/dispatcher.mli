@@ -24,6 +24,7 @@ type extension = {
   name : string;
   assume : formula * int -> unit;
   eval_pred : formula -> (bool * int) option;
+  preprocess : formula -> unit;
   backtrack : int -> unit;
   current_level : unit -> int;
 }
@@ -39,6 +40,18 @@ val activate : string -> unit
 val list_extensions : unit -> string list
 (** Returns the current list of extensions known to the dispatcher. *)
 
+(** {2 Misc} *)
+
+val preprocess : formula -> unit
+(** Gives the formula to extensions for pre-processing. During pre-processing,
+    extensions shoudl register handlers for assignement and evaluation through
+    the appropriate functions from module Expr. *)
+
+val push : formula list -> string -> unit
+(** Push the given clause to the sat solver. *)
+
+val propagate : formula -> int -> unit
+(** Propagate the given formula at the given evaluation level. *)
 
 (** {2 Assignment functions} *)
 

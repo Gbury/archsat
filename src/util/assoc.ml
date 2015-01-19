@@ -54,7 +54,8 @@ module Make(T : Hashtbl.HashedType) = struct
         assert (level >= 0);
         if level <= h.count then begin
             undo h (h.count - level) h.undo;
-            h.count <- level
+            h.count <- level;
+            assert (h.count = List.length h.undo)
         end
 
     (* Standard operations *)

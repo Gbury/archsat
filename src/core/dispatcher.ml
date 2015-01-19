@@ -49,6 +49,7 @@ type extension = {
   name : string;
   assume : formula * int -> unit;
   eval_pred : formula -> (bool * int) option;
+  preprocess : formula -> unit;
   backtrack : int -> unit;
   current_level : unit -> int;
 }
@@ -57,6 +58,7 @@ let dummy_ext = {
   name = "";
   assume = (fun _ -> assert false);
   eval_pred = (fun _ -> assert false);
+  preprocess = (fun _ -> assert false);
   backtrack = (fun _ -> assert false);
   current_level = (fun _ -> assert false);
 }
@@ -84,20 +86,23 @@ let list_extensions () = List.map (fun r -> r.name) !extensions
 
 (* Acces functions for active extensions *)
 let n_ext () = Vector.size active
-
 let ext_get i = Vector.get active i
-
 let ext_iter f = Vector.iter f active
 let ext_iteri f = Vector.iteri f active
+
+exception Found_ext of int
+let find_ext name =
+    try
+        ext_iteri (fun i r -> if r.name = name then raise (Found_ext i));
+        assert false
+    with Found_ext i -> i
+
+let preprocess f = ext_iter (fun r -> r.preprocess f)
 
 (* Evaluation/Watching functions *)
 (* ************************************************************************ *)
 
-(* Internal exceptions (not exported) *)
-exception Wait_eval of term
-exception Found_eval of term
-
-(* Exported exceptions *)
+(* Exceptions *)
 exception Not_assigned of term
 
 (* Convenience function *)
@@ -165,18 +170,15 @@ let rec try_eval t =
         begin match Expr.eval t with
               | Expr.Interpreted (v, lvl) ->
                 set_assign t v lvl;
-                raise (Found_eval v)
+                Some v
               | Expr.Waiting t' ->
-                raise (Wait_eval t')
-        end;
-        None
-      with
-      | Expr.Cannot_interpret _ -> None
-      | Found_eval v -> Some v
-      | Wait_eval t' -> begin match try_eval t' with
-          | None -> add_wait_eval t t'; None
-          | Some _ -> try_eval t
+                begin match try_eval t' with
+                | None -> add_wait_eval t t'; None
+                | Some _ -> try_eval t
+                end
         end
+    with
+    | Expr.Cannot_interpret _ -> None
     end
   | _ ->
     begin try
@@ -186,19 +188,25 @@ let rec try_eval t =
     end
 
 and set_assign t v lvl =
-  log 5 "Assign (%d) : %a -> %a" lvl Expr.debug_term t Expr.debug_term v;
-  M.add eval_map t (v, lvl);
-  begin try
-      let l = pop watch_map t in
-      log 10 "Found %d watchers" (List.length l);
-      List.iter (update_watch t) l
-    with Not_found -> () end;
-  begin try
-      let l = pop wait_eval t in
-      log 10 "Waiting for %a :" Expr.debug_term t;
-      List.iter (fun t' -> log 10 " -> %a" Expr.debug_term t') l;
-      List.iter (fun t' -> ignore (try_eval t')) l
-    with Not_found -> () end
+  try
+    let v', lvl' = M.find eval_map t in
+    log 5 "Assigned (%d) : %a -> %a / %a" lvl' Expr.debug_term t Expr.debug_term v' Expr.debug_term v;
+    if not (Expr.Term.equal v v') then
+        assert false
+  with Not_found ->
+    log 5 "Assign (%d) : %a -> %a" lvl Expr.debug_term t Expr.debug_term v;
+    M.add eval_map t (v, lvl);
+    begin try
+        let l = pop watch_map t in
+        log 10 " Found %d watchers" (List.length l);
+        List.iter (update_watch t) l
+      with Not_found -> () end;
+    begin try
+        let l = pop wait_eval t in
+        log 10 " Waiting for %a :" Expr.debug_term t;
+        List.iter (fun t' -> log 10 "  -> %a" Expr.debug_term t') l;
+        List.iter (fun t' -> ignore (try_eval t')) l
+      with Not_found -> () end
 
 let job_max = ref 0
 
@@ -219,6 +227,23 @@ let watch k args f =
   split [] [] k args
 
 let model () = M.fold eval_map (fun t (v, _) acc -> (t, v) :: acc) []
+
+
+(* Delayed propagation *)
+(* ************************************************************************ *)
+
+let push_stack = ref []
+let propagate_stack = ref []
+
+let push clause ext_name =
+    push_stack := (clause, find_ext ext_name) :: !push_stack
+
+let propagate f lvl =
+    propagate_stack := (f, lvl) :: !propagate_stack
+
+let apply f l =
+    List.iter (fun (a, b) -> f a b) !l;
+    l := []
 
 (* Mcsat Plugin functions *)
 (* ************************************************************************ *)
@@ -241,7 +266,8 @@ let current_level () = {
 }
 
 let backtrack s =
-  log 3 "Backtracking";
+  log 10 "Backtracking";
+  propagate_stack := [];
   M.backtrack eval_map s.eval_map;
   M.backtrack wait_eval s.wait_eval;
   M.backtrack watch_map s.watch_map;
@@ -255,7 +281,7 @@ let assume s =
     for i = s.start to s.start + s.length - 1 do
       match s.get i with
       | Lit f, lvl ->
-        log 8 "Assuming (%d) %a" lvl Expr.debug_formula f;
+        log 8 " Assuming (%d) %a" lvl Expr.debug_formula f;
         ext_iteri (fun j ext ->
             try
               ext.assume (f, lvl)
@@ -263,6 +289,10 @@ let assume s =
               raise (Exit_unsat (l, j)))
       | Assign (t, v), lvl -> set_assign t v lvl
     done;
+    log 8 "Pushing (%d)" (List.length !push_stack);
+    apply s.push push_stack;
+    log 8 "Propagating (%d)" (List.length !propagate_stack);
+    apply s.propagate propagate_stack;
     Sat
   with Exit_unsat (l, j) ->
     Unsat (l, j)
@@ -270,7 +300,9 @@ let assume s =
 let assign t =
   log 5 "Finding assignment for %a" Expr.debug_term t;
   try
-      Expr.assign t
+      let res = Expr.assign t in
+      log 5 " -> %a" Expr.debug_term res;
+      res
   with Expr.Cannot_assign _ ->
       assert false
 
@@ -286,8 +318,7 @@ let iter_assignable f e = match Expr.(e.formula) with
   | _ -> ()
 
 exception Found_eval of bool * int
-let rec eval f =
-  log 5 "Evaluating formula : %a" Expr.debug_formula f;
+let eval_aux f =
   try
     ext_iter (fun ext ->
         match ext.eval_pred f with
@@ -296,5 +327,14 @@ let rec eval f =
     Unknown
   with Found_eval (b, lvl) ->
     Valued (b, lvl)
+
+let eval formula =
+    log 5 "Evaluating formula : %a" Expr.debug_formula formula;
+    match formula with
+    | { Expr.formula = Expr.Not f } -> begin match eval_aux f with
+        | Valued (b, lvl) -> Valued (not b, lvl)
+        | Unknown -> Unknown
+    end
+    | f -> eval_aux f
 
 

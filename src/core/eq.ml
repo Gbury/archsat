@@ -37,9 +37,9 @@ let value (_, x, _) = x
 
 let eq_assign x =
   try
-    Some (value (M.find st x))
+    value (M.find st x)
   with Not_found ->
-    Some x
+    x
 
 let eq_eval = function
   | {Expr.formula = Expr.Equal (a, b)} ->
@@ -52,11 +52,39 @@ let eq_eval = function
     end
   | _ -> None
 
+let rec set_handler = function
+  | { Expr.term = Expr.Var v } -> Expr.(set_assign v 0 eq_assign)
+  | { Expr.term = Expr.Meta m } -> Expr.(set_assign m.meta_var 0 eq_assign)
+  | { Expr.term = Expr.Tau t } -> Expr.(set_assign t.tau_var 0 eq_assign)
+  | { Expr.term = Expr.App (f, _, l) } ->
+    Expr.set_assign f 0 eq_assign;
+    List.iter set_handler l
+
+let rec eq_pre = function
+  | { Expr.formula = Expr.Equal (a, b) } ->
+          set_handler a;
+          set_handler b
+  | { Expr.formula = Expr.Not f } ->
+          eq_pre f
+  | { Expr.formula = Expr.And l }
+  | { Expr.formula = Expr.Or l } ->
+          List.iter eq_pre l
+  | { Expr.formula = Expr.Imply (p, q) }
+  | { Expr.formula = Expr.Equiv (p, q) } ->
+          eq_pre p;
+          eq_pre q
+  | { Expr.formula = Expr.All (_, f) }
+  | { Expr.formula = Expr.AllTy (_, f) }
+  | { Expr.formula = Expr.Ex (_, f) } ->
+          eq_pre f
+  | _ -> ()
+
 ;;
 D.(register {
     name = "eq";
     assume = eq_assume;
     eval_pred = eq_eval;
+    preprocess = eq_pre;
     backtrack = (fun i -> M.backtrack st i);
     current_level = (fun _ -> M.current_level st);
   })

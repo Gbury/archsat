@@ -9,6 +9,10 @@ type res =
   | Unsat
   (** Type of results returned by the solver *)
 
+val preprocess : Expr.formula -> unit
+(** Preprocess the given formula. All formulas should be preprocessed
+    before being assumed. *)
+
 val solve : unit -> res
 (** Try and solve the current set of assumptions *)
 
