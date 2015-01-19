@@ -98,11 +98,11 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 %nonassoc NOTVLINE
 %nonassoc NOTAND
 
-%start <Expr.Term.t> parse_term
-%start <Expr.Formula.t> parse_formula
+%start <Expr.Untyped.term> parse_term
+%start <Expr.Untyped.term> parse_formula
 %start <Ast_tptp.Untyped.declaration> parse_declaration
 %start <Ast_tptp.Untyped.declaration list> parse_declarations
-%start <Expr.Term.t list list> parse_answer_tuple
+%start <Expr.Untyped.term list list> parse_answer_tuple
 
 %%
 
@@ -127,9 +127,9 @@ declaration:
   | TFF LEFT_PAREN name=name COMMA role COMMA tydecl=type_decl info=annotations RIGHT_PAREN DOT
     { let s, ty = tydecl in
       match ty.T.term with
-      | T.Const (Symbol.Conn Symbol.TType)
-      | T.App ({T.term=T.Const (Sym.Conn Sym.Arrow)},
-               ({T.term=T.Const (Sym.Conn Sym.TType)} :: _)) ->
+      | T.Const T.Ttype
+      | T.App ({T.term = T.Const (T.Arrow)},
+               ({T.term = T.Const (T.Ttype)} :: _)) ->
         (* declare a new type symbol *)
         A.NewType (name, s, ty)
       | _ -> A.TypeDecl (name, s, ty)
@@ -281,9 +281,9 @@ plain_term:
     }
 
 constant:
-| s=atomic_word { s }
+| s=atomic_word { T.sym s }
 | s=atomic_defined_word { s }
-functor_: f=atomic_word { T.const f }
+functor_: f=atomic_word { T.const (T.sym f) }
 
 defined_term:
   | t=defined_atom
@@ -294,10 +294,10 @@ defined_term:
   | t=defined_atomic_term { t }
 
 defined_atom:
-  | n=INTEGER { n }
-  | n=RATIONAL { n }
-  | n=REAL { n }
-  | s=DISTINCT_OBJECT { s }
+  | n=INTEGER { T.int n }
+  | n=RATIONAL { T.rat n }
+  | n=REAL { T.real n }
+  | s=DISTINCT_OBJECT { T.distinct }
 
 defined_atomic_term:
   | t=defined_plain_term { t }
@@ -367,8 +367,8 @@ tff_ty_var: w=UPPER_WORD { T.var w }
 
 type_const:
   | WILDCARD { T.wildcard }
-  | w=LOWER_WORD { w }
-  | w=DOLLAR_WORD { w }
+  | w=LOWER_WORD { T.sym w }
+  | w=DOLLAR_WORD { T.sym w }
 
 arguments: separated_nonempty_list(COMMA, term) { $1 }
 
@@ -392,11 +392,11 @@ atomic_word:
   | s=LOWER_WORD { s }
 
 atomic_defined_word:
-  | WILDCARD { Sym.Base.wildcard }
-  | w=DOLLAR_WORD { Sym.of_string w }
+  | WILDCARD { T.Wildcard }
+  | w=DOLLAR_WORD { T.sym w }
 
 atomic_system_word:
-  | w=DOLLAR_DOLLAR_WORD { Sym.of_string w }
+  | w=DOLLAR_DOLLAR_WORD { T.sym w }
 
 name_list:
   l=separated_list(COMMA, name) { l }

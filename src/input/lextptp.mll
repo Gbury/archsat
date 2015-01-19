@@ -26,7 +26,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 (** {1 TPTP Lexer} *)
 
 {
-  open Parse_tptp
+  open Parsetptp
 }
 
 let printable_char = [^ '\n']

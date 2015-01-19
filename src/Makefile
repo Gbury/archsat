@@ -1,8 +1,8 @@
 # copyright (c) 2014, guillaume bury
 
 LOG=build.log
-COMP=ocamlbuild -log $(LOG) -use-ocamlfind -classic-display
-FLAGS=
+COMP=ocamlbuild -log $(LOG) -classic-display
+FLAGS=-use-ocamlfind -use-menhir -yaccflag '--explain'
 DIRS=-Is util,base,core,input
 DOC=tabsat.docdir/index.html
 TEST=main.native

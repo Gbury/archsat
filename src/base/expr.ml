@@ -812,26 +812,24 @@ module Untyped = struct
 
     type location = ParseLocation.t
 
+    type symbol =
+        | Int of string
+        | Rat of string
+        | Real of string
+        | String of string
+        | Ttype | Wildcard
+        | True | False
+        | Eq | Distinct | Arrow
+        | All | AllTy | Ex
+        | And | Or | Xor
+        | Imply | Equiv | Not
+
     type term_descr =
-        | Wildcard
         | Var of string
-        | TVar of string * term
-        | Const of string
-
-        | Eq of term * term
+        | Column of term * term
+        | Const of symbol
         | App of term * term list
-
-        | True
-        | False
-        | Not of term
-        | And of term list
-        | Or of term list
-        | Imply of term * term
-        | Equiv of term * term
-
-        | All of term list * term
-        | Ex of term list * term
-        | AllTy of term list * term
+        | Binding of symbol * term list * term
 
     and term = {
         loc : location option;
@@ -844,26 +842,51 @@ module Untyped = struct
     let at_loc ~loc t =
         { t with loc = Some loc; }
 
+    (* Symbols *)
+    let sym s = String s
+    let wildcard = Wildcard
+    let distinct = Distinct
 
-    let true_ = make True
-    let false_ = make False
-    let wildcard = make Wildcard
+    let int s = Int s
+    let rat s = Rat s
+    let real s = Real s
+
+    (* Terms *)
+    let const ?loc s = make ?loc (Const s)
+
+    let tType = const Ttype
+    let true_ = const True
+    let false_ = const False
 
     let var ?loc ?ty s = match ty with
       | None -> make ?loc (Var s)
-      | Some t -> make ?loc (TVar (s, t))
-    let const ?loc s = make ?loc (Const s)
-    let app ?loc f l = make ?loc (App (f, l))
-    let not_ ?loc f = make ?loc (Not f)
-    let eq ?loc a b = make ?loc (Eq (a, b))
-    let neq ?loc a b = not_ ?loc (eq ?loc a b)
-    let and_ ?loc l = make ?loc (And l)
-    let or_ ?loc l = make ?loc (Or l)
-    let imply ?loc p q = make ?loc (Imply (p, q))
-    let equiv ?loc p q = make ?loc (Equiv (p, q))
-    let forall ?loc vars f = make ?loc (All (vars, f))
-    let forall_ty ?loc vars f = make ?loc (AllTy (vars, f))
-    let exists ?loc vars f = make ?loc (Ex (vars, f))
+      | Some t -> make ?loc (Column (make ?loc (Var s), t))
 
+    let app ?loc f l = make ?loc (App (f, l))
+
+    let not_ ?loc f = app ?loc (const Not) [f]
+
+    let eq ?loc a b = app ?loc (const Eq) [a; b]
+
+    let neq ?loc a b = not_ ?loc (eq ?loc a b)
+
+    let and_ ?loc l = app ?loc (const And) l
+
+    let or_ ?loc l = app ?loc (const Or) l
+
+    let xor ?loc p q = app ?loc (const Xor) [p; q]
+
+    let imply ?loc p q = app ?loc (const Imply) [p; q]
+
+    let equiv ?loc p q = app ?loc (const Equiv) [p; q]
+
+    let forall ?loc vars f = make ?loc (Binding (All, vars, f))
+
+    let forall_ty ?loc vars f = make ?loc (Binding (AllTy, vars, f))
+
+    let exists ?loc vars f = make ?loc (Binding (Ex, vars, f))
+
+    let mk_fun_ty ?loc args ret = app ?loc (const Arrow) (ret :: args)
 
 end
+

@@ -214,9 +214,9 @@ module type S = sig
 end
 
 module Untyped = struct
-  type hoterm = Expr.Formula.t
-  type form = Expr.Formula.t
-  type ty = Expr.Ty.t
+  type hoterm = Expr.Untyped.term
+  type form = Expr.Untyped.term
+  type ty = Expr.Untyped.term
 
   type t =
     | CNF of name * role * form list * optional_info

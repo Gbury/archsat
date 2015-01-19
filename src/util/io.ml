@@ -2,12 +2,14 @@
 (* Type definitions *)
 (* ************************************************************************ *)
 
+exception Parsing_error of ParseLocation.t
 exception Syntax_error of int * int * string
 exception Setting_not_found of string * string * string list
 
 type input =
   | Auto
   | Dimacs
+  | Tptp
 
 type output =
   | Standard
@@ -22,6 +24,7 @@ let output = ref Standard
 let input_list = [
   "auto", Auto;
   "dimacs", Dimacs;
+  "tptp", Tptp;
 ]
 
 let output_list = [
@@ -52,18 +55,24 @@ let format_of_filename s =
   else (* Default choice *)
     Dimacs
 
-let parse_with_input file = function
-  | Auto -> assert false
+let rec parse_input file = match !input with
+  | Auto -> input := format_of_filename file; parse_input file
   | Dimacs ->
-    try
+    begin try
       List.rev_map (List.rev_map Sat.mk_prop) (Parsedimacs.parse file)
     with Parsedimacs.Syntax_error l ->
       raise (Syntax_error (l, 0, "Dimacs parsing error"))
-
-let parse_input file =
-  parse_with_input file (match !input with
-      | Auto -> format_of_filename file
-      | f -> f)
+    end
+  | Tptp ->
+    begin try
+      let ch = open_in file in
+      let lexbuf = Lexing.from_channel ch in
+      let _ = Parsetptp.parse_declarations Lextptp.token lexbuf in
+      close_in ch;
+      [[]]
+    with Ast_tptp.ParseError loc ->
+        raise (Parsing_error loc)
+    end
 
 (* Output functions *)
 (* ************************************************************************ *)

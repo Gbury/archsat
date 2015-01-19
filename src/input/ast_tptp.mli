@@ -25,8 +25,6 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 (** {1 TPTP Ast} *)
 
-open Logtk
-
 exception ParseError of ParseLocation.t
 
 type name =
@@ -116,7 +114,7 @@ module type S = sig
 end
 
 module Untyped : S
-  with type hoterm = Expr.Formula.t
-  and type form = Expr.Formula.t
-  and type ty = Expr.Ty.t
+  with type hoterm = Expr.Untyped.term
+  and type form = Expr.Untyped.term
+  and type ty = Expr.Untyped.term
 
