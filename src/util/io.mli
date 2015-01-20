@@ -6,8 +6,8 @@ val set_output : string -> unit
 (** Sets the input or output to the given format.
     @raise Setting_not_found if the string is not recognised *)
 
-exception Syntax_error of int * int * string
-(** Syntax error with : line number, character number, error message. *)
+exception Parsing_error of ParseLocation.t * string
+(** Syntax error with loaction and error message. *)
 
 exception Setting_not_found of string * string * string list
 (** Raised by [set_input] and [set_output].

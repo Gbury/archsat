@@ -1,7 +1,6 @@
 
 (* TabSat *)
 
-
 (* Dummy module renaming for extensions *)
 module Eq = Eq
 module Sat = Sat
@@ -157,8 +156,8 @@ let main () =
 try
   main ()
 with
-| Io.Syntax_error (l, c, msg) ->
-  Format.fprintf std "Syntax error in file %s at line %d, character %d :@\n%s@." !file l c msg;
+| Io.Parsing_error (l, msg) ->
+  Format.fprintf std "%a:@\n%s@." ParseLocation.fmt l msg;
   exit 2
 | Io.Setting_not_found (opt, arg, l) ->
   Format.fprintf std "'%s' is not a valid argument for %s, valid arguments are :@\n%a@."
