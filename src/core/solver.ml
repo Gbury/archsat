@@ -26,7 +26,7 @@ module SatPlugin = Dispatcher
 (* Solving module *)
 (* ************************************************************************ *)
 
-module Smt = Msat.Mcsolver.Make(SatExpr)(SatPlugin)
+module Smt = Msat.Mcsolver.Make(struct let debug = Debug.log end)(SatExpr)(SatPlugin)
 
 (* Pre-processing *)
 
