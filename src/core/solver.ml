@@ -1,4 +1,13 @@
 
+let log_section = Util.Section.make "solver"
+let sat_log_section = Util.Section.make "mcsat"
+let log i fmt = Util.debug ~section:log_section i fmt
+
+(* Additional options for executable *)
+(* ************************************************************************ *)
+
+let get_options () = Dispatcher.get_options ()
+
 (* Wrapper around expressions *)
 (* ************************************************************************ *)
 
@@ -26,21 +35,23 @@ module SatPlugin = Dispatcher
 (* Solving module *)
 (* ************************************************************************ *)
 
-module Smt = Msat.Mcsolver.Make(struct let debug = Debug.log end)(SatExpr)(SatPlugin)
+module Smt = Msat.Mcsolver.Make(struct
+    let debug i format = Util.debug ~section:sat_log_section i format
+    end)(SatExpr)(SatPlugin)
 
 (* Pre-processing *)
 
 let check_var v =
     if not (Expr.is_interpreted v) && not (Expr.is_assignable v) then
-        Debug.log 0 "WARNING: Variable %a is neither interpreted nor assignable" Expr.debug_var v
+        log 0 "WARNING: Variable %a is neither interpreted nor assignable" Expr.debug_var v
 
 let rec check_term = function
-    | { Expr.term = Expr.Var v } -> check_var v
-    | { Expr.term = Expr.Meta m } -> check_var Expr.(m.meta_var)
-    | { Expr.term = Expr.Tau t } -> check_var Expr.(t.tau_var)
-    | { Expr.term = Expr.App (p, _, l)} ->
-      check_var p;
-      List.iter check_term l
+  | { Expr.term = Expr.Var v } -> check_var v
+  | { Expr.term = Expr.Meta m } -> check_var Expr.(m.meta_var)
+  | { Expr.term = Expr.Tau t } -> check_var Expr.(t.tau_var)
+  | { Expr.term = Expr.App (p, _, l)} ->
+    check_var p;
+    List.iter check_term l
 
 let rec check = function
   | { Expr.formula = Expr.Equal (a, b) } ->

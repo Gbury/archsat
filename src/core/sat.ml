@@ -80,4 +80,4 @@ D.(register {
     preprocess = sat_preprocess;
     backtrack = (fun _ -> ());
     current_level = (fun _ -> 0);
-  })
+    } [])

@@ -11,6 +11,10 @@ include Msat.Plugin_intf.S
 exception Not_assigned of term
 (** The given term does not have a current assignment *)
 
+exception Bad_assertion of string
+(** Expected some invariant but didn't get it. Raised in place of
+    'assert false'. *)
+
 exception Absurd of formula list
 (** To be used by extensions in their 'assume' function *)
 
@@ -30,7 +34,7 @@ type extension = {
 }
 (** Type of plugins/extensions *)
 
-val register : extension -> unit
+val register : extension -> (Arg.key * Arg.spec * Arg.doc) list -> unit
 (** Used in extensions files to register extensions. *)
 
 val activate : string -> unit
@@ -46,6 +50,9 @@ val preprocess : formula -> unit
 (** Gives the formula to extensions for pre-processing. During pre-processing,
     extensions shoudl register handlers for assignement and evaluation through
     the appropriate functions from module Expr. *)
+
+val get_options : unit -> (Arg.key * Arg.spec * Arg.doc) list
+(** Returns a list of options made available by the extensions *)
 
 val push : formula list -> string -> unit
 (** Push the given clause to the sat solver. *)

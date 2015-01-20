@@ -1,5 +1,6 @@
 
-let log = Debug.log
+let log_section = Util.Section.make "dispatch"
+let log i fmt = Util.debug ~section:log_section i fmt
 
 (* Type definitions *)
 (* ************************************************************************ *)
@@ -39,11 +40,20 @@ type eval_res =
   | Valued of bool * int
   | Unknown
 
+(* Additional options *)
+(* ************************************************************************ *)
+
+let options = ref []
+let get_options () = !options
+
 (* Extensions registering *)
 (* ************************************************************************ *)
 
 exception Absurd of formula list
+exception Bad_assertion of string
 exception Extension_not_found of string
+
+let _fail s = raise (Bad_assertion s)
 
 type extension = {
   name : string;
@@ -56,20 +66,21 @@ type extension = {
 
 let dummy_ext = {
   name = "";
-  assume = (fun _ -> assert false);
-  eval_pred = (fun _ -> assert false);
-  preprocess = (fun _ -> assert false);
-  backtrack = (fun _ -> assert false);
-  current_level = (fun _ -> assert false);
+  assume = (fun _ -> _fail "dummy ext used");
+  eval_pred = (fun _ -> _fail "dummy ext used");
+  preprocess = (fun _ -> _fail "dummy ext used");
+  backtrack = (fun _ -> _fail "dummy ext used");
+  current_level = (fun _ -> _fail "dummy ext used");
 }
 
 let extensions = ref []
 
 let active = Vector.make 10 dummy_ext
 
-let register r =
+let register r l =
   assert (not (List.exists (fun r' -> r'.name = r.name) !extensions));
-  extensions := r :: !extensions
+  extensions := r :: !extensions;
+  options := l @ !options
 
 let activate ext =
   let aux r = r.name = ext in
@@ -78,7 +89,7 @@ let activate ext =
     if not (Vector.exists aux active) then
       Vector.push active r
     else
-      Debug.log 0 "WARNING: Extension %s already activated" r.name
+      log 0 "WARNING: Extension %s already activated" r.name
   with Not_found ->
     raise (Extension_not_found ext)
 
@@ -94,7 +105,7 @@ exception Found_ext of int
 let find_ext name =
     try
         ext_iteri (fun i r -> if r.name = name then raise (Found_ext i));
-        assert false
+        _fail (Util.sprintf "Expected to find %s in active extensions" name)
     with Found_ext i -> i
 
 let preprocess f = ext_iter (fun r -> r.preprocess f)
@@ -192,7 +203,7 @@ and set_assign t v lvl =
     let v', lvl' = M.find eval_map t in
     log 5 "Assigned (%d) : %a -> %a / %a" lvl' Expr.debug_term t Expr.debug_term v' Expr.debug_term v;
     if not (Expr.Term.equal v v') then
-        assert false
+        _fail "Incoherent assignments"
   with Not_found ->
     log 5 "Assign (%d) : %a -> %a" lvl Expr.debug_term t Expr.debug_term v;
     M.add eval_map t (v, lvl);
@@ -304,7 +315,8 @@ let assign t =
       log 5 " -> %a" Expr.debug_term res;
       res
   with Expr.Cannot_assign _ ->
-      assert false
+      _fail (Util.sprintf
+      "Expected to be able to assign symbol %a\nYou may have forgottent to activate an extension" Expr.debug_term t)
 
 let rec iter_assign_aux f e = match Expr.(e.term) with
   | Expr.App (p, _, l) ->

@@ -53,9 +53,22 @@ let setup_gc_stat () =
 let input_file = fun s -> file := s
 
 let usage = "Usage : main [options] <file>"
-let argspec = Arg.align [
+let logspec () =
+    let res = ref [] in
+    Util.Section.iter (fun (name, s) ->
+        if name <> "" then
+            res := ("-debug." ^ name, Arg.Int (Util.Section.set_debug s),
+                    "<lvl> Sets the debug verbose level for section " ^ name) :: !res
+        );
+    !res
+
+let argspec = Arg.align (List.sort
+    (fun (s, _, _) (s', _, _) -> compare s s')
+    (Solver.get_options () @ logspec () @ [
     "-bt", Arg.Unit (fun () -> Printexc.record_backtrace true),
     " Enable stack traces";
+    "-debug", Arg.Int Util.set_debug,
+    "<lvl> Sets the debug verbose level";
     "-gc", Arg.Unit setup_gc_stat,
     " Outputs statistics about the GC";
     "-i", Arg.String Io.set_input,
@@ -72,11 +85,9 @@ let argspec = Arg.align [
     "<s>[kMGT] Sets the size limit for the sat solver";
     "-time", Arg.String (int_arg time_limit),
     "<t>[smhd] Sets the time limit for the sat solver";
-    "-v", Arg.Int Debug.set_debug,
-    "<lvl> Sets the debug verbose level";
     "-x", Arg.String Dispatcher.activate,
     "<name> Activate the given extension";
-  ]
+  ]))
 
 (* Limits alarm *)
 let check () =
@@ -96,6 +107,13 @@ let get_model () =
     | Simple -> Solver.model ()
     | Full -> Solver.full_model ())
 
+(* Logging *)
+let start_section s =
+    Util.debug 1 "=== %s %s" s (String.make (64 - String.length s) '=')
+
+let end_section () =
+    Util.debug 1 "%s" (String.make 69 '=')
+
 (* Main function *)
 let main () =
   let _ = Gc.create_alarm check in
@@ -105,18 +123,21 @@ let main () =
     exit 2
   end;
 
-  Debug.log 1 "========== Start parse ==========";
+  start_section "parse";
   let cnf = Io.parse_input !file in
-  Debug.log 1 "=========== End parse ===========";
+  end_section ();
 
-  Debug.log 1 "========== Start parse ==========";
+  start_section "pre-process";
   List.iter (List.iter Solver.preprocess) cnf;
-  Debug.log 1 "=========== End parse ===========";
+  end_section ();
 
+  start_section "assume";
   Solver.assume cnf;
-  Debug.log 1 "========== Start solve ==========";
+  end_section ();
+
+  start_section "solve";
   let res = Solver.solve () in
-  Debug.log 1 "=========== End solve ===========";
+  end_section ();
 
   match res with
   | Solver.Sat ->
@@ -147,5 +168,8 @@ with
   Format.fprintf std "Extension '%s' not found. Available extensions are :@\n%a@." s
     (fun fmt -> List.iter (fun s -> Format.fprintf fmt "%s " s)) (Dispatcher.list_extensions ());
   exit 2
+| Dispatcher.Bad_assertion s ->
+  Format.fprintf std "%s@." s;
+  exit 3
 
 

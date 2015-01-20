@@ -87,5 +87,5 @@ D.(register {
     preprocess = eq_pre;
     backtrack = (fun i -> M.backtrack st i);
     current_level = (fun _ -> M.current_level st);
-  })
+    }, [])
 

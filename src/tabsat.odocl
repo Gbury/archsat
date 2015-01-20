@@ -1,4 +1,9 @@
+util/Assoc
 util/Vector
+util/Backtrack
+
 base/Expr
+
 core/Dispatcher
 core/Solver
+
