@@ -30,16 +30,6 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 exception Parse_error of ParseLocation.t * string
 
-val find_file : string -> string -> string option
-  (** [find_file name dir] looks for a file with the given [name],
-      recursively, in [dir], or in its parent dir recursively.
-      It also looks in the "TPTP" environment variable. *)
-
-val parse_lexbuf : ?names:Ast_tptp.name list ->
-                    Lexing.lexbuf -> Ast_tptp.Untyped.t list
-  (** Given a lexbuf, try to parse its content into a sequence of untyped
-    declarations *)
-
 val parse_file : recursive:bool -> string -> Ast_tptp.Untyped.t list
   (** Parsing a TPTP file is here presented with a [recursive] option
       that, if true, will make "include" directives to be recursively

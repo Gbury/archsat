@@ -3,7 +3,7 @@
 LOG=build.log
 COMP=ocamlbuild -log $(LOG) -classic-display
 FLAGS=-use-ocamlfind -use-menhir -yaccflag '--explain'
-DIRS=-Is util,base,core,input
+DIRS=-Is util,base,core,input,parsers
 DOC=tabsat.docdir/index.html
 TEST=main.native
 

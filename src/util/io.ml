@@ -56,15 +56,15 @@ let rec parse_input file = match !input with
   | Auto -> input := format_of_filename file; parse_input file
   | Dimacs ->
     begin try
-      List.rev_map (List.rev_map Sat.mk_prop) (Parsedimacs.parse file)
-    with Parsedimacs.Syntax_error l ->
+        Dimacs.parse_file file
+    with Dimacs.Parse_error l ->
       raise (Parsing_error (ParseLocation.mk file l 0 l 0, "Dimacs parsing error"))
     end
   | Tptp ->
     begin try
-        let _ = Util_tptp.parse_file ~recursive:true file in
+        let _ = Tptp.parse_file ~recursive:true file in
         [[]]
-      with Util_tptp.Parse_error (loc, msg) ->
+      with Tptp.Parse_error (loc, msg) ->
         raise (Parsing_error (loc, msg))
     end
 

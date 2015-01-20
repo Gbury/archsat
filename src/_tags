@@ -1,6 +1,7 @@
 # Compilation options
 <util/*.cmx>: for-pack(Tabsat)
 <base/*.cmx>: for-pack(Tabsat)
+<parsers/*>: for-pack(Tabsat)
 <input/*>: for-pack(Tabsat)
 <core/*>: for-pack(Tabsat), package(msat)
 <main.*>: package(msat)
