@@ -45,7 +45,7 @@ and role =
   | R_question    (* existential question *)
   | R_type        (* type declaration *)
   | R_unknown     (* error *)
-  (** formula role *)
+(** formula role *)
 and optional_info = general_data list
 and general_data =
   | GString of string
@@ -184,13 +184,13 @@ module type S = sig
     | NewType of name * string * ty (* declare new type constant... *)
     | Include of string
     | IncludeOnly of string * name list   (* include a subset of names *)
-    (** top level declaration *)
+  (** top level declaration *)
 
   type declaration = t
 
   val get_name : t -> name
-    (** Find the name of the declaration, or
-        @raise Invalid_argument if the declaration is an include directive *)
+  (** Find the name of the declaration, or
+      @raise Invalid_argument if the declaration is an include directive *)
 
   class ['a] visitor : object
     method clause : 'a -> role -> form list -> 'a
@@ -209,14 +209,14 @@ module type S = sig
     ?form:(form -> form) ->
     ?hoterm:(hoterm -> hoterm) ->
     t -> t
-  (** Map terms to other terms *)
+    (** Map terms to other terms *)
 
 end
 
 module Untyped = struct
-  type hoterm = Expr.Untyped.term
-  type form = Expr.Untyped.term
-  type ty = Expr.Untyped.term
+  type hoterm = Ast.term
+  type form = Ast.term
+  type ty = Ast.term
 
   type t =
     | CNF of name * role * form list * optional_info
@@ -227,7 +227,7 @@ module Untyped = struct
     | NewType of name * string * ty (* declare new type constant... *)
     | Include of string
     | IncludeOnly of string * name list   (* include a subset of names *)
-    (** top level declaration *)
+  (** top level declaration *)
 
   type declaration = t
 

@@ -31,7 +31,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 exception Parse_error of ParseLocation.t * string
 
 val parse_file : recursive:bool -> string -> Ast_tptp.Untyped.t list
-  (** Parsing a TPTP file is here presented with a [recursive] option
-      that, if true, will make "include" directives to be recursively
-      parsed. It uses {!find_file} for included files. *)
+(** Parsing a TPTP file is here presented with a [recursive] option
+    that, if true, will make "include" directives to be recursively
+    parsed. It uses {!find_file} for included files. *)
 

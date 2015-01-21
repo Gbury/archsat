@@ -91,10 +91,10 @@ let ext_iteri f = Vector.iteri f active
 
 exception Found_ext of int
 let find_ext name =
-    try
-        ext_iteri (fun i r -> if r.name = name then raise (Found_ext i));
-        _fail (Util.sprintf "Expected to find %s in active extensions" name)
-    with Found_ext i -> i
+  try
+    ext_iteri (fun i r -> if r.name = name then raise (Found_ext i));
+    _fail (Util.sprintf "Expected to find %s in active extensions" name)
+  with Found_ext i -> i
 
 let preprocess f = ext_iter (fun r -> r.preprocess f)
 
@@ -170,17 +170,17 @@ let rec try_eval t =
   | Expr.App (f, _, l) ->
     begin try
         begin match Expr.eval t with
-              | Expr.Interpreted (v, lvl) ->
-                set_assign t v lvl;
-                Some v
-              | Expr.Waiting t' ->
-                begin match try_eval t' with
-                | None -> add_wait_eval t t'; None
-                | Some _ -> try_eval t
-                end
+          | Expr.Interpreted (v, lvl) ->
+            set_assign t v lvl;
+            Some v
+          | Expr.Waiting t' ->
+            begin match try_eval t' with
+              | None -> add_wait_eval t t'; None
+              | Some _ -> try_eval t
+            end
         end
-    with
-    | Expr.Cannot_interpret _ -> None
+      with
+      | Expr.Cannot_interpret _ -> None
     end
   | _ ->
     begin try
@@ -194,7 +194,7 @@ and set_assign t v lvl =
     let v', lvl' = M.find eval_map t in
     log 5 "Assigned (%d) : %a -> %a / %a" lvl' Expr.debug_term t Expr.debug_term v' Expr.debug_term v;
     if not (Expr.Term.equal v v') then
-        _fail "Incoherent assignments"
+      _fail "Incoherent assignments"
   with Not_found ->
     log 5 "Assign (%d) : %a -> %a" lvl Expr.debug_term t Expr.debug_term v;
     M.add eval_map t (v, lvl);
@@ -237,14 +237,14 @@ let push_stack = ref []
 let propagate_stack = ref []
 
 let push clause ext_name =
-    push_stack := (clause, find_ext ext_name) :: !push_stack
+  push_stack := (clause, find_ext ext_name) :: !push_stack
 
 let propagate f lvl =
-    propagate_stack := (f, lvl) :: !propagate_stack
+  propagate_stack := (f, lvl) :: !propagate_stack
 
 let apply f l =
-    List.iter (fun (a, b) -> f a b) !l;
-    l := []
+  List.iter (fun (a, b) -> f a b) !l;
+  l := []
 
 (* Mcsat Plugin functions *)
 (* ************************************************************************ *)
@@ -284,12 +284,12 @@ let assume s =
 let assign t =
   log 5 "Finding assignment for %a" Expr.debug_term t;
   try
-      let res = Expr.assign t in
-      log 5 " -> %a" Expr.debug_term res;
-      res
+    let res = Expr.assign t in
+    log 5 " -> %a" Expr.debug_term res;
+    res
   with Expr.Cannot_assign _ ->
-      _fail (Util.sprintf
-      "Expected to be able to assign symbol %a\nYou may have forgottent to activate an extension" Expr.debug_term t)
+    _fail (Util.sprintf
+             "Expected to be able to assign symbol %a\nYou may have forgotten to activate an extension" Expr.debug_term t)
 
 let rec iter_assign_aux f e = match Expr.(e.term) with
   | Expr.App (p, _, l) ->
@@ -314,12 +314,12 @@ let eval_aux f =
     Valued (b, lvl)
 
 let eval formula =
-    log 5 "Evaluating formula : %a" Expr.debug_formula formula;
-    match formula with
-    | { Expr.formula = Expr.Not f } -> begin match eval_aux f with
-        | Valued (b, lvl) -> Valued (not b, lvl)
-        | Unknown -> Unknown
+  log 5 "Evaluating formula : %a" Expr.debug_formula formula;
+  match formula with
+  | { Expr.formula = Expr.Not f } -> begin match eval_aux f with
+      | Valued (b, lvl) -> Valued (not b, lvl)
+      | Unknown -> Unknown
     end
-    | f -> eval_aux f
+  | f -> eval_aux f
 
 

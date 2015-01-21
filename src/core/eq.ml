@@ -62,21 +62,21 @@ let rec set_handler = function
 
 let rec eq_pre = function
   | { Expr.formula = Expr.Equal (a, b) } ->
-          set_handler a;
-          set_handler b
+    set_handler a;
+    set_handler b
   | { Expr.formula = Expr.Not f } ->
-          eq_pre f
+    eq_pre f
   | { Expr.formula = Expr.And l }
   | { Expr.formula = Expr.Or l } ->
-          List.iter eq_pre l
+    List.iter eq_pre l
   | { Expr.formula = Expr.Imply (p, q) }
   | { Expr.formula = Expr.Equiv (p, q) } ->
-          eq_pre p;
-          eq_pre q
+    eq_pre p;
+    eq_pre q
   | { Expr.formula = Expr.All (_, f) }
   | { Expr.formula = Expr.AllTy (_, f) }
   | { Expr.formula = Expr.Ex (_, f) } ->
-          eq_pre f
+    eq_pre f
   | _ -> ()
 
 ;;
@@ -85,5 +85,5 @@ D.(register {
     assume = eq_assume;
     eval_pred = eq_eval;
     preprocess = eq_pre;
-    }, [])
+  }, [])
 

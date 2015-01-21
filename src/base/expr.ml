@@ -428,59 +428,59 @@ module Hst = Hashtbl.Make(struct
 (* ************************************************************************ *)
 
 type 't eval =
-    | Interpreted of 't * int
-    | Waiting of 't
+  | Interpreted of 't * int
+  | Waiting of 't
 
 let var_eval = Vector.make 107 None
 let var_assign = Vector.make 107 None
 
 let is_interpreted f =
-    Vector.get var_eval f.var_id <> None
+  Vector.get var_eval f.var_id <> None
 
 let interpreter v =
-    match Vector.get var_eval v.var_id with
-    | None -> raise Exit
-    | Some (_, f) -> f
+  match Vector.get var_eval v.var_id with
+  | None -> raise Exit
+  | Some (_, f) -> f
 
 let eval t =
-    try match t.term with
+  try match t.term with
     | Var v -> (interpreter v) t
     | Meta m -> (interpreter m.meta_var) t
     | Tau e -> (interpreter e.tau_var) t
     | App (f, _, _) -> (interpreter f) t
-    with Exit -> raise (Cannot_interpret t)
+  with Exit -> raise (Cannot_interpret t)
 
 let is_assignable f =
-    Vector.get var_assign f.var_id <> None
+  Vector.get var_assign f.var_id <> None
 
 let assigner v =
-    match Vector.get var_assign v.var_id with
-    | None -> raise Exit
-    | Some (_, f) -> f
+  match Vector.get var_assign v.var_id with
+  | None -> raise Exit
+  | Some (_, f) -> f
 
 let assign t =
-    try match t.term with
+  try match t.term with
     | Var v -> (assigner v) t
     | Meta m -> (assigner m.meta_var) t
     | Tau e -> (assigner e.tau_var) t
     | App (f, _, _) -> (assigner f) t
-    with Exit -> raise (Cannot_assign t)
+  with Exit -> raise (Cannot_assign t)
 
 let set_eval v prio f =
-    match Vector.get var_eval v.var_id with
-    | None ->
-            Vector.set var_eval v.var_id (Some (prio, f))
-    | Some (i, _) when i < prio ->
-            Vector.set var_eval v.var_id (Some (prio, f))
-    | _ -> ()
+  match Vector.get var_eval v.var_id with
+  | None ->
+    Vector.set var_eval v.var_id (Some (prio, f))
+  | Some (i, _) when i < prio ->
+    Vector.set var_eval v.var_id (Some (prio, f))
+  | _ -> ()
 
 let set_assign v prio f =
-    match Vector.get var_assign v.var_id with
-    | None ->
-            Vector.set var_assign v.var_id (Some (prio, f))
-    | Some (i, _) when i < prio ->
-            Vector.set var_assign v.var_id (Some (prio, f))
-    | _ -> ()
+  match Vector.get var_assign v.var_id with
+  | None ->
+    Vector.set var_assign v.var_id (Some (prio, f))
+  | Some (i, _) when i < prio ->
+    Vector.set var_assign v.var_id (Some (prio, f))
+  | _ -> ()
 
 (* Variables constructors *)
 (* ************************************************************************ *)
@@ -589,9 +589,9 @@ let type_inst f tys args =
 (* ************************************************************************ *)
 
 let mk_term t ty = {
-    term = t;
-    t_type = ty;
-    t_hash = -1;
+  term = t;
+  t_type = ty;
+  t_hash = -1;
 }
 
 let term_var v =
@@ -806,87 +806,5 @@ module Formula = struct
   let compare = compare_formula
   let equal = equal_formula
   let print = print_formula
-end
-
-module Untyped = struct
-
-    type location = ParseLocation.t
-
-    type symbol =
-        | Int of string
-        | Rat of string
-        | Real of string
-        | String of string
-        | Ttype | Wildcard
-        | True | False
-        | Eq | Distinct | Arrow
-        | All | AllTy | Ex
-        | And | Or | Xor
-        | Imply | Equiv | Not
-
-    type term_descr =
-        | Var of string
-        | Column of term * term
-        | Const of symbol
-        | App of term * term list
-        | Binding of symbol * term list * term
-
-    and term = {
-        loc : location option;
-        term : term_descr;
-    }
-
-    let make ?loc descr =
-        { loc = loc; term = descr; }
-
-    let at_loc ~loc t =
-        { t with loc = Some loc; }
-
-    (* Symbols *)
-    let sym s = String s
-    let wildcard = Wildcard
-    let distinct = Distinct
-
-    let int s = Int s
-    let rat s = Rat s
-    let real s = Real s
-
-    (* Terms *)
-    let const ?loc s = make ?loc (Const s)
-
-    let tType = const Ttype
-    let true_ = const True
-    let false_ = const False
-
-    let var ?loc ?ty s = match ty with
-      | None -> make ?loc (Var s)
-      | Some t -> make ?loc (Column (make ?loc (Var s), t))
-
-    let app ?loc f l = make ?loc (App (f, l))
-
-    let not_ ?loc f = app ?loc (const Not) [f]
-
-    let eq ?loc a b = app ?loc (const Eq) [a; b]
-
-    let neq ?loc a b = not_ ?loc (eq ?loc a b)
-
-    let and_ ?loc l = app ?loc (const And) l
-
-    let or_ ?loc l = app ?loc (const Or) l
-
-    let xor ?loc p q = app ?loc (const Xor) [p; q]
-
-    let imply ?loc p q = app ?loc (const Imply) [p; q]
-
-    let equiv ?loc p q = app ?loc (const Equiv) [p; q]
-
-    let forall ?loc vars f = make ?loc (Binding (All, vars, f))
-
-    let forall_ty ?loc vars f = make ?loc (Binding (AllTy, vars, f))
-
-    let exists ?loc vars f = make ?loc (Binding (Ex, vars, f))
-
-    let mk_fun_ty ?loc args ret = app ?loc (const Arrow) (ret :: args)
-
 end
 

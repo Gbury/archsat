@@ -62,10 +62,10 @@ module Section = struct
     let rec add s = match s.descr with
       | Root -> true
       | Sub (name, parent, _) ->
-          let parent_is_root = add parent in
-          if not parent_is_root then Buffer.add_char buf '.';
-          Buffer.add_string buf name;
-          false
+        let parent_is_root = add parent in
+        if not parent_is_root then Buffer.add_char buf '.';
+        Buffer.add_string buf name;
+        false
     in
     ignore (add s);
     Buffer.contents buf
@@ -108,16 +108,16 @@ module Section = struct
       | Sub (_, parent, []) -> cur_level_rec parent
       | Sub (_, parent, [i]) -> max (cur_level_rec parent) (cur_level_rec i)
       | Sub (_, parent, inheriting) ->
-          List.fold_left
-            (fun m i -> max m (cur_level_rec i))
-            (cur_level_rec parent) inheriting
+        List.fold_left
+          (fun m i -> max m (cur_level_rec i))
+          (cur_level_rec parent) inheriting
     else s.level
 
   (* inlinable function *)
   let cur_level s =
     if s.level = null_level
-      then cur_level_rec s
-      else s.level
+    then cur_level_rec s
+    else s.level
 end
 
 let set_debug = Section.set_debug Section.root
@@ -127,20 +127,20 @@ let need_cleanup = ref false
 let debug_buf_ = Buffer.create 32 (* shared buffer (not thread safe)  *)
 let debug ?(section=Section.root) l format =
   if l <= Section.cur_level section
-    then (
-      Buffer.clear debug_buf_;
-      if !need_cleanup then clear_line ();
-      (* print header *)
-      let now = get_total_time () in
-      if section == Section.root
-        then Printf.bprintf debug_buf_ "%% [%.3f] " now
-        else Printf.bprintf debug_buf_ "%% [%.3f %s] "
-          now section.Section.full_name;
-      Printf.kbprintf
-        (fun b -> Buffer.output_buffer stdout b; print_char '\n'; flush stdout)
-        debug_buf_ format)
-    else
-      Printf.ifprintf debug_buf_ format
+  then (
+    Buffer.clear debug_buf_;
+    if !need_cleanup then clear_line ();
+    (* print header *)
+    let now = get_total_time () in
+    if section == Section.root
+    then Printf.bprintf debug_buf_ "%% [%.3f] " now
+    else Printf.bprintf debug_buf_ "%% [%.3f %s] "
+        now section.Section.full_name;
+    Printf.kbprintf
+      (fun b -> Buffer.output_buffer stdout b; print_char '\n'; flush stdout)
+      debug_buf_ format)
+  else
+    Printf.ifprintf debug_buf_ format
 
 let pp_pos pos =
   let open Lexing in
@@ -214,26 +214,26 @@ let yield_prof profiler =
 (** Print profiling data upon exit *)
 let () =
   at_exit (fun () ->
-    if !enable_profiling && List.exists (fun profiler -> profiler.prof_calls > 0) !profilers
-    then begin
-      Printf.printf "%% %39s ---------- --------- --------- --------- ---------\n"
-        (String.make 39 '-');
-      Printf.printf "%% %-39s %10s %9s %9s %9s %9s\n" "function" "#calls"
-        "total" "% total" "max" "average";
-      (* sort profilers by name *)
-      let profilers = List.sort
-        (fun p1 p2 -> String.compare p1.prof_name p2.prof_name)
-        !profilers in
-      let tot = get_total_time () in
-      List.iter
-        (fun profiler -> if profiler.prof_calls > 0 then
-          (* print content of the profiler *)
-          Printf.printf "%% %-39s %10d %9.4f %9.2f %9.4f %9.4f\n"
-            profiler.prof_name profiler.prof_calls profiler.prof_total
-            (profiler.prof_total *. 100. /. tot) profiler.prof_max
-            (profiler.prof_total /. (float_of_int profiler.prof_calls)))
-        profilers
-    end)
+      if !enable_profiling && List.exists (fun profiler -> profiler.prof_calls > 0) !profilers
+      then begin
+        Printf.printf "%% %39s ---------- --------- --------- --------- ---------\n"
+          (String.make 39 '-');
+        Printf.printf "%% %-39s %10s %9s %9s %9s %9s\n" "function" "#calls"
+          "total" "% total" "max" "average";
+        (* sort profilers by name *)
+        let profilers = List.sort
+            (fun p1 p2 -> String.compare p1.prof_name p2.prof_name)
+            !profilers in
+        let tot = get_total_time () in
+        List.iter
+          (fun profiler -> if profiler.prof_calls > 0 then
+              (* print content of the profiler *)
+              Printf.printf "%% %-39s %10d %9.4f %9.2f %9.4f %9.4f\n"
+                profiler.prof_name profiler.prof_calls profiler.prof_total
+                (profiler.prof_total *. 100. /. tot) profiler.prof_max
+                (profiler.prof_total /. (float_of_int profiler.prof_calls)))
+          profilers
+      end)
 
 (** {2 Runtime statistics} *)
 
@@ -243,16 +243,16 @@ let mk_stat, print_global_stats =
   let stats = ref [] in
   (* create a stat *)
   (fun name ->
-    let stat = (name, ref 0L) in
-    stats := stat :: !stats;
-    stat),
+     let stat = (name, ref 0L) in
+     stats := stat :: !stats;
+     stat),
   (* print stats *)
   (fun () ->
-    let stats = List.sort (fun (n1,_)(n2,_) -> String.compare n1 n2) !stats in
-    List.iter
-      (fun (name, cnt) ->
-        debug 0 "stat: %-30s ... %s" name (Int64.to_string !cnt))
-      stats)
+     let stats = List.sort (fun (n1,_)(n2,_) -> String.compare n1 n2) !stats in
+     List.iter
+       (fun (name, cnt) ->
+          debug 0 "stat: %-30s ... %s" name (Int64.to_string !cnt))
+       stats)
 
 let incr_stat (_, count) = count := Int64.add !count Int64.one  (** increment given statistics *)
 let add_stat (_, count) num = count := Int64.add !count (Int64.of_int num) (** add to stat *)
@@ -277,8 +277,8 @@ let rec lexicograph f l1 l2 =
   match l1, l2 with
   | [], [] -> 0
   | x::xs, y::ys ->
-     let c = f x y in
-     if c <> 0 then c else lexicograph f xs ys
+    let c = f x y in
+    if c <> 0 then c else lexicograph f xs ys
   | [],_ -> (-1)
   | _,[] -> 1
 
@@ -325,8 +325,8 @@ let rec list_remove l i = match l, i with
 
 let list_pos l =
   let rec aux l idx = match l with
-  | [] -> []
-  | x::xs -> (x,idx) :: (aux xs (idx+1))
+    | [] -> []
+    | x::xs -> (x,idx) :: (aux xs (idx+1))
   in
   aux l 0
 
@@ -347,13 +347,13 @@ let rec list_uniq eq l = match l with
 
 let list_merge comp l1 l2 =
   let rec recurse l1 l2 = match l1,l2 with
-  | [], _ -> l2
-  | _, [] -> l1
-  | x::l1', y::l2' ->
-    let cmp = comp x y in
-    if cmp < 0 then x::(recurse l1' l2)
-    else if cmp > 0 then y::(recurse l1 l2')
-    else x::(recurse l1' l2')
+    | [], _ -> l2
+    | _, [] -> l1
+    | x::l1', y::l2' ->
+      let cmp = comp x y in
+      if cmp < 0 then x::(recurse l1' l2)
+      else if cmp > 0 then y::(recurse l1 l2')
+      else x::(recurse l1' l2')
   in
   List.rev (recurse l1 l2)
 
@@ -369,30 +369,30 @@ let rec list_inter comp l1 l2 = match l1 with
 
 let list_split_at n l =
   let rec iter acc n l = match l with
-  | _ when n=0 -> List.rev acc, l
-  | [] -> List.rev acc, l
-  | x::l' -> iter (x::acc) (n-1) l'
+    | _ when n=0 -> List.rev acc, l
+    | [] -> List.rev acc, l
+    | x::l' -> iter (x::acc) (n-1) l'
   in iter [] n l
 
 let list_find p l =
   let rec search i l = match l with
-  | [] -> None
-  | x::_ when p x -> Some (i, x)
-  | _::xs -> search (i+1) xs
+    | [] -> None
+    | x::_ when p x -> Some (i, x)
+    | _::xs -> search (i+1) xs
   in search 0 l
 
 let list_fmap f l =
   let rec recurse acc l = match l with
-  | [] -> List.rev acc
-  | x::l' ->
-    let acc' = match f x with | None -> acc | Some y -> y::acc in
-    recurse acc' l'
+    | [] -> List.rev acc
+    | x::l' ->
+      let acc' = match f x with | None -> acc | Some y -> y::acc in
+      recurse acc' l'
   in recurse [] l
 
 let list_flatmap f l =
   let rec recurse acc l = match l with
-  | [] -> List.rev acc
-  | x::l' -> recurse (List.rev_append (f x) acc) l'
+    | [] -> List.rev acc
+    | x::l' -> recurse (List.rev_append (f x) acc) l'
   in recurse [] l
 
 let rec list_take n l = match n, l with
@@ -414,10 +414,10 @@ let rec list_range low high =
 
 let list_foldi f acc l =
   let rec foldi f acc i l = match l with
-  | [] -> acc
-  | x::l' ->
-    let acc = f acc i x in
-    foldi f acc (i+1) l'
+    | [] -> acc
+    | x::l' ->
+      let acc = f acc i x in
+      foldi f acc (i+1) l'
   in
   foldi f acc 0 l
 
@@ -428,24 +428,24 @@ let rec times i f =
 let list_product l1 l2 =
   List.fold_left
     (fun acc x1 -> List.fold_left
-      (fun acc x2 -> (x1,x2) :: acc)
-      acc l2)
+        (fun acc x2 -> (x1,x2) :: acc)
+        acc l2)
     [] l1
 
 let list_fold_product l1 l2 acc f =
   List.fold_left
     (fun acc x1 ->
-      List.fold_left
-        (fun acc x2 -> f acc x1 x2)
-        acc l2
+       List.fold_left
+         (fun acc x2 -> f acc x1 x2)
+         acc l2
     ) acc l1
 
 let list_diagonal l =
   let rec gen acc l = match l with
-  | [] -> acc
-  | x::l' ->
-    let acc = List.fold_left (fun acc y -> (x,y) :: acc) acc l' in
-    gen acc l'
+    | [] -> acc
+    | x::l' ->
+      let acc = List.fold_left (fun acc y -> (x,y) :: acc) acc l' in
+      gen acc l'
   in
   gen [] l
 
@@ -482,8 +482,8 @@ let array_forall2 p a1 a2 =
     if i = Array.length a1 then true else p a1.(i) a2.(i) && check (i+1)
   in
   if Array.length a1 <> Array.length a2
-    then raise (Invalid_argument "array_forall2")
-    else check 0
+  then raise (Invalid_argument "array_forall2")
+  else check 0
 
 let array_exists p a =
   let rec check i =
@@ -501,8 +501,8 @@ let array_except_idx a i =
 let str_sub ~sub i s j =
   let rec check k =
     if i + k = String.length sub
-      then true
-      else sub.[i + k] = s.[j+k] && check (k+1)
+    then true
+    else sub.[i + k] = s.[j+k] && check (k+1)
   in
   check 0
 
@@ -514,18 +514,18 @@ let str_split ~by s =
   let n = String.length s in
   let rec search prev i =
     if i >= n
-      then List.rev (String.sub s prev (n-prev) :: !l)  (* done *)
+    then List.rev (String.sub s prev (n-prev) :: !l)  (* done *)
     else if is_prefix i 0
-      then begin
-        l := (String.sub s prev (i-prev)) :: !l;  (* save substring *)
-        search (i+len_by) (i+len_by)
-      end
+    then begin
+      l := (String.sub s prev (i-prev)) :: !l;  (* save substring *)
+      search (i+len_by) (i+len_by)
+    end
     else search prev (i+1)
   and is_prefix i j =
     if j = len_by
-      then true
+    then true
     else if i = n
-      then false
+    then false
     else s.[i] = by.[j] && is_prefix (i+1) (j+1)
   in search 0 0
 
@@ -552,8 +552,8 @@ let str_repeat s n =
 let str_prefix ~pre s =
   String.length pre <= String.length s &&
   (let i = ref 0 in
-    while !i < String.length pre && s.[!i] = pre.[!i] do incr i done;
-    !i = String.length pre)
+   while !i < String.length pre && s.[!i] = pre.[!i] do incr i done;
+   !i = String.length pre)
 
 (** {2 Exceptions} *)
 
@@ -585,12 +585,12 @@ let with_input filename action =
   try
     let ic = open_in filename in
     (try
-      let res = Some (action ic) in
-      close_in ic;
-      res
-    with Sys_error _ ->
-      close_in ic;
-      None)
+       let res = Some (action ic) in
+       close_in ic;
+       res
+     with Sys_error _ ->
+       close_in ic;
+       None)
   with Sys_error _ ->
     None
 
@@ -598,12 +598,12 @@ let with_output filename action =
   try
     let oc = open_out filename in
     (try
-      let res = Some (action oc) in
-      close_out oc;
-      res
-    with Sys_error s ->
-      close_out oc;
-      None)
+       let res = Some (action oc) in
+       close_out oc;
+       res
+     with Sys_error s ->
+       close_out oc;
+       None)
   with Sys_error s ->
     None
 
@@ -615,8 +615,8 @@ let slurp i_chan =
   let rec next () =
     let num = input i_chan buf 0 buf_size in
     if num = 0
-      then Buffer.contents content (* EOF *)
-      else (Buffer.add_substring content buf 0 num; next ())
+    then Buffer.contents content (* EOF *)
+    else (Buffer.add_substring content buf 0 num; next ())
   in next ()
 
 (** {2 Printing utils} *)
@@ -632,8 +632,8 @@ let fprintf oc format =
   let buffer = Buffer.create 64 in
   Printf.kbprintf
     (fun fmt -> Buffer.output_buffer oc buffer)
-  buffer
-  format
+    buffer
+    format
 
 let printf format = fprintf stdout format
 let eprintf format = fprintf stderr format

@@ -28,7 +28,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 %{
   module L = ParseLocation
   module A = Ast_tptp.Untyped
-  module T = Expr.Untyped
+  module T = Ast
 
   let remove_quotes s =
     assert (s.[0] = '\'' && s.[String.length s - 1] = '\'');
@@ -98,11 +98,11 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 %nonassoc NOTVLINE
 %nonassoc NOTAND
 
-%start <Expr.Untyped.term> parse_term
-%start <Expr.Untyped.term> parse_formula
+%start <Ast.term> parse_term
+%start <Ast.term> parse_formula
 %start <Ast_tptp.Untyped.declaration> parse_declaration
 %start <Ast_tptp.Untyped.declaration list> parse_declarations
-%start <Expr.Untyped.term list list> parse_answer_tuple
+%start <Ast.term list list> parse_answer_tuple
 
 %%
 

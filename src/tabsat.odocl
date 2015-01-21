@@ -2,6 +2,7 @@
 util/Vector
 util/Backtrack
 
+base/Ast
 base/Expr
 
 core/Dispatcher

@@ -52,8 +52,8 @@ let find_file name dir =
     else
       let dir' = Filename.dirname dir in
       if dir = dir'
-        then None
-        else search dir'
+      then None
+      else search dir'
   in
   let search_env () =
     try
@@ -62,13 +62,13 @@ let find_file name dir =
     with Not_found -> None
   in
   if Filename.is_relative name
-    (* search by relative path, in parent dirs *)
-    then match search dir with
+  (* search by relative path, in parent dirs *)
+  then match search dir with
     | None -> search_env ()
     | Some _ as res -> res
-    else if file_exists name
-      then Some name  (* found *)
-      else None
+  else if file_exists name
+  then Some name  (* found *)
+  else None
 
 (* raise a readable parse error *)
 let _raise_error msg lexbuf =
@@ -105,13 +105,13 @@ let _find_and_open filename dir =
   match filename with
   | "stdin" -> stdin
   | _ ->
-      match find_file filename dir with
-      | Some filename ->
-          begin try open_in filename
-          with Sys_error msg ->
-            failwith ("error when opening file " ^ filename ^ " : " ^ msg)
-          end
-      | None -> failwith ("could not find file " ^ filename)
+    match find_file filename dir with
+    | Some filename ->
+      begin try open_in filename
+        with Sys_error msg ->
+          failwith ("error when opening file " ^ filename ^ " : " ^ msg)
+      end
+    | None -> failwith ("could not find file " ^ filename)
 
 let parse_file ~recursive f =
   let dir = Filename.dirname f in
@@ -132,18 +132,18 @@ let parse_file ~recursive f =
       in
       List.iter
         (fun decl -> match decl, names with
-          | (AU.CNF _ | AU.FOF _ | AU.TFF _ | AU.THF _ | AU.TypeDecl _ | AU.NewType _), None ->
-            Queue.push decl result_decls
-          | (AU.CNF _ | AU.FOF _ | AU.TFF _ | AU.THF _ | AU.TypeDecl _ | AU.NewType _), Some names ->
-            if List.mem (AU.get_name decl) names
-              then Queue.push decl result_decls
-              else ()   (* not included *)
-          | AU.Include f, _ when recursive ->
-            parse_this_file ?names:None f
-          | AU.IncludeOnly (f, names'), _ when recursive ->
-            parse_this_file ~names:names' f
-          | (AU.Include _ | AU.IncludeOnly _), _ ->
-            Queue.push decl result_decls)
+           | (AU.CNF _ | AU.FOF _ | AU.TFF _ | AU.THF _ | AU.TypeDecl _ | AU.NewType _), None ->
+             Queue.push decl result_decls
+           | (AU.CNF _ | AU.FOF _ | AU.TFF _ | AU.THF _ | AU.TypeDecl _ | AU.NewType _), Some names ->
+             if List.mem (AU.get_name decl) names
+             then Queue.push decl result_decls
+             else ()   (* not included *)
+           | AU.Include f, _ when recursive ->
+             parse_this_file ?names:None f
+           | AU.IncludeOnly (f, names'), _ when recursive ->
+             parse_this_file ~names:names' f
+           | (AU.Include _ | AU.IncludeOnly _), _ ->
+             Queue.push decl result_decls)
         decls
     with e ->
       close_in input;

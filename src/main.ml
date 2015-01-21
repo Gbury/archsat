@@ -113,6 +113,36 @@ let start_section s =
 let end_section () =
     Util.debug 1 "%s" (String.make 69 '=')
 
+(* Execute given command *)
+let do_command = function
+  | Ast.Sat cnf ->
+    start_section "pre-process";
+    List.iter (List.iter Solver.preprocess) cnf;
+    end_section ();
+    start_section "assume";
+    Solver.assume cnf;
+    end_section ();
+  | Ast.CheckSat ->
+    start_section "solve";
+    let res = Solver.solve () in
+    end_section ();
+    begin match res with
+      | Solver.Sat ->
+        Io.fprintf std "Sat";
+        begin match !p_model with
+          | None -> () | _ ->
+            Io.fprintf std "Model :";
+            Io.print_model std (get_model ())
+        end
+      | Solver.Unsat ->
+        Io.fprintf std "Unsat";
+        if !p_proof then
+          let proof = Solver.get_proof () in
+          Io.print_proof std proof
+    end
+  | c ->
+    Io.fprintf std "%a : operation not supported yet" Ast.print_command_name c
+
 (* Main function *)
 let main () =
   let _ = Gc.create_alarm check in
@@ -123,34 +153,10 @@ let main () =
   end;
 
   start_section "parse";
-  let cnf = Io.parse_input !file in
+  let commands = Io.parse_input !file in
   end_section ();
 
-  start_section "pre-process";
-  List.iter (List.iter Solver.preprocess) cnf;
-  end_section ();
-
-  start_section "assume";
-  Solver.assume cnf;
-  end_section ();
-
-  start_section "solve";
-  let res = Solver.solve () in
-  end_section ();
-
-  match res with
-  | Solver.Sat ->
-    Io.fprintf std "Sat";
-    begin match !p_model with
-      | None -> () | _ ->
-        Io.fprintf std "Model :";
-        Io.print_model std (get_model ())
-    end
-  | Solver.Unsat ->
-    Io.fprintf std "Unsat";
-    if !p_proof then
-      let proof = Solver.get_proof () in
-      Io.print_proof std proof
+  List.iter do_command commands
 ;;
 
 try

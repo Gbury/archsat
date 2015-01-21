@@ -57,13 +57,13 @@ let rec parse_input file = match !input with
   | Dimacs ->
     begin try
         Dimacs.parse_file file
-    with Dimacs.Parse_error l ->
-      raise (Parsing_error (ParseLocation.mk file l 0 l 0, "Dimacs parsing error"))
+      with Dimacs.Parse_error l ->
+        raise (Parsing_error (ParseLocation.mk file l 0 l 0, "Dimacs parsing error"))
     end
   | Tptp ->
     begin try
         let _ = Tptp.parse_file ~recursive:true file in
-        [[]]
+        []
       with Tptp.Parse_error (loc, msg) ->
         raise (Parsing_error (loc, msg))
     end

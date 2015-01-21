@@ -206,8 +206,8 @@ val f_ex : ty var list -> formula -> formula
 (** { 2 Interpretation and Assignations} *)
 
 type 't eval =
-    | Interpreted of 't * int
-    | Waiting of 't
+  | Interpreted of 't * int
+  | Waiting of 't
 
 val set_eval : 'a var -> int -> (term -> term eval) -> unit
 val set_assign : 'a var -> int -> (term -> term) -> unit
@@ -263,72 +263,3 @@ val term_subst : ty_subst -> term_subst -> term -> term
 val formula_subst : ty_subst -> term_subst -> formula -> formula
 (** Substitution functions for types, terms and formulas. *)
 
-
-(** {2 Untyped expressions} *)
-
-module Untyped : sig
-
-    type location = ParseLocation.t
-
-    type symbol =
-        | Int of string
-        | Rat of string
-        | Real of string
-        | String of string
-        | Ttype | Wildcard
-        | True | False
-        | Eq | Distinct | Arrow
-        | All | AllTy | Ex
-        | And | Or | Xor
-        | Imply | Equiv | Not
-
-    type term_descr =
-        | Var of string
-        | Column of term * term
-        | Const of symbol
-        | App of term * term list
-        | Binding of symbol * term list * term
-
-    and term = {
-        loc : location option;
-        term : term_descr;
-    }
-
-    val at_loc : loc:location -> term -> term
-
-    (* Symbols *)
-    val wildcard : symbol
-    val distinct : symbol
-    val sym : string -> symbol
-
-    val int : string -> symbol
-    val rat : string -> symbol
-    val real : string -> symbol
-
-    (* Terms *)
-    val tType : term
-    val true_ : term
-    val false_ : term
-
-    val var : ?loc:location -> ?ty:term -> string -> term
-
-    val const : ?loc:location -> symbol -> term
-
-    val app : ?loc:location -> term -> term list -> term
-
-    val eq : ?loc:location -> term -> term -> term
-    val neq : ?loc:location -> term -> term -> term
-
-    val not_ : ?loc:location -> term -> term
-    val and_ : ?loc:location -> term list -> term
-    val or_ : ?loc:location -> term list -> term
-    val xor : ?loc:location -> term -> term -> term
-    val imply : ?loc:location -> term -> term -> term
-    val equiv : ?loc:location -> term -> term -> term
-    val forall : ?loc:location -> term list -> term -> term
-    val forall_ty : ?loc:location -> term list -> term -> term
-    val exists : ?loc:location -> term list -> term -> term
-
-    val mk_fun_ty : ?loc:location -> term list -> term -> term
-
-end

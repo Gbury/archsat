@@ -3,6 +3,7 @@ Vector
 Backtrack
 
 # Base modules
+Ast
 Expr
 
 # Core modules
