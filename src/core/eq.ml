@@ -1,8 +1,8 @@
 
 module D = Dispatcher
-module M = Assoc.Make(Expr.Term)
+module M = Backtrack.HashtblBack(Expr.Term)
 
-let st = M.create 107
+let st = M.create D.stack
 
 let set x y v lvl =
   try
@@ -85,7 +85,5 @@ D.(register {
     assume = eq_assume;
     eval_pred = eq_eval;
     preprocess = eq_pre;
-    backtrack = (fun i -> M.backtrack st i);
-    current_level = (fun _ -> M.current_level st);
     }, [])
 

@@ -78,6 +78,4 @@ D.(register {
     assume = sat_assume;
     eval_pred = sat_eval;
     preprocess = sat_preprocess;
-    backtrack = (fun _ -> ());
-    current_level = (fun _ -> 0);
     } [])

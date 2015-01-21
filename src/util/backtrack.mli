@@ -1,23 +1,26 @@
+module Stack :
+  sig
+    type t
+    type level
+    val create : unit -> t
+    val dummy_level : level
+    val level : t -> level
+    val backtrack : t -> level -> unit
+    val register_undo : t -> (unit -> unit) -> unit
+    val register1 : t -> ('a -> unit) -> 'a -> unit
+    val register2 : t -> ('a -> 'b -> unit) -> 'a -> 'b -> unit
+    val register3 : t -> ('a -> 'b -> 'c -> unit) -> 'a -> 'b -> 'c -> unit
+    val register_set : t -> 'a ref -> 'a -> unit
+  end
 
-(** Backtrack state wth stack *)
-
-type 'a t
-(** A stack of states of type 'a *)
-
-type level = private int
-(** The type of level for backtrack functions *)
-
-val base : 'a -> 'a t
-(** Returns the stack containing a single state *)
-
-val top : 'a t -> 'a
-(** Returns the current state, i.e the top of the stack *)
-
-val update : 'a t -> ('a -> 'a) -> unit
-(** Updates the state at the top of the stack with the given function *)
-
-val current_level : 'a t -> level
-(** Increase the size of the stack by 1, returning the current size of the stack *)
-
-val backtrack : 'a t -> level -> unit
-(** Backtracks (in place) to the given level *)
+module HashtblBack :
+  functor (K : Hashtbl.HashedType) ->
+    sig
+      type key = K.t
+      type 'a t
+      val create : ?size:int -> Stack.t -> 'a t
+      val add : 'a t -> key -> 'a -> unit
+      val find : 'a t -> key -> 'a
+      val remove : 'a t -> key -> unit
+      val fold : 'a t -> (key -> 'a -> 'b -> 'b) -> 'b -> 'b
+    end

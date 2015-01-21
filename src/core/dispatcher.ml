@@ -5,8 +5,8 @@ let log i fmt = Util.debug ~section:log_section i fmt
 (* Type definitions *)
 (* ************************************************************************ *)
 
-module M = Assoc.Make(Expr.Term)
-module I = Assoc.Make(struct type t = int let equal i j = i=j let hash i = i land max_int end)
+module M = Backtrack.HashtblBack(Expr.Term)
+module I = Backtrack.HashtblBack(struct type t = int let equal i j = i=j let hash i = i land max_int end)
 
 type term = Expr.term
 type formula = Expr.formula
@@ -24,13 +24,7 @@ type slice = {
   propagate : formula -> int -> unit;
 }
 
-type level = {
-  eval_map : M.level;
-  wait_eval : M.level;
-  watch_map : M.level;
-  job_map : I.level;
-  ext_levels : int Vector.t;
-}
+type level = Backtrack.Stack.level
 
 type res =
   | Sat
@@ -60,8 +54,6 @@ type extension = {
   assume : formula * int -> unit;
   eval_pred : formula -> (bool * int) option;
   preprocess : formula -> unit;
-  backtrack : int -> unit;
-  current_level : unit -> int;
 }
 
 let dummy_ext = {
@@ -69,8 +61,6 @@ let dummy_ext = {
   assume = (fun _ -> _fail "dummy ext used");
   eval_pred = (fun _ -> _fail "dummy ext used");
   preprocess = (fun _ -> _fail "dummy ext used");
-  backtrack = (fun _ -> _fail "dummy ext used");
-  current_level = (fun _ -> _fail "dummy ext used");
 }
 
 let extensions = ref []
@@ -96,8 +86,6 @@ let activate ext =
 let list_extensions () = List.map (fun r -> r.name) !extensions
 
 (* Acces functions for active extensions *)
-let n_ext () = Vector.size active
-let ext_get i = Vector.get active i
 let ext_iter f = Vector.iter f active
 let ext_iteri f = Vector.iteri f active
 
@@ -113,6 +101,17 @@ let preprocess f = ext_iter (fun r -> r.preprocess f)
 (* Evaluation/Watching functions *)
 (* ************************************************************************ *)
 
+(* The global stack *)
+let stack = Backtrack.Stack.create ()
+
+(* The current assignment map, term -> value *)
+let eval_map = M.create stack
+(* Map of terms watching other terms, term -> list of terms to evaluate when arg has value *)
+let wait_eval = M.create stack
+(* Map of terms watched by extensions, term -> continuation list *)
+let watch_map = M.create stack
+let job_map = I.create stack
+
 (* Exceptions *)
 exception Not_assigned of term
 
@@ -126,14 +125,6 @@ let popi assoc key =
   let res = I.find assoc key in
   I.remove assoc key;
   res
-
-(* The current assignment map, term -> value *)
-let eval_map = M.create 107
-(* Map of terms watching other terms, term -> list of terms to evaluate when arg has value *)
-let wait_eval = M.create 107
-(* Map of terms watched by extensions, term -> continuation list *)
-let watch_map = M.create 107
-let job_map = I.create 107
 
 let is_assigned t =
   try ignore (M.find eval_map t); true with Not_found -> false
@@ -239,7 +230,6 @@ let watch k args f =
 
 let model () = M.fold eval_map (fun t (v, _) acc -> (t, v) :: acc) []
 
-
 (* Delayed propagation *)
 (* ************************************************************************ *)
 
@@ -259,31 +249,14 @@ let apply f l =
 (* Mcsat Plugin functions *)
 (* ************************************************************************ *)
 
-let dummy = {
-  eval_map = M.dummy_level;
-  wait_eval = M.dummy_level;
-  watch_map = M.dummy_level;
-  job_map = I.dummy_level;
-  ext_levels = Vector.make_empty ~-1;
-}
+let dummy = Backtrack.Stack.dummy_level
 
-let current_level () = {
-  eval_map = M.current_level eval_map;
-  wait_eval = M.current_level wait_eval;
-  watch_map = M.current_level watch_map;
-  job_map = I.current_level job_map;
-  ext_levels = Vector.init (n_ext ())
-      (fun i -> (ext_get i).current_level ()) ~-1;
-}
+let current_level () = Backtrack.Stack.level stack
 
-let backtrack s =
+let backtrack lvl =
   log 10 "Backtracking";
   propagate_stack := [];
-  M.backtrack eval_map s.eval_map;
-  M.backtrack wait_eval s.wait_eval;
-  M.backtrack watch_map s.watch_map;
-  I.backtrack job_map s.job_map;
-  ext_iteri (fun i ext -> ext.backtrack (Vector.get s.ext_levels i))
+  Backtrack.Stack.backtrack stack lvl
 
 exception Exit_unsat of formula list * int
 let assume s =

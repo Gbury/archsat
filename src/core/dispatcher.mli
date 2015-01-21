@@ -29,8 +29,6 @@ type extension = {
   assume : formula * int -> unit;
   eval_pred : formula -> (bool * int) option;
   preprocess : formula -> unit;
-  backtrack : int -> unit;
-  current_level : unit -> int;
 }
 (** Type of plugins/extensions *)
 
@@ -44,7 +42,8 @@ val activate : string -> unit
 val list_extensions : unit -> string list
 (** Returns the current list of extensions known to the dispatcher. *)
 
-(** {2 Misc} *)
+
+(** {2 Solver-side functions} *)
 
 val preprocess : formula -> unit
 (** Gives the formula to extensions for pre-processing. During pre-processing,
@@ -54,11 +53,20 @@ val preprocess : formula -> unit
 val get_options : unit -> (Arg.key * Arg.spec * Arg.doc) list
 (** Returns a list of options made available by the extensions *)
 
+
+(** {2 Extension-side helpers} *)
+
+val stack : Backtrack.Stack.t
+(** The global undo stack. All extensions should either use datatypes
+    compatible with it (like Backtrack.HashtblBack), or register
+    undo actions with it. *)
+
 val push : formula list -> string -> unit
 (** Push the given clause to the sat solver. *)
 
 val propagate : formula -> int -> unit
 (** Propagate the given formula at the given evaluation level. *)
+
 
 (** {2 Assignment functions} *)
 
@@ -80,3 +88,4 @@ val watch : int -> term list -> (unit -> unit) -> unit
 
 val model : unit -> (term * term) list
 (** Returns the fulla ssignment in the current model. *)
+
