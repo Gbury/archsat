@@ -31,9 +31,11 @@ and term = {
 
 type command =
   | Sat of Expr.Formula.t list list     (** Special case for dimacs input *)
-  | TypeDef of symbol * term            (** Type definition *)
+  | Push of int                         (** Push *)
+  | Pop of int                          (** Pop *)
+  | TypeDef of string * symbol * term   (** Type definition *)
   | Alias of symbol * term list * term  (** Alias (smtlib style) *)
-  | Assert of term                      (** Add term to the assertions *)
+  | Assert of string * term             (** Add term to the assertions *)
   | CheckSat                            (** Check-sat *)
 
 val print_command_name : Format.formatter -> command -> unit

@@ -113,19 +113,31 @@ let start_section s =
 let end_section () =
     Util.debug 1 "%s" (String.make 69 '=')
 
+let wrap s f x =
+    start_section s;
+    let res = f x in
+    end_section ();
+    res
+
 (* Execute given command *)
 let do_command = function
   | Ast.Sat cnf ->
-    start_section "pre-process";
-    List.iter (List.iter Solver.preprocess) cnf;
-    end_section ();
-    start_section "assume";
-    Solver.assume cnf;
-    end_section ();
+    let _ = wrap "pre-process" (List.iter (List.iter Solver.preprocess)) cnf in
+    let _ = wrap "assume" Solver.assume cnf in
+    ()
+  | Ast.TypeDef (_, s, t) ->
+    let _ = wrap "typing" Type.add_type (s, t) in
+    ()
+  | Ast.Alias (s, args, t) ->
+    let _ = wrap "typing" Type.add_alias (s, args, t) in
+    ()
+  | Ast.Assert (_, t) ->
+    let f = wrap "typing" Type.parse t in
+    let _ = wrap "pre-process" Solver.preprocess f in
+    let _ = wrap "assume" Solver.assume [[f]] in
+    ()
   | Ast.CheckSat ->
-    start_section "solve";
-    let res = Solver.solve () in
-    end_section ();
+    let res = wrap "solve" Solver.solve () in
     begin match res with
       | Solver.Sat ->
         Io.fprintf std "Sat";
@@ -141,7 +153,8 @@ let do_command = function
           Io.print_proof std proof
     end
   | c ->
-    Io.fprintf std "%a : operation not supported yet" Ast.print_command_name c
+    Io.fprintf std "%a : operation not supported yet" Ast.print_command_name c;
+    exit 2
 
 (* Main function *)
 let main () =
@@ -151,11 +164,7 @@ let main () =
     Arg.usage argspec usage;
     exit 2
   end;
-
-  start_section "parse";
-  let commands = Io.parse_input !file in
-  end_section ();
-
+  let commands = wrap "parse" Io.parse_input !file in
   List.iter do_command commands
 ;;
 

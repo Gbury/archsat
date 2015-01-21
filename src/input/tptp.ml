@@ -26,8 +26,8 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 (** {1 Utils related to TPTP parsing} *)
 
-module Ast = Ast_tptp
-module AU = Ast.Untyped
+module A = Ast_tptp
+module AU = A.Untyped
 module Loc = ParseLocation
 
 exception Parse_error of Loc.t * string
@@ -35,7 +35,30 @@ exception Parse_error of Loc.t * string
 let log_section = Util.Section.make "tptp"
 let log i fmt = Util.debug ~section:log_section i fmt
 
-(** {2 Printing/Parsing} *)
+(** {2 Translation} *)
+let t_assert name t = Ast.Assert (A.string_of_name name, t)
+
+let translate acc = function
+  | AU.FOF (name, (A.R_axiom | A.R_hypothesis), t, _)
+  | AU.TFF (name, (A.R_axiom | A.R_hypothesis), t, _) ->
+          t_assert name t :: acc
+  | AU.FOF (name, (A.R_assumption | A.R_lemma | A.R_theorem), t, _)
+  | AU.TFF (name, (A.R_assumption | A.R_lemma | A.R_theorem), t, _) ->
+          Ast.Push 1 :: t_assert name (Ast.not_ t) :: Ast.CheckSat :: Ast.Pop 1 :: t_assert name (Ast.not_ t) :: acc
+  | AU.FOF (name, A.R_conjecture, t, _)
+  | AU.TFF (name, A.R_conjecture, t, _) ->
+          t_assert name (Ast.not_ t) :: Ast.CheckSat :: acc
+  | AU.FOF (name, A.R_negated_conjecture, t, _)
+  | AU.TFF (name, A.R_negated_conjecture, t, _) ->
+          t_assert name t :: Ast.CheckSat :: acc
+  | AU.TypeDecl (name, s, t)
+  | AU.NewType (name, s, t) ->
+          Ast.TypeDef (A.string_of_name name, Ast.sym s, t) :: acc
+  | _ ->
+          log 0 "Couldn't translate a command";
+          acc
+
+(** {2 Parsing} *)
 
 let find_file name dir =
   (* check if the file exists *)
@@ -74,31 +97,6 @@ let find_file name dir =
 let _raise_error msg lexbuf =
   let loc = Loc.of_lexbuf lexbuf in
   raise (Parse_error (loc, msg))
-
-let list_of_queue = Queue.fold (fun l x -> x :: l) []
-
-let parse_lexbuf ?names buf =
-  (* parse declarations from file *)
-  let decls =
-    try Parsetptp.parse_declarations Lextptp.token buf
-    with
-    | Parsetptp.Error -> _raise_error "parse error at " buf
-    | Failure msg -> _raise_error msg buf
-    | Ast_tptp.ParseError loc -> raise (Parse_error (loc, "Parse error"))
-  in
-  let q = Queue.create () in
-  List.iter
-    (fun decl -> match decl, names with
-       | (AU.CNF _ | AU.FOF _ | AU.TFF _ | AU.THF _ | AU.TypeDecl _ | AU.NewType _), None ->
-         Queue.push decl q
-       | (AU.CNF _ | AU.FOF _ | AU.TFF _ | AU.THF _ | AU.TypeDecl _ | AU.NewType _), Some names ->
-         if List.mem (AU.get_name decl) names
-         then Queue.push decl q
-         else ()   (* not included *)
-       | (AU.Include _ | AU.IncludeOnly _), _ ->
-         Queue.push decl q)
-    decls;
-  list_of_queue q
 
 (* find file *)
 let _find_and_open filename dir =
@@ -150,5 +148,5 @@ let parse_file ~recursive f =
       raise e
   in
   parse_this_file ?names:None (Filename.basename f);
-  list_of_queue result_decls
+  Queue.fold translate [] result_decls
 
