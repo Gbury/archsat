@@ -104,7 +104,7 @@ let rec print_list_pre f sep b = function
     Printf.bprintf b "%s%a" sep f x;
     print_list_pre f sep b r
 
-let debug_var b v = Printf.bprintf b "v%i_%s" v.var_id v.var_name
+let debug_var b v = Printf.bprintf b "%s" v.var_name
 
 let debug_meta b m = Printf.bprintf b "m%d_%a" m.meta_index debug_var m.meta_var
 
