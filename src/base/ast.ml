@@ -30,8 +30,9 @@ and term = {
 
 type command =
   | Sat of Expr.Formula.t list list     (** Special case for dimacs input *)
-  | Push of int                         (** Push *)
-  | Pop of int                          (** Pop *)
+  | Push                                (** Push *)
+  | Pop                                 (** Pop *)
+  | NewType of string * symbol * int    (** New type constructor *)
   | TypeDef of string * symbol * term   (** Type definition *)
   | Alias of symbol * term list * term  (** Alias (smtlib style) *)
   | Assert of string * term             (** Add term to the assertions *)
@@ -41,10 +42,49 @@ type command =
 (* Printing *)
 (* ************************************************************************ *)
 
+let debug_symbol b = function
+    | Int s -> Printf.bprintf b "Int(%s)" s
+    | Rat s -> Printf.bprintf b "Rat(%s)" s
+    | Real s -> Printf.bprintf b "Real(%s)" s
+    | String s -> Printf.bprintf b "%s" s
+    | Ttype -> Printf.bprintf b "tType"
+    | Wildcard -> Printf.bprintf b "_"
+    | True -> Printf.bprintf b "True"
+    | False -> Printf.bprintf b "False"
+    | Eq -> Printf.bprintf b "="
+    | Distinct -> Printf.bprintf b "Distinct"
+    | Arrow -> Printf.bprintf b "->"
+    | All -> Printf.bprintf b "Forall"
+    | AllTy -> Printf.bprintf b "ForallTy"
+    | Ex -> Printf.bprintf b "Exists"
+    | And -> Printf.bprintf b "/\\"
+    | Or -> Printf.bprintf b "\\/"
+    | Xor -> Printf.bprintf b "xor"
+    | Imply -> Printf.bprintf b "=>"
+    | Equiv -> Printf.bprintf b "<=>"
+    | Not -> Printf.bprintf b "Not"
+
+let rec print_list_pre f sep b = function
+  | [] -> ()
+  | x :: r ->
+    Printf.bprintf b "%s%a" sep f x;
+    print_list_pre f sep b r
+
+let rec debug_term b t = match t.term with
+    | Var s -> Printf.bprintf b "%s" s
+    | Column (t1, t2) -> Printf.bprintf b "%a:%a" debug_term t1 debug_term t2
+    | Const sym -> Printf.bprintf b "(%a)" debug_symbol sym
+    | App (f, l) ->
+      Printf.bprintf b "(%a%a)" debug_term f (print_list_pre debug_term " ") l
+    | Binding (sym, l, p) ->
+      Printf.bprintf b "%a:%a.%a" debug_symbol sym
+        (print_list_pre debug_term " ") l debug_term p
+
 let print_command_name fmt = function
   | Sat _ -> Format.fprintf fmt "Cnf-assume (dimacs)"
-  | Push _ -> Format.fprintf fmt "Push"
-  | Pop _ -> Format.fprintf fmt "Pop"
+  | Push -> Format.fprintf fmt "Push"
+  | Pop -> Format.fprintf fmt "Pop"
+  | NewType _ -> Format.fprintf fmt "New type"
   | TypeDef _ -> Format.fprintf fmt "Type definition"
   | Alias _ -> Format.fprintf fmt "Alias binding"
   | Assert _ -> Format.fprintf fmt "Assert"

@@ -62,8 +62,7 @@ let rec parse_input file = match !input with
     end
   | Tptp ->
     begin try
-        let _ = Tptp.parse_file ~recursive:true file in
-        []
+        Tptp.parse_file ~recursive:true file
       with Tptp.Parse_error (loc, msg) ->
         raise (Parsing_error (loc, msg))
     end

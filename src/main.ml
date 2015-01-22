@@ -110,8 +110,8 @@ let get_model () =
 let start_section s =
     Util.debug 1 "=== %s %s" s (String.make (64 - String.length s) '=')
 
-let end_section () =
-    Util.debug 1 "%s" (String.make 69 '=')
+let end_section () = ()
+    (* Util.debug 1 "%s" (String.make 69 '=') *)
 
 let wrap s f x =
     start_section s;
@@ -125,11 +125,11 @@ let do_command = function
     let _ = wrap "pre-process" (List.iter (List.iter Solver.preprocess)) cnf in
     let _ = wrap "assume" Solver.assume cnf in
     ()
-  | Ast.TypeDef (_, s, t) ->
-    let _ = wrap "typing" Type.add_type (s, t) in
+  | Ast.NewType (_, s, n) ->
+    let _ = wrap "typing" Type.new_type_def (s, n) in
     ()
-  | Ast.Alias (s, args, t) ->
-    let _ = wrap "typing" Type.add_alias (s, args, t) in
+  | Ast.TypeDef (_, s, t) ->
+    let _ = wrap "typing" Type.new_const_def (s, t) in
     ()
   | Ast.Assert (_, t) ->
     let f = wrap "typing" Type.parse t in
@@ -165,7 +165,7 @@ let main () =
     exit 2
   end;
   let commands = wrap "parse" Io.parse_input !file in
-  List.iter do_command commands
+  Queue.iter do_command commands
 ;;
 
 try

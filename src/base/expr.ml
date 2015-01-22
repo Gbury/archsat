@@ -118,8 +118,23 @@ let rec debug_ty b ty = match ty.ty with
   | TyApp (f, l) ->
     Printf.bprintf b "(%a%a)" debug_var f (print_list_pre debug_ty " ") l
 
-let debug_var_ttype b v = Printf.bprintf b "%a : %a" debug_var v debug_ttype v.var_type
-let debug_var_ty b v = Printf.bprintf b "%a : %a" debug_var v debug_ty v.var_type
+let debug_params b = function
+    | [] -> ()
+    | l -> Printf.bprintf b "∀%a. " (print_list_pre debug_var " ") l
+
+let debug_sig print b f =
+    Printf.bprintf b "%a%a%a" debug_params f.fun_vars
+        (print_list print " -> ") f.fun_args print f.fun_ret
+
+let debug_fun_ty = debug_sig debug_ty
+let debug_fun_ttype = debug_sig debug_ttype
+
+let debug_var_type debug b v = Printf.bprintf b "%a : %a" debug_var v debug v.var_type
+
+let debug_var_ty = debug_var_type debug_ty
+let debug_var_ttype = debug_var_type debug_ttype
+let debug_const_ty = debug_var_type debug_fun_ty
+let debug_const_ttype = debug_var_type debug_fun_ttype
 
 let rec debug_term b t = match t.term with
   | Var v -> debug_var b v

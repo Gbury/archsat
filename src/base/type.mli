@@ -1,10 +1,8 @@
 
 
-val stack : Backtrack.Stack.t
 
-val add_type : Ast.symbol * Ast.term -> unit
-
-val add_alias : Ast.symbol * Ast.term list * Ast.term -> unit
+val new_type_def : Ast.symbol * int -> unit
+val new_const_def : Ast.symbol * Ast.term -> unit
 
 val parse : Ast.term -> Expr.Formula.t
 

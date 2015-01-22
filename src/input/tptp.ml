@@ -31,6 +31,7 @@ module AU = A.Untyped
 module Loc = ParseLocation
 
 exception Parse_error of Loc.t * string
+exception Syntax_error of string
 
 let log_section = Util.Section.make "tptp"
 let log i fmt = Util.debug ~section:log_section i fmt
@@ -38,25 +39,42 @@ let log i fmt = Util.debug ~section:log_section i fmt
 (** {2 Translation} *)
 let t_assert name t = Ast.Assert (A.string_of_name name, t)
 
-let translate acc = function
+let arity_of_type_constr s = function
+    | { Ast.term = Ast.Const Ast.Ttype } -> 0
+    | { Ast.term = Ast.App ({Ast.term = Ast.Const Ast.Arrow}, l) } ->
+      List.iter (fun t -> if not (Ast.(t.term) = Ast.Const Ast.Ttype)
+        then raise (Syntax_error ("Ill-formed new type declaration for " ^ s))) l;
+      List.length l - 1
+    | t ->
+      log 0 "Expected new type, received : %a" Ast.debug_term t;
+      raise (Syntax_error ("Ill-formed new type declaration for : " ^ s))
+
+let translate q = function
   | AU.FOF (name, (A.R_axiom | A.R_hypothesis), t, _)
   | AU.TFF (name, (A.R_axiom | A.R_hypothesis), t, _) ->
-          t_assert name t :: acc
+    Queue.push (t_assert name t) q
   | AU.FOF (name, (A.R_assumption | A.R_lemma | A.R_theorem), t, _)
   | AU.TFF (name, (A.R_assumption | A.R_lemma | A.R_theorem), t, _) ->
-          Ast.Push 1 :: t_assert name (Ast.not_ t) :: Ast.CheckSat :: Ast.Pop 1 :: t_assert name (Ast.not_ t) :: acc
+    Queue.push Ast.Push q;
+    Queue.push (t_assert name (Ast.not_ t)) q;
+    Queue.push Ast.CheckSat q;
+    Queue.push Ast.Pop q;
+    Queue.push (t_assert name (Ast.not_ t)) q
   | AU.FOF (name, A.R_conjecture, t, _)
   | AU.TFF (name, A.R_conjecture, t, _) ->
-          t_assert name (Ast.not_ t) :: Ast.CheckSat :: acc
+    Queue.push (t_assert name (Ast.not_ t)) q;
+    Queue.push Ast.CheckSat q
   | AU.FOF (name, A.R_negated_conjecture, t, _)
   | AU.TFF (name, A.R_negated_conjecture, t, _) ->
-          t_assert name t :: Ast.CheckSat :: acc
-  | AU.TypeDecl (name, s, t)
+    Queue.push (t_assert name t) q;
+    Queue.push Ast.CheckSat q
   | AU.NewType (name, s, t) ->
-          Ast.TypeDef (A.string_of_name name, Ast.sym s, t) :: acc
+    let n = arity_of_type_constr s t in
+    Queue.push (Ast.NewType (A.string_of_name name, Ast.sym s, n)) q
+  | AU.TypeDecl (name, s, t) ->
+    Queue.push (Ast.TypeDef (A.string_of_name name, Ast.sym s, t)) q
   | _ ->
-          log 0 "Couldn't translate a command";
-          acc
+    log 0 "Couldn't translate a command"
 
 (** {2 Parsing} *)
 
@@ -126,7 +144,7 @@ let parse_file ~recursive f =
         try Parsetptp.parse_declarations Lextptp.token buf
         with
         | Parsetptp.Error -> _raise_error "parse error at " buf
-        | Ast_tptp.ParseError loc -> failwith ("parse error at "^Loc.to_string loc)
+        | Ast_tptp.ParseError loc -> raise (Parse_error (loc, "parse error"))
       in
       List.iter
         (fun decl -> match decl, names with
@@ -148,5 +166,7 @@ let parse_file ~recursive f =
       raise e
   in
   parse_this_file ?names:None (Filename.basename f);
-  Queue.fold translate [] result_decls
+  let res = Queue.create () in
+  Queue.iter (translate res) result_decls;
+  res
 

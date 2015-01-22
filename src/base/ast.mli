@@ -31,12 +31,18 @@ and term = {
 
 type command =
   | Sat of Expr.Formula.t list list     (** Special case for dimacs input *)
-  | Push of int                         (** Push *)
-  | Pop of int                          (** Pop *)
+  | Push                                (** Push *)
+  | Pop                                 (** Pop *)
+  | NewType of string * symbol * int    (** New type constructor *)
   | TypeDef of string * symbol * term   (** Type definition *)
   | Alias of symbol * term list * term  (** Alias (smtlib style) *)
   | Assert of string * term             (** Add term to the assertions *)
   | CheckSat                            (** Check-sat *)
+
+(** {2 Printing} *)
+
+val debug_symbol : Buffer.t -> symbol -> unit
+val debug_term : Buffer.t -> term -> unit
 
 val print_command_name : Format.formatter -> command -> unit
 

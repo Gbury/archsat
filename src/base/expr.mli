@@ -99,11 +99,16 @@ val debug_var : Buffer.t -> 'a var -> unit
 val debug_var_ty : Buffer.t -> ty var -> unit
 val debug_var_ttype : Buffer.t -> ttype var -> unit
 
+val debug_const_ty : Buffer.t -> ty function_descr var -> unit
+val debug_const_ttype : Buffer.t -> ttype function_descr var -> unit
+
 val debug_tau : Buffer.t -> 'a tau -> unit
 val debug_meta : Buffer.t -> 'a meta -> unit
 
 val debug_ty : Buffer.t -> ty -> unit
+val debug_fun_ty : Buffer.t -> ty function_descr -> unit
 val debug_ttype : Buffer.t -> ttype -> unit
+val debug_fun_ttype : Buffer.t -> ttype function_descr -> unit
 
 val debug_term : Buffer.t -> term -> unit
 val debug_formula : Buffer.t -> formula -> unit
