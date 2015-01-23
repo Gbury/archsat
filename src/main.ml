@@ -19,6 +19,7 @@ let std = Format.std_formatter
 let file = ref ""
 let p_model = ref None
 let p_proof = ref false
+let p_type_only = ref false
 let time_limit = ref 300.
 let size_limit = ref 1000_000_000.
 
@@ -84,6 +85,8 @@ let argspec = Arg.align (List.sort
     "<s>[kMGT] Sets the size limit for the sat solver";
     "-time", Arg.String (int_arg time_limit),
     "<t>[smhd] Sets the time limit for the sat solver";
+    "-type-only", Arg.Set p_type_only,
+    " Only parse and type the given problem. Do not attempt to solve.";
     "-x", Arg.String Dispatcher.activate,
     "<name> Activate the given extension";
   ]))
@@ -122,34 +125,33 @@ let wrap s f x =
 (* Execute given command *)
 let do_command = function
   | Ast.Sat cnf ->
-    let _ = wrap "assume" Solver.assume cnf in
-    ()
+    if not !p_type_only then
+        wrap "assume" Solver.assume cnf
   | Ast.NewType (_, s, n) ->
-    let _ = wrap "typing" Type.new_type_def (s, n) in
-    ()
+    wrap "typing" Type.new_type_def (s, n)
   | Ast.TypeDef (_, s, t) ->
-    let _ = wrap "typing" Type.new_const_def (s, t) in
-    ()
+    wrap "typing" Type.new_const_def (s, t)
   | Ast.Assert (_, t) ->
     let f = wrap "typing" Type.parse t in
-    let _ = wrap "assume" Solver.assume [[f]] in
-    ()
+    if not !p_type_only then
+      wrap "assume" Solver.assume [[f]]
   | Ast.CheckSat ->
-    let res = wrap "solve" Solver.solve () in
-    begin match res with
-      | Solver.Sat ->
-        Io.fprintf std "Sat";
-        begin match !p_model with
-          | None -> () | _ ->
-            Io.fprintf std "Model :";
-            Io.print_model std (get_model ())
-        end
-      | Solver.Unsat ->
-        Io.fprintf std "Unsat";
-        if !p_proof then
-          let proof = Solver.get_proof () in
-          Io.print_proof std proof
-    end
+    if not !p_type_only then
+      let res = wrap "solve" Solver.solve () in
+      begin match res with
+        | Solver.Sat ->
+          Io.fprintf std "Sat";
+          begin match !p_model with
+            | None -> () | _ ->
+              Io.fprintf std "Model :";
+              Io.print_model std (get_model ())
+          end
+        | Solver.Unsat ->
+          Io.fprintf std "Unsat";
+          if !p_proof then
+            let proof = Solver.get_proof () in
+            Io.print_proof std proof
+      end
   | c ->
     Io.fprintf std "%a : operation not supported yet" Ast.print_command_name c;
     exit 2

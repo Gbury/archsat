@@ -98,6 +98,8 @@ let add_type_vars env l =
     let l', map = add_vars (fun _ -> Expr.ttype_var (new_name ())) env.type_vars l in
     l', { env with type_vars = map }
 
+let add_type_var env v = match add_type_vars env [v] with | [v'], env' -> v', env' | _ -> assert false
+
 let add_term_vars env l =
     let l', map = add_vars (fun ty -> Expr.ty_var (new_name ()) ty) env.term_vars l in
     l', { env with term_vars = map }
@@ -115,6 +117,7 @@ let find_term_var env s = find_var env.term_vars s
 (* ************************************************************************ *)
 
 let parse_ttype_var = function
+    | { Ast.term = Ast.Column ({ Ast.term = Ast.Var s }, {Ast.term = Ast.Const Ast.Ttype}) }
     | { Ast.term = Ast.Var s } -> Expr.ttype_var s
     | _ -> raise Typing_error
 
@@ -162,6 +165,19 @@ let rec parse_term env = function
       log 0 "Expected a term, received : %a" Ast.debug_term t;
       raise Typing_error
 
+let rec parse_quant_vars env = function
+    | [] -> [], [], env
+    | (v :: r) as l ->
+      try
+          let ttype_var = parse_ttype_var v in
+          let ttype_var, env' = add_type_var env ttype_var in
+          let l, l', env'' = parse_quant_vars env' r in
+          ttype_var :: l, l', env''
+      with Typing_error ->
+          let l' = List.map (parse_ty_var env) l in
+          let l'', env' = add_term_vars env l' in
+          [], l'', env'
+
 let rec parse_formula env = function
     (* Formulas *)
     | { Ast.term = Ast.Const Ast.True } -> Expr.f_true
@@ -189,17 +205,11 @@ let rec parse_formula env = function
       end
     (* Quantifications *)
     | { Ast.term = Ast.Binding (Ast.All, vars, f) } ->
-      let typed_vars = List.map (parse_ty_var env) vars in
-      let typed_vars, env' = add_term_vars env typed_vars in
-      Expr.f_all typed_vars (parse_formula env' f)
+      let ttype_vars, ty_vars, env' = parse_quant_vars env vars in
+      Expr.f_allty ttype_vars (Expr.f_all ty_vars (parse_formula env' f))
     | { Ast.term = Ast.Binding (Ast.Ex, vars, f) } ->
-      let typed_vars = List.map (parse_ty_var env) vars in
-      let typed_vars, env' = add_term_vars env typed_vars in
-      Expr.f_ex typed_vars (parse_formula env' f)
-    | { Ast.term = Ast.Binding (Ast.AllTy, vars, f) } ->
-      let typed_vars = List.map parse_ttype_var vars in
-      let typed_vars, env' = add_type_vars env typed_vars in
-      Expr.f_allty typed_vars (parse_formula env' f)
+      let ttype_vars, ty_vars, env' = parse_quant_vars env vars in
+      Expr.f_exty ttype_vars (Expr.f_ex ty_vars (parse_formula env' f))
     (* Terms *)
     | { Ast.term = Ast.App ({Ast.term = Ast.Const Ast.Eq}, l) } ->
       begin match l with
@@ -231,5 +241,8 @@ let new_const_def (sym, t) =
     | _ ->
       log 0 "Illicit type declaration for symbol : %a" Ast.debug_symbol sym
 
-let parse t = parse_formula empty_env t
+let parse t =
+    let f = parse_formula empty_env t in
+    log 1 "New expr : %a" Expr.debug_formula f;
+    f
 

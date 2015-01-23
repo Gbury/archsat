@@ -69,6 +69,7 @@ and formula_descr =
   | All of ty var list * formula
   | AllTy of ttype var list * formula
   | Ex of ty var list * formula
+  | ExTy of ttype var list * formula
 
 and formula = {
   formula : formula_descr;
@@ -92,18 +93,6 @@ exception Subst_error_term_scope of ty var
 (* Debug printing functions *)
 (* ************************************************************************ *)
 
-let rec print_list f sep b = function
-  | [] -> ()
-  | x :: r ->
-    Printf.bprintf b "%a%s" f x sep;
-    print_list f sep b r
-
-let rec print_list_pre f sep b = function
-  | [] -> ()
-  | x :: r ->
-    Printf.bprintf b "%s%a" sep f x;
-    print_list_pre f sep b r
-
 let debug_var b v = Printf.bprintf b "%s" v.var_name
 
 let debug_meta b m = Printf.bprintf b "m%d_%a" m.meta_index debug_var m.meta_var
@@ -116,15 +105,15 @@ let rec debug_ty b ty = match ty.ty with
   | TyVar v -> debug_var b v
   | TyMeta m -> debug_meta b m
   | TyApp (f, l) ->
-    Printf.bprintf b "(%a%a)" debug_var f (print_list_pre debug_ty " ") l
+    Printf.bprintf b "(%a(%a))" debug_var f (Util.pp_list ~sep:", " debug_ty) l
 
 let debug_params b = function
     | [] -> ()
-    | l -> Printf.bprintf b "∀%a. " (print_list_pre debug_var " ") l
+    | l -> Printf.bprintf b "∀ %a. " (Util.pp_list ~sep:", " debug_var) l
 
 let debug_sig print b f =
-    Printf.bprintf b "%a%a%a" debug_params f.fun_vars
-        (print_list print " -> ") f.fun_args print f.fun_ret
+    Printf.bprintf b "%a%a -> %a" debug_params f.fun_vars
+        (Util.pp_list ~sep:" -> " print) f.fun_args print f.fun_ret
 
 let debug_fun_ty = debug_sig debug_ty
 let debug_fun_ttype = debug_sig debug_ttype
@@ -140,10 +129,13 @@ let rec debug_term b t = match t.term with
   | Var v -> debug_var b v
   | Meta m -> debug_meta b m
   | Tau t -> debug_tau b t
+  | App (f, [], args) ->
+    Printf.bprintf b "(%a(%a))" debug_var f
+      (Util.pp_list ~sep:", " debug_term) args
   | App (f, tys, args) ->
-    Printf.bprintf b "(%a%a%a)" debug_var f
-      (print_list_pre debug_ty " ") tys
-      (print_list_pre debug_term " ") args
+    Printf.bprintf b "(%a(%a; %a))" debug_var f
+      (Util.pp_list ~sep:", " debug_ty) tys
+      (Util.pp_list ~sep:", " debug_term) args
 
 let rec debug_formula b f = match f.formula with
   | Equal (x, y) -> Printf.bprintf b "(%a = %a)" debug_term x debug_term y
@@ -151,23 +143,26 @@ let rec debug_formula b f = match f.formula with
   | True -> Printf.bprintf b "⊤"
   | False -> Printf.bprintf b "⊥"
   | Not f -> Printf.bprintf b "¬ %a" debug_formula f
-  | And l -> Printf.bprintf b "(%a)" (print_list debug_formula " ∧ ") l
-  | Or l -> Printf.bprintf b "(%a)" (print_list debug_formula " ∨ ") l
+  | And l -> Printf.bprintf b "(%a)" (Util.pp_list ~sep:" ∧ " debug_formula) l
+  | Or l -> Printf.bprintf b "(%a)" (Util.pp_list ~sep:" ∨ " debug_formula) l
   | Imply (p, q) -> Printf.bprintf b "(%a ⇒ %a)" debug_formula p debug_formula q
   | Equiv (p, q) -> Printf.bprintf b "(%a ⇔ %a)" debug_formula p debug_formula q
   | All (l, f) -> Printf.bprintf b "∀ %a. %a"
-                    (print_list debug_var_ty ", ") l debug_formula f
+                    (Util.pp_list ~sep:", " debug_var_ty) l debug_formula f
   | AllTy (l, f) -> Printf.bprintf b "∀ %a. %a"
-                      (print_list debug_var_ttype ", ") l debug_formula f
+                      (Util.pp_list ~sep:", " debug_var_ttype) l debug_formula f
   | Ex (l, f) -> Printf.bprintf b "∀ %a. %a"
-                   (print_list debug_var_ty ", ") l debug_formula f
+                   (Util.pp_list ~sep:", " debug_var_ty) l debug_formula f
+  | ExTy (l, f) -> Printf.bprintf b "∀ %a. %a"
+                   (Util.pp_list ~sep:", " debug_var_ttype) l debug_formula f
 
 (* Printing functions *)
 (* ************************************************************************ *)
 
 let rec print_list f sep fmt = function
   | [] -> ()
-  | x :: r ->
+  | [x] -> f fmt x
+  | x :: ((y :: _) as r) ->
     Format.fprintf fmt "%a%s" f x sep;
     print_list f sep fmt r
 
@@ -219,6 +214,8 @@ let rec print_formula fmt f = match f.formula with
                       (print_list print_var_ttype ", ") l print_formula f
   | Ex (l, f) -> Format.fprintf fmt "∀ %a. %a"
                    (print_list print_var_ty ", ") l print_formula f
+  | ExTy (l, f) -> Format.fprintf fmt "∀ %a. %a"
+                   (print_list print_var_ttype ", ") l print_formula f
 
 (* Hashs *)
 (* ************************************************************************ *)
@@ -268,6 +265,7 @@ let h_equiv = 9
 let h_all   = 10
 let h_allty = 11
 let h_ex    = 12
+let h_exty  = 13
 
 let rec hash_formula f =
   let aux h_skel l = Hashtbl.hash (h_skel, l) in
@@ -284,6 +282,7 @@ let rec hash_formula f =
     | All (l, f) -> aux h_all (get_formula_hash f :: List.rev_map (fun v -> v.var_id) l)
     | AllTy (l, f) -> aux h_allty (get_formula_hash f :: List.rev_map (fun v -> v.var_id) l)
     | Ex (l, f) -> aux h_ex (get_formula_hash f :: List.rev_map (fun v -> v.var_id) l)
+    | ExTy (l, f) -> aux h_exty (get_formula_hash f :: List.rev_map (fun v -> v.var_id) l)
   in
   f.f_hash <- h
 
@@ -365,6 +364,7 @@ let formula_discr f = match f.formula with
   | All _ -> 10
   | AllTy _ -> 11
   | Ex _ -> 12
+  | ExTy _ -> 13
 
 let rec compare_formula f g =
   let hf = get_formula_hash f and hg = get_formula_hash g in
@@ -389,6 +389,11 @@ let rec compare_formula f g =
         | x -> x
       end
     | Ex (l1, h1), Ex (l2, h2) ->
+      begin match Util.lexicograph compare_var l1 l2 with
+        | 0 -> compare_formula h1 h2
+        | x -> x
+      end
+    | ExTy (l1, h1), ExTy (l2, h2) ->
       begin match Util.lexicograph compare_var l1 l2 with
         | 0 -> compare_formula h1 h2
         | x -> x
@@ -672,6 +677,7 @@ let f_imply p q = mk_formula (Imply (p, q))
 let f_equiv p q = mk_formula (Equiv (p, q))
 
 let f_all l f =
+  if l = [] then f else
   let l, f = match f.formula with
     | All (l', f') -> List.rev_append l' l, f'
     | _ -> l, f
@@ -679,6 +685,7 @@ let f_all l f =
   mk_formula (All (l, f))
 
 let f_allty l f =
+  if l = [] then f else
   let l, f = match f.formula with
     | AllTy (l', f') -> List.rev_append l' l, f'
     | _ -> l, f
@@ -686,11 +693,20 @@ let f_allty l f =
   mk_formula (AllTy (l, f))
 
 let f_ex l f =
+  if l = [] then f else
   let l, f = match f.formula with
     | Ex (l', f') -> List.rev_append l' l, f'
     | _ -> l, f
   in
   mk_formula (Ex (l, f))
+
+let f_exty l f =
+  if l = [] then f else
+  let l, f = match f.formula with
+    | AllTy (l', f') -> List.rev_append l' l, f'
+    | _ -> l, f
+  in
+  mk_formula (ExTy (l, f))
 
 let rec new_binder_subst ty_map subst acc = function
   | [] -> List.rev acc, subst
@@ -738,6 +754,14 @@ let rec formula_subst ty_map t_map f = match f.formula with
         | _ -> ()
       ) ty_map;
     f_allty l (formula_subst ty_map t_map f)
+  | ExTy (l, f) ->
+    Subst.iter (fun _ ty -> match ty.ty with
+        | TyVar v ->
+          begin try raise (Subst_error_ty_scope (List.find (equal_var v) l))
+            with Not_found -> () end
+        | _ -> ()
+      ) ty_map;
+    f_exty l (formula_subst ty_map t_map f)
 
 (* Metas & Taus *)
 (* ************************************************************************ *)

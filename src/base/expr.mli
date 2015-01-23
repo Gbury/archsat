@@ -74,6 +74,7 @@ and formula_descr = private
   | All of ty var list * formula
   | AllTy of ttype var list * formula
   | Ex of ty var list * formula
+  | ExTy of ttype var list * formula
 
 and formula = private {
   formula : formula_descr;
@@ -207,6 +208,7 @@ val f_equiv : formula -> formula -> formula
 val f_all : ty var list -> formula -> formula
 val f_allty : ttype var list -> formula -> formula
 val f_ex : ty var list -> formula -> formula
+val f_exty : ttype var list -> formula -> formula
 
 (** { 2 Interpretation and Assignations} *)
 

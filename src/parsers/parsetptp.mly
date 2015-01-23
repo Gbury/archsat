@@ -208,11 +208,6 @@ fof_unitary_formula:
   | LEFT_PAREN f=fof_logic_formula RIGHT_PAREN { f }
 
 fof_quantified_formula:
-  | FORALL_TY LEFT_BRACKET v=tff_ty_vars RIGHT_BRACKET COLUMN f=fof_unitary_formula
-    {
-      let loc = L.mk_pos $startpos $endpos in
-      T.forall_ty ~loc v f
-    }
   | q=fol_quantifier LEFT_BRACKET vars=variables RIGHT_BRACKET COLUMN f=fof_unitary_formula
     {
       let loc = L.mk_pos $startpos $endpos in
