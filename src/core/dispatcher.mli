@@ -48,11 +48,6 @@ val list_extensions : unit -> string list
 
 (** {2 Solver-side functions} *)
 
-val preprocess : formula -> unit
-(** Gives the formula to extensions for pre-processing. During pre-processing,
-    extensions shoudl register handlers for assignement and evaluation through
-    the appropriate functions from module Expr. *)
-
 val get_options : unit -> (Arg.key * Arg.spec * Arg.doc) list
 (** Returns a list of options made available by the extensions *)
 

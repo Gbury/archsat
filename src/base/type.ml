@@ -192,6 +192,14 @@ let rec parse_formula env = function
       let typed_vars = List.map (parse_ty_var env) vars in
       let typed_vars, env' = add_term_vars env typed_vars in
       Expr.f_all typed_vars (parse_formula env' f)
+    | { Ast.term = Ast.Binding (Ast.Ex, vars, f) } ->
+      let typed_vars = List.map (parse_ty_var env) vars in
+      let typed_vars, env' = add_term_vars env typed_vars in
+      Expr.f_ex typed_vars (parse_formula env' f)
+    | { Ast.term = Ast.Binding (Ast.AllTy, vars, f) } ->
+      let typed_vars = List.map parse_ttype_var vars in
+      let typed_vars, env' = add_type_vars env typed_vars in
+      Expr.f_allty typed_vars (parse_formula env' f)
     (* Terms *)
     | { Ast.term = Ast.App ({Ast.term = Ast.Const Ast.Eq}, l) } ->
       begin match l with

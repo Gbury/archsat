@@ -98,7 +98,46 @@ let find_ext name =
     _fail (Util.sprintf "Expected to find %s in active extensions" name)
   with Found_ext i -> i
 
-let preprocess f = ext_iter (fun r -> r.preprocess f)
+(* Pre-processing *)
+(* ************************************************************************ *)
+
+let check_var v =
+  if not (Expr.is_interpreted v) && not (Expr.is_assignable v) then
+    log 0 "WARNING: Variable %a is neither interpreted nor assignable" Expr.debug_var v
+
+let rec check_term = function
+  | { Expr.term = Expr.Var v } -> check_var v
+  | { Expr.term = Expr.Meta m } -> check_var Expr.(m.meta_var)
+  | { Expr.term = Expr.Tau t } -> check_var Expr.(t.tau_var)
+  | { Expr.term = Expr.App (p, _, l)} ->
+    check_var p;
+    List.iter check_term l
+
+let rec check = function
+  | { Expr.formula = Expr.Equal (a, b) } ->
+    check_term a;
+    check_term b
+  | { Expr.formula = Expr.Pred p } ->
+    check_term p
+  | { Expr.formula = ( Expr.True | Expr.False ) } ->
+    ()
+  | { Expr.formula = Expr.Not f } ->
+    check f
+  | { Expr.formula = Expr.And l }
+  | { Expr.formula = Expr.Or l } ->
+    List.iter check l
+  | { Expr.formula = Expr.Imply (p, q) }
+  | { Expr.formula = Expr.Equiv (p, q) } ->
+    check p;
+    check q
+  | { Expr.formula = Expr.All (_, f) }
+  | { Expr.formula = Expr.AllTy (_, f) }
+  | { Expr.formula = Expr.Ex (_, f) } ->
+    check f
+
+let preprocess f =
+  ext_iter (fun r -> r.preprocess f);
+  check f
 
 (* Evaluation/Watching functions *)
 (* ************************************************************************ *)
@@ -299,7 +338,9 @@ let rec iter_assign_aux f e = match Expr.(e.term) with
     List.iter (iter_assign_aux f) l
   | _ -> f e
 
-let iter_assignable f e = match Expr.(e.formula) with
+let iter_assignable f e =
+  preprocess e;
+  match Expr.(e.formula) with
   | Expr.Equal (a, b) -> iter_assign_aux f a; iter_assign_aux f b
   | Expr.Pred p -> iter_assign_aux f p
   | _ -> ()

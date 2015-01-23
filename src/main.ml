@@ -122,7 +122,6 @@ let wrap s f x =
 (* Execute given command *)
 let do_command = function
   | Ast.Sat cnf ->
-    let _ = wrap "pre-process" (List.iter (List.iter Solver.preprocess)) cnf in
     let _ = wrap "assume" Solver.assume cnf in
     ()
   | Ast.NewType (_, s, n) ->
@@ -133,7 +132,6 @@ let do_command = function
     ()
   | Ast.Assert (_, t) ->
     let f = wrap "typing" Type.parse t in
-    let _ = wrap "pre-process" Solver.preprocess f in
     let _ = wrap "assume" Solver.assume [[f]] in
     ()
   | Ast.CheckSat ->

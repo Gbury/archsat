@@ -12,10 +12,6 @@ type res =
 val get_options : unit -> (Arg.key * Arg.spec * Arg.doc) list
 (** Returns a list of command-line options to be added. *)
 
-val preprocess : Expr.formula -> unit
-(** Preprocess the given formula. All formulas should be preprocessed
-    before being assumed. *)
-
 val solve : unit -> res
 (** Try and solve the current set of assumptions *)
 
