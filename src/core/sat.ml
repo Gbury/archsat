@@ -1,39 +1,25 @@
 
 module D = Dispatcher
 
-let p_true = Expr.term_app (Expr.term_const "true" [] [] Expr.type_prop) [] []
-let p_false = Expr.term_app (Expr.term_const "false" [] [] Expr.type_prop) [] []
-
-let mk_prop i =
-  let aux i =
-    let c = Expr.term_const ("p" ^ string_of_int i) [] [] Expr.type_prop in
-    Expr.f_pred (Expr.term_app c [] [])
-  in
-  if i >= 0 then
-    aux i
-  else
-    Expr.f_not (aux ~-i)
-;;
-
 let sat_assume = function
   | {Expr.formula = Expr.Pred ({Expr.term = Expr.App (p, [], [])} as t)}, lvl ->
-    D.set_assign t p_true lvl
+    D.set_assign t Builtin.p_true lvl
   | {Expr.formula = Expr.Not {Expr.formula = Expr.Pred ({Expr.term = Expr.App (p, [], [])} as t)}}, lvl ->
-    D.set_assign t p_false lvl
+    D.set_assign t Builtin.p_false lvl
   | _ -> ()
 
 let sat_assign = function
   | {Expr.term = Expr.App (p, [], [])} as t when Expr.(Ty.equal t.t_type type_prop) ->
     D.watch 1 [t] (fun () ->
         let v, lvl = D.get_assign t in
-        if Expr.Term.equal v p_true then
+        if Expr.Term.equal v Builtin.p_true then
           D.propagate (Expr.f_pred t) lvl
         else
           D.propagate (Expr.f_not (Expr.f_pred t)) lvl);
     begin try
         fst (D.get_assign t)
       with D.Not_assigned _ ->
-        p_true
+        Builtin.p_true
     end
   | _ -> assert false
 
@@ -41,9 +27,9 @@ let sat_eval = function
   | {Expr.formula = Expr.Pred ({Expr.term = Expr.App (p, [], [])} as t)} ->
     begin try
         let b, lvl = D.get_assign t in
-        if Expr.Term.equal p_true b then
+        if Expr.Term.equal Builtin.p_true b then
           Some (true, lvl)
-        else if Expr.Term.equal p_false b then
+        else if Expr.Term.equal Builtin.p_false b then
           Some (false, lvl)
         else
           assert false
@@ -78,4 +64,4 @@ D.(register {
     assume = sat_assume;
     eval_pred = sat_eval;
     preprocess = sat_preprocess;
-  } [])
+  })

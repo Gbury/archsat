@@ -295,17 +295,6 @@ and get_formula_hash f =
 (* Comparisons *)
 (* ************************************************************************ *)
 
-(* Lexicographic order on lists *)
-let rec lexico compare l1 l2 = match l1, l2 with
-  | [], [] -> 0
-  | a :: r, b :: s ->
-    begin match compare a b with
-      | 0 -> lexico compare r s
-      | x -> x
-    end
-  | [], _ -> -1
-  | _, [] -> 1
-
 (* Variables *)
 let compare_var: 'a. 'a var -> 'a var -> int =
   fun v1 v2 -> Pervasives.compare v1.var_id v2.var_id
@@ -326,7 +315,7 @@ let rec compare_ty u v =
     | TyMeta v1, TyMeta v2 -> compare_var v1.meta_var v2.meta_var
     | TyApp (f1, args1), TyApp (f2, args2) ->
       begin match compare_var f1 f2 with
-        | 0 -> lexico compare_ty args1 args2
+        | 0 -> Util.lexicograph compare_ty args1 args2
         | x -> x
       end
     | _, _ -> Pervasives.compare (ty_discr u) (ty_discr v)
@@ -351,8 +340,8 @@ let rec compare_term u v =
     | App (f1, tys1, args1), App (f2, tys2, args2) ->
       begin match compare_var f1 f2 with
         | 0 ->
-          begin match lexico compare_ty tys1 tys2 with
-            | 0 -> lexico compare_term args1 args2
+          begin match Util.lexicograph compare_ty tys1 tys2 with
+            | 0 -> Util.lexicograph compare_term args1 args2
             | x -> x
           end
         | x -> x
@@ -382,25 +371,25 @@ let rec compare_formula f g =
   if hf <> hg then Pervasives.compare hf hg
   else match f.formula, g.formula with
     | True, True | False, False -> 0
-    | Equal (u1, v1), Equal(u2, v2) -> lexico compare_term [u1; v1] [u2; v2]
+    | Equal (u1, v1), Equal(u2, v2) -> Util.lexicograph compare_term [u1; v1] [u2; v2]
     | Pred t1, Pred t2 -> compare_term t1 t2
     | Not h1, Not h2 -> compare_formula h1 h2
-    | And l1, And l2 -> lexico compare_formula l1 l2
-    | Or l1, Or l2 -> lexico compare_formula l1 l2
-    | Imply (h1, i1), Imply (h2, i2) -> lexico compare_formula [h1; i1] [h2; i2]
-    | Equiv (h1, i1), Equiv (h2, i2) -> lexico compare_formula [h1; i1] [h2; i2]
+    | And l1, And l2 -> Util.lexicograph compare_formula l1 l2
+    | Or l1, Or l2 -> Util.lexicograph compare_formula l1 l2
+    | Imply (h1, i1), Imply (h2, i2) -> Util.lexicograph compare_formula [h1; i1] [h2; i2]
+    | Equiv (h1, i1), Equiv (h2, i2) -> Util.lexicograph compare_formula [h1; i1] [h2; i2]
     | All (l1, h1), All (l2, h2) ->
-      begin match lexico compare_var l1 l2 with
+      begin match Util.lexicograph compare_var l1 l2 with
         | 0 -> compare_formula h1 h2
         | x -> x
       end
     | AllTy (l1, h1), AllTy (l2, h2) ->
-      begin match lexico compare_var l1 l2 with
+      begin match Util.lexicograph compare_var l1 l2 with
         | 0 -> compare_formula h1 h2
         | x -> x
       end
     | Ex (l1, h1), Ex (l2, h2) ->
-      begin match lexico compare_var l1 l2 with
+      begin match Util.lexicograph compare_var l1 l2 with
         | 0 -> compare_formula h1 h2
         | x -> x
       end

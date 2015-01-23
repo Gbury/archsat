@@ -80,10 +80,12 @@ let rec eq_pre = function
   | _ -> ()
 
 ;;
+
 D.(register {
     name = "eq";
     assume = eq_assume;
     eval_pred = eq_eval;
     preprocess = eq_pre;
-  }, [])
+  })
+
 

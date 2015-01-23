@@ -5,6 +5,7 @@ Backtrack
 # Base modules
 Ast
 Expr
+Builtin
 
 # Core modules
 Dispatcher

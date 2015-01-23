@@ -4,6 +4,7 @@ util/Backtrack
 
 base/Ast
 base/Expr
+base/Builtin
 
 core/Dispatcher
 core/Solver

@@ -67,9 +67,11 @@ let extensions = ref []
 
 let active = Vector.make 10 dummy_ext
 
-let register r l =
+let register r =
   assert (not (List.exists (fun r' -> r'.name = r.name) !extensions));
-  extensions := r :: !extensions;
+  extensions := r :: !extensions
+
+let register_options l =
   options := l @ !options
 
 let activate ext =
