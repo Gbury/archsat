@@ -1,8 +1,9 @@
+#require "msat";;
 #directory "_build";;
 #load "tabsat.cma";;
 
 open Tabsat;;
 
-#install_printer Expr.debug_ty;;
-#install_printer Expr.debug_term;;
-#install_printer Expr.debug_formula;;
+#install_printer Expr.print_ty;;
+#install_printer Expr.print_term;;
+#install_printer Expr.print_formula;;

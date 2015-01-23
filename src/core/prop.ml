@@ -36,13 +36,24 @@ let sat_eval = function
       with D.Not_assigned _ ->
         None
     end
+  | { Expr.formula = Expr.Not {Expr.formula = Expr.Pred ({Expr.term = Expr.App (p, [], [])} as t)} } ->
+    begin try
+        let b, lvl = D.get_assign t in
+        if Expr.Term.equal Builtin.p_true b then
+          Some (false, lvl)
+        else if Expr.Term.equal Builtin.p_false b then
+          Some (true, lvl)
+        else
+          assert false
+      with D.Not_assigned _ ->
+        None
+    end
   | _ -> None
-
 
 let rec sat_preprocess = function
   | { Expr.formula = Expr.Pred ({Expr.term = Expr.App (p, [], [])} as t)}
     when Expr.(Ty.equal t.t_type type_prop) ->
-    Expr.set_assign p 0 sat_assign
+    Expr.set_assign p 5 sat_assign
   | { Expr.formula = Expr.Not f } ->
     sat_preprocess f
   | { Expr.formula = Expr.And l }
@@ -60,7 +71,7 @@ let rec sat_preprocess = function
 
 ;;
 D.(register {
-    name = "sat";
+    name = "prop";
     assume = sat_assume;
     eval_pred = sat_eval;
     preprocess = sat_preprocess;

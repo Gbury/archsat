@@ -1,3 +1,6 @@
+# Testing
+Ec
+
 # Useful modules
 Vector
 Backtrack
@@ -13,7 +16,7 @@ Solver
 
 # Extension Modules
 Eq
-Sat
+Prop
 
 # Input Modules
 Parsedimacs

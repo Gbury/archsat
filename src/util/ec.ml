@@ -1,19 +1,31 @@
 
+module type Key = sig
+    type t
+    val hash : t -> int
+    val equal : t -> t -> bool
+    val compare : t -> t -> int
+end
+
 module type S = sig
   type t
   type var
 
   exception Unsat of var * var * var list
 
-  val empty : t
+  val create : Backtrack.Stack.t -> t
+
   val find : t -> var -> var
-  val add_eq : t -> var -> var -> t
-  val add_neq : t -> var -> var -> t
+  val find_tag : t -> var -> var * var option
+
+  val add_eq : t -> var -> var -> unit
+  val add_neq : t -> var -> var -> unit
+  val add_tag : t -> var -> var -> unit
 end
 
-module Make(T : Map.OrderedType) = struct
+module Make(T : Key) = struct
 
   module M = Map.Make(T)
+  module H = Backtrack.HashtblBack(T)
 
   type var = T.t
 
@@ -21,8 +33,9 @@ module Make(T : Map.OrderedType) = struct
   exception Unsat of var * var * var list
 
   type repr_info = {
-    mutable rank : int;
-    mutable forbidden : (var * var) M.t;
+    rank : int;
+    tag : T.t option;
+    forbidden : (var * var) M.t;
   }
 
   type node =
@@ -30,33 +43,48 @@ module Make(T : Map.OrderedType) = struct
     | Repr of repr_info
 
   type t = {
-    size : int M.t;
-    expl : var M.t;
-    mutable repr : node M.t;
+    size : int H.t;
+    expl : var H.t;
+    repr : node H.t;
   }
 
-  let empty = { size = M.empty; expl = M.empty; repr = M.empty }
+  let create s = {
+      size = H.create s;
+      expl = H.create s;
+      repr = H.create s;
+  }
 
   (* Union-find algorithm with path compression *)
-  let self_repr = Repr { rank = 0; forbidden = M.empty }
+  let self_repr = Repr { rank = 0; tag = None; forbidden = M.empty }
 
-  let find_map m i default =
-    try M.find i m
+  let find_hash m i default =
+    try H.find m i
     with Not_found -> default
 
   let rec find_aux m i =
-    match find_map m i self_repr with
-    | Repr r -> m, r, i
+    match find_hash m i self_repr with
+    | Repr r -> r, i
     | Follow j ->
-      let m', r, k = find_aux m j in
-      M.add i (Follow k) m', r, k
+      let r, k = find_aux m j in
+      H.add m i (Follow k);
+      r, k
 
   let get_repr h x =
-    let m, r, y = find_aux h.repr x in
-    h.repr <- m;
+    let r, y = find_aux h.repr x in
     y, r
 
+  let tag h x v =
+    let r, y = find_aux h.repr x in
+    H.add h.repr y (Repr { r with
+    tag = match r.tag with
+    | Some v' when not (T.equal v v') -> raise (Equal (x, y))
+    | _ -> Some v })
+
   let find h x = fst (get_repr h x)
+
+  let find_tag h x =
+    let r, y = find_aux h.repr x in
+    y, r.tag
 
   let forbid_aux m x =
     try
@@ -67,22 +95,27 @@ module Make(T : Map.OrderedType) = struct
   let link h x mx y my =
     let mx = {
       rank = if mx.rank = my.rank then mx.rank + 1 else mx.rank;
+      tag = (match mx.tag, my.tag with
+        | Some t1, Some t2 ->
+          if not (T.equal t1 t2) then raise (Equal (x, y)) else Some t1
+        | Some t, None | None, Some t -> Some t
+        | None, None -> None);
       forbidden = M.merge (fun _ b1 b2 -> match b1, b2 with
           | Some r, _ | None, Some r -> Some r | _ -> assert false)
-          mx.forbidden my.forbidden;
-    } in
-    let aux z eq m =
-      match M.find z m with
+          mx.forbidden my.forbidden;}
+    in
+    let aux m z eq =
+      match H.find m z with
       | Repr r ->
         let r' = { r with
                    forbidden = M.add x eq (M.remove y r.forbidden) }
         in
-        M.add z (Repr r') m
+        H.add m z (Repr r')
       | _ -> assert false
     in
-    let map = M.fold aux my.forbidden h.repr in
-    { h with repr = M.add x (Repr mx)
-                 (M.add y (Follow x) map) }
+    M.iter (aux h.repr) my.forbidden;
+    H.add h.repr y (Follow x);
+    H.add h.repr x (Repr mx)
 
   let union h x y =
     let rx, mx = get_repr h x in
@@ -94,32 +127,32 @@ module Make(T : Map.OrderedType) = struct
         link h rx mx ry my
       else
         link h ry my rx mx
-    end else
-      h
+    end
 
   let forbid h x y =
     let rx, mx = get_repr h x in
     let ry, my = get_repr h y in
     if T.compare rx ry = 0 then
       raise (Equal (x, y))
-    else
-      { h with repr =
-                 M.add rx (Repr { mx with forbidden = M.add ry (x, y) mx.forbidden })
-                   (M.add ry (Repr { my with forbidden = M.add rx (x, y) mx.forbidden }) h.repr) }
+    else begin
+      H.add h.repr ry (Repr { my with forbidden = M.add rx (x, y) mx.forbidden });
+      H.add h.repr rx (Repr { mx with forbidden = M.add ry (x, y) mx.forbidden })
+    end
 
   (* Equivalence closure with explanation output *)
-  let find_parent v m = find_map m v v
+  let find_parent v m = find_hash m v v
 
   let rev_root m root =
-    let rec aux m curr next =
+    let rec aux curr next =
       if T.compare curr next = 0 then
-        m, curr
+        curr
       else
         let parent = find_parent next m in
-        let m' = M.add next curr (M.remove curr m) in
-        aux m' next parent
+        H.remove m curr;
+        H.add m next curr;
+        aux next parent
     in
-    aux m root (find_parent root m)
+    aux root (find_parent root m)
 
   let rec root m acc curr =
     let parent = find_parent curr m in
@@ -141,41 +174,36 @@ module Make(T : Map.OrderedType) = struct
 
   let add_eq_aux t i j =
     if T.compare (find t i) (find t j) = 0 then
-      t
+      ()
     else
-      let m, old_root_i = rev_root t.expl i in
-      let m, old_root_j = rev_root m j in
-      let nb_i = find_map t.size old_root_i 0 in
-      let nb_j = find_map t.size old_root_j 0 in
-      if nb_i < nb_j then {
-        repr = t.repr;
-        expl = M.add i j m;
-        size = M.add j (nb_i + nb_j + 1) t.size; }
-      else {
-        repr = t.repr;
-        expl = M.add j i m;
-        size = M.add i (nb_i + nb_j + 1) t.size; }
+      let old_root_i = rev_root t.expl i in
+      let old_root_j = rev_root t.expl j in
+      let nb_i = find_hash t.size old_root_i 0 in
+      let nb_j = find_hash t.size old_root_j 0 in
+      if nb_i < nb_j then begin
+        H.add t.expl i j;
+        H.add t.size j (nb_i + nb_j + 1)
+      end else begin
+        H.add t.expl j i;
+        H.add t.size i (nb_i + nb_j + 1)
+      end
+
+  let wrap f t x y =
+      try
+        f t x y
+      with Equal (a, b) ->
+        raise (Unsat (a, b, expl t a b))
+
+  (* Functions wrapped to produce explanation in case
+   * something went wrong *)
+  let add_tag t x v =
+    wrap tag t x v
 
   let add_eq t i j =
-    let t' = add_eq_aux t i j in
-    try
-      union t' i j
-    with Equal (a, b) ->
-      raise (Unsat (a, b, expl t' a b))
+    add_eq_aux t i j;
+    wrap union t i j
 
   let add_neq t i j =
-    try
-      forbid t i j
-    with Equal (a, b) ->
-      raise (Unsat (a, b, expl t a b))
-
-  (*
-  let are_neq t a b =
-    try
-      ignore (union t a b);
-      false
-    with Equal _ ->
-      true
-  *)
+    wrap forbid t i j
 
 end

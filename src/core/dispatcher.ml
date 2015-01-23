@@ -358,11 +358,6 @@ let eval_aux f =
 
 let eval formula =
   log 5 "Evaluating formula : %a" Expr.debug_formula formula;
-  match formula with
-  | { Expr.formula = Expr.Not f } -> begin match eval_aux f with
-      | Valued (b, lvl) -> Valued (not b, lvl)
-      | Unknown -> Unknown
-    end
-  | f -> eval_aux f
+  eval_aux formula
 
 

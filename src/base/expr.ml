@@ -718,6 +718,7 @@ let rec new_binder_subst ty_map subst acc = function
     else
       new_binder_subst ty_map (Subst.remove v subst) (v :: acc) r
 
+(* TODO: Check free variables of substitutions for suantifiers ? *)
 let rec formula_subst ty_map t_map f = match f.formula with
   | True | False -> f
   | Equal (a, b) -> f_equal (term_subst ty_map t_map a) (term_subst ty_map t_map b)
@@ -727,7 +728,6 @@ let rec formula_subst ty_map t_map f = match f.formula with
   | Or l -> f_or (List.map (formula_subst ty_map t_map) l)
   | Imply (p, q) -> f_imply (formula_subst ty_map t_map p) (formula_subst ty_map t_map q)
   | Equiv (p, q) -> f_equiv (formula_subst ty_map t_map p) (formula_subst ty_map t_map q)
-
   | All (l, f) ->
     let l', t_map = new_binder_subst ty_map t_map [] l in
     Subst.iter (fun _ t -> match t.term with

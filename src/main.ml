@@ -3,7 +3,7 @@
 
 (* Dummy module renaming for extensions *)
 module Eq = Eq
-module Sat = Sat
+module Prop = Prop
 
 (* Types and exceptions *)
 exception Out_of_time
