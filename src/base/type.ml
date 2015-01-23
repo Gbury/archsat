@@ -20,14 +20,19 @@ exception Typing_error
 exception Scoping_error of string
 exception Bad_arity of string * int * Ast.term list
 
-(* Environment *)
+(* Global Environment *)
 (* ************************************************************************ *)
 
 (* Hashtable from symbol name to type constructors *)
 let types = H.create stack
 (* Hashtable from symbol name to function symbols *)
 let constants = H.create stack
+;;
 
+(* Builtin constants *)
+H.add types "$o" Expr.prop_cstr
+
+(* Adding/finding elts *)
 let add_type name c =
     try
         let c' = H.find types name in
@@ -60,7 +65,9 @@ let find_cst name =
     with Not_found ->
         raise (Scoping_error name)
 
-(* Local environment (for bound vars) *)
+(* Local Environment *)
+(* ************************************************************************ *)
+
 type env = {
     type_vars : Expr.ttype Expr.var M.t;
     term_vars : Expr.ty Expr.var M.t;
@@ -139,7 +146,7 @@ let rec parse_sig env = function
             (typed_vars @ params, args, ret)
     | { Ast.term = Ast.App ({Ast.term = Ast.Const Ast.Arrow}, ret :: args) } ->
             [], List.map (parse_ty env) args, parse_ty env ret
-    | _ -> assert false
+    | t -> [], [], parse_ty env t
 
 let parse_ty_var env = function
     | { Ast.term = Ast.Var s } ->

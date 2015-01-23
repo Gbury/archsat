@@ -180,6 +180,7 @@ val get_tau_def : int -> formula
 
 (** {5 Types} *)
 
+val prop_cstr : ttype function_descr var
 val type_prop : ty
 
 val type_var : ttype var -> ty

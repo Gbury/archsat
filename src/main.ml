@@ -3,6 +3,7 @@
 
 (* Dummy module renaming for extensions *)
 module Eq = Eq
+module Tab = Tab
 module Prop = Prop
 
 (* Types and exceptions *)

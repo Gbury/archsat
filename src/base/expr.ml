@@ -112,8 +112,10 @@ let debug_params b = function
     | l -> Printf.bprintf b "∀ %a. " (Util.pp_list ~sep:", " debug_var) l
 
 let debug_sig print b f =
-    Printf.bprintf b "%a%a -> %a" debug_params f.fun_vars
-        (Util.pp_list ~sep:" -> " print) f.fun_args print f.fun_ret
+    match f.fun_args with
+    | [] -> Printf.bprintf b "%a%a" debug_params f.fun_vars print f.fun_ret
+    | l -> Printf.bprintf b "%a%a -> %a" debug_params f.fun_vars
+        (Util.pp_list ~sep:" -> " print) l print f.fun_ret
 
 let debug_fun_ty = debug_sig debug_ty
 let debug_fun_ttype = debug_sig debug_ttype
@@ -570,8 +572,9 @@ let type_app f args =
   else
     mk_ty (TyApp (f, args))
 
-(* builtin constant types *)
-let type_prop = type_var (ttype_var "$Prop")
+(* builtin prop type *)
+let prop_cstr = type_const "Prop" 0
+let type_prop = type_app prop_cstr []
 
 (* substitutions *)
 let rec type_subst_aux map t = match t.ty with
