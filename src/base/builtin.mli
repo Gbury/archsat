@@ -4,6 +4,7 @@
 (** {2 Typing} *)
 
 val type_i : Expr.ty
+val i_cstr : Expr.ttype Expr.function_descr Expr.var
 (** Equivalent of Tptp's '$i' *)
 
 (** {2 Propositional calculus} *)

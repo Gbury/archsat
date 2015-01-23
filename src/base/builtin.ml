@@ -2,7 +2,8 @@
 (* Typing *)
 (* ************************************************************************ *)
 
-let type_i = Expr.type_app (Expr.type_const "$i" 0) []
+let i_cstr = Expr.type_const "$i" 0
+let type_i = Expr.type_app i_cstr []
 
 (* Propositional calculus *)
 (* ************************************************************************ *)

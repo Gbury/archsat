@@ -43,7 +43,14 @@ let wrap f x y =
     with E.Unsat (a, b, l) ->
         raise (D.Absurd (mk_expl (a, b, l)))
 
+let tag x () =
+    try
+        E.add_tag st x (fst (D.get_assign x))
+    with E.Unsat (a, b, l) ->
+      raise (D.Absurd (mk_expl (a, b, l)))
+
 let eq_assign x =
+    D.watch 1 [x] (tag x);
     try
       begin match E.find_tag st x with
         | _, Some v -> v
@@ -52,16 +59,14 @@ let eq_assign x =
     with E.Unsat (a, b, l) ->
       raise (D.Absurd (mk_expl (a, b, l)))
 
-let tag x () =
-    try
-        E.add_tag st x (fst (D.get_assign x))
-    with E.Unsat (a, b, l) ->
-      raise (D.Absurd (mk_expl (a, b, l)))
-
 let eq_assume (f, _) = match f with
-  | { Expr.formula = Expr.Equal (a, b)}
-  | { Expr.formula = Expr.Not { Expr.formula = Expr.Equal (a, b)} } ->
+  | { Expr.formula = Expr.Equal (a, b)} ->
           wrap E.add_eq a b;
+          D.watch 1 [a] (tag a);
+          D.watch 1 [b] (tag b);
+          D.watch 1 [a; b] (f_eval f)
+  | { Expr.formula = Expr.Not { Expr.formula = Expr.Equal (a, b)} } ->
+          wrap E.add_neq a b;
           D.watch 1 [a] (tag a);
           D.watch 1 [b] (tag b);
           D.watch 1 [a; b] (f_eval f)

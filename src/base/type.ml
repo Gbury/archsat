@@ -30,7 +30,8 @@ let constants = H.create stack
 ;;
 
 (* Builtin constants *)
-H.add types "$o" Expr.prop_cstr
+H.add types "$o" Expr.prop_cstr;;
+H.add types "$i" Builtin.i_cstr;;
 
 (* Adding/finding elts *)
 let add_type name c =
