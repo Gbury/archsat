@@ -168,12 +168,6 @@ let rec print_list f sep fmt = function
     Format.fprintf fmt "%a%s" f x sep;
     print_list f sep fmt r
 
-let rec print_list_pre f sep fmt = function
-  | [] -> ()
-  | x :: r ->
-    Format.fprintf fmt "%s%a" sep f x;
-    print_list_pre f sep fmt r
-
 let print_var fmt v = Format.fprintf fmt "%s" v.var_name
 
 let print_meta fmt m = Format.fprintf fmt "m_%a" print_var m.meta_var
@@ -186,7 +180,7 @@ let rec print_ty fmt ty = match ty.ty with
   | TyVar v -> print_var fmt v
   | TyMeta m -> print_meta fmt m
   | TyApp (f, l) ->
-    Format.fprintf fmt "(%a%a)" print_var f (print_list_pre print_ty " ") l
+    Format.fprintf fmt "%a(%a)" print_var f (print_list print_ty ", ") l
 
 let print_var_ttype fmt v = Format.fprintf fmt "%a : %a" print_var v print_ttype v.var_type
 let print_var_ty fmt v = Format.fprintf fmt "%a : %a" print_var v print_ty v.var_type
@@ -195,29 +189,41 @@ let rec print_term fmt t = match t.term with
   | Var v -> print_var fmt v
   | Meta m -> print_meta fmt m
   | Tau t -> print_tau fmt t
+  | App (f, [], []) ->
+    Format.fprintf fmt "%a" print_var f
+  | App (f, [], args) ->
+    Format.fprintf fmt "%a(%a)" print_var f
+      (print_list print_term ", ") args
   | App (f, tys, args) ->
-    Format.fprintf fmt "(%a%a%a)" print_var f
-      (print_list_pre print_ty " ") tys
-      (print_list_pre print_term " ") args
+    Format.fprintf fmt "%a(%a; %a)" print_var f
+      (print_list print_ty ", ") tys
+      (print_list print_term ", ") args
 
-let rec print_formula fmt f = match f.formula with
-  | Equal (a, b) -> Format.fprintf fmt "(%a = %a)" print_term a print_term b
-  | Pred t -> Format.fprintf fmt "(%a)" print_term t
-  | True -> Format.fprintf fmt "⊤"
-  | False -> Format.fprintf fmt "⊥"
-  | Not f -> Format.fprintf fmt "¬ %a" print_formula f
-  | And l -> Format.fprintf fmt "(%a)" (print_list print_formula " ∧ ") l
-  | Or l -> Format.fprintf fmt "(%a)" (print_list print_formula " ∨ ") l
-  | Imply (p, q) -> Format.fprintf fmt "(%a ⇒ %a)" print_formula p print_formula q
-  | Equiv (p, q) -> Format.fprintf fmt "(%a ⇔ %a)" print_formula p print_formula q
-  | All (l, f) -> Format.fprintf fmt "∀ %a. %a"
-                    (print_list print_var_ty ", ") l print_formula f
-  | AllTy (l, f) -> Format.fprintf fmt "∀ %a. %a"
-                      (print_list print_var_ttype ", ") l print_formula f
-  | Ex (l, f) -> Format.fprintf fmt "∀ %a. %a"
-                   (print_list print_var_ty ", ") l print_formula f
-  | ExTy (l, f) -> Format.fprintf fmt "∀ %a. %a"
-                   (print_list print_var_ttype ", ") l print_formula f
+let rec print_f fmt f =
+  let aux fmt f = match f.formula with
+    | Equal _ | Pred _ | True | False -> print_f fmt f
+    | _ -> Format.fprintf fmt "(%a)" print_f f
+  in
+  match f.formula with
+    | Equal (a, b) -> Format.fprintf fmt "%a = %a" print_term a print_term b
+    | Pred t -> Format.fprintf fmt "%a" print_term t
+    | True -> Format.fprintf fmt "⊤"
+    | False -> Format.fprintf fmt "⊥"
+    | Not f -> Format.fprintf fmt "¬ %a" aux f
+    | And l -> Format.fprintf fmt "%a" (print_list aux " ∧ ") l
+    | Or l -> Format.fprintf fmt "%a" (print_list aux " ∨ ") l
+    | Imply (p, q) -> Format.fprintf fmt "%a ⇒ %a" aux p aux q
+    | Equiv (p, q) -> Format.fprintf fmt "%a ⇔ %a" aux p aux q
+    | All (l, f) -> Format.fprintf fmt "∀ %a. %a"
+                      (print_list print_var_ty ", ") l print_f f
+    | AllTy (l, f) -> Format.fprintf fmt "∀ %a. %a"
+                        (print_list print_var_ttype ", ") l print_f f
+    | Ex (l, f) -> Format.fprintf fmt "∀ %a. %a"
+                     (print_list print_var_ty ", ") l print_f f
+    | ExTy (l, f) -> Format.fprintf fmt "∀ %a. %a"
+                       (print_list print_var_ttype ", ") l print_f f
+
+let print_formula fmt f = Format.fprintf fmt "⟦%a⟧" print_f f
 
 (* Hashs *)
 (* ************************************************************************ *)

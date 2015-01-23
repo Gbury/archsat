@@ -132,7 +132,8 @@ let rec check = function
     check q
   | { Expr.formula = Expr.All (_, f) }
   | { Expr.formula = Expr.AllTy (_, f) }
-  | { Expr.formula = Expr.Ex (_, f) } ->
+  | { Expr.formula = Expr.Ex (_, f) }
+  | { Expr.formula = Expr.ExTy (_, f) } ->
     check f
 
 let preprocess f =
