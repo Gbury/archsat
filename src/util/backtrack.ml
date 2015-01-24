@@ -32,11 +32,15 @@ module Stack = struct
   let register2 t f x y = t.stack <- Call2 (f, x, y, t.stack)
   let register3 t f x y z = t.stack <- Call3 (f, x, y, z, t.stack)
 
-  let level t =
-    t.level <- t.level + 1;
-    log 5 "New level %d" t.level;
+  let push t =
+    log 5 "Push (%d)" t.level;
     t.stack <- Level (t.stack, t.level);
-    t.level
+    t.level <- t.level + 1
+
+  let level t =
+    let res = t.level in
+    push t;
+    res
 
   let backtrack t lvl =
     let rec pop = function
@@ -54,6 +58,8 @@ module Stack = struct
     in
     log 5 "Backtracking to level %d" lvl;
     pop t.stack
+
+  let pop t = backtrack t (t.level - 1)
 
 end
 

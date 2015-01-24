@@ -32,4 +32,4 @@ log:
 clean:
 	$(COMP) -clean
 
-.PHONY: clean doc all bench install uninstall reinstall
+.PHONY: clean doc all test lib build-test build-lib

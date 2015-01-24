@@ -10,7 +10,7 @@ module I = Backtrack.HashtblBack(struct type t = int let equal i j = i=j let has
 
 type term = Expr.term
 type formula = Expr.formula
-type proof = int
+type proof = string
 
 type assumption =
   | Lit of formula
@@ -56,16 +56,9 @@ type extension = {
   preprocess : formula -> unit;
 }
 
-let dummy_ext = {
-  name = "";
-  assume = (fun _ -> _fail "dummy ext used");
-  eval_pred = (fun _ -> _fail "dummy ext used");
-  preprocess = (fun _ -> _fail "dummy ext used");
-}
-
 let extensions = ref []
 
-let active = Vector.make 10 dummy_ext
+let active = ref []
 
 let register r =
   assert (not (List.exists (fun r' -> r'.name = r.name) !extensions));
@@ -78,25 +71,29 @@ let activate ext =
   let aux r = r.name = ext in
   try
     let r = List.find aux !extensions in
-    if not (Vector.exists aux active) then
-      Vector.push active r
+    if not (List.exists aux !active) then
+      active := r :: !active
     else
-      log 0 "WARNING: Extension %s already activated" r.name
+      log 0 "WARNING: Extension %s already activated" ext
+  with Not_found ->
+    raise (Extension_not_found ext)
+
+let deactivate ext =
+  let aux r = r.name = ext in
+  try
+    let l1, l2 = List.partition aux !active in
+    begin match l1 with
+    | [] -> log 0 "WARNING: Extension %s already deactivated" ext
+    | [r] -> active := l2
+    | _ -> assert false
+    end
   with Not_found ->
     raise (Extension_not_found ext)
 
 let list_extensions () = List.map (fun r -> r.name) !extensions
 
 (* Acces functions for active extensions *)
-let ext_iter f = Vector.iter f active
-let ext_iteri f = Vector.iteri f active
-
-exception Found_ext of int
-let find_ext name =
-  try
-    ext_iteri (fun i r -> if r.name = name then raise (Found_ext i));
-    _fail (Util.sprintf "Expected to find %s in active extensions" name)
-  with Found_ext i -> i
+let ext_iter f = List.iter f !active
 
 (* Pre-processing *)
 (* ************************************************************************ *)
@@ -279,14 +276,20 @@ let push_stack = ref []
 let propagate_stack = ref []
 
 let push clause ext_name =
-  push_stack := (clause, find_ext ext_name) :: !push_stack
+  push_stack := (clause, ext_name) :: !push_stack
 
 let propagate f lvl =
   propagate_stack := (f, lvl) :: !propagate_stack
 
-let apply f l =
-  List.iter (fun (a, b) -> f a b) !l;
-  l := []
+let do_propagate f =
+  List.iter (fun (a, b) -> f a b) !propagate_stack;
+  propagate_stack := []
+
+let do_push f =
+  List.iter (fun (a, b) ->
+      log 1 "Pushing %a" (Util.pp_list ~sep:"; " Expr.debug_formula) a;
+      f a b) !push_stack;
+  push_stack := []
 
 (* Mcsat Plugin functions *)
 (* ************************************************************************ *)
@@ -300,25 +303,24 @@ let backtrack lvl =
   propagate_stack := [];
   Backtrack.Stack.backtrack stack lvl
 
-exception Exit_unsat of formula list * int
+exception Exit_unsat of formula list * proof
 let assume s =
   log 5 "New slice of length %d" s.length;
   try
     for i = s.start to s.start + s.length - 1 do
       match s.get i with
       | Lit f, lvl ->
-        log 8 " Assuming (%d) %a" lvl Expr.debug_formula f;
-        ext_iteri (fun j ext ->
+        log 6 " Assuming (%d) %a" lvl Expr.debug_formula f;
+        ext_iter (fun ext ->
             try
               ext.assume (f, lvl)
             with Absurd l ->
-              raise (Exit_unsat (l, j)))
+              raise (Exit_unsat (l, ext.name)))
       | Assign (t, v), lvl -> set_assign t v lvl
     done;
-    log 8 "Pushing (%d)" (List.length !push_stack);
-    apply s.push push_stack;
+    do_push s.push;
     log 8 "Propagating (%d)" (List.length !propagate_stack);
-    apply s.propagate propagate_stack;
+    do_propagate s.propagate;
     Sat
   with Exit_unsat (l, j) ->
     Unsat (l, j)

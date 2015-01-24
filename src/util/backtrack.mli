@@ -4,8 +4,12 @@ sig
   type level
   val create : unit -> t
   val dummy_level : level
+
+  val push : t -> unit
+  val pop : t -> unit
   val level : t -> level
   val backtrack : t -> level -> unit
+
   val register_undo : t -> (unit -> unit) -> unit
   val register1 : t -> ('a -> unit) -> 'a -> unit
   val register2 : t -> ('a -> 'b -> unit) -> 'a -> 'b -> unit

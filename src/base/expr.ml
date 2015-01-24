@@ -104,8 +104,10 @@ let debug_ttype b = function Type -> Printf.bprintf b "$tType"
 let rec debug_ty b ty = match ty.ty with
   | TyVar v -> debug_var b v
   | TyMeta m -> debug_meta b m
+  | TyApp (f, []) ->
+    Printf.bprintf b "%a" debug_var f
   | TyApp (f, l) ->
-    Printf.bprintf b "(%a(%a))" debug_var f (Util.pp_list ~sep:", " debug_ty) l
+    Printf.bprintf b "%a(%a)" debug_var f (Util.pp_list ~sep:", " debug_ty) l
 
 let debug_params b = function
     | [] -> ()
@@ -131,24 +133,31 @@ let rec debug_term b t = match t.term with
   | Var v -> debug_var b v
   | Meta m -> debug_meta b m
   | Tau t -> debug_tau b t
+  | App (f, [], []) ->
+    Printf.bprintf b "%a" debug_var f
   | App (f, [], args) ->
-    Printf.bprintf b "(%a(%a))" debug_var f
+    Printf.bprintf b "%a(%a)" debug_var f
       (Util.pp_list ~sep:", " debug_term) args
   | App (f, tys, args) ->
-    Printf.bprintf b "(%a(%a; %a))" debug_var f
+    Printf.bprintf b "%a(%a; %a)" debug_var f
       (Util.pp_list ~sep:", " debug_ty) tys
       (Util.pp_list ~sep:", " debug_term) args
 
-let rec debug_formula b f = match f.formula with
-  | Equal (x, y) -> Printf.bprintf b "(%a = %a)" debug_term x debug_term y
-  | Pred t -> Printf.bprintf b "(%a)" debug_term t
+let rec debug_formula b f =
+  let aux b f = match f.formula with
+    | Equal _ | Pred _ | True | False -> debug_formula b f
+    | _ -> Printf.bprintf b "(%a)" debug_formula f
+  in
+  match f.formula with
+  | Equal (x, y) -> Printf.bprintf b "%a = %a" debug_term x debug_term y
+  | Pred t -> Printf.bprintf b "%a" debug_term t
   | True -> Printf.bprintf b "⊤"
   | False -> Printf.bprintf b "⊥"
-  | Not f -> Printf.bprintf b "¬ %a" debug_formula f
-  | And l -> Printf.bprintf b "(%a)" (Util.pp_list ~sep:" ∧ " debug_formula) l
-  | Or l -> Printf.bprintf b "(%a)" (Util.pp_list ~sep:" ∨ " debug_formula) l
-  | Imply (p, q) -> Printf.bprintf b "(%a ⇒ %a)" debug_formula p debug_formula q
-  | Equiv (p, q) -> Printf.bprintf b "(%a ⇔ %a)" debug_formula p debug_formula q
+  | Not f -> Printf.bprintf b "¬ %a" aux f
+  | And l -> Printf.bprintf b "%a" (Util.pp_list ~sep:" ∧ " aux) l
+  | Or l -> Printf.bprintf b "%a" (Util.pp_list ~sep:" ∨ " aux) l
+  | Imply (p, q) -> Printf.bprintf b "%a ⇒ %a" aux p aux q
+  | Equiv (p, q) -> Printf.bprintf b "%a ⇔ %a" aux p aux q
   | All (l, f) -> Printf.bprintf b "∀ %a. %a"
                     (Util.pp_list ~sep:", " debug_var_ty) l debug_formula f
   | AllTy (l, f) -> Printf.bprintf b "∀ %a. %a"

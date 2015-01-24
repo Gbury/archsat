@@ -15,7 +15,7 @@ module type S = sig
   val create : Backtrack.Stack.t -> t
 
   val find : t -> var -> var
-  val find_tag : t -> var -> var * var option
+  val find_tag : t -> var -> var * (var * var) option
 
   val add_eq : t -> var -> var -> unit
   val add_neq : t -> var -> var -> unit
@@ -30,11 +30,12 @@ module Make(T : Key) = struct
   type var = T.t
 
   exception Equal of var * var
+  exception Same_tag of var * var
   exception Unsat of var * var * var list
 
   type repr_info = {
     rank : int;
-    tag : T.t option;
+    tag : (T.t * T.t) option;
     forbidden : (var * var) M.t;
   }
 
@@ -77,8 +78,8 @@ module Make(T : Key) = struct
     let r, y = find_aux h.repr x in
     H.add h.repr y (Repr { r with
     tag = match r.tag with
-    | Some v' when not (T.equal v v') -> raise (Equal (x, y))
-    | _ -> Some v })
+    | Some (_, v') when not (T.equal v v') -> raise (Equal (x, y))
+    | _ -> Some (x, v) })
 
   let find h x = fst (get_repr h x)
 
@@ -96,8 +97,8 @@ module Make(T : Key) = struct
     let mx = {
       rank = if mx.rank = my.rank then mx.rank + 1 else mx.rank;
       tag = (match mx.tag, my.tag with
-        | Some t1, Some t2 ->
-          if not (T.equal t1 t2) then raise (Equal (x, y)) else Some t1
+        | Some (z, t1), Some (_, t2) ->
+          if not (T.equal t1 t2) then raise (Equal (x, y)) else Some (z, t1)
         | Some t, None | None, Some t -> Some t
         | None, None -> None);
       forbidden = M.merge (fun _ b1 b2 -> match b1, b2 with
@@ -134,10 +135,12 @@ module Make(T : Key) = struct
     let ry, my = get_repr h y in
     if T.compare rx ry = 0 then
       raise (Equal (x, y))
-    else begin
+    else match mx.tag, my.tag with
+    | Some (a, v), Some (b, v') when T.compare v v' = 0 ->
+      raise (Same_tag(a, b))
+    | _ ->
       H.add h.repr ry (Repr { my with forbidden = M.add rx (x, y) mx.forbidden });
       H.add h.repr rx (Repr { mx with forbidden = M.add ry (x, y) mx.forbidden })
-    end
 
   (* Equivalence closure with explanation output *)
   let find_parent v m = find_hash m v v
@@ -204,6 +207,10 @@ module Make(T : Key) = struct
     wrap union t i j
 
   let add_neq t i j =
-    wrap forbid t i j
+    try
+      wrap forbid t i j
+    with Same_tag (x, y) ->
+      add_eq_aux t i j;
+      raise (Unsat (i, j, expl t i j))
 
 end

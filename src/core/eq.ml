@@ -53,7 +53,7 @@ let eq_assign x =
     D.watch 1 [x] (tag x);
     try
       begin match E.find_tag st x with
-        | _, Some v -> v
+        | _, Some (_, v) -> v
         | x, None -> try fst (D.get_assign x) with D.Not_assigned _ -> x
       end
     with E.Unsat (a, b, l) ->

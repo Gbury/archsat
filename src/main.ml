@@ -63,8 +63,13 @@ let logspec () =
         );
     !res
 
-let argspec = Arg.align (List.sort
-    (fun (s, _, _) (s', _, _) -> compare s s')
+let arg_compare (s, _, _) (s', _, _) =
+    let aux s = String.sub s 1 (String.length s - 1) in
+    match String.compare (aux s) (aux s') with
+    | 0 -> compare s.[0] s'.[0]
+    | x -> x
+
+let argspec = Arg.align (List.sort arg_compare
     (Solver.get_options () @ logspec () @ [
     "-bt", Arg.Unit (fun () -> Printexc.record_backtrace true),
     " Enable stack traces";
@@ -88,8 +93,10 @@ let argspec = Arg.align (List.sort
     "<t>[smhd] Sets the time limit for the sat solver";
     "-type-only", Arg.Set p_type_only,
     " Only parse and type the given problem. Do not attempt to solve.";
-    "-x", Arg.String Dispatcher.activate,
+    "+x", Arg.String Dispatcher.activate,
     "<name> Activate the given extension";
+    "-x", Arg.String Dispatcher.deactivate,
+    "<name> Deactivate the given extension";
   ]))
 
 (* Limits alarm *)
@@ -160,12 +167,19 @@ let do_command = function
 (* Main function *)
 let main () =
   let _ = Gc.create_alarm check in
+  (* Default extensions *)
+  Dispatcher.activate "eq";
+  Dispatcher.activate "tab";
+  Dispatcher.activate "prop";
+  (* Argument parsing *)
   Arg.parse argspec input_file usage;
   if !file = "" then begin
     Arg.usage argspec usage;
     exit 2
   end;
+  (* Input file parsing *)
   let commands = wrap "parse" Io.parse_input !file in
+  (* Commands execution *)
   Queue.iter do_command commands
 ;;
 

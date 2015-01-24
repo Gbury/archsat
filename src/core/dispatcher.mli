@@ -42,6 +42,10 @@ val activate : string -> unit
 (** Used in order to make one of the extensions registered previously active, i.e
     use the functions provided by the extension. *)
 
+val deactivate : string -> unit
+(** Used in order to undo the activation of one of the extensions, i.e
+    stop using the functions provided by the extension. *)
+
 val list_extensions : unit -> string list
 (** Returns the current list of extensions known to the dispatcher. *)
 
