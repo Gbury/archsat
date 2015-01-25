@@ -1,8 +1,10 @@
 
 (** Plugin Manager *)
 
-include Msat.Plugin_intf.S
-  with type term = Expr.term and type formula = Expr.formula
+include Msat.Plugin_intf.S with
+    type term = Expr.term and
+    type formula = Expr.formula and
+    type proof = string
 (** This module is a valid Plugin for Mcsat *)
 
 
@@ -15,7 +17,7 @@ exception Bad_assertion of string
 (** Expected some invariant but didn't get it. Raised in place of
     'assert false'. *)
 
-exception Absurd of formula list
+exception Absurd of formula list * proof
 (** To be used by extensions in their 'assume' function *)
 
 exception Extension_not_found of string
@@ -45,6 +47,12 @@ val activate : string -> unit
 val deactivate : string -> unit
 (** Used in order to undo the activation of one of the extensions, i.e
     stop using the functions provided by the extension. *)
+
+val set_ext : string -> unit
+(** With argument "-ext_name", deactivates the extension, else activates it. *)
+
+val set_exts : string -> unit
+(** Same as set_ext but considers a comma-separated list of arguments. *)
 
 val list_extensions : unit -> string list
 (** Returns the current list of extensions known to the dispatcher. *)

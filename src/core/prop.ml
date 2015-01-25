@@ -9,13 +9,7 @@ let sat_assume = function
   | _ -> ()
 
 let sat_assign = function
-  | {Expr.term = Expr.App (p, [], [])} as t when Expr.(Ty.equal t.t_type type_prop) ->
-    D.watch 1 [t] (fun () ->
-        let v, lvl = D.get_assign t in
-        if Expr.Term.equal v Builtin.p_true then
-          D.propagate (Expr.f_pred t) lvl
-        else
-          D.propagate (Expr.f_not (Expr.f_pred t)) lvl);
+  | { Expr.term = Expr.App (p, [], []) } as t when Expr.(Ty.equal t.t_type type_prop) ->
     begin try
         fst (D.get_assign t)
       with D.Not_assigned _ ->
@@ -23,7 +17,7 @@ let sat_assign = function
     end
   | _ -> assert false
 
-let sat_eval = function
+let rec sat_eval = function
   | {Expr.formula = Expr.Pred ({Expr.term = Expr.App (p, [], [])} as t)} ->
     begin try
         let b, lvl = D.get_assign t in
@@ -36,24 +30,24 @@ let sat_eval = function
       with D.Not_assigned _ ->
         None
     end
-  | { Expr.formula = Expr.Not {Expr.formula = Expr.Pred ({Expr.term = Expr.App (p, [], [])} as t)} } ->
-    begin try
-        let b, lvl = D.get_assign t in
-        if Expr.Term.equal Builtin.p_true b then
-          Some (false, lvl)
-        else if Expr.Term.equal Builtin.p_false b then
-          Some (true, lvl)
-        else
-          assert false
-      with D.Not_assigned _ ->
-        None
+  | { Expr.formula = Expr.Not f } ->
+    begin match sat_eval f with
+      | None -> None
+      | Some (b, lvl) -> Some (not b, lvl)
     end
   | _ -> None
 
+let f_eval f () =
+    match sat_eval f with
+    | Some(true, lvl) -> D.propagate f lvl
+    | Some(false, lvl) -> D.propagate (Expr.f_not f) lvl
+    | None -> ()
+
 let rec sat_preprocess = function
-  | { Expr.formula = Expr.Pred ({Expr.term = Expr.App (p, [], [])} as t)}
+  | { Expr.formula = Expr.Pred ({Expr.term = Expr.App (p, [], [])} as t)} as f
     when Expr.(Ty.equal t.t_type type_prop) ->
-    Expr.set_assign p 5 sat_assign
+    Expr.set_assign p 5 sat_assign;
+    D.watch 1 [t] (f_eval f)
   | { Expr.formula = Expr.Not f } ->
     sat_preprocess f
   | { Expr.formula = Expr.And l }

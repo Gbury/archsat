@@ -5,6 +5,7 @@
 module Eq = Eq
 module Tab = Tab
 module Prop = Prop
+module Functions = Functions
 
 (* Types and exceptions *)
 exception Out_of_time
@@ -63,11 +64,7 @@ let logspec () =
         );
     !res
 
-let arg_compare (s, _, _) (s', _, _) =
-    let aux s = String.sub s 1 (String.length s - 1) in
-    match String.compare (aux s) (aux s') with
-    | 0 -> compare s.[0] s'.[0]
-    | x -> x
+let arg_compare (s, _, _) (s', _, _) = String.compare s s'
 
 let argspec = Arg.align (List.sort arg_compare
     (Solver.get_options () @ logspec () @ [
@@ -93,10 +90,8 @@ let argspec = Arg.align (List.sort arg_compare
     "<t>[smhd] Sets the time limit for the sat solver";
     "-type-only", Arg.Set p_type_only,
     " Only parse and type the given problem. Do not attempt to solve.";
-    "+x", Arg.String Dispatcher.activate,
+    "-x", Arg.String Dispatcher.set_exts,
     "<name> Activate the given extension";
-    "-x", Arg.String Dispatcher.deactivate,
-    "<name> Deactivate the given extension";
   ]))
 
 (* Limits alarm *)

@@ -43,7 +43,7 @@ let get_options () = !options
 (* Extensions registering *)
 (* ************************************************************************ *)
 
-exception Absurd of formula list
+exception Absurd of formula list * proof
 exception Bad_assertion of string
 exception Extension_not_found of string
 
@@ -81,6 +81,8 @@ let activate ext =
 let deactivate ext =
   let aux r = r.name = ext in
   try
+    if not (List.exists aux !extensions) then
+      raise (Extension_not_found ext);
     let l1, l2 = List.partition aux !active in
     begin match l1 with
     | [] -> log 0 "WARNING: Extension %s already deactivated" ext
@@ -89,6 +91,13 @@ let deactivate ext =
     end
   with Not_found ->
     raise (Extension_not_found ext)
+
+let set_ext s =
+    match s.[0] with
+    | '-' -> deactivate (String.sub s 1 (String.length s - 1))
+    | '+' | _ -> activate (String.sub s 1 (String.length s - 1))
+
+let set_exts s = List.iter set_ext (Str.split (Str.regexp ",") s)
 
 let list_extensions () = List.map (fun r -> r.name) !extensions
 
@@ -188,7 +197,7 @@ let update_watch x job_id =
     let rec find not_assigned acc = function
       | [] -> f ()
       | y :: r when not (is_assigned y) ->
-        let l = List.rev_append (y :: not_assigned) (x :: r) in
+        let l = List.rev_append (y :: not_assigned) (List.rev_append r [x]) in
         set_job job_id (k, l, f)
       | y :: r -> find not_assigned (y :: acc) r
     in
@@ -303,7 +312,6 @@ let backtrack lvl =
   propagate_stack := [];
   Backtrack.Stack.backtrack stack lvl
 
-exception Exit_unsat of formula list * proof
 let assume s =
   log 5 "New slice of length %d" s.length;
   try
@@ -311,19 +319,15 @@ let assume s =
       match s.get i with
       | Lit f, lvl ->
         log 6 " Assuming (%d) %a" lvl Expr.debug_formula f;
-        ext_iter (fun ext ->
-            try
-              ext.assume (f, lvl)
-            with Absurd l ->
-              raise (Exit_unsat (l, ext.name)))
+        ext_iter (fun ext -> ext.assume (f, lvl))
       | Assign (t, v), lvl -> set_assign t v lvl
     done;
     do_push s.push;
     log 8 "Propagating (%d)" (List.length !propagate_stack);
     do_propagate s.propagate;
     Sat
-  with Exit_unsat (l, j) ->
-    Unsat (l, j)
+  with Absurd (l, ext) ->
+    Unsat (l, ext)
 
 let assign t =
   log 5 "Finding assignment for %a" Expr.debug_term t;

@@ -3,8 +3,8 @@
 <base/*.cmx>: for-pack(Tabsat)
 <parsers/*>: for-pack(Tabsat)
 <input/*>: for-pack(Tabsat)
-<core/*>: for-pack(Tabsat), package(msat)
-<main.*>: package(msat)
+<core/*>: for-pack(Tabsat), package(msat), package(str)
+<main.*>: package(msat), package(str)
 
 # enable stronger inlining everywhere
 <util/vec.cmx>: inline(15)

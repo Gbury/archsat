@@ -41,13 +41,13 @@ let wrap f x y =
     try
         f st x y
     with E.Unsat (a, b, l) ->
-        raise (D.Absurd (mk_expl (a, b, l)))
+        raise (D.Absurd (mk_expl (a, b, l), "eq"))
 
 let tag x () =
     try
         E.add_tag st x (fst (D.get_assign x))
     with E.Unsat (a, b, l) ->
-      raise (D.Absurd (mk_expl (a, b, l)))
+      raise (D.Absurd (mk_expl (a, b, l), "eq"))
 
 let eq_assign x =
     D.watch 1 [x] (tag x);
@@ -57,22 +57,18 @@ let eq_assign x =
         | x, None -> try fst (D.get_assign x) with D.Not_assigned _ -> x
       end
     with E.Unsat (a, b, l) ->
-      raise (D.Absurd (mk_expl (a, b, l)))
+      raise (D.Absurd (mk_expl (a, b, l), "eq"))
 
 let eq_assume (f, _) = match f with
   | { Expr.formula = Expr.Equal (a, b)} ->
           wrap E.add_eq a b;
-          D.watch 1 [a] (tag a);
-          D.watch 1 [b] (tag b);
-          D.watch 1 [a; b] (f_eval f)
   | { Expr.formula = Expr.Not { Expr.formula = Expr.Equal (a, b)} } ->
           wrap E.add_neq a b;
-          D.watch 1 [a] (tag a);
-          D.watch 1 [b] (tag b);
-          D.watch 1 [a; b] (f_eval f)
   | _ -> ()
 
-let rec set_handler = function
+let rec set_handler t =
+  D.watch 1 [t] (tag t);
+  match t with
   | { Expr.term = Expr.Var v } -> Expr.(set_assign v 0 eq_assign)
   | { Expr.term = Expr.Meta m } -> Expr.(set_assign m.meta_var 0 eq_assign)
   | { Expr.term = Expr.Tau t } -> Expr.(set_assign t.tau_var 0 eq_assign)
@@ -81,7 +77,8 @@ let rec set_handler = function
     List.iter set_handler l
 
 let rec eq_pre = function
-  | { Expr.formula = Expr.Equal (a, b) } ->
+  | { Expr.formula = Expr.Equal (a, b) } as f ->
+    D.watch 1 [a; b] (f_eval f);
     set_handler a;
     set_handler b
   | { Expr.formula = Expr.Pred p } ->
