@@ -1,6 +1,8 @@
 
 module D = Dispatcher
 
+let id = D.new_id ()
+
 let sat_assume = function
   | {Expr.formula = Expr.Pred ({Expr.term = Expr.App (p, _, _)} as t)}, lvl ->
     D.set_assign t Builtin.p_true lvl
@@ -47,7 +49,7 @@ let rec sat_preprocess = function
   | { Expr.formula = Expr.Pred ({Expr.term = Expr.App (p, _, _)} as t)} as f
     when Expr.(Ty.equal t.t_type type_prop) ->
     Expr.set_assign p 5 sat_assign;
-    D.watch "prop" 1 [t] (f_eval f)
+    D.watch id 1 [t] (f_eval f)
   | { Expr.formula = Expr.Not f } ->
     sat_preprocess f
   | { Expr.formula = Expr.And l }
@@ -65,6 +67,7 @@ let rec sat_preprocess = function
 
 ;;
 D.(register {
+    id = id;
     name = "prop";
     assume = sat_assume;
     eval_pred = sat_eval;

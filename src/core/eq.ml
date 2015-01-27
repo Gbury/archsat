@@ -4,7 +4,8 @@ module E = Ec.Make(Expr.Term)
 
 let st = E.create D.stack
 
-let watch = D.watch "eq"
+let id = D.new_id ()
+let watch = D.watch id
 
 let eq_eval = function
   | { Expr.formula = Expr.Equal (a, b) } ->
@@ -39,17 +40,19 @@ let mk_expl (a, b, l) =
     in
     (Expr.f_equal a b) :: (List.rev_map Expr.f_not (aux [] l))
 
+let mk_proof l = id, "eq-trans", l
+
 let wrap f x y =
     try
         f st x y
     with E.Unsat (a, b, l) ->
-        raise (D.Absurd (mk_expl (a, b, l), "eq"))
+        raise (D.Absurd (mk_expl (a, b, l), mk_proof l))
 
 let tag x () =
     try
         E.add_tag st x (fst (D.get_assign x))
     with E.Unsat (a, b, l) ->
-      raise (D.Absurd (mk_expl (a, b, l), "eq"))
+      raise (D.Absurd (mk_expl (a, b, l), mk_proof l))
 
 let eq_assign x =
     watch 1 [x] (tag x);
@@ -59,7 +62,7 @@ let eq_assign x =
         | x, None -> try fst (D.get_assign x) with D.Not_assigned _ -> x
       end
     with E.Unsat (a, b, l) ->
-      raise (D.Absurd (mk_expl (a, b, l), "eq"))
+      raise (D.Absurd (mk_expl (a, b, l), mk_proof l))
 
 let eq_assume (f, _) = match f with
   | { Expr.formula = Expr.Equal (a, b)} ->
@@ -108,6 +111,7 @@ let rec eq_pre = function
 
 ;;
 D.(register {
+    id = id;
     name = "eq";
     assume = eq_assume;
     eval_pred = eq_eval;

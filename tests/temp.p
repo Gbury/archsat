@@ -6,10 +6,10 @@ tff(c, type, c: $i).
 tff(d, type, d: $i).
 
 tff(f, type, f: $i > $i).
-tff(p, type, f: $i > $o).
+tff(p, type, p: $i > $o).
 
 % Problem
 tff(test, conjecture,
-    a = b => (p(a) <=> p(b))
+    ? [X] : (f(X) = f(a))
 ).
 

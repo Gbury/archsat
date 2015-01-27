@@ -4,6 +4,7 @@ util/Backtrack
 
 base/Ast
 base/Expr
+base/Unif
 base/Builtin
 
 core/Dispatcher

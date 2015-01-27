@@ -4,7 +4,10 @@ let log i fmt = Util.debug ~section:log_section i fmt
 
 module H = Backtrack.HashtblBack(Expr.Term)
 
+let id = Dispatcher.new_id ()
 let st = H.create Dispatcher.stack
+
+let mk_proof () = id, "f-eq", []
 
 let set_interpretation t () = match t with
   | { Expr.term = Expr.App (f, tys, l) } ->
@@ -19,12 +22,12 @@ let set_interpretation t () = match t with
           | { Expr.term = Expr.App (_, _, r) } when is_prop ->
             let eqs = List.map2 (fun a b -> Expr.f_not (Expr.f_equal a b)) l r in
             if Expr.(Term.equal u_v Builtin.p_true) then
-              raise (Dispatcher.Absurd (Expr.f_pred t :: Expr.f_not (Expr.f_pred t') :: eqs, "eq"))
+              raise (Dispatcher.Absurd (Expr.f_pred t :: Expr.f_not (Expr.f_pred t') :: eqs, mk_proof ()))
             else (* Expr.(Term.equal u_v Builtin.p_false) *)
-              raise (Dispatcher.Absurd (Expr.f_pred t' :: Expr.f_not (Expr.f_pred t) :: eqs, "eq"))
+              raise (Dispatcher.Absurd (Expr.f_pred t' :: Expr.f_not (Expr.f_pred t) :: eqs, mk_proof ()))
           | { Expr.term = Expr.App (_, _, r) } ->
             let eqs = List.map2 (fun a b -> Expr.f_not (Expr.f_equal a b)) l r in
-            raise (Dispatcher.Absurd ((Expr.f_equal t t') :: eqs, "eq"))
+            raise (Dispatcher.Absurd ((Expr.f_equal t t') :: eqs, mk_proof ()))
           | _ -> assert false
         end
     with Not_found ->
@@ -38,7 +41,7 @@ let rec set_handler = function
   | { Expr.term = Expr.Tau _ } -> ()
   | { Expr.term = Expr.App (f, _, l) } as t ->
     List.iter set_handler l;
-    if l <> [] then Dispatcher.watch "uf "1 (t :: l) (set_interpretation t)
+    if l <> [] then Dispatcher.watch id 1 (t :: l) (set_interpretation t)
 
 let rec uf_pre = function
   | { Expr.formula = Expr.Equal (a, b) } ->
@@ -64,6 +67,7 @@ let rec uf_pre = function
 
 ;;
 Dispatcher.(register {
+    id = id;
     name = "uf";
     assume = (fun _ -> ());
     eval_pred = (fun _ -> None);

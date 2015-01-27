@@ -7,6 +7,9 @@ module Tab = Tab
 module Prop = Prop
 module Functions = Functions
 
+module Tau = Tau
+module Meta = Meta
+
 (* Types and exceptions *)
 exception Out_of_time
 exception Out_of_space
@@ -163,10 +166,7 @@ let do_command = function
 let main () =
   let _ = Gc.create_alarm check in
   (* Default extensions *)
-  Dispatcher.activate "eq";
-  Dispatcher.activate "uf";
-  Dispatcher.activate "tab";
-  Dispatcher.activate "prop";
+  Dispatcher.set_exts "+eq,+uf,+tab,+prop,+tau,+meta";
   (* Argument parsing *)
   Arg.parse argspec input_file usage;
   if !file = "" then begin

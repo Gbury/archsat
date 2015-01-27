@@ -9,9 +9,10 @@ module H = Hashtbl.Make(Expr.Term)
 module M = Backtrack.HashtblBack(Expr.Term)
 module I = Backtrack.HashtblBack(struct type t = int let equal i j = i=j let hash i = i land max_int end)
 
+type id = int
 type term = Expr.term
 type formula = Expr.formula
-type proof = string
+type proof = id * string * Expr.term list
 
 type assumption =
   | Lit of formula
@@ -57,7 +58,12 @@ exception Extension_not_found of string
 
 let _fail s = raise (Bad_assertion s)
 
+let new_id =
+    let i = ref 0 in
+    (fun () -> incr i; !i)
+
 type extension = {
+  id : id;
   name : string;
   assume : formula * int -> unit;
   eval_pred : formula -> (bool * int) option;

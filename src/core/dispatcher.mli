@@ -1,12 +1,13 @@
 
 (** Plugin Manager *)
 
+type id
+
 include Msat.Plugin_intf.S with
     type term = Expr.term and
     type formula = Expr.formula and
-    type proof = string
+    type proof = id * string * Expr.term list
 (** This module is a valid Plugin for Mcsat *)
-
 
 (** {2 Exceptions} *)
 
@@ -27,12 +28,16 @@ exception Extension_not_found of string
 (** {2 Extension Registering} *)
 
 type extension = {
+  id : id;
   name : string;
   assume : formula * int -> unit;
   eval_pred : formula -> (bool * int) option;
   preprocess : formula -> unit;
 }
 (** Type of plugins/extensions *)
+
+val new_id : unit -> id
+(** Generates a new, unique extension id. *)
 
 val register : extension -> unit
 (** Used in extensions files to register extensions. *)
@@ -71,7 +76,7 @@ val stack : Backtrack.Stack.t
     compatible with it (like Backtrack.HashtblBack), or register
     undo actions with it. *)
 
-val push : formula list -> string -> unit
+val push : formula list -> proof -> unit
 (** Push the given clause to the sat solver. *)
 
 val propagate : formula -> int -> unit
@@ -92,7 +97,7 @@ val try_eval : term -> term option
 (** Try and eval the given term. In case it fails (and returns [None]),
     it sets up a watching scheme to evaluate the given term as soon as possible. *)
 
-val watch : string -> int -> term list -> (unit -> unit) -> unit
+val watch : id -> int -> term list -> (unit -> unit) -> unit
 (** [watch tag k l f] sets up a k-watching among the terms in l, calling f once there is less
     then k termsnot assigned in l. The pair [(l, tag)] is used as a key to eliminate duplicates. *)
 

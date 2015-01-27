@@ -179,15 +179,17 @@ let rec print_list f sep fmt = function
 
 let print_var fmt v = Format.fprintf fmt "%s" v.var_name
 
-let print_meta fmt m = Format.fprintf fmt "m_%a" print_var m.meta_var
+let print_meta fmt m = Format.fprintf fmt "m%d_%a" m.meta_index print_var m.meta_var
 
-let print_tau fmt t = Format.fprintf fmt "t_%a" print_var t.tau_var
+let print_tau fmt t = Format.fprintf fmt "tau_%a" print_var t.tau_var
 
 let print_ttype fmt = function Type -> Format.fprintf fmt "Type"
 
 let rec print_ty fmt ty = match ty.ty with
   | TyVar v -> print_var fmt v
   | TyMeta m -> print_meta fmt m
+  | TyApp (f, []) ->
+    Format.fprintf fmt "%a" print_var f
   | TyApp (f, l) ->
     Format.fprintf fmt "%a(%a)" print_var f (print_list print_ty ", ") l
 
@@ -800,11 +802,13 @@ let mk_metas l f =
   List.map (fun v -> mk_meta (mk_var v.var_name v.var_type) i) l
 
 let type_metas f = match f.formula with
-  | AllTy (l, _) -> List.map (fun m -> mk_ty (TyMeta m)) (mk_metas l f)
+  | Not { formula = ExTy (l, _) } | AllTy (l, _) ->
+    List.map (fun m -> mk_ty (TyMeta m)) (mk_metas l f)
   | _ -> invalid_arg "type_metas"
 
 let term_metas f = match f.formula with
-  | All (l, _) -> List.map (fun m -> mk_term (Meta m) m.meta_var.var_type) (mk_metas l f)
+  | Not { formula = Ex(l, _) } | All (l, _) ->
+    List.map (fun m -> mk_term (Meta m) m.meta_var.var_type) (mk_metas l f)
   | _ -> invalid_arg "type_metas"
 
 (* Taus *)
@@ -819,7 +823,8 @@ let mk_taus l f =
   List.map (fun v -> mk_tau (mk_var v.var_name v.var_type) i) l
 
 let term_taus f = match f.formula with
-  | Ex (l, _) -> List.map (fun t -> mk_term (Tau t) t.tau_var.var_type) (mk_taus l f)
+  | Not { formula = All (l, _) } | Ex (l, _) ->
+    List.map (fun t -> mk_term (Tau t) t.tau_var.var_type) (mk_taus l f)
   | _ -> invalid_arg "type_metas"
 
 (* Modules for simpler function names *)
