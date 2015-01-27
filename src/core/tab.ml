@@ -16,16 +16,28 @@ let push_or r l =
     push (Expr.f_not r :: l)
 
 let tab = function
-  | { Expr.formula = Expr.And l } as r -> push_and r l
+  (* 'And' traduction *)
+  | { Expr.formula = Expr.And l } as r ->
+    push_and r l
   | { Expr.formula = Expr.Not ({ Expr.formula = Expr.And l } as r) } ->
     push_or (Expr.f_not r) (List.rev_map Expr.f_not l)
-  | { Expr.formula = Expr.Or l } as r -> push_or r l
+  (* 'Or' traduction *)
+  | { Expr.formula = Expr.Or l } as r ->
+    push_or r l
   | { Expr.formula = Expr.Not ({ Expr.formula = Expr.Or l } as r) } ->
     push_and (Expr.f_not r) (List.rev_map Expr.f_not l)
-  | { Expr.formula = Expr.Imply (p, q) } as r -> push [Expr.f_not r; Expr.f_not p; q]
+  (* 'Imply' traduction *)
+  | { Expr.formula = Expr.Imply (p, q) } as r ->
+    push [Expr.f_not r; Expr.f_not p; q]
   | { Expr.formula = Expr.Not ({ Expr.formula = Expr.Imply (p, q) } as r )  } ->
     push [r; p];
     push [r; Expr.f_not q]
+  (* 'Equiv' traduction *)
+  | { Expr.formula = Expr.Equiv (p, q) } as r ->
+    push [Expr.f_not r; Expr.f_not p; q];
+    push [Expr.f_not r; Expr.f_not q; p]
+  | { Expr.formula = Expr.Not ({ Expr.formula = Expr.Equiv (p, q) } as r )  } ->
+    push [r; Expr.f_and [p; Expr.f_not q]; Expr.f_and [Expr.f_not p; q] ]
   | _ -> ()
 
 let tab_assume (f, i) =

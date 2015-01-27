@@ -4,6 +4,8 @@ module E = Ec.Make(Expr.Term)
 
 let st = E.create D.stack
 
+let watch = D.watch "eq"
+
 let eq_eval = function
   | { Expr.formula = Expr.Equal (a, b) } ->
     begin try
@@ -50,7 +52,7 @@ let tag x () =
       raise (D.Absurd (mk_expl (a, b, l), "eq"))
 
 let eq_assign x =
-    D.watch 1 [x] (tag x);
+    watch 1 [x] (tag x);
     try
       begin match E.find_tag st x with
         | _, Some (_, v) -> v
@@ -67,18 +69,23 @@ let eq_assume (f, _) = match f with
   | _ -> ()
 
 let rec set_handler t =
-  D.watch 1 [t] (tag t);
+  let aux v =
+      if not Expr.(Ty.equal v.var_type type_prop) then
+          Expr.set_assign v 0 eq_assign
+  in
+  watch 1 [t] (tag t);
   match t with
-  | { Expr.term = Expr.Var v } -> Expr.(set_assign v 0 eq_assign)
-  | { Expr.term = Expr.Meta m } -> Expr.(set_assign m.meta_var 0 eq_assign)
-  | { Expr.term = Expr.Tau t } -> Expr.(set_assign t.tau_var 0 eq_assign)
+  | { Expr.term = Expr.Var v } -> aux v
+  | { Expr.term = Expr.Meta m } -> aux Expr.(m.meta_var)
+  | { Expr.term = Expr.Tau t } -> aux Expr.(t.tau_var)
   | { Expr.term = Expr.App (f, _, l) } ->
-    Expr.set_assign f 0 eq_assign;
+    if not Expr.(Ty.equal f.var_type.fun_ret type_prop) then
+      Expr.set_assign f 0 eq_assign;
     List.iter set_handler l
 
 let rec eq_pre = function
   | { Expr.formula = Expr.Equal (a, b) } as f ->
-    D.watch 1 [a; b] (f_eval f);
+    watch 1 [a; b] (f_eval f);
     set_handler a;
     set_handler b
   | { Expr.formula = Expr.Pred p } ->
@@ -100,7 +107,6 @@ let rec eq_pre = function
   | _ -> ()
 
 ;;
-
 D.(register {
     name = "eq";
     assume = eq_assume;

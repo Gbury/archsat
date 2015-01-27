@@ -2,14 +2,14 @@
 module D = Dispatcher
 
 let sat_assume = function
-  | {Expr.formula = Expr.Pred ({Expr.term = Expr.App (p, [], [])} as t)}, lvl ->
+  | {Expr.formula = Expr.Pred ({Expr.term = Expr.App (p, _, _)} as t)}, lvl ->
     D.set_assign t Builtin.p_true lvl
-  | {Expr.formula = Expr.Not {Expr.formula = Expr.Pred ({Expr.term = Expr.App (p, [], [])} as t)}}, lvl ->
+  | {Expr.formula = Expr.Not {Expr.formula = Expr.Pred ({Expr.term = Expr.App (p, _, _)} as t)}}, lvl ->
     D.set_assign t Builtin.p_false lvl
   | _ -> ()
 
 let sat_assign = function
-  | { Expr.term = Expr.App (p, [], []) } as t when Expr.(Ty.equal t.t_type type_prop) ->
+  | { Expr.term = Expr.App (p, _, _) } as t (* when Expr.(Ty.equal t.t_type type_prop) *) ->
     begin try
         fst (D.get_assign t)
       with D.Not_assigned _ ->
@@ -44,10 +44,10 @@ let f_eval f () =
     | None -> ()
 
 let rec sat_preprocess = function
-  | { Expr.formula = Expr.Pred ({Expr.term = Expr.App (p, [], [])} as t)} as f
+  | { Expr.formula = Expr.Pred ({Expr.term = Expr.App (p, _, _)} as t)} as f
     when Expr.(Ty.equal t.t_type type_prop) ->
     Expr.set_assign p 5 sat_assign;
-    D.watch 1 [t] (f_eval f)
+    D.watch "prop" 1 [t] (f_eval f)
   | { Expr.formula = Expr.Not f } ->
     sat_preprocess f
   | { Expr.formula = Expr.And l }

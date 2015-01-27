@@ -130,12 +130,12 @@ let do_command = function
   | Ast.Sat cnf ->
     if not !p_type_only then
         wrap "assume" Solver.assume cnf
-  | Ast.NewType (_, s, n) ->
-    wrap "typing" Type.new_type_def (s, n)
-  | Ast.TypeDef (_, s, t) ->
-    wrap "typing" Type.new_const_def (s, t)
-  | Ast.Assert (_, t) ->
-    let f = wrap "typing" Type.parse t in
+  | Ast.NewType (name, s, n) ->
+    wrap ("typing " ^ name) Type.new_type_def (s, n)
+  | Ast.TypeDef (name, s, t) ->
+    wrap ("typing " ^ name) Type.new_const_def (s, t)
+  | Ast.Assert (name, t) ->
+    let f = wrap ("typing " ^ name) Type.parse t in
     if not !p_type_only then
       wrap "assume" Solver.assume [[f]]
   | Ast.CheckSat ->
@@ -164,6 +164,7 @@ let main () =
   let _ = Gc.create_alarm check in
   (* Default extensions *)
   Dispatcher.activate "eq";
+  Dispatcher.activate "uf";
   Dispatcher.activate "tab";
   Dispatcher.activate "prop";
   (* Argument parsing *)

@@ -92,9 +92,9 @@ val try_eval : term -> term option
 (** Try and eval the given term. In case it fails (and returns [None]),
     it sets up a watching scheme to evaluate the given term as soon as possible. *)
 
-val watch : int -> term list -> (unit -> unit) -> unit
-(** [watch k l f] sets up a k-watching among the terms in l, calling f once there is less
-    then k termsnot assigned in l. *)
+val watch : string -> int -> term list -> (unit -> unit) -> unit
+(** [watch tag k l f] sets up a k-watching among the terms in l, calling f once there is less
+    then k termsnot assigned in l. The pair [(l, tag)] is used as a key to eliminate duplicates. *)
 
 val model : unit -> (term * term) list
 (** Returns the fulla ssignment in the current model. *)

@@ -60,11 +60,14 @@ let find_ty_cstr name =
     with Not_found ->
         raise (Scoping_error name)
 
-let find_cst name =
+let find_cst (default_args, default_ret) name =
     try
         H.find constants name
     with Not_found ->
-        raise (Scoping_error name)
+        let res = Expr.term_const name [] default_args default_ret in
+        log 1 "Inferred constant : %a" Expr.debug_const_ty res;
+        H.add constants name res;
+        res
 
 (* Local Environment *)
 (* ************************************************************************ *)
@@ -79,37 +82,37 @@ let empty_env = {
     term_vars = M.empty;
 }
 
-let add_vars new_var map l =
+let add_vars print new_var map l =
   let q = Queue.create () in
   let add_var map v =
     try
       if M.mem Expr.(v.var_name) map then begin
         let v' = new_var Expr.(v.var_type) in
         Queue.add v' q;
-        log 3 "Adding binding : %s -> %a" Expr.(v.var_name) Expr.debug_var v';
+        log 3 "Adding binding : %s -> %a" Expr.(v.var_name) print v';
         M.add Expr.(v.var_name) v' map
       end else
         raise Not_found
     with Not_found ->
       Queue.add v q;
-      log 3 "Adding binding : %s -> %a" Expr.(v.var_name) Expr.debug_var v;
+      log 3 "Adding binding : %s -> %a" Expr.(v.var_name) print v;
       M.add Expr.(v.var_name) v map
   in
   let map' = List.fold_left add_var map l in
   List.rev (Queue.fold (fun acc x -> x :: acc) [] q), map'
 
-let new_name =
+let new_name pre =
     let i = ref 0 in
-    (fun () -> incr i; "#" ^ (string_of_int !i))
+    (fun () -> incr i; pre ^ (string_of_int !i))
 
 let add_type_vars env l =
-    let l', map = add_vars (fun _ -> Expr.ttype_var (new_name ())) env.type_vars l in
+    let l', map = add_vars Expr.debug_var_ttype (fun _ -> Expr.ttype_var (new_name "ty#" ())) env.type_vars l in
     l', { env with type_vars = map }
 
 let add_type_var env v = match add_type_vars env [v] with | [v'], env' -> v', env' | _ -> assert false
 
 let add_term_vars env l =
-    let l', map = add_vars (fun ty -> Expr.ty_var (new_name ()) ty) env.term_vars l in
+    let l', map = add_vars Expr.debug_var_ty (fun ty -> Expr.ty_var (new_name "term#" ()) ty) env.term_vars l in
     l', { env with term_vars = map }
 
 let find_var map s =
@@ -125,8 +128,10 @@ let find_term_var env s = find_var env.term_vars s
 (* ************************************************************************ *)
 
 let parse_ttype_var = function
-    | { Ast.term = Ast.Column ({ Ast.term = Ast.Var s }, {Ast.term = Ast.Const Ast.Ttype}) }
-    | { Ast.term = Ast.Var s } -> Expr.ttype_var s
+    | { Ast.term = Ast.Column (
+        { Ast.term = Ast.Var s }, {Ast.term = Ast.Const Ast.Ttype}) } -> 
+      Expr.ttype_var s
+    (* | { Ast.term = Ast.Var s } -> *)
     | _ -> raise Typing_error
 
 let rec parse_ty env = function
@@ -158,17 +163,21 @@ let parse_ty_var env = function
       log 0 "Expected a (typed) variable, received : %a" Ast.debug_term t;
       raise Typing_error
 
-let rec parse_term env = function
-    | { Ast.term = Ast.Var s } -> Expr.term_var (find_term_var env s)
-    | { Ast.term = Ast.Const Ast.String s } -> Expr.term_app (find_cst s) [] []
+let default_cst_ty n ret = (Util.times n (fun () -> Builtin.type_i), ret)
+
+let rec parse_term ret env = function
+    | { Ast.term = Ast.Var s } ->
+      Expr.term_var (find_term_var env s)
+    | { Ast.term = Ast.Const Ast.String s } ->
+      Expr.term_app (find_cst (default_cst_ty 0 ret) s) [] []
     | { Ast.term = Ast.App ({ Ast.term = Ast.Const Ast.String s }, l) } ->
-      let f = find_cst s in
+      let f = find_cst (default_cst_ty (List.length l) ret) s in
       let n_ty_args = List.length (Expr.(f.var_type.fun_vars)) in
       let n_t_args = List.length (Expr.(f.var_type.fun_args)) in
       if List.length l <> n_ty_args + n_t_args then
           raise (Bad_arity (s, n_ty_args + n_t_args, l));
       let ty_args, t_args = Util.list_split_at n_ty_args l in
-      Expr.term_app f (List.map (parse_ty env) ty_args) (List.map (parse_term env) t_args)
+      Expr.term_app f (List.map (parse_ty env) ty_args) (List.map (parse_term Builtin.type_i env) t_args)
     | t ->
       log 0 "Expected a term, received : %a" Ast.debug_term t;
       raise Typing_error
@@ -221,12 +230,12 @@ let rec parse_formula env = function
     (* Terms *)
     | { Ast.term = Ast.App ({Ast.term = Ast.Const Ast.Eq}, l) } ->
       begin match l with
-        | [a; b] -> Expr.f_equal (parse_term env a) (parse_term env b)
+        | [a; b] -> Expr.f_equal (parse_term Builtin.type_i env a) (parse_term Builtin.type_i env b)
         | _ -> raise (Bad_arity ("=", 2, l))
       end
     | { Ast.term = Ast.App _ }
     | { Ast.term = Ast.Const _ } as t ->
-      Expr.f_pred (parse_term env t)
+      Expr.f_pred (parse_term Expr.type_prop env t)
     (* Absurd case *)
     | t ->
       log 0 "Expected a formula, received : %a" Ast.debug_term t;

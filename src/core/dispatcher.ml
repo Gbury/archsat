@@ -5,6 +5,7 @@ let log i fmt = Util.debug ~section:log_section i fmt
 (* Type definitions *)
 (* ************************************************************************ *)
 
+module H = Hashtbl.Make(Expr.Term)
 module M = Backtrack.HashtblBack(Expr.Term)
 module I = Backtrack.HashtblBack(struct type t = int let equal i j = i=j let hash i = i land max_int end)
 
@@ -33,6 +34,13 @@ type res =
 type eval_res =
   | Valued of bool * int
   | Unknown
+
+type job = {
+    job_n : int;
+    mutable job_watched : term list;
+    job_callback : unit -> unit;
+    mutable job_done : int;
+}
 
 (* Additional options *)
 (* ************************************************************************ *)
@@ -97,7 +105,7 @@ let set_ext s =
     | '-' -> deactivate (String.sub s 1 (String.length s - 1))
     | '+' | _ -> activate (String.sub s 1 (String.length s - 1))
 
-let set_exts s = List.iter set_ext (Str.split (Str.regexp ",") s)
+let set_exts s = List.iter set_ext (Util.str_split ~by:"," s)
 
 let list_extensions () = List.map (fun r -> r.name) !extensions
 
@@ -146,19 +154,55 @@ let preprocess f =
   ext_iter (fun r -> r.preprocess f);
   check f
 
-(* Evaluation/Watching functions *)
+(* Delayed propagation *)
 (* ************************************************************************ *)
 
-(* The global stack *)
+let push_stack = ref []
+let propagate_stack = ref []
+
+let push clause ext_name =
+  push_stack := (clause, ext_name) :: !push_stack
+
+let propagate f lvl =
+  propagate_stack := (f, lvl) :: !propagate_stack
+
+let do_propagate f =
+  List.iter (fun (a, b) -> f a b) !propagate_stack;
+  propagate_stack := []
+
+let do_push f =
+  List.iter (fun (a, b) ->
+      log 1 "Pushing %a" (Util.pp_list ~sep:"; " Expr.debug_formula) a;
+      f a b) !push_stack;
+  push_stack := []
+
+(* Backtracking *)
+(* ************************************************************************ *)
+
 let stack = Backtrack.Stack.create ()
+
+let dummy = Backtrack.Stack.dummy_level
+
+let last_backtrack = ref 0
+
+let current_level () = Backtrack.Stack.level stack
+
+let backtrack lvl =
+  log 10 "Backtracking";
+  incr last_backtrack;
+  propagate_stack := [];
+  Backtrack.Stack.backtrack stack lvl
+
+(* Evaluation/Watching functions *)
+(* ************************************************************************ *)
 
 (* The current assignment map, term -> value *)
 let eval_map = M.create stack
 (* Map of terms watching other terms, term -> list of terms to evaluate when arg has value *)
 let wait_eval = M.create stack
-(* Map of terms watched by extensions, term -> continuation list *)
-let watch_map = M.create stack
-let job_map = I.create stack
+(* Map of terms watched by extensions *)
+let watchers = H.create 256
+let watch_map = H.create 256
 
 (* Exceptions *)
 exception Not_assigned of term
@@ -169,9 +213,9 @@ let pop assoc key =
   M.remove assoc key;
   res
 
-let popi assoc key =
-  let res = I.find assoc key in
-  I.remove assoc key;
+let hpop assoc key =
+  let res = H.find assoc key in
+  H.remove assoc key;
   res
 
 let is_assigned t =
@@ -185,20 +229,26 @@ let add_wait_eval t t' =
   let l = try M.find wait_eval t' with Not_found -> [] in
   M.add wait_eval t' (List.sort_uniq Expr.Term.compare (t :: l))
 
-let add_job job_id t =
-  let l = try M.find watch_map t with Not_found -> [] in
-  M.add watch_map t (List.sort_uniq compare (job_id :: l))
+let add_job job t =
+  let l = try H.find watch_map t with Not_found -> [] in
+  H.replace watch_map t (job :: l)
 
-let set_job id job = I.add job_map id job
+let call_job j =
+    if j.job_done < !last_backtrack then begin
+        j.job_done <- !last_backtrack;
+        j.job_callback ()
+    end
 
-let update_watch x job_id =
+let update_watch x j =
   try
-    let k, args, f = popi job_map job_id in
     let rec find not_assigned acc = function
-      | [] -> f ()
+      | [] ->
+        add_job j x;
+        call_job j
       | y :: r when not (is_assigned y) ->
         let l = List.rev_append (y :: not_assigned) (List.rev_append r [x]) in
-        set_job job_id (k, l, f)
+        j.job_watched <- l;
+        add_job j y;
       | y :: r -> find not_assigned (y :: acc) r
     in
     let rec split i acc = function
@@ -207,9 +257,39 @@ let update_watch x job_id =
       | y :: r when Expr.Term.equal x y -> split (i - 1) acc r
       | y :: r -> split (i - 1) (y :: acc) r
     in
-    split k [] args
+    split j.job_n [] j.job_watched
   with Not_found ->
     ()
+
+let new_job k l f = {
+  job_n = k;
+  job_watched = l;
+  job_callback = f;
+  job_done = - 1;
+}
+
+let watch tag k args f =
+  let rec split assigned not_assigned i = function
+    | l when i <= 0 ->
+      let j = new_job k (List.rev_append not_assigned (List.rev_append l assigned)) f in
+      List.iter (add_job j) not_assigned
+    | [] (* i > 0 *) ->
+      let l = List.rev_append not_assigned assigned in
+      let j = new_job k l f in
+      List.iter (add_job j) (Util.list_take k l);
+      call_job j
+    | y :: r ->
+      if is_assigned y then
+        split (y :: assigned) not_assigned i r
+      else
+        split assigned (y :: not_assigned) (i - 1) r
+  in
+  let t' = Builtin.tuple args in
+  let l = try H.find watchers t' with Not_found -> [] in
+  if not (List.mem tag l) then begin
+    H.add watchers t' (tag :: l);
+    split [] [] k args
+  end
 
 let rec try_eval t =
   assert (not (is_assigned t));
@@ -247,7 +327,7 @@ and set_assign t v lvl =
     log 5 "Assign (%d) : %a -> %a" lvl Expr.debug_term t Expr.debug_term v;
     M.add eval_map t (v, lvl);
     begin try
-        let l = pop watch_map t in
+        let l = hpop watch_map t in
         log 10 " Found %d watchers" (List.length l);
         List.iter (update_watch t) l
       with Not_found -> () end;
@@ -258,59 +338,10 @@ and set_assign t v lvl =
         List.iter (fun t' -> ignore (try_eval t')) l
       with Not_found -> () end
 
-let job_max = ref 0
-
-let watch k args f =
-  let rec split assigned not_assigned i = function
-    | l when i <= 0 ->
-      incr job_max;
-      List.iter (add_job !job_max) not_assigned;
-      let l = List.rev_append not_assigned (List.rev_append l assigned) in
-      set_job !job_max (k, l, f)
-    | [] (* i > 0 *) -> f ()
-    | y :: r ->
-      if is_assigned y then
-        split (y :: assigned) not_assigned i r
-      else
-        split assigned (y :: not_assigned) (i - 1) r
-  in
-  split [] [] k args
-
 let model () = M.fold eval_map (fun t (v, _) acc -> (t, v) :: acc) []
-
-(* Delayed propagation *)
-(* ************************************************************************ *)
-
-let push_stack = ref []
-let propagate_stack = ref []
-
-let push clause ext_name =
-  push_stack := (clause, ext_name) :: !push_stack
-
-let propagate f lvl =
-  propagate_stack := (f, lvl) :: !propagate_stack
-
-let do_propagate f =
-  List.iter (fun (a, b) -> f a b) !propagate_stack;
-  propagate_stack := []
-
-let do_push f =
-  List.iter (fun (a, b) ->
-      log 1 "Pushing %a" (Util.pp_list ~sep:"; " Expr.debug_formula) a;
-      f a b) !push_stack;
-  push_stack := []
 
 (* Mcsat Plugin functions *)
 (* ************************************************************************ *)
-
-let dummy = Backtrack.Stack.dummy_level
-
-let current_level () = Backtrack.Stack.level stack
-
-let backtrack lvl =
-  log 10 "Backtracking";
-  propagate_stack := [];
-  Backtrack.Stack.backtrack stack lvl
 
 let assume s =
   log 5 "New slice of length %d" s.length;

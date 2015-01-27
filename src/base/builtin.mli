@@ -7,6 +7,10 @@ val type_i : Expr.ty
 val i_cstr : Expr.ttype Expr.function_descr Expr.var
 (** Equivalent of Tptp's '$i' *)
 
+(** {2 Tuples} *)
+
+val tuple : Expr.term list -> Expr.term
+
 (** {2 Propositional calculus} *)
 
 val p_true : Expr.term
