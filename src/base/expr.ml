@@ -12,6 +12,7 @@ type 'ty var = {
 type 'ty meta = {
   meta_var : 'ty var;
   meta_index : int;
+  meta_level : int;
 }
 
 type 'ty tau = {
@@ -162,9 +163,9 @@ let rec debug_formula b f =
                     (Util.pp_list ~sep:", " debug_var_ty) l debug_formula f
   | AllTy (l, f) -> Printf.bprintf b "∀ %a. %a"
                       (Util.pp_list ~sep:", " debug_var_ttype) l debug_formula f
-  | Ex (l, f) -> Printf.bprintf b "∀ %a. %a"
+  | Ex (l, f) -> Printf.bprintf b "∃ %a. %a"
                    (Util.pp_list ~sep:", " debug_var_ty) l debug_formula f
-  | ExTy (l, f) -> Printf.bprintf b "∀ %a. %a"
+  | ExTy (l, f) -> Printf.bprintf b "∃ %a. %a"
                    (Util.pp_list ~sep:", " debug_var_ttype) l debug_formula f
 
 (* Printing functions *)
@@ -229,9 +230,9 @@ let rec print_f fmt f =
                       (print_list print_var_ty ", ") l print_f f
     | AllTy (l, f) -> Format.fprintf fmt "∀ %a. %a"
                         (print_list print_var_ttype ", ") l print_f f
-    | Ex (l, f) -> Format.fprintf fmt "∀ %a. %a"
+    | Ex (l, f) -> Format.fprintf fmt "∃ %a. %a"
                      (print_list print_var_ty ", ") l print_f f
-    | ExTy (l, f) -> Format.fprintf fmt "∀ %a. %a"
+    | ExTy (l, f) -> Format.fprintf fmt "∃ %a. %a"
                        (print_list print_var_ttype ", ") l print_f f
 
 let print_formula fmt f = Format.fprintf fmt "⟦%a⟧" print_f f
@@ -596,7 +597,7 @@ let type_prop = type_app prop_cstr []
 (* substitutions *)
 let rec type_subst_aux map t = match t.ty with
   | TyVar v -> begin try Subst.get v map with Not_found -> t end
-  | TyMeta _ -> t
+  | TyMeta m -> begin try Subst.get m.meta_var map with Not_found -> t end
   | TyApp (f, args) -> type_app f (List.map (type_subst_aux map) args)
 
 let type_subst map t = if Subst.is_empty map then t else type_subst_aux map t
@@ -791,24 +792,37 @@ let meta_index = Vector.make 13 { formula = True; f_hash = -1 }
 let tau_index = Vector.make 13 { formula = True; f_hash = -1 }
 
 (* Metas *)
-let mk_meta v i = { meta_var = v;meta_index = i; }
+let mk_meta v i lvl = { meta_var = v;meta_index = i; meta_level = lvl; }
 
 let get_meta_def i = Vector.get meta_index i
 
+let term_of_meta m = mk_term (Meta m) m.meta_var.var_type
+
 (* expects f to be All (l, _) or AllTy(l, _) *)
+let metas_of_level i l lvl =
+  List.map (fun v -> mk_meta (mk_var v.var_name v.var_type) i lvl) l
+
 let mk_metas l f =
   let i = Vector.size meta_index in
   Vector.push meta_index f;
-  List.map (fun v -> mk_meta (mk_var v.var_name v.var_type) i) l
+  metas_of_level i l
 
-let type_metas f = match f.formula with
+let other_term_metas m =
+  let i = m.meta_index in
+  let lvl = m.meta_level in
+  match (get_meta_def i).formula with
+  | Not { formula = Ex(l, _) } | All (l, _) ->
+    List.map (fun m -> m, term_of_meta m) (metas_of_level i l lvl)
+  | _ -> assert false
+
+let type_metas f lvl = match f.formula with
   | Not { formula = ExTy (l, _) } | AllTy (l, _) ->
-    List.map (fun m -> mk_ty (TyMeta m)) (mk_metas l f)
+    List.map (fun m -> mk_ty (TyMeta m)) (mk_metas l f lvl)
   | _ -> invalid_arg "type_metas"
 
-let term_metas f = match f.formula with
+let term_metas f lvl = match f.formula with
   | Not { formula = Ex(l, _) } | All (l, _) ->
-    List.map (fun m -> mk_term (Meta m) m.meta_var.var_type) (mk_metas l f)
+    List.map term_of_meta (mk_metas l f lvl)
   | _ -> invalid_arg "type_metas"
 
 (* Taus *)

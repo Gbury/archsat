@@ -5,18 +5,27 @@
  * what are usually called 'variables' in litterature are
  * actually the metavariables in the terms *)
 
-type subst = Expr.term_subst
-
 exception Not_unifiable
 
-(* Wrappers around substitutions *)
+(* Metavariables substitutions *)
 (* ************************************************************************ *)
 
+module M = Map.Make(struct
+    type t = Expr.ty Expr.meta
+    let compare m1 m2 = Expr.(Var.compare m1.meta_var m2.meta_var)
+end)
+
+type subst = Expr.term M.t
+
+let empty = M.empty
+
 let follow subst = function
-    | { Expr.term = Expr.Meta { Expr.meta_var = v } } -> Expr.Subst.get v subst
+    | { Expr.term = Expr.Meta m } -> M.find m subst
     | _ -> raise Not_found
 
-let bind m t subst = Expr.Subst.bind Expr.(m.meta_var) t subst
+let bind m t subst = M.add m t subst
+
+let bindings = M.bindings
 
 (* Robinson unification *)
 (* ************************************************************************ *)
@@ -52,6 +61,21 @@ let rec robinson subst s t =
         | _ -> raise Not_unifiable
       end
 
-let unify_simple s t = robinson Expr.Subst.empty s t
+let unify_simple s t = robinson empty s t
 
+(* Caching *)
+(* ************************************************************************ *)
+
+module H = Hashtbl.Make(Expr.Term)
+
+let cache = H.create 1007
+
+let cached_unify s t =
+  let key = Builtin.tuple [s; t] in
+  try
+      H.find cache key
+  with Not_found ->
+      let res = unify_simple s t in
+      H.add cache key res;
+      res
 

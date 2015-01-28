@@ -1,7 +1,4 @@
 
-let log_section = Util.Section.make "builtin"
-let log i fmt = Util.debug ~section:log_section i fmt
-
 (* Typing *)
 (* ************************************************************************ *)
 

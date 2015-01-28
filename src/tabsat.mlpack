@@ -11,4 +11,5 @@ Builtin
 # Core modules
 Dispatcher
 Solver
+Inst
 

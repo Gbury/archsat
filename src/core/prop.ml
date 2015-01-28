@@ -20,7 +20,7 @@ let sat_assign = function
   | _ -> assert false
 
 let rec sat_eval = function
-  | {Expr.formula = Expr.Pred ({Expr.term = Expr.App (p, [], [])} as t)} ->
+  | {Expr.formula = Expr.Pred ({Expr.term = Expr.App (p, _, _)} as t)} ->
     begin try
         let b, lvl = D.get_assign t in
         if Expr.Term.equal Builtin.p_true b then

@@ -26,5 +26,6 @@ module HashtblBack :
     val add : 'a t -> key -> 'a -> unit
     val find : 'a t -> key -> 'a
     val remove : 'a t -> key -> unit
+    val iter : (key -> 'a -> unit) -> 'a t -> unit
     val fold : 'a t -> (key -> 'a -> 'b -> 'b) -> 'b -> 'b
   end
