@@ -10,14 +10,12 @@ let mk_proof f p l taus =
 let tau = function
     | { Expr.formula = Expr.Ex (l, p) } as f ->
       let taus = Expr.term_taus f in
-      let subst = Util.list_fold2 l taus Expr.Subst.empty
-        (fun s v t -> Expr.Subst.bind v t s) in
+      let subst = List.fold_left2 (fun s v t -> Expr.Subst.bind v t s) Expr.Subst.empty l taus in
       let q = Expr.formula_subst Expr.Subst.empty subst p in
       Dispatcher.push [Expr.f_not f; q] (mk_proof f q l taus)
     | { Expr.formula = Expr.Not { Expr.formula = Expr.All (l, p) } } as f ->
       let taus = Expr.term_taus f in
-      let subst = Util.list_fold2 l taus Expr.Subst.empty
-        (fun s v t -> Expr.Subst.bind v t s) in
+      let subst = List.fold_left2 (fun s v t -> Expr.Subst.bind v t s) Expr.Subst.empty l taus in
       let q = Expr.formula_subst Expr.Subst.empty subst p in
       Dispatcher.push [Expr.f_not f; Expr.f_not q] (mk_proof f (Expr.f_not q) l taus)
     (* TODO: Taus for types ? *)

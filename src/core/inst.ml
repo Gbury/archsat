@@ -10,15 +10,11 @@ let rec aggregate acc = function
       | _ -> aggregate ([h] :: acc) r
     end
 
-let compare_meta_pair (m, _) (m', _) = compare (index m) (index m')
-
-let eq_meta_pair p p' = compare_meta_pair p p' = 0
-
 (* Given an arbitrary list (meta, term),
  * Returns a list of lists (meta, term) that
  * aggregates metas with the same index. *)
 let partition l =
-    let l = List.sort compare_meta_pair l in
+    let l = List.sort (fun (m, _) (m', _) -> compare (index m) (index m')) l in
     aggregate [] l
 
 (* Takes a list (meta, term) with metas at the same index,
@@ -28,7 +24,10 @@ let meta_completion l =
   assert (l <> []);
   let (m, _) = List.hd l in
   let subst = Expr.other_term_metas m in
-  let aux (m, t) = try List.find (eq_meta_pair (m, t)) l with Not_found -> (m, t) in
+  let aux m =
+    try List.find (fun (m', _) -> Expr.Meta.equal m m') l
+    with Not_found -> (m, Expr.term_of_meta m)
+  in
   List.map aux subst
 
 (* Takes a substitution (meta, term) and returns a triplet

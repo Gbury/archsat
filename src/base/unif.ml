@@ -55,7 +55,7 @@ let rec robinson subst s t =
         | { Expr.term = Expr.App (f, _, f_args) },
           { Expr.term = Expr.App (g, _, g_args) } ->
           if Expr.Var.equal f g then
-            Util.list_fold2 f_args g_args subst robinson
+            List.fold_left2 robinson subst f_args g_args
           else
             raise Not_unifiable
         | _ -> raise Not_unifiable

@@ -240,6 +240,8 @@ let print_formula fmt f = Format.fprintf fmt "⟦%a⟧" print_f f
 (* Hashs *)
 (* ************************************************************************ *)
 
+let hash h_skel l = Hashtbl.hash (h_skel, l)
+
 let rec hash_ty t =
   let h = match t.ty with
     | TyVar v -> v.var_id
@@ -258,8 +260,8 @@ and get_ty_hash t =
 let rec hash_term t =
   let h = match t.term with
     | Var v -> v.var_id
-    | Meta v -> v.meta_var.var_id
-    | Tau v -> v.tau_var.var_id
+    | Meta m -> m.meta_var.var_id
+    | Tau t -> t.tau_var.var_id
     | App (f, tys, args) -> (* TODO: Better combinator ? *)
       Hashtbl.hash (f.var_id :: List.rev_append
                       (List.rev_map get_ty_hash tys)
@@ -288,21 +290,20 @@ let h_ex    = 12
 let h_exty  = 13
 
 let rec hash_formula f =
-  let aux h_skel l = Hashtbl.hash (h_skel, l) in
   let h = match f.formula with
-    | Equal (t1, t2) -> aux h_eq [get_term_hash t1; get_term_hash t2]
-    | Pred t -> aux h_pred (get_term_hash t)
+    | Equal (t1, t2) -> hash h_eq [get_term_hash t1; get_term_hash t2]
+    | Pred t -> hash h_pred (get_term_hash t)
     | True -> h_true
     | False -> h_false
-    | Not f -> aux h_not (get_formula_hash f)
-    | And l -> aux h_and (List.map get_formula_hash l)
-    | Or l -> aux h_or (List.map get_formula_hash l)
-    | Imply (f1, f2) -> aux h_imply [get_formula_hash f1; get_formula_hash f2]
-    | Equiv (f1, f2) -> aux h_equiv [get_formula_hash f1; get_formula_hash f2]
-    | All (l, f) -> aux h_all (get_formula_hash f :: List.rev_map (fun v -> v.var_id) l)
-    | AllTy (l, f) -> aux h_allty (get_formula_hash f :: List.rev_map (fun v -> v.var_id) l)
-    | Ex (l, f) -> aux h_ex (get_formula_hash f :: List.rev_map (fun v -> v.var_id) l)
-    | ExTy (l, f) -> aux h_exty (get_formula_hash f :: List.rev_map (fun v -> v.var_id) l)
+    | Not f -> hash h_not (get_formula_hash f)
+    | And l -> hash h_and (List.map get_formula_hash l)
+    | Or l -> hash h_or (List.map get_formula_hash l)
+    | Imply (f1, f2) -> hash h_imply [get_formula_hash f1; get_formula_hash f2]
+    | Equiv (f1, f2) -> hash h_equiv [get_formula_hash f1; get_formula_hash f2]
+    | All (l, f) -> hash h_all (get_formula_hash f :: List.rev_map (fun v -> v.var_id) l)
+    | AllTy (l, f) -> hash h_allty (get_formula_hash f :: List.rev_map (fun v -> v.var_id) l)
+    | Ex (l, f) -> hash h_ex (get_formula_hash f :: List.rev_map (fun v -> v.var_id) l)
+    | ExTy (l, f) -> hash h_exty (get_formula_hash f :: List.rev_map (fun v -> v.var_id) l)
   in
   f.f_hash <- h
 
@@ -318,7 +319,19 @@ and get_formula_hash f =
 let compare_var: 'a. 'a var -> 'a var -> int =
   fun v1 v2 -> Pervasives.compare v1.var_id v2.var_id
 
+let compare_meta m1 m2 =
+    match compare m1.meta_index m2.meta_index with
+    | 0 -> compare_var m1.meta_var m2.meta_var
+    | x -> x
+
+let compare_tau t1 t2 =
+    match compare t1.tau_index t2.tau_index with
+    | 0 -> compare_var t1.tau_var t2.tau_var
+    | x -> x
+
 let equal_var v1 v2 = compare_var v1 v2 = 0
+let equal_tau t1 t2 = compare_tau t1 t2 = 0
+let equal_meta m1 m2 = compare_meta m1 m2 = 0
 
 (* Types *)
 let ty_discr ty = match ty.ty with
@@ -331,7 +344,7 @@ let rec compare_ty u v =
   if hu <> hv then Pervasives.compare hu hv
   else match u.ty, v.ty with
     | TyVar v1, TyVar v2 -> compare_var v1 v2
-    | TyMeta v1, TyMeta v2 -> compare_var v1.meta_var v2.meta_var
+    | TyMeta m1, TyMeta m2 -> compare_meta m1 m2
     | TyApp (f1, args1), TyApp (f2, args2) ->
       begin match compare_var f1 f2 with
         | 0 -> Util.lexicograph compare_ty args1 args2
@@ -354,8 +367,8 @@ let rec compare_term u v =
   if hu <> hv then Pervasives.compare hu hv
   else match u.term, v.term with
     | Var v1, Var v2 -> compare_var v1 v2
-    | Meta m1, Meta m2 -> compare_var m1.meta_var m2.meta_var
-    | Tau t1, Tau t2 -> compare_var t1.tau_var t2.tau_var
+    | Meta m1, Meta m2 -> compare_meta m1 m2
+    | Tau t1, Tau t2 -> compare_tau t1 t2
     | App (f1, tys1, args1), App (f2, tys2, args2) ->
       begin match compare_var f1 f2 with
         | 0 ->
@@ -700,7 +713,7 @@ let f_equiv p q = mk_formula (Equiv (p, q))
 let f_all l f =
   if l = [] then f else
   let l, f = match f.formula with
-    | All (l', f') -> List.rev_append l' l, f'
+    | All (l', f') -> l @ l', f'
     | _ -> l, f
   in
   mk_formula (All (l, f))
@@ -708,7 +721,7 @@ let f_all l f =
 let f_allty l f =
   if l = [] then f else
   let l, f = match f.formula with
-    | AllTy (l', f') -> List.rev_append l' l, f'
+    | AllTy (l', f') -> l @ l', f'
     | _ -> l, f
   in
   mk_formula (AllTy (l, f))
@@ -716,7 +729,7 @@ let f_allty l f =
 let f_ex l f =
   if l = [] then f else
   let l, f = match f.formula with
-    | Ex (l', f') -> List.rev_append l' l, f'
+    | Ex (l', f') -> l @ l', f'
     | _ -> l, f
   in
   mk_formula (Ex (l, f))
@@ -724,7 +737,7 @@ let f_ex l f =
 let f_exty l f =
   if l = [] then f else
   let l, f = match f.formula with
-    | AllTy (l', f') -> List.rev_append l' l, f'
+    | AllTy (l', f') -> l @ l', f'
     | _ -> l, f
   in
   mk_formula (ExTy (l, f))
@@ -788,49 +801,51 @@ let rec formula_subst ty_map t_map f = match f.formula with
 (* ************************************************************************ *)
 
 (* Metas/Taus refer to an index which stores the defining formula for the variable *)
-let meta_index = Vector.make 13 { formula = True; f_hash = -1 }
-let tau_index = Vector.make 13 { formula = True; f_hash = -1 }
+let meta_ty_index = Vector.make 37 ({ formula = True; f_hash = -1 }, [])
+let meta_term_index = Vector.make 37 ({ formula = True; f_hash = -1 }, [])
+let tau_index = Vector.make 37 { formula = True; f_hash = -1 }
 
 (* Metas *)
-let mk_meta v i lvl = { meta_var = v;meta_index = i; meta_level = lvl; }
+let mk_meta v i lvl = { meta_var = v; meta_index = i; meta_level = lvl; }
 
-let get_meta_def i = Vector.get meta_index i
+let get_meta_def i = fst (Vector.get meta_term_index i)
+let get_meta_ty_def i = fst (Vector.get meta_ty_index i)
 
+let ty_of_meta m = mk_ty (TyMeta m)
 let term_of_meta m = mk_term (Meta m) m.meta_var.var_type
 
-(* expects f to be All (l, _) or AllTy(l, _) *)
-let metas_of_level i l lvl =
-  List.map (fun v -> mk_meta (mk_var v.var_name v.var_type) i lvl) l
+let mk_metas l f lvl =
+  let i = Vector.size meta_term_index in
+  let metas = List.map (fun v -> mk_meta v i lvl) l in
+  Vector.push meta_term_index (f, metas);
+  metas
 
-let mk_metas l f =
-  let i = Vector.size meta_index in
-  Vector.push meta_index f;
-  metas_of_level i l
+let mk_ty_metas l f lvl =
+  let i = Vector.size meta_ty_index in
+  let metas = List.map (fun v -> mk_meta v i lvl) l in
+  Vector.push meta_ty_index (f, metas);
+  metas
 
-let other_term_metas m =
-  let i = m.meta_index in
-  let lvl = m.meta_level in
-  match (get_meta_def i).formula with
-  | Not { formula = Ex(l, _) } | All (l, _) ->
-    List.map (fun m -> m, term_of_meta m) (metas_of_level i l lvl)
-  | _ -> assert false
+let other_ty_metas m = snd (Vector.get meta_ty_index m.meta_index)
+let other_term_metas m = snd (Vector.get meta_term_index m.meta_index)
 
 let type_metas f lvl = match f.formula with
-  | Not { formula = ExTy (l, _) } | AllTy (l, _) ->
-    List.map (fun m -> mk_ty (TyMeta m)) (mk_metas l f lvl)
+  | Not { formula = ExTy(l, _) } | AllTy (l, _) ->
+    let new_vars = List.map (fun v -> mk_var v.var_name v.var_type) l in
+    List.map ty_of_meta (mk_ty_metas new_vars f lvl)
   | _ -> invalid_arg "type_metas"
 
 let term_metas f lvl = match f.formula with
   | Not { formula = Ex(l, _) } | All (l, _) ->
-    List.map term_of_meta (mk_metas l f lvl)
-  | _ -> invalid_arg "type_metas"
+    let new_vars = List.map (fun v -> mk_var v.var_name v.var_type) l in
+    List.map term_of_meta (mk_metas new_vars f lvl)
+  | _ -> invalid_arg "term_metas"
 
 (* Taus *)
 let mk_tau v i = { tau_var = v; tau_index = i }
 
 let get_tau_def i = Vector.get tau_index i
 
-(* expects f to be  Ex(l, _) *)
 let mk_taus l f =
   let i = Vector.size tau_index in
   Vector.push tau_index f;
@@ -851,6 +866,22 @@ module Var = struct
   let equal = equal_var
   let print = print_var
   let debug = debug_var
+end
+module Meta = struct
+  type 'a t = 'a meta
+  let hash m = m.meta_var.var_id
+  let compare = compare_meta
+  let equal = equal_meta
+  let print = print_meta
+  let debug = debug_meta
+end
+module Tau = struct
+  type 'a t = 'a tau
+  let hash t = t.tau_var.var_id
+  let compare = compare_tau
+  let equal = equal_tau
+  let print = print_tau
+  let debug = debug_tau
 end
 module Ty = struct
   type t = ty

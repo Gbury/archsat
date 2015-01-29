@@ -141,6 +141,22 @@ module Var : sig
   val print : Format.formatter -> 'a t -> unit
   val debug : Buffer.t -> 'a t -> unit
 end
+module Meta : sig
+  type 'a t = 'a meta
+  val hash : 'a t -> int
+  val equal : 'a t -> 'a t -> bool
+  val compare : 'a t -> 'a t -> int
+  val print : Format.formatter -> 'a t -> unit
+  val debug : Buffer.t -> 'a t -> unit
+end
+module Tau : sig
+  type 'a t = 'a tau
+  val hash : 'a t -> int
+  val equal : 'a t -> 'a t -> bool
+  val compare : 'a t -> 'a t -> int
+  val print : Format.formatter -> 'a t -> unit
+  val debug : Buffer.t -> 'a t -> unit
+end
 module Ty : sig
   type t = ty
   val hash : t -> int
@@ -180,8 +196,9 @@ val term_const : string -> ttype var list -> ty list -> ty -> ty function_descr 
 
 (** {5 Metas/Taus} *)
 
-val get_meta_def : int -> formula
 val get_tau_def : int -> formula
+val get_meta_def : int -> formula
+val get_meta_ty_def : int -> formula
 
 (** {5 Types} *)
 
@@ -190,7 +207,9 @@ val type_prop : ty
 
 val type_var : ttype var -> ty
 val type_app : ttype function_descr var -> ty list -> ty
+
 val type_metas : formula -> int -> ty list
+val other_ty_metas : ttype meta -> ttype meta list
 
 (** {5 Terms} *)
 
@@ -203,8 +222,7 @@ val term_metas : formula -> int -> term list
 (** Generates new and fresh metas for the given formula. *)
 
 val term_of_meta : ty meta -> term
-
-val other_term_metas : ty meta -> (ty meta * term) list
+val other_term_metas : ty meta -> ty meta list
 (** [other_term_metas m] returns the list [l] of term metas that was generated together with [m]
     i.e [m] is a meta in [l] and [l] was returned by [term_metas] previously. *)
 

@@ -47,8 +47,7 @@ let meta_assume lvl = function
       if not (has_been_seen f) then begin
         mark f lvl; (* Do not re-generate metas *)
         let metas = Expr.term_metas f lvl in
-        let subst = Util.list_fold2 l metas Expr.Subst.empty
-            (fun s v t -> Expr.Subst.bind v t s) in
+        let subst = List.fold_left2 (fun s v t -> Expr.Subst.bind v t s) Expr.Subst.empty l metas in
         let q = Expr.formula_subst Expr.Subst.empty subst p in
         Dispatcher.push [Expr.f_not f; q] (mk_proof f metas)
       end
@@ -56,8 +55,7 @@ let meta_assume lvl = function
       if not (has_been_seen f) then begin
         mark f lvl; (* Do not re-generate metas *)
         let metas = Expr.term_metas f lvl in
-        let subst = Util.list_fold2 l metas Expr.Subst.empty
-            (fun s v t -> Expr.Subst.bind v t s) in
+        let subst = List.fold_left2 (fun s v t -> Expr.Subst.bind v t s) Expr.Subst.empty l metas in
         let q = Expr.formula_subst Expr.Subst.empty subst p in
         Dispatcher.push [Expr.f_not f; Expr.f_not q] (mk_proof f metas)
       end

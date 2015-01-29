@@ -425,11 +425,6 @@ let rec times i f =
   if i = 0 then []
   else (f ()) :: (times (i-1) f)
 
-let rec list_fold2 l1 l2 acc f = match l1, l2 with
-  | [], [] -> acc
-  | a :: r1, b :: r2 -> list_fold2 r1 r2 (f acc a b) f
-  | _ -> invalid_arg "list_fold2"
-
 let list_product l1 l2 =
   List.fold_left
     (fun acc x1 -> List.fold_left

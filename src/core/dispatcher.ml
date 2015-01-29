@@ -38,9 +38,10 @@ type eval_res =
 
 type job = {
     job_n : int;
-    mutable job_watched : term list;
-    job_callback : unit -> unit;
     mutable job_done : int;
+    job_callback : unit -> unit;
+    mutable watched : term list;
+    mutable not_watched : term list;
 }
 
 (* Additional options *)
@@ -254,30 +255,25 @@ let call_job j =
     end
 
 let update_watch x j =
-  try
-    let rec find not_assigned acc = function
-      | [] ->
-        add_job j x;
-        call_job j
-      | y :: r when not (is_assigned y) ->
-        let l = List.rev_append (y :: not_assigned) (List.rev_append r [x]) in
-        j.job_watched <- l;
-        add_job j y;
-      | y :: r -> find not_assigned (y :: acc) r
+    let rec find p acc = function
+        | [] -> raise Not_found
+        | y :: r when p y -> y, List.rev_append r acc
+        | y :: r -> find p (y :: acc) r
     in
-    let rec split i acc = function
-      | [] -> find acc [] []
-      | l when i <= 0 -> find acc [] l
-      | y :: r when Expr.Term.equal x y -> split (i - 1) acc r
-      | y :: r -> split (i - 1) (y :: acc) r
-    in
-    split j.job_n [] j.job_watched
-  with Not_found ->
-    ()
+    let _, old_watched = find (Expr.Term.equal x) [] j.watched in
+    try
+      let y, old_not_watched = find (fun y -> not (is_assigned y)) [] j.not_watched in
+      j.not_watched <- x :: old_not_watched;
+      j.watched <- y :: old_watched;
+      add_job j y;
+    with Not_found ->
+      add_job j x;
+      call_job j
 
-let new_job k l f = {
+let new_job k watched not_watched f = {
   job_n = k;
-  job_watched = l;
+  watched = watched;
+  not_watched = not_watched;
   job_callback = f;
   job_done = - 1;
 }
@@ -285,12 +281,13 @@ let new_job k l f = {
 let watch tag k args f =
   let rec split assigned not_assigned i = function
     | l when i <= 0 ->
-      let j = new_job k (List.rev_append not_assigned (List.rev_append l assigned)) f in
+      let j = new_job k not_assigned (List.rev_append l assigned) f in
       List.iter (add_job j) not_assigned
     | [] (* i > 0 *) ->
       let l = List.rev_append not_assigned assigned in
-      let j = new_job k l f in
-      List.iter (add_job j) (Util.list_take k l);
+      let to_watch, not_watched = Util.list_split_at k l in
+      let j = new_job k to_watch not_watched f in
+      List.iter (add_job j) to_watch;
       call_job j
     | y :: r ->
       if is_assigned y then
