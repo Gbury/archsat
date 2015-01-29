@@ -1,4 +1,7 @@
 
+let log_section = Util.Section.make "eq"
+let log i fmt = Util.debug ~section:log_section i fmt
+
 module D = Dispatcher
 module E = Ec.Make(Expr.Term)
 
@@ -40,18 +43,22 @@ let mk_expl (a, b, l) =
     in
     (Expr.f_equal a b) :: (List.rev_map Expr.f_not (aux [] l))
 
-let mk_proof l = id, "eq-trans", l
+let mk_proof l =
+    assert (l <> []);
+    id, "eq-trans", [], l
 
 let wrap f x y =
     try
         f st x y
     with E.Unsat (a, b, l) ->
+        log 2 "Error while adding hypothesis : %a ~ %a" Expr.debug_term x Expr.debug_term y;
         raise (D.Absurd (mk_expl (a, b, l), mk_proof l))
 
 let tag x () =
     try
         E.add_tag st x (fst (D.get_assign x))
     with E.Unsat (a, b, l) ->
+      log 2 "Error while tagging : %a -> %a" Expr.debug_term x Expr.debug_term (fst (D.get_assign x));
       raise (D.Absurd (mk_expl (a, b, l), mk_proof l))
 
 let eq_assign x =
@@ -62,6 +69,7 @@ let eq_assign x =
         | x, None -> try fst (D.get_assign x) with D.Not_assigned _ -> x
       end
     with E.Unsat (a, b, l) ->
+        log 0 "WUUUT ?!!";
       raise (D.Absurd (mk_expl (a, b, l), mk_proof l))
 
 let eq_assume (f, _) = match f with

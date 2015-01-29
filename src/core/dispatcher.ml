@@ -12,7 +12,7 @@ module I = Backtrack.HashtblBack(struct type t = int let equal i j = i=j let has
 type id = int
 type term = Expr.term
 type formula = Expr.formula
-type proof = id * string * Expr.term list
+type proof = id * string * Expr.formula list * Expr.term list
 
 type assumption =
   | Lit of formula
@@ -48,6 +48,13 @@ type job = {
 
 let options = ref []
 let get_options () = !options
+
+(* Proof management *)
+(* ************************************************************************ *)
+
+let proof_debug (id, name, f_args, t_args) =
+    let color = match name with | "inst" -> Some "PURPLE" | _ -> None in
+    name, f_args, t_args, color
 
 (* Extensions registering *)
 (* ************************************************************************ *)
@@ -177,8 +184,9 @@ let do_propagate f =
   propagate_stack := []
 
 let do_push f =
-  List.iter (fun (a, b) ->
-      log 1 "Pushing %a" (Util.pp_list ~sep:"; " Expr.debug_formula) a;
+  List.iter (fun (a, ((_, name, _, _) as b)) ->
+      log 1 "Push '%s'" name;
+      log 2 "Pushing %a" (Util.pp_list ~sep:"; " Expr.debug_formula) a;
       f a b) !push_stack;
   push_stack := []
 
@@ -363,8 +371,10 @@ let assume s =
     log 8 "Propagating (%d)" (List.length !propagate_stack);
     do_propagate s.propagate;
     Sat
-  with Absurd (l, ext) ->
-    Unsat (l, ext)
+  with Absurd (l, ((_, name, _, _) as proof)) ->
+    log 1 "Conflict '%s'" name;
+    List.iter (fun f -> log 1 " |- %a" Expr.debug_formula f) l;
+    Unsat (l, proof)
 
 let assign t =
   log 5 "Finding assignment for %a" Expr.debug_term t;

@@ -1,9 +1,13 @@
 
+let log_section = Util.Section.make "union-find"
+let log i fmt = Util.debug ~section:log_section i fmt
+
 module type Key = sig
     type t
     val hash : t -> int
     val equal : t -> t -> bool
     val compare : t -> t -> int
+    val debug : Buffer.t -> t -> unit
 end
 
 module type S = sig
@@ -139,7 +143,7 @@ module Make(T : Key) = struct
     | Some (a, v), Some (b, v') when T.compare v v' = 0 ->
       raise (Same_tag(a, b))
     | _ ->
-      H.add h.repr ry (Repr { my with forbidden = M.add rx (x, y) mx.forbidden });
+      H.add h.repr ry (Repr { my with forbidden = M.add rx (x, y) my.forbidden });
       H.add h.repr rx (Repr { mx with forbidden = M.add ry (x, y) mx.forbidden })
 
   (* Equivalence closure with explanation output *)
@@ -191,26 +195,33 @@ module Make(T : Key) = struct
         H.add t.size i (nb_i + nb_j + 1)
       end
 
-  let wrap f t x y =
-      try
-        f t x y
-      with Equal (a, b) ->
-        raise (Unsat (a, b, expl t a b))
-
   (* Functions wrapped to produce explanation in case
    * something went wrong *)
   let add_tag t x v =
-    wrap tag t x v
+    try
+      tag t x v
+    with Equal (a, b) ->
+      log 3 "Tag error";
+      raise (Unsat (a, b, expl t a b))
 
   let add_eq t i j =
     add_eq_aux t i j;
-    wrap union t i j
+    try
+      union t i j
+    with Equal (a, b) ->
+      log 3 "Equality error : %a = %a" T.debug a T.debug b;
+      raise (Unsat (a, b, expl t a b))
 
   let add_neq t i j =
     try
-      wrap forbid t i j
-    with Same_tag (x, y) ->
+      forbid t i j
+    with
+    | Equal (a, b) ->
+      log 3 "Difference error";
+      raise (Unsat (a, b, expl t a b))
+    | Same_tag (x, y) ->
       add_eq_aux t i j;
+      log 3 "Difference(tag) error.";
       raise (Unsat (i, j, expl t i j))
 
 end

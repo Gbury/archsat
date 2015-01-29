@@ -69,7 +69,7 @@ let rec apply_substs meta_subst = function
           (apply_substs (add_meta_subst meta_subst l) r)
 
 (* Takes ... *)
-let add_proof id (f, l, p) = ([Expr.f_not f; p], (id, "inst", l))
+let add_proof id (f, l, p) = ([Expr.f_not f; p], (id, "inst", [f; p], l))
 
 let instanciations id l =
   let l = partition l in

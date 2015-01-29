@@ -4,7 +4,8 @@ module H = Hashtbl.Make(Expr.Formula)
 let id = Dispatcher.new_id ()
 let st = H.create 256
 
-let push l = Dispatcher.push l (id, "tab", [])
+let push l =
+    Dispatcher.push l (id, "tab", l, [])
 
 let push_and r l =
   if List.exists (Expr.Formula.equal Expr.f_false) l then

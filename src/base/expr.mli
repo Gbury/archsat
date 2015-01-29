@@ -139,12 +139,14 @@ module Var : sig
   val equal : 'a t -> 'a t -> bool
   val compare : 'a t -> 'a t -> int
   val print : Format.formatter -> 'a t -> unit
+  val debug : Buffer.t -> 'a t -> unit
 end
 module Ty : sig
   type t = ty
   val hash : t -> int
   val equal : t -> t -> bool
   val compare : t -> t -> int
+  val debug : Buffer.t -> t -> unit
   val print : Format.formatter -> t -> unit
 end
 module Term : sig
@@ -152,6 +154,7 @@ module Term : sig
   val hash : t -> int
   val equal : t -> t -> bool
   val compare : t -> t -> int
+  val debug : Buffer.t -> t -> unit
   val print : Format.formatter -> t -> unit
 end
 module Formula : sig
@@ -159,6 +162,7 @@ module Formula : sig
   val hash : t -> int
   val equal : t -> t -> bool
   val compare : t -> t -> int
+  val debug : Buffer.t -> t -> unit
   val print : Format.formatter -> t -> unit
 end
 

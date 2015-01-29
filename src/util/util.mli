@@ -187,6 +187,9 @@ val list_range : int -> int -> int list
 val list_foldi : ('b -> int -> 'a -> 'b) -> 'b -> 'a list -> 'b
 (** fold on list, with index *)
 
+val list_fold2 : 'a list -> 'b list -> 'c -> ('c -> 'a -> 'b -> 'c) -> 'c
+(** Fold on 2 list simultaneously *)
+
 val times : int -> (unit -> 'a) -> 'a list
 (** call the function n times with unit *)
 

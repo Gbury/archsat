@@ -17,7 +17,7 @@ let has_been_seen f =
 let mark f lvl = H.add seen f lvl
 
 (* Small helper *)
-let mk_proof () = id, "meta", []
+let mk_proof f metas = id, "meta", [f], metas
 
 (* Set of predicates to unify *)
 let true_preds = S.create Dispatcher.stack
@@ -47,19 +47,19 @@ let meta_assume lvl = function
       if not (has_been_seen f) then begin
         mark f lvl; (* Do not re-generate metas *)
         let metas = Expr.term_metas f lvl in
-        let subst = Util.list_fold_product l metas Expr.Subst.empty
+        let subst = Util.list_fold2 l metas Expr.Subst.empty
             (fun s v t -> Expr.Subst.bind v t s) in
         let q = Expr.formula_subst Expr.Subst.empty subst p in
-        Dispatcher.push [Expr.f_not f; q] (mk_proof ())
+        Dispatcher.push [Expr.f_not f; q] (mk_proof f metas)
       end
     | { Expr.formula = Expr.Not { Expr.formula = Expr.Ex (l, p) } } as f ->
       if not (has_been_seen f) then begin
         mark f lvl; (* Do not re-generate metas *)
         let metas = Expr.term_metas f lvl in
-        let subst = Util.list_fold_product l metas Expr.Subst.empty
+        let subst = Util.list_fold2 l metas Expr.Subst.empty
             (fun s v t -> Expr.Subst.bind v t s) in
         let q = Expr.formula_subst Expr.Subst.empty subst p in
-        Dispatcher.push [Expr.f_not f; Expr.f_not q] (mk_proof ())
+        Dispatcher.push [Expr.f_not f; Expr.f_not q] (mk_proof f metas)
       end
     (* Unification discovery *)
     | { Expr.formula = Expr.Pred p } ->

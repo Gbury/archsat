@@ -850,6 +850,7 @@ module Var = struct
   let compare = compare_var
   let equal = equal_var
   let print = print_var
+  let debug = debug_var
 end
 module Ty = struct
   type t = ty
@@ -857,6 +858,7 @@ module Ty = struct
   let compare = compare_ty
   let equal = equal_ty
   let print = print_ty
+  let debug = debug_ty
 end
 module Term = struct
   type t = term
@@ -864,6 +866,7 @@ module Term = struct
   let compare = compare_term
   let equal = equal_term
   let print = print_term
+  let debug = debug_term
 end
 module Formula = struct
   type t = formula
@@ -871,5 +874,6 @@ module Formula = struct
   let compare = compare_formula
   let equal = equal_formula
   let print = print_formula
+  let debug = debug_formula
 end
 

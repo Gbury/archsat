@@ -6,7 +6,7 @@ type id
 include Msat.Plugin_intf.S with
     type term = Expr.term and
     type formula = Expr.formula and
-    type proof = id * string * Expr.term list
+    type proof = id * string * Expr.formula list * Expr.term list
 (** This module is a valid Plugin for Mcsat *)
 
 (** {2 Exceptions} *)
