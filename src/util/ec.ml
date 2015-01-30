@@ -101,8 +101,11 @@ module Make(T : Key) = struct
     let mx = {
       rank = if mx.rank = my.rank then mx.rank + 1 else mx.rank;
       tag = (match mx.tag, my.tag with
-        | Some (z, t1), Some (_, t2) ->
-          if not (T.equal t1 t2) then raise (Equal (x, y)) else Some (z, t1)
+        | Some (z, t1), Some (w, t2) ->
+          if not (T.equal t1 t2) then begin
+            log 20 "Tag shenanigan : %a (%a) <> %a (%a)" T.debug t1 T.debug z T.debug t2 T.debug w;
+            raise (Equal (z, w))
+          end else Some (z, t1)
         | Some t, None | None, Some t -> Some t
         | None, None -> None);
       forbidden = M.merge (fun _ b1 b2 -> match b1, b2 with
@@ -126,8 +129,11 @@ module Make(T : Key) = struct
     let rx, mx = get_repr h x in
     let ry, my = get_repr h y in
     if T.compare rx ry <> 0 then begin
+      log 30 "Checking %a in forbidden of %a" T.debug ry T.debug rx;
       forbid_aux mx.forbidden ry;
+      log 30 "Checking %a in forbidden of %a" T.debug rx T.debug ry;
       forbid_aux my.forbidden rx;
+      log 30 "Linking";
       if mx.rank > my.rank then
         link h rx mx ry my
       else
@@ -198,6 +204,7 @@ module Make(T : Key) = struct
   (* Functions wrapped to produce explanation in case
    * something went wrong *)
   let add_tag t x v =
+    log 30 "Adding %a -> %a" T.debug x T.debug v;
     try
       tag t x v
     with Equal (a, b) ->
@@ -205,6 +212,7 @@ module Make(T : Key) = struct
       raise (Unsat (a, b, expl t a b))
 
   let add_eq t i j =
+    log 30 "Adding %a = %a" T.debug i T.debug j;
     add_eq_aux t i j;
     try
       union t i j
@@ -213,6 +221,7 @@ module Make(T : Key) = struct
       raise (Unsat (a, b, expl t a b))
 
   let add_neq t i j =
+    log 30 "Adding %a <> %a" T.debug i T.debug j;
     try
       forbid t i j
     with

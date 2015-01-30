@@ -171,25 +171,28 @@ let preprocess f =
 (* Delayed propagation *)
 (* ************************************************************************ *)
 
-let push_stack = ref []
-let propagate_stack = ref []
+let push_stack = Stack.create ()
+let propagate_stack = Stack.create ()
 
 let push clause ext_name =
-  push_stack := (clause, ext_name) :: !push_stack
+  Stack.push (clause, ext_name) push_stack
 
 let propagate f lvl =
-  propagate_stack := (f, lvl) :: !propagate_stack
+  Stack.push (f, lvl) propagate_stack
 
 let do_propagate f =
-  List.iter (fun (a, b) -> f a b) !propagate_stack;
-  propagate_stack := []
+  while not (Stack.is_empty propagate_stack) do
+    let (a, b) = Stack.pop propagate_stack in
+    f a b
+  done
 
 let do_push f =
-  List.iter (fun (a, ((_, name, _, _) as b)) ->
-      log 1 "Push '%s'" name;
-      log 2 "Pushing %a" (Util.pp_list ~sep:"; " Expr.debug_formula) a;
-      f a b) !push_stack;
-  push_stack := []
+  while not (Stack.is_empty push_stack) do
+    let (a, ((_, name, _, _) as b)) = Stack.pop push_stack in
+    log 1 "Push '%s'" name;
+    log 2 "Pushing %a" (Util.pp_list ~sep:"; " Expr.debug_formula) a;
+    f a b
+  done
 
 (* Backtracking *)
 (* ************************************************************************ *)
@@ -205,7 +208,7 @@ let current_level () = Backtrack.Stack.level stack
 let backtrack lvl =
   log 10 "Backtracking";
   incr last_backtrack;
-  propagate_stack := [];
+  Stack.clear propagate_stack;
   Backtrack.Stack.backtrack stack lvl
 
 (* Evaluation/Watching functions *)
@@ -364,9 +367,9 @@ let assume s =
         ext_iter (fun ext -> ext.assume (f, lvl))
       | Assign (t, v), lvl -> set_assign t v lvl
     done;
-    do_push s.push;
-    log 8 "Propagating (%d)" (List.length !propagate_stack);
+    log 8 "Propagating (%d)" (Stack.length propagate_stack);
     do_propagate s.propagate;
+    do_push s.push;
     Sat
   with Absurd (l, ((_, name, _, _) as proof)) ->
     log 1 "Conflict '%s'" name;

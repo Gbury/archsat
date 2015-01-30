@@ -182,7 +182,7 @@ let print_var fmt v = Format.fprintf fmt "%s" v.var_name
 
 let print_meta fmt m = Format.fprintf fmt "m%d_%a" m.meta_index print_var m.meta_var
 
-let print_tau fmt t = Format.fprintf fmt "tau_%a" print_var t.tau_var
+let print_tau fmt t = Format.fprintf fmt "t%d_%a" t.tau_index print_var t.tau_var
 
 let print_ttype fmt = function Type -> Format.fprintf fmt "Type"
 
