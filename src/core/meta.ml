@@ -27,7 +27,7 @@ let false_preds = S.create Dispatcher.stack
 let mem x tbl = try ignore (S.find tbl x); true with Not_found -> false
 
 let inst p notp =
-  let l = Unif.bindings (Unif.cached_unify p notp) in
+  let l = Unif.S.bindings (Unif.cached_unify p notp) in
   log 1 "Found inst :";
   List.iter (fun (m, t) -> log 1 " |- %a -> %a" Expr.debug_meta m Expr.debug_term t) l;
   if not !no_inst then begin

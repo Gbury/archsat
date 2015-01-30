@@ -10,22 +10,29 @@ exception Not_unifiable
 (* Metavariables substitutions *)
 (* ************************************************************************ *)
 
-module M = Map.Make(struct
-    type t = Expr.ty Expr.meta
-    let compare m1 m2 = Expr.(Var.compare m1.meta_var m2.meta_var)
-end)
+module S = struct
+    module M = Map.Make(struct
+        type t = Expr.ty Expr.meta
+        let compare = Expr.Meta.compare
+    end)
+    type t = Expr.term M.t
+    let empty = M.empty
 
-type subst = Expr.term M.t
+    let follow subst = function
+      | { Expr.term = Expr.Meta m } -> M.find m subst
+      | _ -> raise Not_found
 
-let empty = M.empty
+    let bind m t subst = M.add m t subst
 
-let follow subst = function
-    | { Expr.term = Expr.Meta m } -> M.find m subst
-    | _ -> raise Not_found
+    let bindings = M.bindings
 
-let bind m t subst = M.add m t subst
+    let hash s = M.fold (fun m v h ->
+        Hashtbl.hash (h, Expr.Meta.hash m, Expr.Term.hash v)) s 1
 
-let bindings = M.bindings
+    let compare = M.compare Expr.Term.compare
+
+    let equal = M.equal Expr.Term.equal
+end
 
 (* Robinson unification *)
 (* ************************************************************************ *)
@@ -33,7 +40,7 @@ let bindings = M.bindings
 let rec occurs_check subst v = function
     | { Expr.term = Expr.Meta _ } as v' ->
       begin try
-          occurs_check subst v (follow subst v')
+          occurs_check subst v (S.follow subst v')
       with Not_found ->
           Expr.Term.equal v v'
       end
@@ -41,8 +48,8 @@ let rec occurs_check subst v = function
     | _ -> false
 
 let rec robinson subst s t =
-    try robinson subst (follow subst s) t with Not_found ->
-    try robinson subst s (follow subst t) with Not_found ->
+    try robinson subst (S.follow subst s) t with Not_found ->
+    try robinson subst s (S.follow subst t) with Not_found ->
       begin match s, t with
         | ({ Expr.term = Expr.Meta v } as m), u
         | u, ({ Expr.term = Expr.Meta v } as m) ->
@@ -51,7 +58,7 @@ let rec robinson subst s t =
           else if occurs_check subst m u then
             raise Not_unifiable
           else
-            bind v u subst
+            S.bind v u subst
         | { Expr.term = Expr.App (f, _, f_args) },
           { Expr.term = Expr.App (g, _, g_args) } ->
           if Expr.Var.equal f g then
@@ -61,7 +68,7 @@ let rec robinson subst s t =
         | _ -> raise Not_unifiable
       end
 
-let unify_simple s t = robinson empty s t
+let unify_simple s t = robinson S.empty s t
 
 (* Caching *)
 (* ************************************************************************ *)
