@@ -54,7 +54,11 @@ let get_options () = !options
 (* ************************************************************************ *)
 
 let proof_debug (id, name, f_args, t_args) =
-    let color = match name with | "inst" -> Some "PURPLE" | _ -> None in
+    let color = match name with
+      | "inst" -> Some "PURPLE"
+      | "tab" -> Some "LIGHTBLUE"
+      | _ -> None
+    in
     name, f_args, t_args, color
 
 (* Extensions registering *)
