@@ -208,7 +208,7 @@ val type_prop : ty
 val type_var : ttype var -> ty
 val type_app : ttype function_descr var -> ty list -> ty
 
-val type_metas : formula -> int -> ty list
+val type_metas : formula -> int -> ttype meta list
 val other_ty_metas : ttype meta -> ttype meta list
 
 (** {5 Terms} *)
@@ -217,11 +217,12 @@ val term_var : ty var -> term
 val term_app : ty function_descr var -> ty list -> term list -> term
 (** term constructors *)
 
-val term_taus : formula -> term list
-val term_metas : formula -> int -> term list
+val term_of_tau : ty tau -> term
+val term_taus : formula -> ty tau list
 (** Generates new and fresh metas for the given formula. *)
 
 val term_of_meta : ty meta -> term
+val term_metas : formula -> int -> ty meta list
 val other_term_metas : ty meta -> ty meta list
 (** [other_term_metas m] returns the list [l] of term metas that was generated together with [m]
     i.e [m] is a meta in [l] and [l] was returned by [term_metas] previously. *)

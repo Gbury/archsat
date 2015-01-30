@@ -20,7 +20,7 @@ let tau lvl = function
     | { Expr.formula = Expr.Ex (l, p) } as f ->
       if not (has_been_seen f) then begin
         mark f lvl;
-        let taus = Expr.term_taus f in
+        let taus = List.map Expr.term_of_tau (Expr.term_taus f) in
         let subst = List.fold_left2 (fun s v t -> Expr.Subst.bind v t s) Expr.Subst.empty l taus in
         let q = Expr.formula_subst Expr.Subst.empty subst p in
         Dispatcher.push [Expr.f_not f; q] (mk_proof f q l taus)
@@ -28,7 +28,7 @@ let tau lvl = function
     | { Expr.formula = Expr.Not { Expr.formula = Expr.All (l, p) } } as f ->
       if not (has_been_seen f) then begin
         mark f lvl;
-        let taus = Expr.term_taus f in
+        let taus = List.map Expr.term_of_tau (Expr.term_taus f) in
         let subst = List.fold_left2 (fun s v t -> Expr.Subst.bind v t s) Expr.Subst.empty l taus in
         let q = Expr.formula_subst Expr.Subst.empty subst p in
         Dispatcher.push [Expr.f_not f; Expr.f_not q] (mk_proof f (Expr.f_not q) l taus)

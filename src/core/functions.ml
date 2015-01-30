@@ -1,5 +1,5 @@
 
-let log_section = Util.Section.make "UF"
+let log_section = Util.Section.make "functions"
 let log i fmt = Util.debug ~section:log_section i fmt
 
 module H = Backtrack.HashtblBack(Expr.Term)

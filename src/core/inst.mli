@@ -1,6 +1,5 @@
 
 
-
 val instanciations : Dispatcher.id ->
     (Expr.ty Expr.meta * Expr.term) list ->
     ((Expr.formula list) * Dispatcher.proof) list

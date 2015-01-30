@@ -189,8 +189,7 @@ let do_propagate f =
 let do_push f =
   while not (Stack.is_empty push_stack) do
     let (a, ((_, name, _, _) as b)) = Stack.pop push_stack in
-    log 1 "Push '%s'" name;
-    log 2 "Pushing %a" (Util.pp_list ~sep:"; " Expr.debug_formula) a;
+    log 8 "Pushing '%s' : %a" name (Util.pp_list ~sep:"; " Expr.debug_formula) a;
     f a b
   done
 
@@ -363,7 +362,7 @@ let assume s =
     for i = s.start to s.start + s.length - 1 do
       match s.get i with
       | Lit f, lvl ->
-        log 6 " Assuming (%d) %a" lvl Expr.debug_formula f;
+        log 1 " Assuming (%d) %a" lvl Expr.debug_formula f;
         ext_iter (fun ext -> ext.assume (f, lvl))
       | Assign (t, v), lvl -> set_assign t v lvl
     done;
@@ -372,7 +371,7 @@ let assume s =
     do_push s.push;
     Sat
   with Absurd (l, ((_, name, _, _) as proof)) ->
-    log 1 "Conflict '%s'" name;
+    log 3 "Conflict '%s'" name;
     List.iter (fun f -> log 1 " |- %a" Expr.debug_formula f) l;
     Unsat (l, proof)
 

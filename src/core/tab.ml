@@ -23,23 +23,34 @@ let tab = function
     push_and r l
   | { Expr.formula = Expr.Not ({ Expr.formula = Expr.And l } as r) } ->
     push_or (Expr.f_not r) (List.rev_map Expr.f_not l)
+
   (* 'Or' traduction *)
   | { Expr.formula = Expr.Or l } as r ->
     push_or r l
   | { Expr.formula = Expr.Not ({ Expr.formula = Expr.Or l } as r) } ->
     push_and (Expr.f_not r) (List.rev_map Expr.f_not l)
+
   (* 'Imply' traduction *)
   | { Expr.formula = Expr.Imply (p, q) } as r ->
-    push [Expr.f_not r; Expr.f_not p; q]
+    let left = List.map Expr.f_not (match p with
+      | { Expr.formula = Expr.And l } -> l
+      | _ -> [p]) in
+    let right = match q with
+      | { Expr.formula = Expr.Or l } -> l
+      | _ -> [q] in
+    push (Expr.f_not r :: (left @ right))
   | { Expr.formula = Expr.Not ({ Expr.formula = Expr.Imply (p, q) } as r )  } ->
     push [r; p];
     push [r; Expr.f_not q]
+
   (* 'Equiv' traduction *)
   | { Expr.formula = Expr.Equiv (p, q) } as r ->
     push [Expr.f_not r; Expr.f_not p; q];
     push [Expr.f_not r; Expr.f_not q; p]
   | { Expr.formula = Expr.Not ({ Expr.formula = Expr.Equiv (p, q) } as r )  } ->
     push [r; Expr.f_and [p; Expr.f_not q]; Expr.f_and [Expr.f_not p; q] ]
+
+  (* Other formulas (not treated) *)
   | _ -> ()
 
 let tab_assume (f, i) =

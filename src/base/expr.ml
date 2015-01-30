@@ -692,7 +692,7 @@ let f_and l =
     | { formula = And l' } :: r -> aux (List.rev_append l' acc) r
     | a :: r -> aux (a :: acc) r
   in
-  match aux [] l with
+  match List.rev (aux [] l) with
   | [] -> f_false
   | l' -> mk_formula (And l')
 
@@ -702,7 +702,7 @@ let f_or l =
     | { formula = Or l' } :: r -> aux (List.rev_append l' acc) r
     | a :: r -> aux (a :: acc) r
   in
-  match aux [] l with
+  match List.rev (aux [] l) with
   | [] -> f_true
   | l' -> mk_formula (Or l')
 
@@ -832,13 +832,13 @@ let other_term_metas m = snd (Vector.get meta_term_index m.meta_index)
 let type_metas f lvl = match f.formula with
   | Not { formula = ExTy(l, _) } | AllTy (l, _) ->
     let new_vars = List.map (fun v -> mk_var v.var_name v.var_type) l in
-    List.map ty_of_meta (mk_ty_metas new_vars f lvl)
+    mk_ty_metas new_vars f lvl
   | _ -> invalid_arg "type_metas"
 
 let term_metas f lvl = match f.formula with
   | Not { formula = Ex(l, _) } | All (l, _) ->
     let new_vars = List.map (fun v -> mk_var v.var_name v.var_type) l in
-    List.map term_of_meta (mk_metas new_vars f lvl)
+    mk_metas new_vars f lvl
   | _ -> invalid_arg "term_metas"
 
 (* Taus *)
@@ -846,14 +846,15 @@ let mk_tau v i = { tau_var = v; tau_index = i }
 
 let get_tau_def i = Vector.get tau_index i
 
+let term_of_tau t = mk_term (Tau t) t.tau_var.var_type
+
 let mk_taus l f =
   let i = Vector.size tau_index in
   Vector.push tau_index f;
   List.map (fun v -> mk_tau (mk_var v.var_name v.var_type) i) l
 
 let term_taus f = match f.formula with
-  | Not { formula = All (l, _) } | Ex (l, _) ->
-    List.map (fun t -> mk_term (Tau t) t.tau_var.var_type) (mk_taus l f)
+  | Not { formula = All (l, _) } | Ex (l, _) -> mk_taus l f
   | _ -> invalid_arg "type_metas"
 
 (* Modules for simpler function names *)
