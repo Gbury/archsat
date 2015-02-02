@@ -5,7 +5,7 @@
  * what are usually called 'variables' in litterature are
  * actually the metavariables in the terms *)
 
-exception Not_unifiable
+exception Not_unifiable of Expr.term * Expr.term
 
 (* Metavariables substitutions *)
 (* ************************************************************************ *)
@@ -51,12 +51,13 @@ let rec robinson subst s t =
     try robinson subst (S.follow subst s) t with Not_found ->
     try robinson subst s (S.follow subst t) with Not_found ->
       begin match s, t with
+        | _ when Expr.Term.equal s t -> subst
         | ({ Expr.term = Expr.Meta v } as m), u
         | u, ({ Expr.term = Expr.Meta v } as m) ->
           if Expr.Term.equal s t then
             subst
           else if occurs_check subst m u then
-            raise Not_unifiable
+            raise (Not_unifiable (m, u))
           else
             S.bind v u subst
         | { Expr.term = Expr.App (f, _, f_args) },
@@ -64,8 +65,8 @@ let rec robinson subst s t =
           if Expr.Var.equal f g then
             List.fold_left2 robinson subst f_args g_args
           else
-            raise Not_unifiable
-        | _ -> raise Not_unifiable
+            raise (Not_unifiable (s, t))
+        | _ -> raise (Not_unifiable (s, t))
       end
 
 let unify_simple s t = robinson S.empty s t

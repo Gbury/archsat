@@ -34,8 +34,6 @@ let inst_order (_, i, _) (_, j, _) = compare j i
  * the right formula is the result of instanciating the left one. *)
 let var_subst_of_list = List.fold_left (fun s (v, t) -> Expr.Subst.bind v t s) Expr.Subst.empty
 
-let add_meta_subst = List.fold_left (fun s (m, t) -> Expr.Subst.bind Expr.(m.meta_var) t s)
-
 let make_inst vars l =
     let rec aux l subst acc = function
         | [] -> subst, List.rev acc
@@ -51,10 +49,7 @@ let make_inst vars l =
     in
     aux l [] [] vars
 
-let rec apply_substs meta_subst = function
-    | [] -> []
-    | (f, _, l) :: r ->
-      let f = Expr.formula_subst Expr.Subst.empty meta_subst f in
+let apply_subst (f, _, l) =
       let s, p = match f with
       | { Expr.formula = Expr.All (vars, p) } ->
         let var_subst, new_vars = make_inst vars l in
@@ -66,17 +61,18 @@ let rec apply_substs meta_subst = function
         var_subst, Expr.formula_subst Expr.Subst.empty (var_subst_of_list var_subst) f'
       | _ -> assert false
       in
-      (f, s, p) :: (apply_substs (add_meta_subst meta_subst l) r)
+      (f, s, p)
 
 (* Takes ... *)
 let add_proof id (f, l, p) =
     let l' = Util.list_flatmap (fun (v, t) -> [Expr.term_var v; t]) l in
     ([Expr.f_not f; p], (id, "inst", [f; p], l'))
 
-let instanciations id l =
+let instanciation id l =
+  assert (l <> []);
   let l = partition l in
   let l = List.map formula_subst l in
   let l = List.sort inst_order l in
-  let l = apply_substs Expr.Subst.empty l in
-  List.map (add_proof id) l
+  let p = apply_subst (List.hd l) in
+  add_proof id p
 

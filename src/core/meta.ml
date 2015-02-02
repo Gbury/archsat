@@ -24,22 +24,38 @@ let mk_proof f metas = id, "meta", [f], metas
 let true_preds = S.create Dispatcher.stack
 let false_preds = S.create Dispatcher.stack
 
-let mem x tbl = try ignore (S.find tbl x); true with Not_found -> false
+let mem x tbl = S.mem tbl x
+
+let rec print_aux = function
+    | [] -> ()
+    | x :: v :: r ->
+      log 3 " | %a -> %a" Expr.debug_term x Expr.debug_term v;
+      print_aux r
+    | [_] -> assert false
 
 let inst p notp =
   let l = Unif.S.bindings (Unif.cached_unify p notp) in
-  log 1 "Found inst :";
-  List.iter (fun (m, t) -> log 1 " |- %a -> %a" Expr.debug_meta m Expr.debug_term t) l;
+  log 10 "Found inst";
+  List.iter (fun (m, t) -> log 5 " |- %a -> %a" Expr.debug_meta m Expr.debug_term t) l;
   if not !no_inst then begin
-    let insts = Inst.instanciations id l in
-    List.iter (fun (cl, proof) -> Dispatcher.push cl proof) insts
+    let (cl, ((_, _, fl, tl) as proof)) = Inst.instanciation id l in
+    begin match fl with
+    | [f;p] ->
+            log 1 "Inst : %a" Expr.debug_formula f;
+            print_aux tl;
+            log 1 "Res : %a" Expr.debug_formula p
+    | _ -> assert false
+    end;
+    Dispatcher.push cl proof
   end
 
 let find_inst p notp _ =
     try
+        log 5 "Matching : %a ~~ %a" Expr.debug_term p Expr.debug_term notp;
         inst p notp;
         inst notp p
-    with Unif.Not_unifiable -> ()
+    with Unif.Not_unifiable (a, b) ->
+        log 15 "Couldn't unify %a and %a" Expr.debug_term a Expr.debug_term b
 
 (* Assuming function *)
 let meta_assume lvl = function
@@ -64,12 +80,12 @@ let meta_assume lvl = function
     | { Expr.formula = Expr.Pred p } ->
       if not (mem p true_preds) then begin
         S.iter (find_inst p) false_preds;
-        S.add true_preds p 0
+        S.add true_preds p lvl
       end
     | { Expr.formula = Expr.Not { Expr.formula = Expr.Pred p } } ->
       if not (mem p false_preds) then begin
         S.iter (find_inst p) true_preds;
-        S.add false_preds p 0
+        S.add false_preds p lvl
       end
     | _ -> ()
 

@@ -1,7 +1,7 @@
 
 (** Unification for terms *)
 
-exception Not_unifiable
+exception Not_unifiable of Expr.term * Expr.term
 
 (** {2 Module for unifiers} *)
 

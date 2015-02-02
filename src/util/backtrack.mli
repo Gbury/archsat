@@ -24,6 +24,7 @@ module HashtblBack :
     type 'a t
     val create : ?size:int -> Stack.t -> 'a t
     val add : 'a t -> key -> 'a -> unit
+    val mem : 'a t -> key -> bool
     val find : 'a t -> key -> 'a
     val remove : 'a t -> key -> unit
     val iter : (key -> 'a -> unit) -> 'a t -> unit

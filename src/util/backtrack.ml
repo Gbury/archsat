@@ -75,6 +75,7 @@ module HashtblBack(K : Hashtbl.HashedType) = struct
 
   let create ?(size=256) stack = {tbl = H.create size; stack; }
 
+  let mem {tbl; _} x = H.mem tbl x
   let find {tbl; _} k = H.find tbl k
 
   let add t k v =

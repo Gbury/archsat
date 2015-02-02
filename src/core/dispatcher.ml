@@ -193,7 +193,7 @@ let do_propagate f =
 let do_push f =
   while not (Stack.is_empty push_stack) do
     let (a, ((_, name, _, _) as b)) = Stack.pop push_stack in
-    log 8 "Pushing '%s' : %a" name (Util.pp_list ~sep:"; " Expr.debug_formula) a;
+    log 2 "Pushing '%s' : %a" name (Util.pp_list ~sep:" || " Expr.debug_formula) a;
     f a b
   done
 
