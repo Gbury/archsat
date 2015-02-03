@@ -78,4 +78,5 @@ Dispatcher.(register {
     assume = (fun _ -> ());
     eval_pred = (fun _ -> None);
     preprocess = uf_pre;
+    if_sat = (fun _ -> ());
   })

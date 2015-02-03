@@ -72,4 +72,5 @@ D.(register {
     assume = sat_assume;
     eval_pred = sat_eval;
     preprocess = sat_preprocess;
+    if_sat = (fun _ -> ());
   })

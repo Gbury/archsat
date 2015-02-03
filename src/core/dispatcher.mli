@@ -33,6 +33,7 @@ type extension = {
   assume : formula * int -> unit;
   eval_pred : formula -> (bool * int) option;
   preprocess : formula -> unit;
+  if_sat : unit -> unit;
 }
 (** Type of plugins/extensions *)
 

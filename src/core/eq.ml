@@ -124,6 +124,5 @@ D.(register {
     assume = eq_assume;
     eval_pred = eq_eval;
     preprocess = eq_pre;
+    if_sat = (fun _ -> ());
   })
-
-

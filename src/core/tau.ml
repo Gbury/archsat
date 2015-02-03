@@ -49,5 +49,6 @@ Dispatcher.(register {
     assume = tau_assume;
     eval_pred = tau_eval;
     preprocess = tau_pre;
+    if_sat = (fun _ -> ());
   })
 

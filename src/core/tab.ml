@@ -71,5 +71,6 @@ Dispatcher.(register {
     assume = tab_assume;
     eval_pred = tab_eval;
     preprocess = tab_pre;
+    if_sat = (fun _ -> ());
   })
 

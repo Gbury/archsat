@@ -80,6 +80,7 @@ type extension = {
   assume : formula * int -> unit;
   eval_pred : formula -> (bool * int) option;
   preprocess : formula -> unit;
+  if_sat : unit -> unit;
 }
 
 let extensions = ref []
@@ -378,6 +379,14 @@ let assume s =
     log 3 "Conflict '%s'" name;
     List.iter (fun f -> log 1 " |- %a" Expr.debug_formula f) l;
     Unsat (l, proof)
+
+let if_sat s =
+    log 5 "Iteration with complete model";
+    begin try
+        ext_iter (fun ext -> ext.if_sat ())
+    with Absurd _ -> assert false
+    end;
+    do_push s.push
 
 let assign t =
   log 5 "Finding assignment for %a" Expr.debug_term t;

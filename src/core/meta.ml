@@ -4,6 +4,7 @@ let log i fmt = Util.debug ~section:log_section i fmt
 
 module H = Hashtbl.Make(Expr.Formula)
 module S = Backtrack.HashtblBack(Expr.Term)
+module U = Hashtbl.Make(Unif.S)
 
 let id = Dispatcher.new_id ()
 let no_inst = ref false
@@ -21,35 +22,43 @@ let mark f lvl = H.add seen f lvl
 let mk_proof f metas = id, "meta", [f], metas
 
 (* Set of predicates to unify *)
+let unif_set = U.create 256
 let true_preds = S.create Dispatcher.stack
 let false_preds = S.create Dispatcher.stack
 
 let mem x tbl = S.mem tbl x
 
-let rec print_aux = function
-    | [] -> ()
-    | x :: v :: r ->
-      log 3 " | %a -> %a" Expr.debug_term x Expr.debug_term v;
-      print_aux r
-    | [_] -> assert false
-
-let inst p notp =
-  let l = Unif.S.bindings (Unif.cached_unify p notp) in
-  log 10 "Found inst";
-  List.iter (fun (m, t) -> log 5 " |- %a -> %a" Expr.debug_meta m Expr.debug_term t) l;
-  if not !no_inst then begin
-    let (cl, ((_, _, fl, tl) as proof)) = Inst.instanciation id l in
+let print_aux fl tl =
+    let rec aux = function
+        | [] -> ()
+        | x :: v :: r ->
+          log 3 " | %a -> %a" Expr.debug_term x Expr.debug_term v;
+          aux r
+        | [_] -> assert false
+    in
     begin match fl with
     | [f;p] ->
             log 1 "Inst : %a" Expr.debug_formula f;
-            print_aux tl;
+            aux tl;
             log 1 "Res : %a" Expr.debug_formula p
     | _ -> assert false
-    end;
-    Dispatcher.push cl proof
+    end
+
+let inst p notp =
+  let unif = Unif.cached_unify p notp in
+  if not (U.mem unif_set unif) then begin
+    U.add unif_set unif 0;
+    let l = Unif.S.bindings unif in
+    log 10 "Found inst";
+    List.iter (fun (m, t) -> log 5 " |- %a -> %a" Expr.debug_meta m Expr.debug_term t) l;
+    if not !no_inst then begin
+      let (cl, ((_, _, fl, tl) as proof)) = Inst.instanciation id l in
+      print_aux fl tl;
+      Dispatcher.push cl proof
+    end
   end
 
-let find_inst p notp _ =
+let find_inst p notp =
     try
         log 5 "Matching : %a ~~ %a" Expr.debug_term p Expr.debug_term notp;
         inst p notp;
@@ -79,15 +88,16 @@ let meta_assume lvl = function
     (* Unification discovery *)
     | { Expr.formula = Expr.Pred p } ->
       if not (mem p true_preds) then begin
-        S.iter (find_inst p) false_preds;
         S.add true_preds p lvl
       end
     | { Expr.formula = Expr.Not { Expr.formula = Expr.Pred p } } ->
       if not (mem p false_preds) then begin
-        S.iter (find_inst p) true_preds;
         S.add false_preds p lvl
       end
     | _ -> ()
+
+let find_all_insts () =
+  S.iter (fun p _ -> S.iter (fun notp _ -> find_inst p notp) false_preds) true_preds
 
 let meta_eval _ = None
 
@@ -104,5 +114,6 @@ Dispatcher.(register {
     assume = (fun (f, lvl) -> meta_assume lvl f);
     eval_pred = meta_eval;
     preprocess = meta_pre;
+    if_sat = find_all_insts;
   })
 
