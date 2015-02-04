@@ -37,6 +37,7 @@ type eval_res =
   | Unknown
 
 type job = {
+    job_ext : id;
     job_n : int;
     mutable job_done : int;
     job_callback : unit -> unit;
@@ -122,11 +123,15 @@ let deactivate ext =
 let set_ext s =
     match s.[0] with
     | '-' -> deactivate (String.sub s 1 (String.length s - 1))
-    | '+' | _ -> activate (String.sub s 1 (String.length s - 1))
+    | '+' -> activate (String.sub s 1 (String.length s - 1))
+    | _ -> activate s
 
 let set_exts s = List.iter set_ext (Util.str_split ~by:"," s)
 
 let list_extensions () = List.map (fun r -> r.name) !extensions
+
+let find_ext id =
+    List.find (fun ext -> ext.id = id) !extensions
 
 (* Acces functions for active extensions *)
 let ext_iter f = List.iter f !active
@@ -188,6 +193,7 @@ let propagate f lvl =
 let do_propagate f =
   while not (Stack.is_empty propagate_stack) do
     let (a, b) = Stack.pop propagate_stack in
+    log 10 "Propagating : %a" Expr.debug_formula a;
     f a b
   done
 
@@ -270,14 +276,17 @@ let update_watch x j =
     let _, old_watched = find (Expr.Term.equal x) [] j.watched in
     try
       let y, old_not_watched = find (fun y -> not (is_assigned y)) [] j.not_watched in
+      log 10 "New watcher (%a) for job from %s" Expr.debug_term y (find_ext j.job_ext).name;
       j.not_watched <- x :: old_not_watched;
       j.watched <- y :: old_watched;
       add_job j y;
     with Not_found ->
       add_job j x;
+      log 10 "Calling job from %s" (find_ext j.job_ext).name;
       call_job j
 
-let new_job k watched not_watched f = {
+let new_job id k watched not_watched f = {
+  job_ext = id;
   job_n = k;
   watched = watched;
   not_watched = not_watched;
@@ -288,12 +297,12 @@ let new_job k watched not_watched f = {
 let watch tag k args f =
   let rec split assigned not_assigned i = function
     | l when i <= 0 ->
-      let j = new_job k not_assigned (List.rev_append l assigned) f in
+      let j = new_job tag k not_assigned (List.rev_append l assigned) f in
       List.iter (add_job j) not_assigned
     | [] (* i > 0 *) ->
       let l = List.rev_append not_assigned assigned in
       let to_watch, not_watched = Util.list_split_at k l in
-      let j = new_job k to_watch not_watched f in
+      let j = new_job tag k to_watch not_watched f in
       List.iter (add_job j) to_watch;
       call_job j
     | y :: r ->
@@ -305,10 +314,12 @@ let watch tag k args f =
   let t' = Builtin.tuple args in
   let l = try H.find watchers t' with Not_found -> [] in
   if not (List.mem tag l) then begin
+      log 10 "New watch from %s, %d among : %a" (find_ext tag).name k (Util.pp_list ~sep:" || " Expr.debug_term) args;
     H.add watchers t' (tag :: l);
     split [] [] k args
   end
 
+(*
 let rec try_eval t =
   assert (not (is_assigned t));
   log 7 "Try-Eval of %a" Expr.debug_term t;
@@ -334,6 +345,17 @@ let rec try_eval t =
       with Not_assigned _ ->
         None
     end
+*)
+
+let rec assign_watch t = function
+  | [] -> ()
+  | j :: r ->
+    try
+      update_watch t j;
+      assign_watch t r
+    with (Absurd _) as e ->
+      List.iter (fun j -> add_job j t) r;
+      raise e
 
 and set_assign t v lvl =
   try
@@ -344,17 +366,21 @@ and set_assign t v lvl =
   with Not_found ->
     log 5 "Assign (%d) : %a -> %a" lvl Expr.debug_term t Expr.debug_term v;
     M.add eval_map t (v, lvl);
-    begin try
+    begin
+      try
         let l = hpop watch_map t in
         log 10 " Found %d watchers" (List.length l);
-        List.iter (update_watch t) l
-      with Not_found -> () end;
+        assign_watch t l
+      with Not_found -> ()
+    end
+    (*
     begin try
         let l = pop wait_eval t in
         log 10 " Waiting for %a :" Expr.debug_term t;
         List.iter (fun t' -> log 10 "  -> %a" Expr.debug_term t') l;
         List.iter (fun t' -> ignore (try_eval t')) l
       with Not_found -> () end
+      *)
 
 let model () = M.fold eval_map (fun t (v, _) acc -> (t, v) :: acc) []
 

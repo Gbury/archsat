@@ -59,6 +59,20 @@ module Make(T : Key) = struct
       repr = H.create s;
   }
 
+  let debug_tag b = function
+      | None -> Printf.bprintf b "_"
+      | Some (y, v) -> Printf.bprintf b "%a : %a" T.debug y T.debug v
+
+  let debug_forbidden =
+   M.iter (fun x (y, z) -> log 50 "    |-  %a (%a <> %a)" T.debug x T.debug y T.debug z)
+
+  let debug_m x { rank; tag; forbidden } =
+    log 50 "Repr for %a :" T.debug x;
+    log 50 " |- rank = %d" rank;
+    log 50 " |- tag = %a" debug_tag tag;
+    log 50 " |- forbidden list :";
+    debug_forbidden forbidden
+
   (* Union-find algorithm with path compression *)
   let self_repr = Repr { rank = 0; tag = None; forbidden = M.empty }
 
@@ -80,10 +94,15 @@ module Make(T : Key) = struct
 
   let tag h x v =
     let r, y = find_aux h.repr x in
-    H.add h.repr y (Repr { r with
-    tag = match r.tag with
-    | Some (_, v') when not (T.equal v v') -> raise (Equal (x, y))
-    | _ -> Some (x, v) })
+    let new_m =
+      { r with
+        tag = match r.tag with
+          | Some (_, v') when not (T.equal v v') -> raise (Equal (x, y))
+          | (Some _) as t -> t
+          | None -> Some (x, v) }
+    in
+    debug_m y new_m;
+    H.add h.repr y (Repr new_m)
 
   let find h x = fst (get_repr h x)
 
@@ -98,7 +117,7 @@ module Make(T : Key) = struct
     with Not_found -> ()
 
   let link h x mx y my =
-    let mx = {
+    let new_m = {
       rank = if mx.rank = my.rank then mx.rank + 1 else mx.rank;
       tag = (match mx.tag, my.tag with
         | Some (z, t1), Some (w, t2) ->
@@ -121,9 +140,12 @@ module Make(T : Key) = struct
         H.add m z (Repr r')
       | _ -> assert false
     in
+    debug_m x mx;
+    debug_m y my;
     M.iter (aux h.repr) my.forbidden;
     H.add h.repr y (Follow x);
-    H.add h.repr x (Repr mx)
+    H.add h.repr x (Repr new_m);
+    debug_m x new_m
 
   let union h x y =
     let rx, mx = get_repr h x in
@@ -133,11 +155,13 @@ module Make(T : Key) = struct
       forbid_aux mx.forbidden ry;
       log 30 "Checking %a in forbidden of %a" T.debug rx T.debug ry;
       forbid_aux my.forbidden rx;
-      log 30 "Linking";
-      if mx.rank > my.rank then
+      if mx.rank > my.rank then begin
+        log 20 "Linking %a <- %a" T.debug rx T.debug ry;
         link h rx mx ry my
-      else
+      end else begin
+        log 20 "Linking %a <- %a" T.debug ry T.debug rx;
         link h ry my rx mx
+      end
     end
 
   let forbid h x y =

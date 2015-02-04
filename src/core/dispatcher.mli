@@ -94,9 +94,11 @@ val set_assign : term -> term -> int -> unit
 (** [set_assign t v lvl] sets the assignment of [t] to [v], with level [lvl].
     May erase previous assignment of [t]. *)
 
+(*
 val try_eval : term -> term option
 (** Try and eval the given term. In case it fails (and returns [None]),
     it sets up a watching scheme to evaluate the given term as soon as possible. *)
+*)
 
 val watch : id -> int -> term list -> (unit -> unit) -> unit
 (** [watch tag k l f] sets up a k-watching among the terms in l, calling f once there is less

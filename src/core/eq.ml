@@ -10,11 +10,12 @@ let st = E.create D.stack
 let id = D.new_id ()
 let watch = D.watch id
 
-let eq_eval = function
+let eq_eval f = match f with
   | { Expr.formula = Expr.Equal (a, b) } ->
     begin try
         let a', lvl_a = D.get_assign a in
         let b', lvl_b = D.get_assign b in
+        log 30 "Eval [%a] %a (%d) == %a (%d)" Expr.debug_formula f Expr.debug_term a' lvl_a Expr.debug_term b' lvl_b;
         Some (Expr.Term.equal a' b', max lvl_a lvl_b)
       with D.Not_assigned _ ->
         None
@@ -23,6 +24,7 @@ let eq_eval = function
     begin try
         let a', lvl_a = D.get_assign a in
         let b', lvl_b = D.get_assign b in
+        log 30 "Eval [%a] %a (%d) <> %a (%d)" Expr.debug_formula f Expr.debug_term a' lvl_a Expr.debug_term b' lvl_b;
         Some (not (Expr.Term.equal a' b'), max lvl_a lvl_b)
       with D.Not_assigned _ ->
         None
@@ -56,17 +58,19 @@ let wrap f x y =
 
 let tag x () =
     try
+        log 10 "Tagging %a" Expr.debug_term x;
         E.add_tag st x (fst (D.get_assign x))
     with E.Unsat (a, b, l) ->
       log 2 "Error while tagging : %a -> %a" Expr.debug_term x Expr.debug_term (fst (D.get_assign x));
       raise (D.Absurd (mk_expl (a, b, l), mk_proof l))
 
 let eq_assign x =
-    watch 1 [x] (tag x);
     try
       begin match E.find_tag st x with
-        | _, Some (_, v) -> v
-        | x, None -> try fst (D.get_assign x) with D.Not_assigned _ -> x
+        | _, Some (_, v) -> log 5 "Found tag : %a" Expr.debug_term v; v
+        | x, None ->
+          log 5 "Looking up repr : %a" Expr.debug_term x;
+          try fst (D.get_assign x) with D.Not_assigned _ -> x
       end
     with E.Unsat (a, b, l) ->
         log 0 "WUUUT ?!!";
