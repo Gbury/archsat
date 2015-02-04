@@ -42,7 +42,7 @@ let make_inst vars l =
             let (m, t) = List.find (fun (m, _) ->
                 Expr.(m.meta_var.var_name = v.var_name)) l
             in
-            aux l ((v, t) :: subst) acc r
+            aux l ((v, Unif.protect_term t) :: subst) acc r
           with Not_found ->
             aux l subst (v :: acc) r
           end

@@ -7,6 +7,15 @@
 
 exception Not_unifiable of Expr.term * Expr.term
 
+(* Metavariable protection *)
+(* ************************************************************************ *)
+
+let rec protect_term = function
+    | { Expr.term = Expr.Meta m } -> Expr.term_of_meta (Expr.protect m)
+    | { Expr.term = Expr.App (f, ty_l, t_l) } ->
+      Expr.term_app f ty_l (List.map protect_term t_l)
+    | t -> t
+
 (* Metavariables substitutions *)
 (* ************************************************************************ *)
 
@@ -52,11 +61,9 @@ let rec robinson subst s t =
     try robinson subst s (S.follow subst t) with Not_found ->
       begin match s, t with
         | _ when Expr.Term.equal s t -> subst
-        | ({ Expr.term = Expr.Meta v } as m), u
-        | u, ({ Expr.term = Expr.Meta v } as m) ->
-          if Expr.Term.equal s t then
-            subst
-          else if occurs_check subst m u then
+        | ({ Expr.term = Expr.Meta ({Expr.can_unify= true} as v) } as m), u
+        | u, ({ Expr.term = Expr.Meta ({Expr.can_unify = true} as v) } as m) ->
+          if occurs_check subst m u then
             raise (Not_unifiable (m, u))
           else
             S.bind v u subst

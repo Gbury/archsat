@@ -3,6 +3,8 @@
 
 exception Not_unifiable of Expr.term * Expr.term
 
+val protect_term : Expr.term -> Expr.term
+
 (** {2 Module for unifiers} *)
 
 module S : sig

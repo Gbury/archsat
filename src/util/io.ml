@@ -89,5 +89,10 @@ let print_model fmt l =
 
 let print_proof fmt p =
   match !output with
-  | Standard -> fprintf fmt "Standar proof output not supported yet."
+  | Standard -> fprintf fmt "Standard proof output not supported yet."
   | Dot -> Solver.print_proof_dot fmt p
+
+let print_res fmt status time =
+  fprintf fmt "%s (%.3f)"  status time
+
+

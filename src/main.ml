@@ -146,14 +146,14 @@ let do_command = function
       let res = wrap "solve" Solver.solve () in
       begin match res with
         | Solver.Sat ->
-          Io.fprintf std "Sat";
+          Io.print_res std "Sat" (Sys.time ());
           begin match !p_model with
             | None -> () | _ ->
               Io.fprintf std "Model :";
               Io.print_model std (get_model ())
           end
         | Solver.Unsat ->
-          Io.fprintf std "Unsat";
+          Io.print_res std "Unsat" (Sys.time ());
           if !p_proof then
             let proof = Solver.get_proof () in
             Io.print_proof std proof
@@ -182,6 +182,12 @@ let main () =
 try
   main ()
 with
+| Out_of_time ->
+  Io.print_res std "Timeout" (Sys.time ());
+  exit 1
+| Out_of_space ->
+  Io.print_res std "Out of space" (Sys.time ());
+  exit 1
 | Io.Parsing_error (l, msg) ->
   Format.fprintf std "%a:@\n%s@." ParseLocation.fmt l msg;
   exit 2

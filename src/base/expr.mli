@@ -14,6 +14,7 @@ type 'ty meta = private {
   meta_var : 'ty var;
   meta_index : int;
   meta_level : int;
+  can_unify : bool;
 }
 
 type 'ty tau = private {
@@ -226,6 +227,9 @@ val term_metas : formula -> int -> ty meta list
 val other_term_metas : ty meta -> ty meta list
 (** [other_term_metas m] returns the list [l] of term metas that was generated together with [m]
     i.e [m] is a meta in [l] and [l] was returned by [term_metas] previously. *)
+
+val protect : 'a meta -> 'a meta
+(** Returns a meta equal to its argument, but that shouldn't be unified. (field 'can_unify' set to false) *)
 
 (** {5 Formulas} *)
 

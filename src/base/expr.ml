@@ -13,6 +13,7 @@ type 'ty meta = {
   meta_var : 'ty var;
   meta_index : int;
   meta_level : int;
+  can_unify : bool;
 }
 
 type 'ty tau = {
@@ -806,7 +807,14 @@ let meta_term_index = Vector.make 37 ({ formula = True; f_hash = -1 }, [])
 let tau_index = Vector.make 37 { formula = True; f_hash = -1 }
 
 (* Metas *)
-let mk_meta v i lvl = { meta_var = v; meta_index = i; meta_level = lvl; }
+let mk_meta v i lvl = {
+  meta_var = v;
+  meta_index = i;
+  meta_level = lvl;
+  can_unify = true;
+}
+
+let protect meta = { meta with can_unify = false }
 
 let get_meta_def i = fst (Vector.get meta_term_index i)
 let get_meta_ty_def i = fst (Vector.get meta_ty_index i)
