@@ -18,6 +18,10 @@ let push_or r l =
     push (Expr.f_not r :: l)
 
 let tab = function
+  (* 'True/False' traduction *)
+  | { Expr.formula = Expr.False } ->
+    raise (Dispatcher.Absurd ([Expr.f_true], (id, "true", [], [])))
+
   (* 'And' traduction *)
   | { Expr.formula = Expr.And l } as r ->
     push_and r l

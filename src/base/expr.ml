@@ -684,6 +684,8 @@ let f_true = mk_formula True
 let f_false = mk_formula False
 
 let f_not f = match f.formula with
+  | True -> f_false
+  | False -> f_true
   | Not f' -> f'
   | _ -> mk_formula (Not f)
 

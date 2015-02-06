@@ -4,9 +4,9 @@ module D = Dispatcher
 let id = D.new_id ()
 
 let sat_assume = function
-  | {Expr.formula = Expr.Pred ({Expr.term = Expr.App (p, _, _)} as t)}, lvl ->
+  | { Expr.formula = Expr.Pred ({Expr.term = Expr.App (p, _, _)} as t)}, lvl ->
     D.set_assign t Builtin.p_true lvl
-  | {Expr.formula = Expr.Not {Expr.formula = Expr.Pred ({Expr.term = Expr.App (p, _, _)} as t)}}, lvl ->
+  | { Expr.formula = Expr.Not {Expr.formula = Expr.Pred ({Expr.term = Expr.App (p, _, _)} as t)}}, lvl ->
     D.set_assign t Builtin.p_false lvl
   | _ -> ()
 

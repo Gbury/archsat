@@ -23,6 +23,7 @@ module SatExpr = struct
   let neg f = Expr.f_not f
 
   let norm = function
+    | { Expr.formula = Expr.False } -> Expr.f_true, true
     | { Expr.formula = Expr.Not f } -> f, true
     | f -> f, false
 end
