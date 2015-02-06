@@ -9,6 +9,7 @@ type input =
   | Auto
   | Dimacs
   | Tptp
+  | Smtlib
 
 type output =
   | Standard
@@ -24,6 +25,7 @@ let input_list = [
   "auto", Auto;
   "dimacs", Dimacs;
   "tptp", Tptp;
+  "smtlib", Smtlib;
 ]
 
 let output_list = [
@@ -49,6 +51,8 @@ let format_of_filename s =
     Tptp
   else if last 4 = ".cnf" then
     Dimacs
+  else if last 5 = ".smt2" then
+    Smtlib
   else (* Default choice *)
     Dimacs
 
@@ -66,6 +70,7 @@ let rec parse_input file = match !input with
       with Tptp.Parse_error (loc, msg) ->
         raise (Parsing_error (loc, msg))
     end
+  | Smtlib -> Smtlib.parse_file file
 
 (* Output functions *)
 (* ************************************************************************ *)

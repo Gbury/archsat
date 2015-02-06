@@ -7,11 +7,13 @@ type symbol =
   | Int of string
   | Rat of string
   | Real of string
+  | Hexa of string
+  | Binary of string
   | String of string
   | Ttype | Wildcard
   | True | False
-  | Eq | Distinct | Arrow
-  | All | AllTy | Ex
+  | Eq | Distinct | Ite | Arrow
+  | All | AllTy | Ex | ExTy | Let
   | And | Or | Xor
   | Imply | Equiv | Not
 
@@ -30,14 +32,16 @@ and term = {
 (** {2 Commands} *)
 
 type command =
-  | Sat of Expr.Formula.t list list     (** Special case for dimacs input *)
-  | Push                                (** Push *)
-  | Pop                                 (** Pop *)
-  | NewType of string * symbol * int    (** New type constructor *)
-  | TypeDef of string * symbol * term   (** Type definition *)
-  | Alias of symbol * term list * term  (** Alias (smtlib style) *)
-  | Assert of string * term             (** Add term to the assertions *)
-  | CheckSat                            (** Check-sat *)
+  | Sat of Expr.Formula.t list list         (** Special case for dimacs input *)
+  | Push                                    (** Push *)
+  | Pop                                     (** Pop *)
+  | NewType of string * symbol * int        (** New type constructor *)
+  | TypeDef of string * symbol * term       (** Type definition *)
+  | TypeAlias of symbol * term list * term  (** Type alias (smtlib style) *)
+  | Alias of symbol * term list * term      (** Alias (smtlib style) *)
+  | Assert of string * term                 (** Add term to the assertions *)
+  | CheckSat                                (** Check-sat *)
+  | Unknown                                 (** For non-implemented smtlib commands *)
 
 (** {2 Printing} *)
 
@@ -54,6 +58,8 @@ val sym : string -> symbol
 val int : string -> symbol
 val rat : string -> symbol
 val real : string -> symbol
+val hexa : string -> symbol
+val binary : string -> symbol
 
 (** {2 Terms} *)
 val tType : term
@@ -61,6 +67,7 @@ val true_ : term
 val false_ : term
 
 val at_loc : loc:location -> term -> term
+val column : ?loc:location -> term -> term -> term
 
 val var : ?loc:location -> ?ty:term -> string -> term
 
@@ -80,6 +87,7 @@ val equiv : ?loc:location -> term -> term -> term
 val forall : ?loc:location -> term list -> term -> term
 val forall_ty : ?loc:location -> term list -> term -> term
 val exists : ?loc:location -> term list -> term -> term
+val letin : ?loc:location -> term list -> term -> term
 
 val mk_fun_ty : ?loc:location -> term list -> term -> term
 

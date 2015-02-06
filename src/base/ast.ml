@@ -8,11 +8,13 @@ type symbol =
   | Int of string
   | Rat of string
   | Real of string
+  | Hexa of string
+  | Binary of string
   | String of string
   | Ttype | Wildcard
   | True | False
-  | Eq | Distinct | Arrow
-  | All | AllTy | Ex
+  | Eq | Distinct | Ite | Arrow
+  | All | AllTy | Ex | ExTy | Let
   | And | Or | Xor
   | Imply | Equiv | Not
 
@@ -29,14 +31,16 @@ and term = {
 }
 
 type command =
-  | Sat of Expr.Formula.t list list     (** Special case for dimacs input *)
-  | Push                                (** Push *)
-  | Pop                                 (** Pop *)
-  | NewType of string * symbol * int    (** New type constructor *)
-  | TypeDef of string * symbol * term   (** Type definition *)
-  | Alias of symbol * term list * term  (** Alias (smtlib style) *)
-  | Assert of string * term             (** Add term to the assertions *)
-  | CheckSat                            (** Check-sat *)
+  | Sat of Expr.Formula.t list list         (** Special case for dimacs input *)
+  | Push                                    (** Push *)
+  | Pop                                     (** Pop *)
+  | NewType of string * symbol * int        (** New type constructor *)
+  | TypeDef of string * symbol * term       (** Type definition *)
+  | TypeAlias of symbol * term list * term  (** Type alias (smtlib style) *)
+  | Alias of symbol * term list * term      (** Alias (smtlib style) *)
+  | Assert of string * term                 (** Add term to the assertions *)
+  | CheckSat                                (** Check-sat *)
+  | Unknown                                 (** For non-implemented smtlib commands *)
 
 
 (* Printing *)
@@ -46,6 +50,8 @@ let debug_symbol b = function
     | Int s -> Printf.bprintf b "Int(%s)" s
     | Rat s -> Printf.bprintf b "Rat(%s)" s
     | Real s -> Printf.bprintf b "Real(%s)" s
+    | Hexa s -> Printf.bprintf b "Hexa(%s)" s
+    | Binary s -> Printf.bprintf b "Bin(%s)" s
     | String s -> Printf.bprintf b "%s" s
     | Ttype -> Printf.bprintf b "tType"
     | Wildcard -> Printf.bprintf b "_"
@@ -53,10 +59,13 @@ let debug_symbol b = function
     | False -> Printf.bprintf b "False"
     | Eq -> Printf.bprintf b "="
     | Distinct -> Printf.bprintf b "Distinct"
+    | Ite -> Printf.bprintf b "Ite"
     | Arrow -> Printf.bprintf b "->"
     | All -> Printf.bprintf b "Forall"
     | AllTy -> Printf.bprintf b "ForallTy"
     | Ex -> Printf.bprintf b "Exists"
+    | ExTy -> Printf.bprintf b "Exists"
+    | Let -> Printf.bprintf b "Let"
     | And -> Printf.bprintf b "/\\"
     | Or -> Printf.bprintf b "\\/"
     | Xor -> Printf.bprintf b "xor"
@@ -86,9 +95,11 @@ let print_command_name fmt = function
   | Pop -> Format.fprintf fmt "Pop"
   | NewType _ -> Format.fprintf fmt "New type"
   | TypeDef _ -> Format.fprintf fmt "Type definition"
+  | TypeAlias _ -> Format.fprintf fmt "Type aliasing"
   | Alias _ -> Format.fprintf fmt "Alias binding"
   | Assert _ -> Format.fprintf fmt "Assert"
   | CheckSat -> Format.fprintf fmt "Check-sat"
+  | Unknown -> Format.fprintf fmt "Unknown ?"
 
 (* Symbol making *)
 (* ************************************************************************ *)
@@ -100,6 +111,8 @@ let int s = Int s
 let rat s = Rat s
 let real s = Real s
 let sym s = String s
+let hexa s = Hexa s
+let binary s = Binary s
 
 (* Term making *)
 (* ************************************************************************ *)
@@ -115,6 +128,8 @@ let const ?loc s = make ?loc (Const s)
 let tType = const Ttype
 let true_ = const True
 let false_ = const False
+
+let column ?loc s t = make ?loc (Column (s, t))
 
 let var ?loc ?ty s = match ty with
   | None -> make ?loc (Var s)
@@ -137,6 +152,8 @@ let xor ?loc p q = app ?loc (const Xor) [p; q]
 let imply ?loc p q = app ?loc (const Imply) [p; q]
 
 let equiv ?loc p q = app ?loc (const Equiv) [p; q]
+
+let letin ?loc bindings t = make ?loc (Binding (Let, bindings, t))
 
 let forall ?loc vars f = make ?loc (Binding (All, vars, f))
 

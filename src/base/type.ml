@@ -197,7 +197,9 @@ let rec parse_quant_vars env = function
 
 let rec parse_formula env = function
     (* Formulas *)
+    | { Ast.term = Ast.App ({ Ast.term = Ast.Const Ast.True }, []) }
     | { Ast.term = Ast.Const Ast.True } -> Expr.f_true
+    | { Ast.term = Ast.App ({ Ast.term = Ast.Const Ast.False }, []) }
     | { Ast.term = Ast.Const Ast.False } -> Expr.f_false
     | { Ast.term = Ast.App ({Ast.term = Ast.Const Ast.And}, l) } ->
       Expr.f_and (List.map (parse_formula env) l)
