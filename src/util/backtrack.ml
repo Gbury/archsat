@@ -83,9 +83,11 @@ module HashtblBack(K : Hashtbl.HashedType) = struct
     H.add t.tbl k v
 
   let remove t k =
-    let v = find t k in
-    Stack.register3 t.stack H.add t.tbl k v;
-    H.remove t.tbl k
+    try
+      let v = find t k in
+      Stack.register3 t.stack H.add t.tbl k v;
+      H.remove t.tbl k
+    with Not_found -> ()
 
   let fold t f acc = H.fold f t.tbl acc
 

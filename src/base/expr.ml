@@ -321,9 +321,10 @@ let compare_var: 'a. 'a var -> 'a var -> int =
   fun v1 v2 -> Pervasives.compare v1.var_id v2.var_id
 
 let compare_meta m1 m2 =
-    match compare m1.meta_index m2.meta_index with
-    | 0 -> compare_var m1.meta_var m2.meta_var
-    | x -> x
+    match m1.can_unify, m2.can_unify with
+    | true, true | false, false -> compare_var m1.meta_var m2.meta_var
+    | true, false -> -1
+    | false, true -> 1
 
 let compare_tau t1 t2 =
     match compare t1.tau_index t2.tau_index with

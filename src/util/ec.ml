@@ -179,24 +179,25 @@ module Make(T : Key) = struct
   (* Equivalence closure with explanation output *)
   let find_parent v m = find_hash m v v
 
-  let rev_root m root =
-    let rec aux curr next =
-      if T.compare curr next = 0 then
-        curr
-      else
-        let parent = find_parent next m in
-        H.remove m curr;
-        H.add m next curr;
-        aux next parent
-    in
-    aux root (find_parent root m)
-
   let rec root m acc curr =
+    log 30 "Finding root for %a" T.debug curr;
     let parent = find_parent curr m in
     if T.compare curr parent = 0 then
       curr :: acc
     else
       root m (curr :: acc) parent
+
+  let rec rev_root m curr =
+    log 30 "looking at %a" T.debug curr;
+    let next = find_parent curr m in
+    if T.compare curr next = 0 then
+      curr
+    else begin
+      H.remove m curr;
+      let res = rev_root m next in
+      H.add m next curr;
+      res
+    end
 
   let expl t a b =
     let rec aux last = function
@@ -212,7 +213,7 @@ module Make(T : Key) = struct
   let add_eq_aux t i j =
     if T.compare (find t i) (find t j) = 0 then
       ()
-    else
+    else begin
       let old_root_i = rev_root t.expl i in
       let old_root_j = rev_root t.expl j in
       let nb_i = find_hash t.size old_root_i 0 in
@@ -224,13 +225,14 @@ module Make(T : Key) = struct
         H.add t.expl j i;
         H.add t.size i (nb_i + nb_j + 1)
       end
+    end
 
   (* Functions wrapped to produce explanation in case
    * something went wrong *)
   let add_tag t x v =
     log 30 "Adding %a -> %a" T.debug x T.debug v;
     try
-      tag t x v
+        tag t x v;
     with Equal (a, b) ->
       log 3 "Tag error";
       raise (Unsat (a, b, expl t a b))
@@ -239,7 +241,7 @@ module Make(T : Key) = struct
     log 30 "Adding %a = %a" T.debug i T.debug j;
     add_eq_aux t i j;
     try
-      union t i j
+        union t i j;
     with Equal (a, b) ->
       log 3 "Equality error : %a = %a" T.debug a T.debug b;
       raise (Unsat (a, b, expl t a b))
