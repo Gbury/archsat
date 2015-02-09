@@ -320,16 +320,9 @@ and get_formula_hash f =
 let compare_var: 'a. 'a var -> 'a var -> int =
   fun v1 v2 -> Pervasives.compare v1.var_id v2.var_id
 
-let compare_meta m1 m2 =
-    match m1.can_unify, m2.can_unify with
-    | true, true | false, false -> compare_var m1.meta_var m2.meta_var
-    | true, false -> -1
-    | false, true -> 1
+let compare_meta m1 m2 = compare_var m1.meta_var m2.meta_var
 
-let compare_tau t1 t2 =
-    match compare t1.tau_index t2.tau_index with
-    | 0 -> compare_var t1.tau_var t2.tau_var
-    | x -> x
+let compare_tau t1 t2 = compare_var t1.tau_var t2.tau_var
 
 let equal_var v1 v2 = compare_var v1 v2 = 0
 let equal_tau t1 t2 = compare_tau t1 t2 = 0
