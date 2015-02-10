@@ -350,17 +350,17 @@ let rec try_eval t =
     end
 *)
 
-let rec assign_watch t l =
-  let jobs = Stack.create () in
-  List.iter (fun x -> Stack.push x jobs) l;
-  try
-    while not (Stack.is_empty jobs) do
-      let j = Stack.pop jobs in
-      update_watch t j
-    done
-  with Absurd _ as e ->
-    Stack.iter (fun job -> add_job job t) jobs;
-    raise e
+let rec assign_watch t = function
+    | [] -> ()
+    | j :: r ->
+      begin
+        try
+          update_watch t j
+        with Absurd _ as e ->
+          List.iter (fun job -> add_job job t) r;
+          raise e
+      end;
+      assign_watch t r
 
 and set_assign t v lvl =
   try

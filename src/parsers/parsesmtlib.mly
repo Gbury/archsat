@@ -127,7 +127,7 @@ qual_identifier:
 ;
 
 var_binding:
-  | OPEN SYMBOL term CLOSE    { let loc = L.mk_pos $startpos $endpos in Ast.column ~loc (Ast.const (Ast.sym $2)) $3 }
+  | OPEN SYMBOL term CLOSE    { let loc = L.mk_pos $startpos $endpos in Ast.var ~loc ~ty:$3 $2 }
 ;
 
 var_binding_plus:
@@ -136,11 +136,7 @@ var_binding_plus:
 ;
 
 sorted_var:
-  | OPEN SYMBOL sort CLOSE
-    {
-      let loc = L.mk_pos $startpos $endpos in
-      Ast.column ~loc (Ast.const (Ast.sym $2)) $3
-    }
+  | OPEN SYMBOL sort CLOSE      { let loc = L.mk_pos $startpos $endpos in Ast.var ~loc ~ty:$3 $2 }
 ;
 
 sorted_var_star:

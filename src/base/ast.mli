@@ -13,7 +13,7 @@ type symbol =
   | Ttype | Wildcard
   | True | False
   | Eq | Distinct | Ite | Arrow
-  | All | AllTy | Ex | ExTy | Let
+  | All | AllTy | Ex | Let
   | And | Or | Xor
   | Imply | Equiv | Not
 

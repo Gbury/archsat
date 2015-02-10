@@ -14,7 +14,7 @@ type symbol =
   | Ttype | Wildcard
   | True | False
   | Eq | Distinct | Ite | Arrow
-  | All | AllTy | Ex | ExTy | Let
+  | All | AllTy | Ex | Let
   | And | Or | Xor
   | Imply | Equiv | Not
 
@@ -64,7 +64,6 @@ let debug_symbol b = function
     | All -> Printf.bprintf b "Forall"
     | AllTy -> Printf.bprintf b "ForallTy"
     | Ex -> Printf.bprintf b "Exists"
-    | ExTy -> Printf.bprintf b "Exists"
     | Let -> Printf.bprintf b "Let"
     | And -> Printf.bprintf b "/\\"
     | Or -> Printf.bprintf b "\\/"
