@@ -16,6 +16,10 @@ val set_output : string -> unit
 (** Sets the input or output to the given format.
     @raise Setting_not_found if the string is not recognised *)
 
+val accepted_input : string list
+val accepted_output : string list
+(** Returns the accepted arguments to [set_input] and [set_output] *)
+
 val parse_input : string -> Ast.command Queue.t
 (** Parse the given input file according to the current input options.
     @raise Syntax_error if there is a syntax error in the given file. *)

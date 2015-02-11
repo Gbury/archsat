@@ -69,6 +69,8 @@ let logspec () =
 
 let arg_compare (s, _, _) (s', _, _) = String.compare s s'
 
+let pp_string b s = Printf.bprintf b "%s" s
+
 let argspec = Arg.align (List.sort arg_compare
     (Solver.get_options () @ logspec () @ [
     "-bt", Arg.Unit (fun () -> Printexc.record_backtrace true),
@@ -78,13 +80,15 @@ let argspec = Arg.align (List.sort arg_compare
     "-gc", Arg.Unit setup_gc_stat,
     " Outputs statistics about the GC";
     "-i", Arg.String Io.set_input,
-    " Sets the input format (default auto)";
+    Util.sprintf " Sets the input format (default auto)(available are : %a)"
+        (Util.pp_list ~sep:", " pp_string) Io.accepted_input;
     "-model", Arg.Unit (fun () -> p_model := Simple),
     " Print the model found (if sat).";
     "-model-full", Arg.Unit (fun () -> p_model := Full),
     " Print the model found (if sat)(including sub-expressions).";
     "-o", Arg.String Io.set_output,
-    " Sets the output format (default none)";
+    Util.sprintf " Sets the output format (default standard)(available are : %a)"
+        (Util.pp_list ~sep:", " pp_string) Io.accepted_output;
     "-proof", Arg.Set p_proof,
     " Compute and print the proof if unsat.";
     "-size", Arg.String (int_arg size_limit),

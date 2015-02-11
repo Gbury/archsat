@@ -29,6 +29,7 @@ let input_list = [
 ]
 
 let output_list = [
+  "standard", Standard;
   "dot", Dot;
 ]
 
@@ -38,6 +39,9 @@ let set_flag opt arg flag l =
 
 let set_input s = set_flag "Input" s input input_list
 let set_output s = set_flag "Output" s output output_list
+
+let accepted_input = List.map fst input_list
+let accepted_output = List.map fst output_list
 
 (* Input functions *)
 (* ************************************************************************ *)
