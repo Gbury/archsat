@@ -146,7 +146,6 @@ let check_var v =
 let rec check_term = function
   | { Expr.term = Expr.Var v } -> check_var v
   | { Expr.term = Expr.Meta m } -> check_var Expr.(m.meta_var)
-  | { Expr.term = Expr.Tau t } -> check_var Expr.(t.tau_var)
   | { Expr.term = Expr.App (p, _, l)} ->
     check_var p;
     List.iter check_term l
@@ -168,10 +167,10 @@ let rec check = function
   | { Expr.formula = Expr.Equiv (p, q) } ->
     check p;
     check q
-  | { Expr.formula = Expr.All (_, f) }
-  | { Expr.formula = Expr.AllTy (_, f) }
-  | { Expr.formula = Expr.Ex (_, f) }
-  | { Expr.formula = Expr.ExTy (_, f) } ->
+  | { Expr.formula = Expr.All (_, _, f) }
+  | { Expr.formula = Expr.AllTy (_, _, f) }
+  | { Expr.formula = Expr.Ex (_, _, f) }
+  | { Expr.formula = Expr.ExTy (_, _, f) } ->
     check f
 
 let preprocess f =

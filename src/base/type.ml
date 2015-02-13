@@ -107,9 +107,12 @@ let new_name pre =
     let i = ref 0 in
     (fun () -> incr i; pre ^ (string_of_int !i))
 
+let new_ty_name = new_name "ty#"
+let new_term_name = new_name "term#"
+
 let add_type_vars env l =
     let l', map = add_vars Expr.debug_var_ttype env.type_vars l
-        (fun _ -> Expr.ttype_var (new_name "ty#" ()))
+        (fun Expr.Type -> Expr.ttype_var (new_ty_name ()))
         (fun name v map -> M.add name (Expr.type_var v) map)
     in
     l', { env with type_vars = map }
@@ -118,7 +121,7 @@ let add_type_var env v = match add_type_vars env [v] with | [v'], env' -> v', en
 
 let add_term_vars env l =
     let l', map = add_vars Expr.debug_var_ty env.term_vars l
-        (fun ty -> Expr.ty_var (new_name "term#" ()) ty)
+        (fun ty -> Expr.ty_var (new_term_name ()) ty)
         (fun name v map -> M.add name (Expr.term_var v) map)
     in
     l', { env with term_vars = map }
@@ -141,7 +144,7 @@ let find_prop_var env s = find_var env.prop_vars s
 
 let parse_ttype_var = function
     | { Ast.term = Ast.Column (
-        { Ast.term = Ast.Var s }, {Ast.term = Ast.Const Ast.Ttype}) } -> 
+        { Ast.term = Ast.Var s }, {Ast.term = Ast.Const Ast.Ttype}) } ->
       Expr.ttype_var s
     (* | { Ast.term = Ast.Var s } -> *)
     | _ -> raise Typing_error

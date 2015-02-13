@@ -17,11 +17,6 @@ type 'ty meta = private {
   can_unify : bool;
 }
 
-type 'ty tau = private {
-  tau_var : 'ty var;
-  tau_index : int;
-}
-
 (** {3 Types} *)
 
 type ttype = Type
@@ -48,7 +43,6 @@ and ty = private {
 type term_descr = private
   | Var of ty var
   | Meta of ty meta
-  | Tau of ty tau
   | App of ty function_descr var * ty list * term list
 
 and term = private {
@@ -59,9 +53,11 @@ and term = private {
 
 (** {3 Formulas} *)
 
-and formula_descr = private
-  | Equal of term * term
+type free_vars = ty list * term list
+
+type formula_descr = private
   | Pred of term (** Atoms *)
+  | Equal of term * term
 
   (** Prop constructors *)
   | True
@@ -73,10 +69,10 @@ and formula_descr = private
   | Equiv of formula * formula
 
   (** Quantifiers *)
-  | All of ty var list * formula
-  | AllTy of ttype var list * formula
-  | Ex of ty var list * formula
-  | ExTy of ttype var list * formula
+  | All of ty var list * free_vars * formula
+  | AllTy of ttype var list * free_vars * formula
+  | Ex of ty var list * free_vars * formula
+  | ExTy of ttype var list * free_vars * formula
 
 and formula = private {
   formula : formula_descr;
@@ -105,7 +101,6 @@ val debug_var_ttype : Buffer.t -> ttype var -> unit
 val debug_const_ty : Buffer.t -> ty function_descr var -> unit
 val debug_const_ttype : Buffer.t -> ttype function_descr var -> unit
 
-val debug_tau : Buffer.t -> 'a tau -> unit
 val debug_meta : Buffer.t -> 'a meta -> unit
 
 val debug_ty : Buffer.t -> ty -> unit
@@ -121,7 +116,6 @@ val print_var : Format.formatter -> 'a var -> unit
 val print_var_ty : Format.formatter -> ty var -> unit
 val print_var_ttype : Format.formatter -> ttype var -> unit
 
-val print_tau : Format.formatter -> 'a tau -> unit
 val print_meta : Format.formatter -> 'a meta -> unit
 
 val print_ty : Format.formatter -> ty -> unit
@@ -144,14 +138,6 @@ module Var : sig
 end
 module Meta : sig
   type 'a t = 'a meta
-  val hash : 'a t -> int
-  val equal : 'a t -> 'a t -> bool
-  val compare : 'a t -> 'a t -> int
-  val print : Format.formatter -> 'a t -> unit
-  val debug : Buffer.t -> 'a t -> unit
-end
-module Tau : sig
-  type 'a t = 'a tau
   val hash : 'a t -> int
   val equal : 'a t -> 'a t -> bool
   val compare : 'a t -> 'a t -> int
@@ -185,51 +171,51 @@ end
 
 (** {2 Constructors} *)
 
-(** {5 Variables} *)
+(** {5 Variables & Constants} *)
 
 val ttype_var : string -> ttype var
 val ty_var : string -> ty -> ty var
 
-(** {5 Constants} *)
-
 val type_const : string -> int -> ttype function_descr var
 val term_const : string -> ttype var list -> ty list -> ty -> ty function_descr var
 
-(** {5 Metas/Taus} *)
+(** {5 Metas} *)
 
-val get_tau_def : int -> formula
 val get_meta_def : int -> formula
 val get_meta_ty_def : int -> formula
 
+val new_ty_metas : formula -> int -> ttype meta list
+val other_ty_metas : ttype meta -> ttype meta list
+
+val new_term_metas : formula -> int -> ty meta list
+val other_term_metas : ty meta -> ty meta list
+(** [other_term_metas m] returns the list [l] of term metas that was generated together with [m]
+    i.e [m] is a meta in [l] and [l] was returned by [new_term_metas] previously. *)
+
+val protect : 'a meta -> 'a meta
+(** Returns a meta equal to its argument, but that shouldn't be unified. (field 'can_unify' set to false) *)
+
+(** {5 Skolems symbols} *)
+
+val get_ty_skolem : ttype var -> ttype function_descr var
+val get_term_skolem : ty var -> ty function_descr var
+(** Returns the skolem symbols associated with the given functions. Should be
+    applied to the [free_vars] arguments of the quantifier binding. *)
+
 (** {5 Types} *)
 
-val prop_cstr : ttype function_descr var
 val type_prop : ty
+val prop_cstr : ttype function_descr var
 
 val type_var : ttype var -> ty
+val type_meta : ttype meta -> ty
 val type_app : ttype function_descr var -> ty list -> ty
-
-val type_metas : formula -> int -> ttype meta list
-val other_ty_metas : ttype meta -> ttype meta list
 
 (** {5 Terms} *)
 
 val term_var : ty var -> term
+val term_meta : ty meta -> term
 val term_app : ty function_descr var -> ty list -> term list -> term
-(** term constructors *)
-
-val term_of_tau : ty tau -> term
-val term_taus : formula -> ty tau list
-(** Generates new and fresh metas for the given formula. *)
-
-val term_of_meta : ty meta -> term
-val term_metas : formula -> int -> ty meta list
-val other_term_metas : ty meta -> ty meta list
-(** [other_term_metas m] returns the list [l] of term metas that was generated together with [m]
-    i.e [m] is a meta in [l] and [l] was returned by [term_metas] previously. *)
-
-val protect : 'a meta -> 'a meta
-(** Returns a meta equal to its argument, but that shouldn't be unified. (field 'can_unify' set to false) *)
 
 (** {5 Formulas} *)
 
@@ -269,34 +255,63 @@ val assign : term -> term
 (** Evaluate or assigns the given term using the handler of the
     head symbol of the expression. *)
 
+(** {2 Inspection} *)
+
+val var_occurs : ty var -> term -> bool
+(** Returns wether the given variable occurs in the term (including inside metas aud taus). *)
+
+val ty_fv : ty -> ttype var list * ty var list
+val term_fv : term -> ttype var list * ty var list
+val formula_fv : formula -> ttype var list * ty var list
+(** Returns the free variables of a given expression, that is the variables that
+    are not bound by a quantifier. *)
+
 (** {2 Substitutions} *)
 
 module Subst : sig
   (** Module to handle substitutions *)
 
   type ('a, 'b) t
-  (** The type of substitutions from values of type ['a] to values of type ['b].
-      Only substitutions from values of type ['a Expr.var] should ever be used. *)
+  (** The type of substitutions from values of type ['a] to values of type ['b]. *)
 
-  val empty : ('a var, 'b) t
+  val empty : ('a, 'b) t
   (** The empty substitution *)
 
-  val is_empty : ('a var, 'b) t -> bool
+  val is_empty : ('a, 'b) t -> bool
   (** Test wether a substitution is empty *)
 
-  val get : 'a var -> ('a var, 'b) t -> 'b
-  (** [get v subst] returns the value associated with [v] in [subst], if it exists.
-      @raise Not_found if there is no binding for [v]. *)
-
-  val bind : 'a var -> 'b -> ('a var, 'b) t -> ('a var, 'b) t
-  (** [bind v t subst] returns the same substitution as [subst] with the additional binding from [v] to [t].
-      Erases the previous binding of [v] if it exists. *)
-
-  val remove : 'a var -> ('a var, 'b) t -> ('a var, 'b) t
-  (** [remove v subst] returns the same substitution as [subst] except for [v] which is unbound in the returned substitution. *)
-
-  val iter : ('a var -> 'b -> unit) -> ('a var, 'b) t -> unit
+  val iter : ('a -> 'b -> unit) -> ('a, 'b) t -> unit
   (** Iterates over the bindings of the substitution. *)
+
+  val fold : ('a -> 'b -> 'c -> 'c) -> ('a, 'b) t -> 'c -> 'c
+  (** Fold over the elements *)
+
+  val exists : ('a -> 'b -> bool) -> ('a, 'b) t -> bool
+  (** Tests wether the predicate holds for at least one binding. *)
+
+  val for_all : ('a -> 'b -> bool) -> ('a, 'b) t -> bool
+  (** Tests wether the predicate holds for all bindings. *)
+
+  val hash : ('b -> int) -> ('a, 'b) t -> int
+  val compare : ('b -> 'b -> int) -> ('a, 'b) t -> ('a, 'b) t -> int
+  val equal : ('b -> 'b -> bool) -> ('a, 'b) t -> ('a, 'b) t -> bool
+  (** Comparison and hash functions, with a comparison/hash function on values as parameter *)
+
+  (** {5 Concrete subtitutions } *)
+  module type S = sig
+    type 'a key
+    val get : 'a key -> ('a key, 'b) t -> 'b
+    (** [get v subst] returns the value associated with [v] in [subst], if it exists.
+        @raise Not_found if there is no binding for [v]. *)
+    val bind : 'a key -> 'b -> ('a key, 'b) t -> ('a key, 'b) t
+    (** [bind v t subst] returns the same substitution as [subst] with the additional binding from [v] to [t].
+        Erases the previous binding of [v] if it exists. *)
+    val remove : 'a key -> ('a key, 'b) t -> ('a key, 'b) t
+    (** [remove v subst] returns the same substitution as [subst] except for [v] which is unbound in the returned substitution. *)
+  end
+
+  module Var : S with type 'a key = 'a var
+  module Meta : S with type 'a key = 'a meta
 end
 
 type ty_subst = (ttype var, ty) Subst.t

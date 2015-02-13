@@ -17,8 +17,8 @@ let partition l =
     let l = List.sort (fun (m, _) (m', _) -> compare (index m) (index m')) l in
     aggregate [] l
 
-(* Takes a substitution (meta, term) and returns a triplet
- * formula * lvl * (meta, term) list. *)
+(* Takes a substitution (meta, term) list with a unique meta_index,
+ * and returns a triplet formula * lvl * (meta, term) list. *)
 let formula_subst subst =
     assert (subst <> []);
     let m = fst (List.hd subst) in
@@ -32,30 +32,26 @@ let inst_order (_, i, _) (_, j, _) = compare j i
  * instanciation scheme. Returns a triplet
  * formula * term list * formula, such that
  * the right formula is the result of instanciating the left one. *)
-let var_subst_of_list = List.fold_left (fun s (v, t) -> Expr.Subst.bind v t s) Expr.Subst.empty
+let make_inst vars l metas =
+  List.map (fun v ->
+    try
+      let (_, t) = List.find (fun (m, _) -> Expr.(m.meta_var.var_name = v.var_name)) l in
+      t
+    with Not_found ->
+      try
+          let m = List.find (fun m -> Expr.(m.meta_var.var_name = v.var_name)) metas in
+          Expr.term_meta m
+      with Not_found -> assert false
+    ) vars
 
-let make_inst vars l =
-    let rec aux l subst acc = function
-        | [] -> subst, List.rev acc
-        | v :: r ->
-          begin try
-            let (m, t) = List.find (fun (m, _) ->
-                Expr.(m.meta_var.var_name = v.var_name)) l
-            in
-            aux l ((v, Unif.protect_term t) :: subst) acc r
-          with Not_found ->
-            aux l subst (v :: acc) r
-          end
-    in
-    aux l [] [] vars
+let subst_of_list = List.fold_left2 (fun s v t -> Expr.Subst.Var.bind v t s) Expr.Subst.empty
 
-let apply_subst (f, _, l) =
+let apply_subst (f, _, l, metas) =
       let s, p = match f with
-      | { Expr.formula = Expr.All (vars, p) } ->
-        let var_subst, new_vars = make_inst vars l in
-        let f' = Expr.f_all new_vars p in
-        var_subst, Expr.formula_subst Expr.Subst.empty (var_subst_of_list var_subst) f'
-      | { Expr.formula = Expr.Not { Expr.formula = Expr.Ex(vars, p) } } ->
+      | { Expr.formula = Expr.All (vars, _, p) } ->
+        let term_list = make_inst vars l metas in
+        var_subst, Expr.formula_subst (subst_of_list var_subst) f
+      | { Expr.formula = Expr.Not { Expr.formula = Expr.Ex(vars, _, p) } } ->
         let var_subst, new_vars = make_inst vars l in
         let f' = Expr.f_not (Expr.f_ex new_vars p) in
         var_subst, Expr.formula_subst Expr.Subst.empty (var_subst_of_list var_subst) f'
