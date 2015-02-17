@@ -236,10 +236,9 @@ let hash h_skel l = Hashtbl.hash (h_skel, l)
 let rec hash_ty t =
   let h = match t.ty with
     | TyVar v -> v.var_id
-    | TyMeta v -> v.meta_var.var_id
-    | TyApp (f, args) -> (* TODO: Better combinator ? *)
-      Hashtbl.hash (f.var_id ::
-                    (List.rev_map get_ty_hash args))
+    | TyMeta v -> Hashtbl.hash v.meta_var.var_id
+    | TyApp (f, args) ->
+      hash f.var_id (List.rev_map get_ty_hash args)
   in
   t.ty_hash <- h
 
@@ -252,8 +251,8 @@ let rec hash_term t =
   let h = match t.term with
     | Var v -> v.var_id
     | Meta m -> m.meta_var.var_id
-    | App (f, tys, args) -> (* TODO: Better combinator ? *)
-      Hashtbl.hash (f.var_id :: List.rev_append
+    | App (f, tys, args) ->
+      hash f.var_id (List.rev_append
                       (List.rev_map get_ty_hash tys)
                       (List.rev_map get_term_hash args))
   in
@@ -307,9 +306,12 @@ and get_formula_hash f =
 
 (* Variables *)
 let compare_var: 'a. 'a var -> 'a var -> int =
-  fun v1 v2 -> Pervasives.compare v1.var_id v2.var_id
+  fun v1 v2 -> compare v1.var_id v2.var_id
 
-let compare_meta m1 m2 = compare_var m1.meta_var m2.meta_var
+let compare_meta m1 m2 =
+    match compare m1.meta_index m2.meta_index with
+    | 0 -> compare_var m1.meta_var m2.meta_var
+    | x -> x
 
 let equal_var v1 v2 = compare_var v1 v2 = 0
 let equal_meta m1 m2 = compare_meta m1 m2 = 0
@@ -452,6 +454,7 @@ module Subst = struct
   module type S = sig
     type 'a key
     val get : 'a key -> ('a key, 'b) t -> 'b
+    val mem : 'a key -> ('a key, 'b) t -> bool
     val bind : 'a key -> 'b -> ('a key, 'b) t -> ('a key, 'b) t
     val remove : 'a key -> ('a key, 'b) t -> ('a key, 'b) t
   end
@@ -459,17 +462,19 @@ module Subst = struct
   (* Variable substitutions *)
   module Var = struct
     type 'a key = 'a var
+    let get v s = snd (Mi.find v.var_id s)
+    let mem v s = Mi.mem v.var_id s
     let bind v t s = Mi.add v.var_id (v, t) s
     let remove v s = Mi.remove v.var_id s
-    let get v s = snd (Mi.find v.var_id s)
   end
 
   (* Meta substitutions *)
   module Meta = struct
     type 'a key = 'a meta
+    let get m s = snd (Mi.find m.meta_var.var_id s)
+    let mem m s = Mi.mem m.meta_var.var_id s
     let bind m t s = Mi.add m.meta_var.var_id (m, t) s
     let remove m s = Mi.remove m.meta_var.var_id s
-    let get m s = snd (Mi.find m.meta_var.var_id s)
   end
 
 end
@@ -945,15 +950,11 @@ let other_ty_metas m = snd (Vector.get meta_ty_index m.meta_index)
 let other_term_metas m = snd (Vector.get meta_term_index m.meta_index)
 
 let new_ty_metas f lvl = match f.formula with
-  | Not { formula = ExTy(l, _, _) } | AllTy (l, _, _) ->
-    let new_vars = List.map (fun v -> mk_var v.var_name v.var_type) l in
-    mk_ty_metas new_vars f lvl
+  | Not { formula = ExTy(l, _, _) } | AllTy (l, _, _) -> mk_ty_metas l f lvl
   | _ -> invalid_arg "new_ty_metas"
 
 let new_term_metas f lvl = match f.formula with
-  | Not { formula = Ex(l, _, _) } | All (l, _, _) ->
-    let new_vars = List.map (fun v -> mk_var v.var_name v.var_type) l in
-    mk_metas new_vars f lvl
+  | Not { formula = Ex(l, _, _) } | All (l, _, _) -> mk_metas l f lvl
   | _ -> invalid_arg "new_term_metas"
 
 (* Modules for simpler function names *)

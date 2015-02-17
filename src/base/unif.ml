@@ -28,6 +28,9 @@ type t = {
 
 let empty = { ty_map = Expr.Subst.empty; t_map = Expr.Subst.empty; }
 
+let mem_ty subst m = Expr.Subst.Meta.mem m subst.ty_map
+let mem_term subst m = Expr.Subst.Meta.mem m subst.t_map
+
 let get_ty subst m = Expr.Subst.Meta.get m subst.ty_map
 let get_term subst m = Expr.Subst.Meta.get m subst.t_map
 
@@ -55,18 +58,19 @@ let free_args = function
   | { Expr.formula = Expr.Not { Expr.formula = Expr.Ex (_, args, _) } } -> args
   | _ -> assert false
 
+let free_args_ty m = free_args (Expr.get_meta_ty_def Expr.(m.meta_index))
+let free_args_term m = free_args (Expr.get_meta_def Expr.(m.meta_index))
+
+let merge_free_args (ty1, t1) (ty2, t2) =
+    List.merge Expr.Ty.compare ty1 ty2,
+    List.merge Expr.Term.compare t1 t2
+
 let belong_ty m s =
-    let aux e m' _ =
-      let f = Expr.get_meta_ty_def Expr.(m'.meta_index) in
-      List.exists (Expr.Ty.equal e) (fst (free_args f))
-    in
+    let aux e m' _ = List.exists (Expr.Ty.equal e) (fst (free_args_ty m)) in
     Expr.Subst.exists (aux (Expr.type_meta m)) s.ty_map
 
 let belong_term m s =
-    let aux e m' _ =
-      let f = Expr.get_meta_def Expr.(m'.meta_index) in
-      List.exists (Expr.Term.equal e) (snd (free_args f))
-    in
+    let aux e m' _ = List.exists (Expr.Term.equal e) (snd (free_args_term m)) in
     Expr.Subst.exists (aux (Expr.term_meta m)) s.t_map
 
 let split s =
@@ -80,6 +84,20 @@ let split s =
   in
   Expr.Subst.fold (aux bind_term belong_term []) s.t_map
     (Expr.Subst.fold (aux bind_ty belong_ty []) s.ty_map [])
+
+let complete s =
+    let aux_ty subst = function
+        | { Expr.ty = Expr.TyMeta m } as t -> if mem_ty subst m then subst else bind_ty subst m t
+        | _ -> assert false
+    in
+    let aux_term subst = function
+        | { Expr.term = Expr.Meta m } as t -> if mem_term subst m then subst else bind_term subst m t
+        | _ -> assert false
+    in
+    let l, l' = Expr.Subst.fold (fun m _ acc -> merge_free_args acc (free_args_term m)) s.t_map
+        (Expr.Subst.fold (fun m _ acc -> merge_free_args acc (free_args_ty m)) s.ty_map ([], []))
+    in
+    List.fold_left aux_term (List.fold_left aux_ty s l) l'
 
 (* Robinson unification *)
 (* ************************************************************************ *)
@@ -105,6 +123,48 @@ let rec occurs_check_term subst v = function
       with Not_found -> Expr.Term.equal v v' end
     | { Expr.term= Expr.App (f, _, l) } -> List.exists (occurs_check_term subst v) l
     | _ -> false
+
+let rec meta_unify_ty subst s t =
+    try meta_unify_ty subst (follow_ty subst s) t with Not_found ->
+    try meta_unify_ty subst s (follow_ty subst t) with Not_found ->
+      begin match s, t with
+        | _ when Expr.Ty.equal s t -> subst
+        | { Expr.ty = Expr.TyMeta ({ Expr.meta_var = v1 } as m)},
+          { Expr.ty = Expr.TyMeta { Expr.meta_var = v2 } } ->
+          if Expr.Var.equal v1 v2 then
+              bind_ty subst m t
+          else
+              raise (Not_unifiable_ty (s, t))
+        | { Expr.ty = Expr.TyApp (f, f_args) },
+          { Expr.ty = Expr.TyApp (g, g_args) } ->
+          if Expr.Var.equal f g then
+            List.fold_left2 meta_unify_ty subst f_args g_args
+          else
+            raise (Not_unifiable_ty (s, t))
+        | _ -> raise (Not_unifiable_ty (s, t))
+      end
+
+let rec meta_unify_term subst s t =
+    try meta_unify_term subst (follow_term subst s) t with Not_found ->
+    try meta_unify_term subst s (follow_term subst t) with Not_found ->
+      begin match s, t with
+        | _ when Expr.Term.equal s t -> subst
+        | { Expr.term = Expr.Meta ({ Expr.meta_var = v1 } as m) },
+          { Expr.term = Expr.Meta { Expr.meta_var = v2 } } ->
+          if Expr.Var.equal v1 v2 then
+            bind_term subst m t
+          else
+              raise (Not_unifiable_term (s, t))
+        | { Expr.term = Expr.App (f, f_ty_args, f_t_args) },
+          { Expr.term = Expr.App (g, g_ty_args, g_t_args) } ->
+          if Expr.Var.equal f g then
+            List.fold_left2 meta_unify_term
+              (List.fold_left2 meta_unify_ty subst f_ty_args g_ty_args)
+              f_t_args g_t_args
+          else
+            raise (Not_unifiable_term (s, t))
+        | _ -> raise (Not_unifiable_term (s, t))
+      end
 
 let rec robinson_ty subst s t =
     try robinson_ty subst (follow_ty subst s) t with Not_found ->
@@ -151,12 +211,15 @@ let rec robinson_term subst s t =
 let unify_ty s t = robinson_ty empty s t
 let unify_term s t = robinson_term empty s t
 
+let unify_meta_ty s t = meta_unify_ty empty s t
+let unify_meta_term s t = meta_unify_term empty s t
+
 (* Robinson unification with Caching for term unification *)
 (* ************************************************************************ *)
 
 module H = Hashtbl.Make(Expr.Term)
 
-let cache = H.create 1007
+let cache = H.create 4096
 
 let cached_unify s t =
   let key = Builtin.tuple [s; t] in

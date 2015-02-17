@@ -303,6 +303,8 @@ module Subst : sig
     val get : 'a key -> ('a key, 'b) t -> 'b
     (** [get v subst] returns the value associated with [v] in [subst], if it exists.
         @raise Not_found if there is no binding for [v]. *)
+    val mem : 'a key -> ('a key, 'b) t -> bool
+    (** [get v subst] returns wether there is a value associated with [v] in [subst]. *)
     val bind : 'a key -> 'b -> ('a key, 'b) t -> ('a key, 'b) t
     (** [bind v t subst] returns the same substitution as [subst] with the additional binding from [v] to [t].
         Erases the previous binding of [v] if it exists. *)
