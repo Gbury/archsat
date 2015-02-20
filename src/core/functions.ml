@@ -7,7 +7,13 @@ module H = Backtrack.HashtblBack(Expr.Term)
 let id = Dispatcher.new_id ()
 let st = H.create Dispatcher.stack
 
-let mk_proof l = id, "f-eq", [], l
+let mk_proof l = Dispatcher.({
+    proof_ext = id;
+    proof_name = "f-eq";
+    proof_ty_args = [];
+    proof_term_args = l;
+    proof_formula_args = [];
+})
 
 let set_interpretation t () = match t with
   | { Expr.term = Expr.App (f, tys, l) } ->
@@ -43,8 +49,7 @@ let set_interpretation t () = match t with
 
 let rec set_handler = function
   | { Expr.term = Expr.Var _ }
-  | { Expr.term = Expr.Meta _ }
-  | { Expr.term = Expr.Tau _ } -> ()
+  | { Expr.term = Expr.Meta _ } -> ()
   | { Expr.term = Expr.App (f, _, l) } as t ->
     List.iter set_handler l;
     if l <> [] then Dispatcher.watch id 1 (t :: l) (set_interpretation t)
@@ -64,10 +69,10 @@ let rec uf_pre = function
   | { Expr.formula = Expr.Equiv (p, q) } ->
     uf_pre p;
     uf_pre q
-  | { Expr.formula = Expr.All (_, f) }
-  | { Expr.formula = Expr.AllTy (_, f) }
-  | { Expr.formula = Expr.Ex (_, f) }
-  | { Expr.formula = Expr.ExTy (_, f) } ->
+  | { Expr.formula = Expr.All (_, _, f) }
+  | { Expr.formula = Expr.AllTy (_, _, f) }
+  | { Expr.formula = Expr.Ex (_, _, f) }
+  | { Expr.formula = Expr.ExTy (_, _, f) } ->
     uf_pre f
   | _ -> ()
 

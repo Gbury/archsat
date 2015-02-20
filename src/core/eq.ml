@@ -47,7 +47,13 @@ let mk_expl (a, b, l) =
 
 let mk_proof l =
     assert (l <> []);
-    id, "eq-trans", [], l
+    Dispatcher.({
+      proof_ext = id;
+      proof_name = "eq-trans";
+      proof_ty_args = [];
+      proof_term_args = l;
+      proof_formula_args = [];
+    })
 
 let wrap f x y =
     try
@@ -92,7 +98,6 @@ let rec set_handler t =
   match t with
   | { Expr.term = Expr.Var v } -> aux v
   | { Expr.term = Expr.Meta m } -> aux Expr.(m.meta_var)
-  | { Expr.term = Expr.Tau t } -> aux Expr.(t.tau_var)
   | { Expr.term = Expr.App (f, _, l) } ->
     if not Expr.(Ty.equal f.var_type.fun_ret type_prop) then
       Expr.set_assign f 0 eq_assign;
@@ -114,10 +119,10 @@ let rec eq_pre = function
   | { Expr.formula = Expr.Equiv (p, q) } ->
     eq_pre p;
     eq_pre q
-  | { Expr.formula = Expr.All (_, f) }
-  | { Expr.formula = Expr.AllTy (_, f) }
-  | { Expr.formula = Expr.Ex (_, f) }
-  | { Expr.formula = Expr.ExTy (_, f) } ->
+  | { Expr.formula = Expr.All (_, _, f) }
+  | { Expr.formula = Expr.AllTy (_, _, f) }
+  | { Expr.formula = Expr.Ex (_, _, f) }
+  | { Expr.formula = Expr.ExTy (_, _, f) } ->
     eq_pre f
   | _ -> ()
 

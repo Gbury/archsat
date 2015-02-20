@@ -1,9 +1,8 @@
 
 
-val instanciation : Dispatcher.id ->
-    (Expr.ty Expr.meta * Expr.term) list ->
-    ((Expr.formula list) * Dispatcher.proof)
-(** Takes an id and a (partial) list of instanciations,
-    and returns a clause ready to be pushed,
-    along with its proof indication *)
+val instanciation : Dispatcher.id -> Unif.t ->
+    ((Expr.formula list) * Dispatcher.proof) list
+(** Takes an id and a unifier, and returns a list of clauses ready to be pushed,
+    along with their proof indications. The unifier argument should have
+    been split and completed according to the corresponding Unif fonctions. *)
 

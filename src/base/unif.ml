@@ -49,13 +49,21 @@ let equal s u =
     Expr.Subst.equal Expr.Ty.equal s.ty_map u.ty_map &&
     Expr.Subst.equal Expr.Term.equal s.t_map u.t_map
 
+let merge s s' = {
+    ty_map = Expr.Subst.fold Expr.Subst.Meta.bind s.ty_map s'.ty_map;
+    t_map = Expr.Subst.fold Expr.Subst.Meta.bind s.t_map s'.t_map;
+}
 
 (* Instanciation helpers *)
 let free_args = function
   | { Expr.formula = Expr.All (_, args, _) }
   | { Expr.formula = Expr.Ex (_, args, _) }
   | { Expr.formula = Expr.Not { Expr.formula = Expr.All (_, args, _) } }
-  | { Expr.formula = Expr.Not { Expr.formula = Expr.Ex (_, args, _) } } -> args
+  | { Expr.formula = Expr.Not { Expr.formula = Expr.Ex (_, args, _) } }
+  | { Expr.formula = Expr.AllTy (_, args, _) }
+  | { Expr.formula = Expr.ExTy (_, args, _) }
+  | { Expr.formula = Expr.Not { Expr.formula = Expr.AllTy (_, args, _) } }
+  | { Expr.formula = Expr.Not { Expr.formula = Expr.ExTy (_, args, _) } } -> args
   | _ -> assert false
 
 let free_args_ty m = free_args (Expr.get_meta_ty_def Expr.(m.meta_index))

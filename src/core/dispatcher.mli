@@ -3,10 +3,18 @@
 
 type id
 
+type lemma = {
+  proof_ext : id;
+  proof_name : string;
+  proof_ty_args : Expr.ty list;
+  proof_term_args : Expr.term list;
+  proof_formula_args : Expr.formula list;
+}
+
 include Msat.Plugin_intf.S with
-    type term = Expr.term and
-    type formula = Expr.formula and
-    type proof = id * string * Expr.formula list * Expr.term list
+  type term = Expr.term and
+  type formula = Expr.formula and
+  type proof = lemma
 (** This module is a valid Plugin for Mcsat *)
 
 (** {2 Exceptions} *)

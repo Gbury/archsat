@@ -1,74 +1,111 @@
 
 (* Instanciation helpers *)
 let index m = Expr.(m.meta_index)
+let meta_def m = Expr.get_meta_def (index m)
+let meta_ty_def m = Expr.get_meta_ty_def (index m)
 
-(* Given an arbitrary list (meta, term),
- * Returns a list of lists (meta, term) that
+(* Given an arbitrary substitution (Unif.t),
+ * Returns a list of (int * Unif.t) that
  * aggregates metas with the same index. *)
-let rec aggregate acc = function
-    | [] -> acc
-    | ((m, _) as h) :: r -> begin match acc with
-      | ( ( (m', _) :: _ ) as head ) :: tail when (index m) = (index m') ->
-        aggregate ((h :: head) :: tail) r
-      | _ -> aggregate ([h] :: acc) r
-    end
+let partition s =
+    let rec aux f bind acc m t = function
+        | [] -> (f, bind Unif.empty m t) :: acc
+        | (f', s) :: r when Expr.Formula.equal f' f->
+          (f', bind s m t) :: (List.rev_append acc r)
+        | x :: r -> aux f bind (x :: acc) m t r
+    in
+    Expr.Subst.fold (fun m t acc -> aux (meta_def m) Unif.bind_term [] m t acc) Unif.(s.t_map) (
+        Expr.Subst.fold (fun m t acc -> aux (meta_ty_def m) Unif.bind_ty []m t acc) Unif.(s.ty_map) [])
 
-let partition l =
-    let l = List.sort (fun (m, _) (m', _) -> compare (index m) (index m')) l in
-    aggregate [] l
+(* Ordering of the formulas for instanciation (biggest first)
+ * Here, we use the free variables of quantifiers to determine
+ * the subterm relation on quantified formulas *)
+let open_ty_meta = function
+    | { Expr.ty = Expr.TyMeta { Expr.meta_var = v } } -> v
+    | _ -> assert false
+let open_meta = function
+    | { Expr.term = Expr.Meta { Expr.meta_var = v } } -> v
+    | _ -> assert false
 
-(* Takes a substitution (meta, term) list with a unique meta_index,
- * and returns a triplet formula * lvl * (meta, term) list. *)
-let formula_subst subst =
-    assert (subst <> []);
-    let m = fst (List.hd subst) in
-    let f = Expr.get_meta_def (index m) in
-    f, Expr.(m.meta_level), subst
+let free_vars = function
+  | { Expr.formula = Expr.All (_, args, _) }
+  | { Expr.formula = Expr.Ex (_, args, _) }
+  | { Expr.formula = Expr.Not { Expr.formula = Expr.All (_, args, _) } }
+  | { Expr.formula = Expr.Not { Expr.formula = Expr.Ex (_, args, _) } } ->
+    let l, l' = args in
+    List.map open_ty_meta l, List.map open_meta l'
+  | _ -> assert false
 
-(* Ordering on the meta-creation level of the formulas *)
-let inst_order (_, i, _) (_, j, _) = compare j i
+let sub_quant p q = match p with
+  | { Expr.formula = Expr.All (l, _, _) }
+  | { Expr.formula = Expr.Ex (l, _, _) }
+  | { Expr.formula = Expr.Not { Expr.formula = Expr.All (l, _, _) } }
+  | { Expr.formula = Expr.Not { Expr.formula = Expr.Ex (l, _, _) } } ->
+    let _, tl = free_vars q in
+    List.exists (fun v -> List.exists (Expr.Var.equal v) tl) l
+  | { Expr.formula = Expr.AllTy (l, _, _) }
+  | { Expr.formula = Expr.ExTy (l, _, _) }
+  | { Expr.formula = Expr.Not { Expr.formula = Expr.AllTy (l, _, _) } }
+  | { Expr.formula = Expr.Not { Expr.formula = Expr.ExTy (l, _, _) } } ->
+    let tyl, _ = free_vars q in
+    List.exists (fun v -> List.exists (Expr.Var.equal v) tyl) l
+  | _ -> assert false
+
+let quant_compare p q =
+  if Expr.Formula.equal p q then
+      0
+  else if sub_quant p q then
+      1
+  else if sub_quant q p then
+      -1
+  else
+      assert false
+
+let inst_order = List.sort (fun (f, _) (f', _) -> quant_compare f' f)
+
+(* Takes ... *)
+let mk_proof id f p s = Dispatcher.({
+    proof_ext = id;
+    proof_name = "inst";
+    proof_ty_args = Expr.Subst.fold (fun m t l -> Expr.type_meta m :: t :: l) Unif.(s.ty_map) [];
+    proof_term_args = Expr.Subst.fold (fun m t l -> Expr.term_meta m :: t :: l) Unif.(s.t_map) [];
+    proof_formula_args = [f; p];
+})
 
 (* Applies substitutions in order to provide a coherent
  * instanciation scheme. Returns a triplet
- * formula * term list * formula, such that
- * the right formula is the result of instanciating the left one. *)
-let make_inst vars l metas =
-  List.map (fun v ->
-    try
-      let (_, t) = List.find (fun (m, _) -> Expr.(m.meta_var.var_name = v.var_name)) l in
-      t
-    with Not_found ->
-      try
-          let m = List.find (fun m -> Expr.(m.meta_var.var_name = v.var_name)) metas in
-          Expr.term_meta m
-      with Not_found -> assert false
-    ) vars
+ * (formula list) * proof, representing the instanciations
+ * to do, together with their proof *)
+let apply_subst s f =
+    let aux m t s =
+        Expr.Subst.Var.bind Expr.(m.meta_var) t s
+    in
+    Expr.formula_subst
+        (Expr.Subst.fold aux Unif.(s.ty_map) Expr.Subst.empty)
+        (Expr.Subst.fold aux Unif.(s.t_map) Expr.Subst.empty)
+        f
 
-let subst_of_list = List.fold_left2 (fun s v t -> Expr.Subst.Var.bind v t s) Expr.Subst.empty
+let add_subst subst s =
+    Expr.Subst.fold Expr.Subst.Var.bind subst s
 
-let apply_subst (f, _, l, metas) =
-      let s, p = match f with
-      | { Expr.formula = Expr.All (vars, _, p) } ->
-        let term_list = make_inst vars l metas in
-        var_subst, Expr.formula_subst (subst_of_list var_subst) f
-      | { Expr.formula = Expr.Not { Expr.formula = Expr.Ex(vars, _, p) } } ->
-        let var_subst, new_vars = make_inst vars l in
-        let f' = Expr.f_not (Expr.f_ex new_vars p) in
-        var_subst, Expr.formula_subst Expr.Subst.empty (var_subst_of_list var_subst) f'
+let rec fold_subst id subst = function
+    | [] -> []
+    | (f, s) :: r ->
+      let f' = apply_subst subst f in
+      match f' with
+      | { Expr.formula = Expr.All (_, _, p) } | { Expr.formula = Expr.AllTy (_, _, p) } ->
+        let q = apply_subst s p in
+        let res = [ Expr.f_not f'; q], mk_proof id f' q s in
+        res :: (fold_subst id (Unif.merge subst s) r)
+      | { Expr.formula = Expr.Not { Expr.formula = Expr.Ex (_, _, p) } }
+      | { Expr.formula = Expr.Not { Expr.formula = Expr.ExTy (_, _, p) } } ->
+        let q = apply_subst s (Expr.f_not p) in
+        let res = [ Expr.f_not f'; q], mk_proof id f' q s in
+        res :: (fold_subst id (Unif.merge subst s) r)
       | _ -> assert false
-      in
-      (f, s, p)
 
-(* Takes ... *)
-let add_proof id (f, l, p) =
-    let l' = Util.list_flatmap (fun (v, t) -> [Expr.term_var v; t]) l in
-    ([Expr.f_not f; p], (id, "inst", [f; p], l'))
-
-let instanciation id l =
-  assert (l <> []);
-  let l = partition l in
-  let l = List.map formula_subst l in
-  let l = List.sort inst_order l in
-  let p = apply_subst (List.hd l) in
-  add_proof id p
+let instanciation id s =
+  let l = partition s in
+  let l = inst_order l in
+  fold_subst id Unif.empty l
 

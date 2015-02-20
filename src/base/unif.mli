@@ -30,6 +30,7 @@ val bind_term : t -> Expr.ty Expr.meta -> Expr.term -> t
 
 val split : t -> t list
 val complete : t -> t
+val merge : t -> t -> t
 
 (** {2 Robinson unification} *)
 

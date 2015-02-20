@@ -12,7 +12,14 @@ module I = Backtrack.HashtblBack(struct type t = int let equal i j = i=j let has
 type id = int
 type term = Expr.term
 type formula = Expr.formula
-type proof = id * string * Expr.formula list * Expr.term list
+type lemma = {
+    proof_ext : id;
+    proof_name : string;
+    proof_ty_args : Expr.ty list;
+    proof_term_args : Expr.term list;
+    proof_formula_args : Expr.formula list;
+}
+type proof = lemma
 
 type assumption =
   | Lit of formula
@@ -54,13 +61,13 @@ let get_options () = !options
 (* Proof management *)
 (* ************************************************************************ *)
 
-let proof_debug (id, name, f_args, t_args) =
-    let color = match name with
+let proof_debug p =
+    let color = match p.proof_name with
       | "inst" -> Some "PURPLE"
       | "tab" -> Some "LIGHTBLUE"
       | _ -> None
     in
-    name, f_args, t_args, color
+    p.proof_name, p.proof_formula_args, p.proof_term_args, color
 
 (* Extensions registering *)
 (* ************************************************************************ *)
@@ -198,9 +205,9 @@ let do_propagate f =
 
 let do_push f =
   while not (Stack.is_empty push_stack) do
-    let (a, ((_, name, _, _) as b)) = Stack.pop push_stack in
-    log 2 "Pushing '%s' : %a" name (Util.pp_list ~sep:" || " Expr.debug_formula) a;
-    f a b
+    let (a, p) = Stack.pop push_stack in
+    log 2 "Pushing '%s' : %a" p.proof_name (Util.pp_list ~sep:" || " Expr.debug_formula) a;
+    f a p
   done
 
 (* Backtracking *)
@@ -401,10 +408,10 @@ let assume s =
     do_propagate s.propagate;
     do_push s.push;
     Sat
-  with Absurd (l, ((_, name, _, _) as proof)) ->
-    log 3 "Conflict '%s'" name;
+  with Absurd (l, p) ->
+    log 3 "Conflict '%s'" p.proof_name;
     List.iter (fun f -> log 1 " |- %a" Expr.debug_formula f) l;
-    Unsat (l, proof)
+    Unsat (l, p)
 
 let if_sat s =
     log 5 "Iteration with complete model";

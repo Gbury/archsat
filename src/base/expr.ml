@@ -691,12 +691,12 @@ let rec var_occurs var t = match t.term with
 let init_fv acc = acc (* all the work is done in merge_fv *)
 
 let merge_fv (ty1, t1) (ty2, t2) =
-    List.merge compare_var ty1 ty2,
-    List.merge compare_var t1 t2
+  Util.list_merge compare_var ty1 ty2,
+  Util.list_merge compare_var t1 t2
 
 let remove_fv (ty1, t1) (ty2, t2) =
-    List.filter (fun v -> not (Util.list_mem equal_var v ty2)) ty1,
-    List.filter (fun v -> not (Util.list_mem equal_var v t2)) t1
+  List.filter (fun v -> not (Util.list_mem equal_var v ty2)) ty1,
+  List.filter (fun v -> not (Util.list_mem equal_var v t2)) t1
 
 let rec ty_free_vars acc ty = match ty.ty with
   | TyVar v -> merge_fv acc ([v], [])
