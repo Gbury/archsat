@@ -417,7 +417,7 @@ let rec compare_formula f g =
 let equal_formula u v =
   u == v || (get_formula_hash u = get_formula_hash v && compare_formula u v = 0)
 
-(* Module making *)
+(* Substitutions *)
 (* ************************************************************************ *)
 
 module Subst = struct
@@ -432,6 +432,8 @@ module Subst = struct
   let iter f = Mi.iter (fun _ (key, value) -> f key value)
 
   let fold f = Mi.fold (fun _ (key, value) acc -> f key value acc)
+
+  let bindings s = Mi.fold (fun _ (key, value) acc -> (key, value) :: acc) s []
 
   let equal f = Mi.equal (fun (_, value1) (_, value2) -> f value1 value2)
   let compare f = Mi.compare (fun (_, value1) (_, value2) -> f value1 value2)

@@ -2,6 +2,9 @@
 (* Instanciation helpers *)
 let index m = Expr.(m.meta_index)
 
+(* Given an arbitrary list (meta, term),
+ * Returns a list of lists (meta, term) that
+ * aggregates metas with the same index. *)
 let rec aggregate acc = function
     | [] -> acc
     | ((m, _) as h) :: r -> begin match acc with
@@ -10,9 +13,6 @@ let rec aggregate acc = function
       | _ -> aggregate ([h] :: acc) r
     end
 
-(* Given an arbitrary list (meta, term),
- * Returns a list of lists (meta, term) that
- * aggregates metas with the same index. *)
 let partition l =
     let l = List.sort (fun (m, _) (m', _) -> compare (index m) (index m')) l in
     aggregate [] l

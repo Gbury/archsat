@@ -286,6 +286,9 @@ module Subst : sig
   val fold : ('a -> 'b -> 'c -> 'c) -> ('a, 'b) t -> 'c -> 'c
   (** Fold over the elements *)
 
+  val bindings : ('a, 'b) t -> ('a * 'b) list
+  (** Returns the list of bindings ofa substitution. *)
+
   val exists : ('a -> 'b -> bool) -> ('a, 'b) t -> bool
   (** Tests wether the predicate holds for at least one binding. *)
 

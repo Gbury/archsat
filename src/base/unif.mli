@@ -8,7 +8,10 @@ val protect_term : Expr.term -> Expr.term
 
 (** {2 Unifiers} *)
 
-type t
+type t = {
+  ty_map : (Expr.ttype Expr.meta, Expr.ty) Expr.Subst.t;
+  t_map : (Expr.ty Expr.meta, Expr.term) Expr.Subst.t;
+}
 
 val empty : t
 
