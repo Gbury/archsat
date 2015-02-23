@@ -32,6 +32,8 @@ val split : t -> t list
 val complete : t -> t
 val merge : t -> t -> t
 
+val equal_up_to_metas : t -> t -> bool
+
 (** {2 Robinson unification} *)
 
 val unify_ty : Expr.ty -> Expr.ty -> t

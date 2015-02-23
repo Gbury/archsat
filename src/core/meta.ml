@@ -4,22 +4,30 @@ let log i fmt = Util.debug ~section:log_section i fmt
 
 module H = Hashtbl.Make(Expr.Formula)
 module S = Backtrack.HashtblBack(Expr.Term)
-module U = Hashtbl.Make(Unif.S)
+module U = Hashtbl.Make(Unif)
 
 let id = Dispatcher.new_id ()
 let no_inst = ref false
+let incr = ref 1
 
-(* Set-hashtbl to tag translated formulas *)
-let seen = H.create 256
+(* Hashtbl to store number of generated metas for each formula *)
+let metas = H.create 256
 
-let has_been_seen f =
-    try ignore (H.find seen f); true
-    with Not_found -> false
+let get_nb_metas f = try H.find metas f with Not_found -> 0
 
-let mark f lvl = H.add seen f lvl
+let has_been_seen f = get_nb_metas f > 0
+
+let mark f = H.add metas f (get_nb_metas f + 1)
 
 (* Small helper *)
-let mk_proof f metas = id, "meta", [f], metas
+(* TODO *)
+let mk_proof_ty f metas = Dispatcher.mk_proof
+  ~ty_args:([])
+  id "meta"
+
+let mk_proof_term f metas = Dispatcher.mk_proof
+  ~term_args:([])
+  id "meta"
 
 (* Set of predicates to unify *)
 let unif_set = U.create 256
@@ -28,63 +36,73 @@ let false_preds = S.create Dispatcher.stack
 
 let mem x tbl = S.mem tbl x
 
-let print_aux fl tl =
-    let rec aux = function
-        | [] -> ()
-        | x :: v :: r ->
-          log 3 " | %a -> %a" Expr.debug_term x Expr.debug_term v;
-          aux r
-        | [_] -> assert false
-    in
-    begin match fl with
-    | [f;p] ->
-            log 1 "Inst : %a" Expr.debug_formula f;
-            aux tl;
-            log 1 "Res : %a" Expr.debug_formula p
-    | _ -> assert false
+let print_inst s =
+    Expr.Subst.iter (fun k v -> log 5 " |- %a -> %a" Expr.debug_meta k Expr.debug_term v) Unif.(s.t_map)
+
+let do_unif u =
+  if not (U.mem unif_set u) then begin
+    U.add unif_set u 0;
+    log 10 "Found inst";
+    print_inst u;
+    if not !no_inst then begin
+      let l = Inst.instanciation id u in
+      List.iter (fun (cl, proof) -> Dispatcher.push cl proof) l
     end
+  end else
+    let i = U.find unif_set u in
+    U.add unif_set u (i + 1)
 
 let inst p notp =
   let unif = Unif.cached_unify p notp in
-  if not (U.mem unif_set unif) then begin
-    U.add unif_set unif 0;
-    let l = Unif.S.bindings unif in
-    log 10 "Found inst";
-    List.iter (fun (m, t) -> log 5 " |- %a -> %a" Expr.debug_meta m Expr.debug_term t) l;
-    if not !no_inst then begin
-      let (cl, ((_, _, fl, tl) as proof)) = Inst.instanciation id l in
-      print_aux fl tl;
-      Dispatcher.push cl proof
-    end
-  end
+  log 5 "Unification found";
+  let l = List.map Unif.complete (Unif.split unif) in
+  List.iter do_unif l
 
 let find_inst p notp =
     try
         log 5 "Matching : %a ~~ %a" Expr.debug_term p Expr.debug_term notp;
         inst p notp;
         inst notp p
-    with Unif.Not_unifiable (a, b) ->
-        log 15 "Couldn't unify %a and %a" Expr.debug_term a Expr.debug_term b
+    with
+    | Unif.Not_unifiable_ty (a, b) ->
+        log 15 "Couldn't unify types %a and %a" Expr.debug_ty a Expr.debug_ty b
+    | Unif.Not_unifiable_term (a, b) ->
+        log 15 "Couldn't unify terms %a and %a" Expr.debug_term a Expr.debug_term b
+
+let do_formula = function
+    | { Expr.formula = Expr.All (l, _, p) } as f ->
+      mark f; (* Do not re-generate metas *)
+      let metas = List.map Expr.term_meta (Expr.new_term_metas f) in
+      let subst = List.fold_left2 (fun s v t -> Expr.Subst.Var.bind v t s) Expr.Subst.empty l metas in
+      let q = Expr.formula_subst Expr.Subst.empty subst p in
+      Dispatcher.push [Expr.f_not f; q] (mk_proof_term f metas)
+    | { Expr.formula = Expr.Not { Expr.formula = Expr.Ex (l, _, p) } } as f ->
+      mark f; (* Do not re-generate metas *)
+      let metas = List.map Expr.term_meta (Expr.new_term_metas f) in
+      let subst = List.fold_left2 (fun s v t -> Expr.Subst.Var.bind v t s) Expr.Subst.empty l metas in
+      let q = Expr.formula_subst Expr.Subst.empty subst p in
+      Dispatcher.push [Expr.f_not f; Expr.f_not q] (mk_proof_term f metas)
+    | { Expr.formula = Expr.AllTy (l, _, p) } as f ->
+      mark f; (* Do not re-generate metas *)
+      let metas = List.map Expr.type_meta (Expr.new_ty_metas f) in
+      let subst = List.fold_left2 (fun s v t -> Expr.Subst.Var.bind v t s) Expr.Subst.empty l metas in
+      let q = Expr.formula_subst subst Expr.Subst.empty p in
+      Dispatcher.push [Expr.f_not f; q] (mk_proof_ty f metas)
+    | { Expr.formula = Expr.Not { Expr.formula = Expr.ExTy (l, _, p) } } as f ->
+      mark f; (* Do not re-generate metas *)
+      let metas = List.map Expr.type_meta (Expr.new_ty_metas f) in
+      let subst = List.fold_left2 (fun s v t -> Expr.Subst.Var.bind v t s) Expr.Subst.empty l metas in
+      let q = Expr.formula_subst subst Expr.Subst.empty p in
+      Dispatcher.push [Expr.f_not f; Expr.f_not q] (mk_proof_ty f metas)
+    | _ -> assert false
 
 (* Assuming function *)
 let meta_assume lvl = function
     (* Term metas generation *)
-    | { Expr.formula = Expr.All (l, p) } as f ->
-      if not (has_been_seen f) then begin
-        mark f lvl; (* Do not re-generate metas *)
-        let metas = List.map Expr.term_of_meta (Expr.term_metas f lvl) in
-        let subst = List.fold_left2 (fun s v t -> Expr.Subst.bind v t s) Expr.Subst.empty l metas in
-        let q = Expr.formula_subst Expr.Subst.empty subst p in
-        Dispatcher.push [Expr.f_not f; q] (mk_proof f metas)
-      end
-    | { Expr.formula = Expr.Not { Expr.formula = Expr.Ex (l, p) } } as f ->
-      if not (has_been_seen f) then begin
-        mark f lvl; (* Do not re-generate metas *)
-        let metas = List.map Expr.term_of_meta (Expr.term_metas f lvl) in
-        let subst = List.fold_left2 (fun s v t -> Expr.Subst.bind v t s) Expr.Subst.empty l metas in
-        let q = Expr.formula_subst Expr.Subst.empty subst p in
-        Dispatcher.push [Expr.f_not f; Expr.f_not q] (mk_proof f metas)
-      end
+    | { Expr.formula = Expr.All (l, _, p) } as f ->
+      if not (has_been_seen f) then do_formula f
+    | { Expr.formula = Expr.Not { Expr.formula = Expr.Ex (l, _, p) } } as f ->
+      if not (has_been_seen f) then do_formula f
     (* Unification discovery *)
     | { Expr.formula = Expr.Pred p } ->
       if not (mem p true_preds) then begin
@@ -97,15 +115,22 @@ let meta_assume lvl = function
     | _ -> ()
 
 let find_all_insts () =
-  S.iter (fun p _ -> S.iter (fun notp _ -> find_inst p notp) false_preds) true_preds
+    S.iter (fun p _ -> S.iter (fun notp _ -> find_inst p notp) false_preds) true_preds;
+    for i = 1 to !incr do
+        H.iter (fun f _ -> do_formula f) metas
+    done
 
 let meta_eval _ = None
 
 let meta_pre _ = ()
 ;;
+
+
 Dispatcher.register_options [
     "-no-inst", Arg.Set no_inst,
-    " Do no instanciations other than metavariables (for universally quantified formulas)"
+    " Do no instanciations other than metavariables (for universally quantified formulas)";
+    "-meta-incr", Arg.Int (fun i -> incr := i),
+    " Set the number of new metas to be generated at eash pass (default = 1)";
 ]
 ;;
 Dispatcher.(register {

@@ -64,13 +64,10 @@ let quant_compare p q =
 let inst_order = List.sort (fun (f, _) (f', _) -> quant_compare f' f)
 
 (* Takes ... *)
-let mk_proof id f p s = Dispatcher.({
-    proof_ext = id;
-    proof_name = "inst";
-    proof_ty_args = Expr.Subst.fold (fun m t l -> Expr.type_meta m :: t :: l) Unif.(s.ty_map) [];
-    proof_term_args = Expr.Subst.fold (fun m t l -> Expr.term_meta m :: t :: l) Unif.(s.t_map) [];
-    proof_formula_args = [f; p];
-})
+let mk_proof id f p s = Dispatcher.mk_proof
+    ~ty_args:(Expr.Subst.fold (fun m t l -> Expr.type_meta m :: t :: l) Unif.(s.ty_map) [])
+    ~term_args:(Expr.Subst.fold (fun m t l -> Expr.term_meta m :: t :: l) Unif.(s.t_map) [])
+    ~formula_args:[f; p] id "inst"
 
 (* Applies substitutions in order to provide a coherent
  * instanciation scheme. Returns a triplet
@@ -84,9 +81,6 @@ let apply_subst s f =
         (Expr.Subst.fold aux Unif.(s.ty_map) Expr.Subst.empty)
         (Expr.Subst.fold aux Unif.(s.t_map) Expr.Subst.empty)
         f
-
-let add_subst subst s =
-    Expr.Subst.fold Expr.Subst.Var.bind subst s
 
 let rec fold_subst id subst = function
     | [] -> []

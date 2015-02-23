@@ -59,9 +59,9 @@ let rec sat_preprocess = function
   | { Expr.formula = Expr.Equiv (p, q) } ->
     sat_preprocess p;
     sat_preprocess q
-  | { Expr.formula = Expr.All (_, f) }
-  | { Expr.formula = Expr.AllTy (_, f) }
-  | { Expr.formula = Expr.Ex (_, f) } ->
+  | { Expr.formula = Expr.All (_, _, f) }
+  | { Expr.formula = Expr.AllTy (_, _, f) }
+  | { Expr.formula = Expr.Ex (_, _, f) } ->
     sat_preprocess f
   | _ -> ()
 

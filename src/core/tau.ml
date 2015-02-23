@@ -13,25 +13,48 @@ let has_been_seen f =
 let mark f lvl = H.add seen f lvl
 
 (* Proof generation *)
-let mk_proof f p l taus =
-    id, "tau", [f; p], (List.map2 (fun a b -> Builtin.tuple [Expr.term_var a; b]) l taus)
+let mk_proof_ty f p l taus = Dispatcher.mk_proof
+    ~ty_args:(List.fold_left2 (fun acc a b -> Expr.type_var a :: b :: acc) [] l taus)
+    ~formula_args:[f; p] id "tau"
+
+let mk_proof_term f p l taus = Dispatcher.mk_proof
+    ~term_args:(List.fold_left2 (fun acc a b -> Expr.term_var a :: b :: acc) [] l taus)
+    ~formula_args:[f; p] id "tau"
 
 let tau lvl = function
-    | { Expr.formula = Expr.Ex (l, p) } as f ->
+    | { Expr.formula = Expr.Ex (l, (ty_args, t_args), p) } as f ->
       if not (has_been_seen f) then begin
         mark f lvl;
-        let taus = List.map Expr.term_of_tau (Expr.term_taus f) in
-        let subst = List.fold_left2 (fun s v t -> Expr.Subst.bind v t s) Expr.Subst.empty l taus in
+        let taus = List.map (fun v -> Expr.term_app (Expr.get_term_skolem v) ty_args t_args) l in
+        let subst = List.fold_left2 (fun s v t -> Expr.Subst.Var.bind v t s) Expr.Subst.empty l taus in
         let q = Expr.formula_subst Expr.Subst.empty subst p in
-        Dispatcher.push [Expr.f_not f; q] (mk_proof f q l taus)
+        Dispatcher.push [Expr.f_not f; q] (mk_proof_term f q l taus)
       end
-    | { Expr.formula = Expr.Not { Expr.formula = Expr.All (l, p) } } as f ->
+    | { Expr.formula = Expr.Not { Expr.formula = Expr.All (l, (ty_args, t_args), p) } } as f ->
       if not (has_been_seen f) then begin
         mark f lvl;
-        let taus = List.map Expr.term_of_tau (Expr.term_taus f) in
-        let subst = List.fold_left2 (fun s v t -> Expr.Subst.bind v t s) Expr.Subst.empty l taus in
+        let taus = List.map (fun v -> Expr.term_app (Expr.get_term_skolem v) ty_args t_args) l in
+        let subst = List.fold_left2 (fun s v t -> Expr.Subst.Var.bind v t s) Expr.Subst.empty l taus in
         let q = Expr.formula_subst Expr.Subst.empty subst p in
-        Dispatcher.push [Expr.f_not f; Expr.f_not q] (mk_proof f (Expr.f_not q) l taus)
+        Dispatcher.push [Expr.f_not f; Expr.f_not q] (mk_proof_term f (Expr.f_not q) l taus)
+      end
+    | { Expr.formula = Expr.ExTy (l, (ty_args, t_args), p) } as f ->
+      assert (t_args = []);
+      if not (has_been_seen f) then begin
+        mark f lvl;
+        let taus = List.map (fun v -> Expr.type_app (Expr.get_ty_skolem v) ty_args) l in
+        let subst = List.fold_left2 (fun s v t -> Expr.Subst.Var.bind v t s) Expr.Subst.empty l taus in
+        let q = Expr.formula_subst subst Expr.Subst.empty p in
+        Dispatcher.push [Expr.f_not f; q] (mk_proof_ty f q l taus)
+      end
+    | { Expr.formula = Expr.Not { Expr.formula = Expr.AllTy (l, (ty_args, t_args), p) } } as f ->
+      assert (t_args = []);
+      if not (has_been_seen f) then begin
+        mark f lvl;
+        let taus = List.map (fun v -> Expr.type_app (Expr.get_ty_skolem v) ty_args) l in
+        let subst = List.fold_left2 (fun s v t -> Expr.Subst.Var.bind v t s) Expr.Subst.empty l taus in
+        let q = Expr.formula_subst subst Expr.Subst.empty p in
+        Dispatcher.push [Expr.f_not f; Expr.f_not q] (mk_proof_ty f (Expr.f_not q) l taus)
       end
     (* TODO: Taus for types ? *)
     | _ -> ()

@@ -4,23 +4,22 @@ module H = Hashtbl.Make(Expr.Formula)
 let id = Dispatcher.new_id ()
 let st = H.create 256
 
-let push l =
-    Dispatcher.push l (id, "tab", l, [])
+let push name l = Dispatcher.push l (Dispatcher.mk_proof ~formula_args:l id ("tab-" ^ name))
 
 let push_and r l =
   if List.exists (Expr.Formula.equal Expr.f_false) l then
-    push [Expr.f_not r; Expr.f_false]
+    push "and" [Expr.f_not r; Expr.f_false]
   else
-    List.iter (fun p -> push [Expr.f_not r; p]) l
+    List.iter (fun p -> push "and" [Expr.f_not r; p]) l
 
 let push_or r l =
   if not (List.exists (Expr.Formula.equal Expr.f_true) l) then
-    push (Expr.f_not r :: l)
+    push "or" (Expr.f_not r :: l)
 
 let tab = function
   (* 'True/False' traduction *)
   | { Expr.formula = Expr.False } ->
-    raise (Dispatcher.Absurd ([Expr.f_true], (id, "true", [], [])))
+    raise (Dispatcher.Absurd ([Expr.f_true], (Dispatcher.mk_proof id "true")))
 
   (* 'And' traduction *)
   | { Expr.formula = Expr.And l } as r ->
@@ -42,17 +41,17 @@ let tab = function
     let right = match q with
       | { Expr.formula = Expr.Or l } -> l
       | _ -> [q] in
-    push (Expr.f_not r :: (left @ right))
+    push "imply" (Expr.f_not r :: (left @ right))
   | { Expr.formula = Expr.Not ({ Expr.formula = Expr.Imply (p, q) } as r )  } ->
-    push [r; p];
-    push [r; Expr.f_not q]
+    push "not-imply" [r; p];
+    push "not-imply" [r; Expr.f_not q]
 
   (* 'Equiv' traduction *)
   | { Expr.formula = Expr.Equiv (p, q) } as r ->
-    push [Expr.f_not r; Expr.f_not p; q];
-    push [Expr.f_not r; Expr.f_not q; p]
+    push "equiv" [Expr.f_not r; Expr.f_not p; q];
+    push "equiv" [Expr.f_not r; Expr.f_not q; p]
   | { Expr.formula = Expr.Not ({ Expr.formula = Expr.Equiv (p, q) } as r )  } ->
-    push [r; Expr.f_and [p; Expr.f_not q]; Expr.f_and [Expr.f_not p; q] ]
+    push "not-equiv" [r; Expr.f_and [p; Expr.f_not q]; Expr.f_and [Expr.f_not p; q] ]
 
   (* Other formulas (not treated) *)
   | _ -> ()

@@ -61,6 +61,14 @@ let get_options () = !options
 (* Proof management *)
 (* ************************************************************************ *)
 
+let mk_proof ?(ty_args=[]) ?(term_args=[]) ?(formula_args=[]) id name = {
+    proof_ext = id;
+    proof_name = name;
+    proof_ty_args = ty_args;
+    proof_term_args = term_args;
+    proof_formula_args = formula_args;
+}
+
 let proof_debug p =
     let color = match p.proof_name with
       | "inst" -> Some "PURPLE"
@@ -253,10 +261,12 @@ let is_assigned t =
 let get_assign t =
   try M.find eval_map t with Not_found -> raise (Not_assigned t)
 
+(*
 let add_wait_eval t t' =
   assert (not (is_assigned t));
   let l = try M.find wait_eval t' with Not_found -> [] in
   M.add wait_eval t' (List.sort_uniq Expr.Term.compare (t :: l))
+*)
 
 let add_job job t =
   let l = try H.find watch_map t with Not_found -> [] in

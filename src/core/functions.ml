@@ -7,13 +7,7 @@ module H = Backtrack.HashtblBack(Expr.Term)
 let id = Dispatcher.new_id ()
 let st = H.create Dispatcher.stack
 
-let mk_proof l = Dispatcher.({
-    proof_ext = id;
-    proof_name = "f-eq";
-    proof_ty_args = [];
-    proof_term_args = l;
-    proof_formula_args = [];
-})
+let mk_proof l = Dispatcher.mk_proof ~term_args:l id "f-eq"
 
 let set_interpretation t () = match t with
   | { Expr.term = Expr.App (f, tys, l) } ->

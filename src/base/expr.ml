@@ -2,17 +2,20 @@
 (* Type definitions *)
 (* ************************************************************************ *)
 
+(* Private aliases *)
+type var_id = int
+type meta_index = int
+
 (* Variables, parametrized by the kind of the type of the variable *)
 type 'ty var = {
   var_name : string;
-  var_id : int; (** unique *)
+  var_id : var_id; (** unique *)
   var_type : 'ty;
 }
 
 type 'ty meta = {
   meta_var : 'ty var;
-  meta_index : int;
-  meta_level : int;
+  meta_index : meta_index;
   can_unify : bool;
 }
 
@@ -421,7 +424,10 @@ let equal_formula u v =
 (* ************************************************************************ *)
 
 module Subst = struct
-  module Mi = Map.Make(struct type t = int let compare = Pervasives.compare end)
+  module Mi = Map.Make(struct
+    type t = int * int
+    let compare (a, b) (c, d) = match compare a c with 0 -> compare b d | x -> x
+  end)
 
   type ('a, 'b) t = ('a * 'b) Mi.t
 
@@ -464,19 +470,21 @@ module Subst = struct
   (* Variable substitutions *)
   module Var = struct
     type 'a key = 'a var
-    let get v s = snd (Mi.find v.var_id s)
-    let mem v s = Mi.mem v.var_id s
-    let bind v t s = Mi.add v.var_id (v, t) s
-    let remove v s = Mi.remove v.var_id s
+    let tok v = (v.var_id, 0)
+    let get v s = snd (Mi.find (tok v) s)
+    let mem v s = Mi.mem (tok v) s
+    let bind v t s = Mi.add (tok v) (v, t) s
+    let remove v s = Mi.remove (tok v) s
   end
 
   (* Meta substitutions *)
   module Meta = struct
     type 'a key = 'a meta
-    let get m s = snd (Mi.find m.meta_var.var_id s)
-    let mem m s = Mi.mem m.meta_var.var_id s
-    let bind m t s = Mi.add m.meta_var.var_id (m, t) s
-    let remove m s = Mi.remove m.meta_var.var_id s
+    let tok m = (m.meta_var.var_id, m.meta_index)
+    let get m s = snd (Mi.find (tok m) s)
+    let mem m s = Mi.mem (tok m) s
+    let bind m t s = Mi.add (tok m) (m, t) s
+    let remove m s = Mi.remove (tok m) s
   end
 
 end
@@ -737,13 +745,13 @@ let get_term_skolem v = Hashtbl.find term_taus v.var_id
 
 let init_ty_skolem v n =
   if not (Hashtbl.mem ty_taus v.var_id) then begin
-    let res = type_const v.var_name n in
+    let res = type_const ("sk_" ^ v.var_name) n in
     Hashtbl.add ty_taus v.var_id res
   end
 
 let init_term_skolem v tys args ret =
   if not (Hashtbl.mem term_taus v.var_id) then begin
-    let res = term_const v.var_name tys args ret in
+    let res = term_const ("sk_" ^ v.var_name) tys args ret in
     Hashtbl.add term_taus v.var_id res
   end
 
@@ -864,7 +872,8 @@ let rec new_binder_subst ty_map subst acc = function
       new_binder_subst ty_map (Subst.Var.remove v subst) (v :: acc) r
 
 (* TODO: Check free variables of substitutions for quantifiers ? *)
-let rec formula_subst ty_map t_map f = match f.formula with
+let rec formula_subst ty_map t_map f =
+  match f.formula with
   | True | False -> f
   | Equal (a, b) -> f_equal (term_subst ty_map t_map a) (term_subst ty_map t_map b)
   | Pred t -> f_pred (term_subst ty_map t_map t)
@@ -877,44 +886,26 @@ let rec formula_subst ty_map t_map f = match f.formula with
     let l', t_map = new_binder_subst ty_map t_map [] l in
     let tys = List.map (type_subst ty_map) ty in
     let ts = List.map (term_subst ty_map t_map) t in
-    Subst.iter (fun _ t -> match t.term with
-        | Var v ->
-          begin try raise (Subst_error_term_scope (List.find (equal_var v) l))
-            with Not_found -> () end
-        | _ -> ()
-      ) t_map;
     mk_formula (All (l', (tys, ts), (formula_subst ty_map t_map f)))
   | Ex (l, (ty, t), f) ->
     let l', t_map = new_binder_subst ty_map t_map [] l in
     let tys = List.map (type_subst ty_map) ty in
     let ts = List.map (term_subst ty_map t_map) t in
-    Subst.iter (fun _ t -> match t.term with
-        | Var v ->
-          begin try raise (Subst_error_term_scope (List.find (equal_var v) l))
-            with Not_found -> () end
-        | _ -> ()
-      ) t_map;
     mk_formula (Ex (l', (tys, ts), (formula_subst ty_map t_map f)))
   | AllTy (l, (ty, t), f) ->
     assert (t = []);
     let tys = List.map (type_subst ty_map) ty in
-    Subst.iter (fun _ ty -> match ty.ty with
-        | TyVar v ->
-          begin try raise (Subst_error_ty_scope (List.find (equal_var v) l))
-            with Not_found -> () end
-        | _ -> ()
-      ) ty_map;
     mk_formula (AllTy (l, (tys, t), (formula_subst ty_map t_map f)))
   | ExTy (l, (ty, t), f) ->
     assert (t = []);
     let tys = List.map (type_subst ty_map) ty in
-    Subst.iter (fun _ ty -> match ty.ty with
-        | TyVar v ->
-          begin try raise (Subst_error_ty_scope (List.find (equal_var v) l))
-            with Not_found -> () end
-        | _ -> ()
-      ) ty_map;
     mk_formula (ExTy (l, (tys, t), (formula_subst ty_map t_map f)))
+
+let formula_subst ty_map t_map f =
+    Subst.iter (fun _ ty -> match ty.ty with TyVar _ -> assert false | _ -> ()) ty_map;
+    Subst.iter (fun _ t -> match t.term with Var _ -> assert false | _ -> ()) t_map;
+    if Subst.is_empty ty_map && Subst.is_empty t_map then f
+    else formula_subst ty_map t_map f
 
 (* Metas *)
 (* ************************************************************************ *)
@@ -924,10 +915,9 @@ let meta_ty_index = Vector.make 37 ({ formula = True; f_hash = -1 }, [])
 let meta_term_index = Vector.make 37 ({ formula = True; f_hash = -1 }, [])
 
 (* Metas *)
-let mk_meta v i lvl = {
+let mk_meta v i = {
   meta_var = v;
   meta_index = i;
-  meta_level = lvl;
   can_unify = true;
 }
 
@@ -936,27 +926,27 @@ let protect meta = { meta with can_unify = false }
 let get_meta_def i = fst (Vector.get meta_term_index i)
 let get_meta_ty_def i = fst (Vector.get meta_ty_index i)
 
-let mk_metas l f lvl =
+let mk_metas l f =
   let i = Vector.size meta_term_index in
-  let metas = List.map (fun v -> mk_meta v i lvl) l in
+  let metas = List.map (fun v -> mk_meta v i) l in
   Vector.push meta_term_index (f, metas);
   metas
 
-let mk_ty_metas l f lvl =
+let mk_ty_metas l f =
   let i = Vector.size meta_ty_index in
-  let metas = List.map (fun v -> mk_meta v i lvl) l in
+  let metas = List.map (fun v -> mk_meta v i) l in
   Vector.push meta_ty_index (f, metas);
   metas
 
-let other_ty_metas m = snd (Vector.get meta_ty_index m.meta_index)
-let other_term_metas m = snd (Vector.get meta_term_index m.meta_index)
+let ty_metas_of_index i = snd (Vector.get meta_ty_index i)
+let term_metas_of_index i = snd (Vector.get meta_term_index i)
 
-let new_ty_metas f lvl = match f.formula with
-  | Not { formula = ExTy(l, _, _) } | AllTy (l, _, _) -> mk_ty_metas l f lvl
+let new_ty_metas f = match f.formula with
+  | Not { formula = ExTy(l, _, _) } | AllTy (l, _, _) -> mk_ty_metas l f
   | _ -> invalid_arg "new_ty_metas"
 
-let new_term_metas f lvl = match f.formula with
-  | Not { formula = Ex(l, _, _) } | All (l, _, _) -> mk_metas l f lvl
+let new_term_metas f = match f.formula with
+  | Not { formula = Ex(l, _, _) } | All (l, _, _) -> mk_metas l f
   | _ -> invalid_arg "new_term_metas"
 
 (* Modules for simpler function names *)

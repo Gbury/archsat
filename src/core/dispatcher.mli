@@ -3,7 +3,7 @@
 
 type id
 
-type lemma = {
+type lemma = private {
   proof_ext : id;
   proof_name : string;
   proof_ty_args : Expr.ty list;
@@ -32,6 +32,13 @@ exception Absurd of formula list * proof
 exception Extension_not_found of string
 (** Raised by activate *)
 
+(** {2 Proof management} *)
+
+val mk_proof : ?ty_args : Expr.ty list ->
+               ?term_args : Expr.term list ->
+               ?formula_args : Expr.formula list ->
+               id -> string -> proof
+(** Returns the associated proof. Optional arguments not specified are assumed ot be empty lists. *)
 
 (** {2 Extension Registering} *)
 

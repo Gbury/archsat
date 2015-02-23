@@ -8,6 +8,9 @@
 exception Not_unifiable_ty of Expr.ty * Expr.ty
 exception Not_unifiable_term of Expr.term * Expr.term
 
+let log_section = Util.Section.make "unif"
+let log i fmt = Util.debug ~section:log_section i fmt
+
 (* Metavariable protection *)
 (* ************************************************************************ *)
 
@@ -25,6 +28,10 @@ type t = {
   ty_map : (Expr.ttype Expr.meta, Expr.ty) Expr.Subst.t;
   t_map : (Expr.ty Expr.meta, Expr.term) Expr.Subst.t;
 }
+
+let debug_unif b s =
+  Expr.Subst.iter (fun m ty -> Printf.bprintf b "%a -> %a; " Expr.debug_meta m Expr.debug_ty ty) s.ty_map;
+  Expr.Subst.iter (fun m t -> Printf.bprintf b "%a -> %a; " Expr.debug_meta m Expr.debug_term t) s.t_map
 
 let empty = { ty_map = Expr.Subst.empty; t_map = Expr.Subst.empty; }
 
@@ -74,11 +81,13 @@ let merge_free_args (ty1, t1) (ty2, t2) =
     List.merge Expr.Term.compare t1 t2
 
 let belong_ty m s =
-    let aux e m' _ = List.exists (Expr.Ty.equal e) (fst (free_args_ty m)) in
+    let aux e m' _ = Expr.(m.meta_index = m'.meta_index) ||
+                     List.exists (Expr.Ty.equal e) (fst (free_args_ty m')) in
     Expr.Subst.exists (aux (Expr.type_meta m)) s.ty_map
 
 let belong_term m s =
-    let aux e m' _ = List.exists (Expr.Term.equal e) (snd (free_args_term m)) in
+    let aux e m' _ = Expr.(m.meta_index = m'.meta_index) ||
+                     List.exists (Expr.Term.equal e) (snd (free_args_term m')) in
     Expr.Subst.exists (aux (Expr.term_meta m)) s.t_map
 
 let split s =
@@ -90,22 +99,29 @@ let split s =
         else
           aux bind belongs (s :: acc) m t r
   in
-  Expr.Subst.fold (aux bind_term belong_term []) s.t_map
-    (Expr.Subst.fold (aux bind_ty belong_ty []) s.ty_map [])
+  let l = Expr.Subst.fold (aux bind_term belong_term []) s.t_map
+      (Expr.Subst.fold (aux bind_ty belong_ty []) s.ty_map [])
+  in
+  log 5 "Starting from : %a" debug_unif s;
+  List.iter (fun u -> log 5 " |- %a" debug_unif u) l;
+  l
 
 let complete s =
     let aux_ty subst = function
         | { Expr.ty = Expr.TyMeta m } as t -> if mem_ty subst m then subst else bind_ty subst m t
-        | _ -> assert false
+        | _ -> subst
     in
     let aux_term subst = function
         | { Expr.term = Expr.Meta m } as t -> if mem_term subst m then subst else bind_term subst m t
-        | _ -> assert false
+        | _ -> subst
     in
     let l, l' = Expr.Subst.fold (fun m _ acc -> merge_free_args acc (free_args_term m)) s.t_map
         (Expr.Subst.fold (fun m _ acc -> merge_free_args acc (free_args_ty m)) s.ty_map ([], []))
     in
-    List.fold_left aux_term (List.fold_left aux_ty s l) l'
+    let u = List.fold_left aux_term (List.fold_left aux_ty s l) l' in
+    log 5 "Starting from : %a" debug_unif s;
+    log 5 "Got : %a" debug_unif u;
+    u
 
 (* Robinson unification *)
 (* ************************************************************************ *)
@@ -137,6 +153,7 @@ let rec meta_unify_ty subst s t =
     try meta_unify_ty subst s (follow_ty subst t) with Not_found ->
       begin match s, t with
         | _ when Expr.Ty.equal s t -> subst
+        | _, { Expr.ty = Expr.TyVar _ } | { Expr.ty = Expr.TyVar _}, _ -> assert false
         | { Expr.ty = Expr.TyMeta ({ Expr.meta_var = v1 } as m)},
           { Expr.ty = Expr.TyMeta { Expr.meta_var = v2 } } ->
           if Expr.Var.equal v1 v2 then
@@ -153,10 +170,12 @@ let rec meta_unify_ty subst s t =
       end
 
 let rec meta_unify_term subst s t =
+    log 90 "trying %a <-> %a" Expr.debug_term s Expr.debug_term t;
     try meta_unify_term subst (follow_term subst s) t with Not_found ->
     try meta_unify_term subst s (follow_term subst t) with Not_found ->
       begin match s, t with
         | _ when Expr.Term.equal s t -> subst
+        | _, { Expr.term = Expr.Var _ } | { Expr.term = Expr.Var _}, _ -> assert false
         | { Expr.term = Expr.Meta ({ Expr.meta_var = v1 } as m) },
           { Expr.term = Expr.Meta { Expr.meta_var = v2 } } ->
           if Expr.Var.equal v1 v2 then
@@ -179,6 +198,7 @@ let rec robinson_ty subst s t =
     try robinson_ty subst s (follow_ty subst t) with Not_found ->
       begin match s, t with
         | _ when Expr.Ty.equal s t -> subst
+        | _, { Expr.ty = Expr.TyVar _ } | { Expr.ty = Expr.TyVar _}, _ -> assert false
         | ({ Expr.ty = Expr.TyMeta ({Expr.can_unify= true} as v) } as m), u
         | u, ({ Expr.ty = Expr.TyMeta ({Expr.can_unify = true} as v) } as m) ->
           if occurs_check_ty subst m u then
@@ -199,6 +219,7 @@ let rec robinson_term subst s t =
     try robinson_term subst s (follow_term subst t) with Not_found ->
       begin match s, t with
         | _ when Expr.Term.equal s t -> subst
+        | _, { Expr.term = Expr.Var _ } | { Expr.term = Expr.Var _}, _ -> assert false
         | ({ Expr.term = Expr.Meta ({Expr.can_unify= true} as v) } as m), u
         | u, ({ Expr.term = Expr.Meta ({Expr.can_unify = true} as v) } as m) ->
           if occurs_check_term subst m u then
@@ -222,18 +243,42 @@ let unify_term s t = robinson_term empty s t
 let unify_meta_ty s t = meta_unify_ty empty s t
 let unify_meta_term s t = meta_unify_term empty s t
 
-(* Robinson unification with Caching for term unification *)
+let equal_up_to_metas u u' =
+    try
+        let _ = Expr.Subst.fold (fun m t acc -> meta_unify_term acc (get_term u' m) t) u.t_map
+               (Expr.Subst.fold (fun m ty acc -> meta_unify_ty acc (get_ty u' m) ty) u.ty_map empty)
+        in
+        true
+    with Not_found | Not_unifiable_ty _ | Not_unifiable_term _ ->
+        false
+
+(* Robinson unification with Caching (modulo meta switching) for term unification *)
 (* ************************************************************************ *)
 
-module H = Hashtbl.Make(Expr.Term)
+module H = Hashtbl.Make(struct
+    type t = Expr.term * Expr.term
+    let hash (s, t) = Hashtbl.hash (Expr.Term.hash s, Expr.Term.hash t)
+    let equal (s1, t1) (s2, t2) =
+        log 50 "testin meta-eq of %a,%a and %a,%a" Expr.debug_term s1 Expr.debug_term t1 Expr.debug_term s2 Expr.debug_term t2;
+        try
+            let tmp = meta_unify_term empty s1 s2 in
+            log 50 "found first unif";
+            Expr.Subst.iter (fun m t -> log 60 " |- %a -> %a" Expr.debug_meta m Expr.debug_term t) tmp.t_map;
+            let _ = meta_unify_term tmp t1 t2 in
+            log 60 "meta-unifiable !";
+            true
+        with Not_unifiable_ty _ | Not_unifiable_term _ ->
+            false
+end)
 
 let cache = H.create 4096
 
 let cached_unify s t =
-  let key = Builtin.tuple [s; t] in
+  let key = (s, t) in
   try
       H.find cache key
   with Not_found ->
+      log 15 "starting unification";
       let res = unify_term s t in
       H.add cache key res;
       res

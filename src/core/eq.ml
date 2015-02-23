@@ -47,13 +47,7 @@ let mk_expl (a, b, l) =
 
 let mk_proof l =
     assert (l <> []);
-    Dispatcher.({
-      proof_ext = id;
-      proof_name = "eq-trans";
-      proof_ty_args = [];
-      proof_term_args = l;
-      proof_formula_args = [];
-    })
+    Dispatcher.mk_proof ~term_args:l id "eq-trans"
 
 let wrap f x y =
     try

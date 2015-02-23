@@ -4,16 +4,18 @@
 (** {2 Type definitions} *)
 
 (** {3 Variables} *)
+type var_id = private int
+type meta_index = private int
+
 type 'ty var = private {
   var_name : string;
-  var_id : int; (** unique *)
+  var_id : var_id; (** unique *)
   var_type : 'ty;
 }
 
 type 'ty meta = private {
   meta_var : 'ty var;
-  meta_index : int;
-  meta_level : int;
+  meta_index : meta_index;
   can_unify : bool;
 }
 
@@ -181,14 +183,14 @@ val term_const : string -> ttype var list -> ty list -> ty -> ty function_descr 
 
 (** {5 Metas} *)
 
-val get_meta_def : int -> formula
-val get_meta_ty_def : int -> formula
+val get_meta_def : meta_index -> formula
+val get_meta_ty_def : meta_index -> formula
 
-val new_ty_metas : formula -> int -> ttype meta list
-val other_ty_metas : ttype meta -> ttype meta list
+val new_ty_metas : formula -> ttype meta list
+val ty_metas_of_index : meta_index -> ttype meta list
 
-val new_term_metas : formula -> int -> ty meta list
-val other_term_metas : ty meta -> ty meta list
+val new_term_metas : formula -> ty meta list
+val term_metas_of_index : meta_index -> ty meta list
 (** [other_term_metas m] returns the list [l] of term metas that was generated together with [m]
     i.e [m] is a meta in [l] and [l] was returned by [new_term_metas] previously. *)
 
