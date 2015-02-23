@@ -108,15 +108,22 @@ let split s =
 
 let complete s =
     let aux_ty subst = function
-        | { Expr.ty = Expr.TyMeta m } as t -> if mem_ty subst m then subst else bind_ty subst m t
-        | _ -> subst
+      | { Expr.ty = Expr.TyMeta m } as t -> if mem_ty subst m then subst else bind_ty subst m t
+      | _ -> subst
     in
     let aux_term subst = function
-        | { Expr.term = Expr.Meta m } as t -> if mem_term subst m then subst else bind_term subst m t
-        | _ -> subst
+      | { Expr.term = Expr.Meta m } as t -> if mem_term subst m then subst else bind_term subst m t
+      | _ -> subst
     in
-    let l, l' = Expr.Subst.fold (fun m _ acc -> merge_free_args acc (free_args_term m)) s.t_map
-        (Expr.Subst.fold (fun m _ acc -> merge_free_args acc (free_args_ty m)) s.ty_map ([], []))
+    let l, l' = Expr.Subst.fold (fun m _ acc ->
+        let l, l' = free_args_term m in
+        let l'' = List.map Expr.term_meta Expr.(term_metas_of_index m.meta_index) in
+        merge_free_args acc (l, List.rev_append l' l'')) s.t_map
+        (Expr.Subst.fold (fun m _ acc ->
+        let l, l' = free_args_ty m in
+        let l'' = List.map Expr.type_meta Expr.(ty_metas_of_index m.meta_index) in
+        merge_free_args acc (List.rev_append l l'', l')) s.ty_map
+        ([], []))
     in
     let u = List.fold_left aux_term (List.fold_left aux_ty s l) l' in
     log 5 "Starting from : %a" debug_unif s;
