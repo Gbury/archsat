@@ -197,13 +197,9 @@ module H = Hashtbl.Make(struct
     type t = Expr.term * Expr.term
     let hash (s, t) = Hashtbl.hash (Expr.Term.hash s, Expr.Term.hash t)
     let equal (s1, t1) (s2, t2) =
-        log 50 "testin meta-eq of %a,%a and %a,%a" Expr.debug_term s1 Expr.debug_term t1 Expr.debug_term s2 Expr.debug_term t2;
         try
             let tmp = meta_unify_term empty s1 s2 in
-            log 50 "found first unif";
-            Expr.Subst.iter (fun m t -> log 60 " |- %a -> %a" Expr.debug_meta m Expr.debug_term t) tmp.t_map;
             let _ = meta_unify_term tmp t1 t2 in
-            log 60 "meta-unifiable !";
             true
         with Not_unifiable_ty _ | Not_unifiable_term _ ->
             false

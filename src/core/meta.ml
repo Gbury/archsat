@@ -70,25 +70,25 @@ let find_inst p notp =
 
 let do_formula = function
     | { Expr.formula = Expr.All (l, _, p) } as f ->
-      mark f; (* Do not re-generate metas *)
+      mark f;
       let metas = List.map Expr.term_meta (Expr.new_term_metas f) in
       let subst = List.fold_left2 (fun s v t -> Expr.Subst.Var.bind v t s) Expr.Subst.empty l metas in
       let q = Expr.formula_subst Expr.Subst.empty subst p in
       Dispatcher.push [Expr.f_not f; q] (mk_proof_term f metas)
     | { Expr.formula = Expr.Not { Expr.formula = Expr.Ex (l, _, p) } } as f ->
-      mark f; (* Do not re-generate metas *)
+      mark f;
       let metas = List.map Expr.term_meta (Expr.new_term_metas f) in
       let subst = List.fold_left2 (fun s v t -> Expr.Subst.Var.bind v t s) Expr.Subst.empty l metas in
       let q = Expr.formula_subst Expr.Subst.empty subst p in
       Dispatcher.push [Expr.f_not f; Expr.f_not q] (mk_proof_term f metas)
     | { Expr.formula = Expr.AllTy (l, _, p) } as f ->
-      mark f; (* Do not re-generate metas *)
+      mark f;
       let metas = List.map Expr.type_meta (Expr.new_ty_metas f) in
       let subst = List.fold_left2 (fun s v t -> Expr.Subst.Var.bind v t s) Expr.Subst.empty l metas in
       let q = Expr.formula_subst subst Expr.Subst.empty p in
       Dispatcher.push [Expr.f_not f; q] (mk_proof_ty f metas)
     | { Expr.formula = Expr.Not { Expr.formula = Expr.ExTy (l, _, p) } } as f ->
-      mark f; (* Do not re-generate metas *)
+      mark f;
       let metas = List.map Expr.type_meta (Expr.new_ty_metas f) in
       let subst = List.fold_left2 (fun s v t -> Expr.Subst.Var.bind v t s) Expr.Subst.empty l metas in
       let q = Expr.formula_subst subst Expr.Subst.empty p in
@@ -115,7 +115,7 @@ let meta_assume lvl = function
 
 let find_all_insts () =
     S.iter (fun p _ -> S.iter (fun notp _ -> find_inst p notp) false_preds) true_preds;
-    for i = 1 to !incr do
+    for _ = 1 to !incr do
         H.iter (fun f _ -> do_formula f) metas
     done
 

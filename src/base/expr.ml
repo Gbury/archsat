@@ -239,7 +239,7 @@ let hash h_skel l = Hashtbl.hash (h_skel, l)
 let rec hash_ty t =
   let h = match t.ty with
     | TyVar v -> v.var_id
-    | TyMeta v -> Hashtbl.hash v.meta_var.var_id
+    | TyMeta m -> m.meta_var.var_id
     | TyApp (f, args) ->
       hash f.var_id (List.rev_map get_ty_hash args)
   in
@@ -285,8 +285,8 @@ let rec hash_formula f =
   let h = match f.formula with
     | Equal (t1, t2) -> hash h_eq [get_term_hash t1; get_term_hash t2]
     | Pred t -> hash h_pred (get_term_hash t)
-    | True -> h_true
-    | False -> h_false
+    | True -> hash h_true []
+    | False -> hash h_false []
     | Not f -> hash h_not (get_formula_hash f)
     | And l -> hash h_and (List.map get_formula_hash l)
     | Or l -> hash h_or (List.map get_formula_hash l)
