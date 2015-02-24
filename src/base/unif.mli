@@ -28,8 +28,6 @@ val mem_term : t -> Expr.ty Expr.meta -> bool
 val bind_ty : t -> Expr.ttype Expr.meta -> Expr.ty -> t
 val bind_term : t -> Expr.ty Expr.meta -> Expr.term -> t
 
-val split : t -> t list
-val complete : t -> t
 val merge : t -> t -> t
 
 val equal_up_to_metas : t -> t -> bool

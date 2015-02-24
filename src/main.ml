@@ -6,8 +6,7 @@ module Eq = Eq
 module Tab = Tab
 module Prop = Prop
 module Functions = Functions
-
-module Tau = Tau
+module Skolem = Skolem
 module Meta = Meta
 
 (* Types and exceptions *)
@@ -170,7 +169,7 @@ let do_command = function
 let main () =
   let _ = Gc.create_alarm check in
   (* Default extensions *)
-  Dispatcher.set_exts "+eq,+uf,+tab,+prop,+tau,+meta";
+  Dispatcher.set_exts "+eq,+uf,+tab,+prop,+skolem,+meta";
   (* Argument parsing *)
   Arg.parse argspec input_file usage;
   if !file = "" then begin

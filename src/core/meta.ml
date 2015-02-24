@@ -44,10 +44,8 @@ let do_unif u =
     U.add unif_set u 0;
     log 10 "Found inst";
     print_inst u;
-    if not !no_inst then begin
-      let l = Inst.instanciation id u in
-      List.iter (fun (cl, proof) -> Dispatcher.push cl proof) l
-    end
+    if not !no_inst then
+      Inst.instanciation u
   end else
     let i = U.find unif_set u in
     U.add unif_set u (i + 1)
@@ -55,7 +53,8 @@ let do_unif u =
 let inst p notp =
   let unif = Unif.cached_unify p notp in
   log 5 "Unification found";
-  let l = List.map Unif.complete (Unif.split unif) in
+  print_inst unif;
+  let l = List.map Inst.complete (Inst.split unif) in
   List.iter do_unif l
 
 let find_inst p notp =
@@ -124,7 +123,6 @@ let meta_eval _ = None
 
 let meta_pre _ = ()
 ;;
-
 
 Dispatcher.register_options [
     "-no-inst", Arg.Set no_inst,
