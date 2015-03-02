@@ -13,12 +13,7 @@ val split : Unif.t -> Unif.t list
     Additionally, no formula generating metas from two different unifiers in the list
     are comparable. *)
 
-val complete : Unif.t -> Unif.t
-(** Complete an instanciation such that all variables quantified universally in the
-    formulas generating the bound metas, have a corresponding meta bound in the result. *)
-
 val instanciation : Unif.t -> unit
 (** Takes an unifier and instanciates the given unifier, i.e pushed clauses to the sat solver
-    that realizes the unifier. The unifiers used as arguments should have been the results
-    of splitting, then completing an arbitrary unifier using the above functions. *)
+    that realizes the unifier. *)
 

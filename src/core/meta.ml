@@ -63,7 +63,6 @@ let inst p notp =
   log 5 "Unification found";
   print_inst unif;
   let l = Inst.split unif in
-  let l = List.map Inst.complete l in
   let l = List.map Unif.protect_inst l in
   List.iter do_unif l
 

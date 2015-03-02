@@ -80,8 +80,6 @@ let split s =
   Expr.Subst.fold (aux Unif.bind_term belong_term []) Unif.(s.t_map)
     (Expr.Subst.fold (aux Unif.bind_ty belong_ty []) Unif.(s.ty_map) [])
 
-let complete s = s
-
 (* Given an arbitrary substitution (Unif.t),
  * Returns a pair (formula * Unif.t) to instanciate
  * the outermost metas in the given unifier. *)
