@@ -13,11 +13,19 @@ let incr = ref 1
 (* Hashtbl to store number of generated metas for each formula *)
 let metas = H.create 256
 
-let get_nb_metas f = try H.find metas f with Not_found -> 0
+let get_nb_metas f =
+    try
+      H.find metas f
+    with Not_found ->
+      let i = ref 0 in
+      H.add metas f i;
+      i
 
-let has_been_seen f = get_nb_metas f > 0
+let has_been_seen f = !(get_nb_metas f) > 0
 
-let mark f = H.add metas f (get_nb_metas f + 1)
+let mark f =
+    let i = get_nb_metas f in
+    i := !i + 1
 
 (* Small helper *)
 (* TODO *)
@@ -54,7 +62,9 @@ let inst p notp =
   let unif = Unif.cached_unify p notp in
   log 5 "Unification found";
   print_inst unif;
-  let l = List.map Inst.complete (Inst.split unif) in
+  let l = Inst.split unif in
+  let l = List.map Inst.complete l in
+  let l = List.map Unif.protect_inst l in
   List.iter do_unif l
 
 let find_inst p notp =
@@ -125,9 +135,9 @@ let meta_pre _ = ()
 ;;
 
 Dispatcher.register_options [
-    "-no-inst", Arg.Set no_inst,
-    " Do no instanciations other than metavariables (for universally quantified formulas)";
-    "-meta-incr", Arg.Int (fun i -> incr := i),
+    "-meta.inst", Arg.String (function "false" -> no_inst := true | _ -> ()),
+    " Decide wether meta are to be instanciated (default : true)";
+    "-meta.incr", Arg.Int (fun i -> incr := i),
     " Set the number of new metas to be generated at eash pass (default = 1)";
 ]
 ;;

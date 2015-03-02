@@ -302,6 +302,9 @@ module Subst : sig
   val equal : ('b -> 'b -> bool) -> ('a, 'b) t -> ('a, 'b) t -> bool
   (** Comparison and hash functions, with a comparison/hash function on values as parameter *)
 
+  val choose : ('a, 'b) t -> 'a * 'b
+  (** Return one binding of the given substitution, or raise Not_found if the substitution is empty.*)
+
   (** {5 Concrete subtitutions } *)
   module type S = sig
     type 'a key

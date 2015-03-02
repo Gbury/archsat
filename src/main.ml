@@ -96,8 +96,8 @@ let argspec = Arg.align (List.sort arg_compare
     "<t>[smhd] Sets the time limit for the sat solver";
     "-type-only", Arg.Set p_type_only,
     " Only parse and type the given problem. Do not attempt to solve.";
-    "-x", Arg.String Dispatcher.set_exts,
-    "<name> Activate the given extension";
+    "-ext", Arg.String Dispatcher.set_exts,
+    "<extensions> Activate/deactivate extensions (default : +eq,+uf,+tab,+prop,+skolem,+meta)";
   ]))
 
 (* Limits alarm *)

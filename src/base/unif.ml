@@ -11,15 +11,6 @@ exception Not_unifiable_term of Expr.term * Expr.term
 let log_section = Util.Section.make "unif"
 let log i fmt = Util.debug ~section:log_section i fmt
 
-(* Metavariable protection *)
-(* ************************************************************************ *)
-
-let rec protect_term = function
-    | { Expr.term = Expr.Meta m } -> Expr.term_meta (Expr.protect m)
-    | { Expr.term = Expr.App (f, ty_l, t_l) } ->
-      Expr.term_app f ty_l (List.map protect_term t_l)
-    | t -> t
-
 (* Unifiers *)
 (* ************************************************************************ *)
 
@@ -28,10 +19,6 @@ type t = {
   ty_map : (Expr.ttype Expr.meta, Expr.ty) Expr.Subst.t;
   t_map : (Expr.ty Expr.meta, Expr.term) Expr.Subst.t;
 }
-
-let debug_unif b s =
-  Expr.Subst.iter (fun m ty -> Printf.bprintf b "%a -> %a; " Expr.debug_meta m Expr.debug_ty ty) s.ty_map;
-  Expr.Subst.iter (fun m t -> Printf.bprintf b "%a -> %a; " Expr.debug_meta m Expr.debug_term t) s.t_map
 
 let empty = { ty_map = Expr.Subst.empty; t_map = Expr.Subst.empty; }
 
@@ -59,6 +46,28 @@ let equal s u =
 let merge s s' = {
     ty_map = Expr.Subst.fold Expr.Subst.Meta.bind s.ty_map s'.ty_map;
     t_map = Expr.Subst.fold Expr.Subst.Meta.bind s.t_map s'.t_map;
+}
+
+(* Metavariable protection *)
+(* ************************************************************************ *)
+
+let rec protect_ty = function
+    | { Expr.ty = Expr.TyMeta m } -> Expr.type_meta (Expr.protect m)
+    | { Expr.ty = Expr.TyApp (f, ty_l) } ->
+      Expr.type_app f (List.map protect_ty ty_l)
+    | ty -> ty
+
+let rec protect_term = function
+    | { Expr.term = Expr.Meta m } -> Expr.term_meta (Expr.protect m)
+    | { Expr.term = Expr.App (f, ty_l, t_l) } ->
+      Expr.term_app f (List.map protect_ty ty_l) (List.map protect_term t_l)
+    | t -> t
+
+let protect_inst s = {
+    ty_map = Expr.Subst.fold (fun m ty acc ->
+        Expr.Subst.Meta.bind m (protect_ty ty) acc) s.ty_map Expr.Subst.empty;
+    t_map = Expr.Subst.fold (fun m t acc ->
+        Expr.Subst.Meta.bind m (protect_term t) acc) s.t_map Expr.Subst.empty;
 }
 
 (* Robinson unification *)

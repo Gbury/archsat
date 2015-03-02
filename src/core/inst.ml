@@ -1,11 +1,11 @@
 
-(* Option helpers *)
-let opt = function Some x -> x | None -> assert false
+(*
+let log_section = Util.Section.make "inst"
+let log i fmt = Util.debug ~section:log_section i fmt
+*)
 
 (* Instanciation helpers *)
 let index m = Expr.(m.meta_index)
-let meta_def m = Expr.get_meta_def (index m)
-let meta_ty_def m = Expr.get_meta_ty_def (index m)
 
 (* Partial order, representing the inclusion on quantified formulas
  * Uses the free variables to determine inclusion. *)
@@ -26,13 +26,19 @@ let sub_quant p q = match p with
   | { Expr.formula = Expr.Not { Expr.formula = Expr.All (l, _, _) } }
   | { Expr.formula = Expr.Not { Expr.formula = Expr.Ex (l, _, _) } } ->
     let _, tl = free_args q in
-    List.exists (fun t -> List.exists (Expr.Term.equal t) tl) (List.map Expr.term_var l)
+    List.exists (fun v -> List.exists (function
+        | { Expr.term = Expr.Var v' } | { Expr.term = Expr.Meta { Expr.meta_var = v' } } ->
+          Expr.Var.equal v v'
+        | _ -> false) tl) l
   | { Expr.formula = Expr.AllTy (l, _, _) }
   | { Expr.formula = Expr.ExTy (l, _, _) }
   | { Expr.formula = Expr.Not { Expr.formula = Expr.AllTy (l, _, _) } }
   | { Expr.formula = Expr.Not { Expr.formula = Expr.ExTy (l, _, _) } } ->
     let tyl, _ = free_args q in
-    List.exists (fun ty -> List.exists (Expr.Ty.equal ty) tyl) (List.map Expr.type_var l)
+    List.exists (fun v -> List.exists (function
+        | { Expr.ty = Expr.TyVar v' } | { Expr.ty = Expr.TyMeta { Expr.meta_var = v' } } ->
+          Expr.Var.equal v v'
+        | _ -> false) tyl) l
   | _ -> assert false
 
 let quant_compare p q =
@@ -74,49 +80,30 @@ let split s =
   Expr.Subst.fold (aux Unif.bind_term belong_term []) Unif.(s.t_map)
     (Expr.Subst.fold (aux Unif.bind_ty belong_ty []) Unif.(s.ty_map) [])
 
-(* Given a unifier such that all formula generating metas in it are comparable
- * (according to compare_quant), returns a unifiers that maps all variables
- * of the generating formulas. *)
-let add_meta_ty subst = function
-  | { Expr.ty = Expr.TyMeta m } as t -> if Unif.mem_ty subst m then subst else Unif.bind_ty subst m t
-  | _ -> subst
-let add_meta_term subst = function
-  | { Expr.term = Expr.Meta m } as t -> if Unif.mem_term subst m then subst else Unif.bind_term subst m t
-  | _ -> subst
-
-let complete_ty_aux m _ s =
-    let l, l' = free_args (Expr.get_meta_def (index m)) in
-    assert (l' = []);
-    let s' = List.fold_left add_meta_ty s l in
-    List.fold_left add_meta_ty s' (List.map Expr.type_meta (Expr.ty_metas_of_index (index m)))
-
-let complete_term_aux m _ s =
-    let l, l' = free_args (Expr.get_meta_def (index m)) in
-    let s' = List.fold_left add_meta_ty s l in
-    let s'' = List.fold_left add_meta_term s l' in
-    List.fold_left add_meta_term s' (List.map Expr.term_meta (Expr.term_metas_of_index (index m)))
-
-let complete_ty s = Expr.Subst.fold complete_ty_aux Unif.(s.ty_map) s
-let complete_term s = Expr.Subst.fold complete_term_aux Unif.(s.t_map) s
-
-let complete s = complete_term (complete_ty s)
+let complete s = s
 
 (* Given an arbitrary substitution (Unif.t),
- * Returns a list of (meta_index * Unif.t) that
- * aggregates metas with the same index. *)
+ * Returns a pair (formula * Unif.t) to instanciate
+ * the outermost metas in the given unifier. *)
 let partition s =
-    let rec aux f bind acc m t = function
-        | [] -> (f, bind Unif.empty m t) :: acc
-        | (f', s) :: r when Expr.Formula.equal f' f->
-          (f', bind s m t) :: (List.rev_append acc r)
-        | x :: r -> aux f bind (x :: acc) m t r
+    let aux bind m t = function
+        | None -> Some (index m, bind Unif.empty m t)
+        | Some (min_index, acc) ->
+          let i = (index m : Expr.meta_index :> int) in
+          let j = (min_index : Expr.meta_index :> int) in
+          if j < 0 && i < j then
+            Some (index m, bind Unif.empty m t)
+          else if i = j then
+            Some (index m, bind acc m t)
+          else
+            Some (min_index, acc)
     in
-    Expr.Subst.fold (fun m t acc -> aux (meta_def m) Unif.bind_term [] m t acc) Unif.(s.t_map) (
-        Expr.Subst.fold (fun m t acc -> aux (meta_ty_def m) Unif.bind_ty []m t acc) Unif.(s.ty_map) [])
-
-(* Ordering of the formulas for instanciation (biggest first)
- * We suppose that all formulas in the list are comparable according to compare_quant. *)
-let inst_order = List.sort (fun (f, _) (f', _) -> opt (quant_compare f' f))
+    match Expr.Subst.fold (aux Unif.bind_ty) Unif.(s.ty_map) None with
+    | Some (i, u) -> Expr.get_meta_ty_def i, u
+    | None ->
+      match Expr.Subst.fold (aux Unif.bind_term) Unif.(s.t_map) None with
+      | Some (i, u) -> Expr.get_meta_def i, u
+      | None -> assert false
 
 (* Produces a proof for the instanciation of the given formulas and unifiers *)
 let mk_proof id f p s = Dispatcher.mk_proof
@@ -124,43 +111,52 @@ let mk_proof id f p s = Dispatcher.mk_proof
     ~term_args:(Expr.Subst.fold (fun m t l -> Expr.term_meta m :: t :: l) Unif.(s.t_map) [])
     ~formula_args:[f; p] id "inst"
 
-(* Applies substitutions in order to provide a coherent
- * instanciation scheme. Returns a triplet
- * (formula list) * proof, representing the instanciations
- * to do, together with their proof *)
-let apply_subst s f =
-    let aux m t s =
-        Expr.Subst.Var.bind Expr.(m.meta_var) t s
-    in
-    Expr.formula_subst
-        (Expr.Subst.fold aux Unif.(s.ty_map) Expr.Subst.empty)
-        (Expr.Subst.fold aux Unif.(s.t_map) Expr.Subst.empty)
-        f
+let saturate u =
+  let s_ty =
+    try
+      List.fold_left (fun s m -> Expr.Subst.Meta.bind m (Expr.type_meta m) s) Expr.Subst.empty
+        (Expr.ty_metas_of_index (index (fst (Expr.Subst.choose Unif.(u.ty_map)))))
+    with Not_found -> Expr.Subst.empty
+  in
+  let s_t =
+    try
+      List.fold_left (fun s m -> Expr.Subst.Meta.bind m (Expr.term_meta m) s) Expr.Subst.empty
+        (Expr.term_metas_of_index (index (fst (Expr.Subst.choose Unif.(u.t_map)))))
+    with Not_found -> Expr.Subst.empty
+  in
+  Unif.({
+      ty_map = Expr.Subst.fold Expr.Subst.Meta.bind u.ty_map s_ty;
+      t_map = Expr.Subst.fold Expr.Subst.Meta.bind u.t_map s_t;
+  })
 
-let rec fold_subst id subst = function
-    | [] -> []
-    | (f, s) :: r ->
-      let f' = apply_subst subst f in
-      match f' with
-      | { Expr.formula = Expr.All (_, _, p) } | { Expr.formula = Expr.AllTy (_, _, p) } ->
-        let q = apply_subst s p in
-        let res = [ Expr.f_not f'; q], mk_proof id f' q s in
-        res :: (fold_subst id (Unif.merge subst s) r)
-      | { Expr.formula = Expr.Not { Expr.formula = Expr.Ex (_, _, p) } }
-      | { Expr.formula = Expr.Not { Expr.formula = Expr.ExTy (_, _, p) } } ->
-        let q = apply_subst s (Expr.f_not p) in
-        let res = [ Expr.f_not f'; q], mk_proof id f' q s in
-        res :: (fold_subst id (Unif.merge subst s) r)
-      | _ -> assert false
+let to_var s = Expr.Subst.fold (fun {Expr.meta_var = v} t acc -> Expr.Subst.Var.bind v t acc) s Expr.Subst.empty
+
+let do_subst id f subst = match f with
+  | { Expr.formula = Expr.All (_, _, p) } ->
+    let u = saturate subst in
+    let q = Expr.formula_subst Expr.Subst.empty (to_var Unif.(u.t_map)) p in
+    [ Expr.f_not f; q], mk_proof id f q u
+  | { Expr.formula = Expr.AllTy (_, _, p) } ->
+    let u = saturate subst in
+    let q = Expr.formula_subst (to_var Unif.(u.ty_map)) Expr.Subst.empty p in
+    [ Expr.f_not f; q], mk_proof id f q u
+  | { Expr.formula = Expr.Not { Expr.formula = Expr.Ex (_, _, p) } } ->
+    let u = saturate subst in
+    let q = Expr.formula_subst Expr.Subst.empty (to_var Unif.(u.t_map)) p in
+    [ Expr.f_not f; Expr.f_not q], mk_proof id f q u
+  | { Expr.formula = Expr.Not { Expr.formula = Expr.ExTy (_, _, p) } } ->
+    let u = saturate subst in
+    let q = Expr.formula_subst (to_var Unif.(u.ty_map)) Expr.Subst.empty p in
+    [ Expr.f_not f; Expr.f_not q], mk_proof id f q u
+  | _ -> assert false
 
 (* Dispatcher extension part *)
 let id = Dispatcher.new_id ()
 
 let instanciation s =
-  let l = partition s in
-  let l = inst_order l in
-  let l = fold_subst id Unif.empty l in
-  List.iter (fun (cl, p) -> Dispatcher.push cl p) l
+  let (f, s) = partition s in
+  let cl, p = do_subst id f s in
+  Dispatcher.push cl p
 
 ;;
 Dispatcher.(register {

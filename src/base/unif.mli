@@ -4,8 +4,6 @@
 exception Not_unifiable_ty of Expr.ty * Expr.ty
 exception Not_unifiable_term of Expr.term * Expr.term
 
-val protect_term : Expr.term -> Expr.term
-
 (** {2 Unifiers} *)
 
 type t = {
@@ -31,6 +29,10 @@ val bind_term : t -> Expr.ty Expr.meta -> Expr.term -> t
 val merge : t -> t -> t
 
 val equal_up_to_metas : t -> t -> bool
+
+val protect_inst : t -> t
+val protect_ty : Expr.ty -> Expr.ty
+val protect_term : Expr.term -> Expr.term
 
 (** {2 Robinson unification} *)
 
