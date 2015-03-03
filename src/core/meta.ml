@@ -50,11 +50,12 @@ let print_inst s =
 let do_unif u =
   if not (U.mem unif_set u) then begin
     U.add unif_set u 0;
-    log 10 "Found inst";
+    log 10 " New Inst:";
     print_inst u;
     if not !no_inst then
       Inst.instanciation u
   end else
+    log 10 " Redondant inst.";
     let i = U.find unif_set u in
     U.add unif_set u (i + 1)
 

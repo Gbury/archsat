@@ -28,7 +28,7 @@ val bind_term : t -> Expr.ty Expr.meta -> Expr.term -> t
 
 val merge : t -> t -> t
 
-val equal_up_to_metas : t -> t -> bool
+(** {2 Meta protection} *)
 
 val protect_inst : t -> t
 val protect_ty : Expr.ty -> Expr.ty
@@ -38,9 +38,6 @@ val protect_term : Expr.term -> Expr.term
 
 val unify_ty : Expr.ty -> Expr.ty -> t
 val unify_term : Expr.term -> Expr.term -> t
-
-val unify_meta_ty : Expr.ty -> Expr.ty -> t
-val unify_meta_term : Expr.term -> Expr.term -> t
 
 val cached_unify : Expr.term -> Expr.term -> t
 
