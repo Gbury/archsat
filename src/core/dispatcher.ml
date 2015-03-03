@@ -243,8 +243,8 @@ let eval_map = M.create stack
 (* Map of terms watching other terms, term -> list of terms to evaluate when arg has value *)
 let wait_eval = M.create stack
 (* Map of terms watched by extensions *)
-let watchers = H.create 256
-let watch_map = H.create 256
+let watchers = H.create 4096
+let watch_map = H.create 4096
 
 (* Exceptions *)
 exception Not_assigned of term

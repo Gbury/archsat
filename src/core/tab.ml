@@ -2,7 +2,7 @@
 module H = Hashtbl.Make(Expr.Formula)
 
 let id = Dispatcher.new_id ()
-let st = H.create 256
+let st = H.create 1024
 
 let push name l = Dispatcher.push l (Dispatcher.mk_proof ~formula_args:l id ("tab-" ^ name))
 

@@ -331,5 +331,6 @@ type term_subst = (ty var, term) Subst.t
 val type_subst : ty_subst -> ty -> ty
 val term_subst : ty_subst -> term_subst -> term -> term
 val formula_subst : ty_subst -> term_subst -> formula -> formula
+val partial_inst : ty_subst -> term_subst -> formula -> formula
 (** Substitution functions for types, terms and formulas. *)
 

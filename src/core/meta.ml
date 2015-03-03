@@ -38,9 +38,9 @@ let mk_proof_term f metas = Dispatcher.mk_proof
   id "meta"
 
 (* Set of predicates to unify *)
-let unif_set = U.create 256
-let true_preds = S.create Dispatcher.stack
-let false_preds = S.create Dispatcher.stack
+let unif_set = U.create 1024
+let true_preds = S.create ~size:4096 Dispatcher.stack
+let false_preds = S.create ~size:4096 Dispatcher.stack
 
 let mem x tbl = S.mem tbl x
 
@@ -53,7 +53,7 @@ let do_unif u =
     log 10 " New Inst:";
     print_inst u;
     if not !no_inst then
-      Inst.instanciation u
+      Inst.soft_push u
   end else
     log 10 " Redondant inst.";
     let i = U.find unif_set u in

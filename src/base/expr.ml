@@ -884,30 +884,49 @@ let rec formula_subst ty_map t_map f =
   | Or l -> f_or (List.map (formula_subst ty_map t_map) l)
   | Imply (p, q) -> f_imply (formula_subst ty_map t_map p) (formula_subst ty_map t_map q)
   | Equiv (p, q) -> f_equiv (formula_subst ty_map t_map p) (formula_subst ty_map t_map q)
-  | All (l, (ty, t), f) ->
+  | All (l, (ty, t), p) ->
     let l', t_map = new_binder_subst ty_map t_map [] l in
     let tys = List.map (type_subst ty_map) ty in
     let ts = List.map (term_subst ty_map t_map) t in
-    mk_formula (All (l', (tys, ts), (formula_subst ty_map t_map f)))
-  | Ex (l, (ty, t), f) ->
+    mk_formula (All (l', (tys, ts), (formula_subst ty_map t_map p)))
+  | Ex (l, (ty, t), p) ->
     let l', t_map = new_binder_subst ty_map t_map [] l in
     let tys = List.map (type_subst ty_map) ty in
     let ts = List.map (term_subst ty_map t_map) t in
-    mk_formula (Ex (l', (tys, ts), (formula_subst ty_map t_map f)))
-  | AllTy (l, (ty, t), f) ->
+    mk_formula (Ex (l', (tys, ts), (formula_subst ty_map t_map p)))
+  | AllTy (l, (ty, t), p) ->
     assert (t = []);
     let tys = List.map (type_subst ty_map) ty in
-    mk_formula (AllTy (l, (tys, t), (formula_subst ty_map t_map f)))
-  | ExTy (l, (ty, t), f) ->
+    mk_formula (AllTy (l, (tys, t), (formula_subst ty_map t_map p)))
+  | ExTy (l, (ty, t), p) ->
     assert (t = []);
     let tys = List.map (type_subst ty_map) ty in
-    mk_formula (ExTy (l, (tys, t), (formula_subst ty_map t_map f)))
+    mk_formula (ExTy (l, (tys, t), (formula_subst ty_map t_map p)))
 
 let formula_subst ty_map t_map f =
     Subst.iter (fun _ ty -> match ty.ty with TyVar _ -> assert false | _ -> ()) ty_map;
     Subst.iter (fun _ t -> match t.term with Var _ -> assert false | _ -> ()) t_map;
     if Subst.is_empty ty_map && Subst.is_empty t_map then f
     else formula_subst ty_map t_map f
+
+let partial_inst ty_map t_map f = match f.formula with
+  | All (l, args, p) ->
+    let l' = List.filter (fun v -> not (Subst.Var.mem v t_map)) l in
+    let q = formula_subst ty_map t_map p in
+    if l' = [] then q else mk_formula (All (l', args, q))
+  | AllTy (l, args, p) ->
+    let l' = List.filter (fun v -> not (Subst.Var.mem v ty_map)) l in
+    let q = formula_subst ty_map t_map p in
+    if l' = [] then q else mk_formula (AllTy (l', args, q))
+  | Not { formula = Ex (l, args, p) } ->
+    let l' = List.filter (fun v -> not (Subst.Var.mem v t_map)) l in
+    let q = formula_subst ty_map t_map p in
+    f_not (if l' = [] then q else mk_formula (Ex (l', args, q)))
+  | Not { formula = ExTy (l, args, p) } ->
+    let l' = List.filter (fun v -> not (Subst.Var.mem v ty_map)) l in
+    let q = formula_subst ty_map t_map p in
+    f_not (if l' = [] then q else mk_formula (ExTy (l', args, q)))
+  | _ -> f
 
 (* Metas *)
 (* ************************************************************************ *)

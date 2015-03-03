@@ -112,13 +112,13 @@ let mk_proof id f p s = Dispatcher.mk_proof
 let saturate u =
   let s_ty =
     try
-      List.fold_left (fun s m -> Expr.Subst.Meta.bind m (Expr.type_meta m) s) Expr.Subst.empty
+      List.fold_left (fun s m -> Expr.Subst.Meta.bind m (Expr.type_meta (Expr.protect m)) s) Expr.Subst.empty
         (Expr.ty_metas_of_index (index (fst (Expr.Subst.choose Unif.(u.ty_map)))))
     with Not_found -> Expr.Subst.empty
   in
   let s_t =
     try
-      List.fold_left (fun s m -> Expr.Subst.Meta.bind m (Expr.term_meta m) s) Expr.Subst.empty
+      List.fold_left (fun s m -> Expr.Subst.Meta.bind m (Expr.term_meta (Expr.protect m)) s) Expr.Subst.empty
         (Expr.term_metas_of_index (index (fst (Expr.Subst.choose Unif.(u.t_map)))))
     with Not_found -> Expr.Subst.empty
   in
@@ -129,7 +129,7 @@ let saturate u =
 
 let to_var s = Expr.Subst.fold (fun {Expr.meta_var = v} t acc -> Expr.Subst.Var.bind v t acc) s Expr.Subst.empty
 
-let do_subst id f subst = match f with
+let hard_subst id f subst = match f with
   | { Expr.formula = Expr.All (_, _, p) } ->
     let u = saturate subst in
     let q = Expr.formula_subst Expr.Subst.empty (to_var Unif.(u.t_map)) p in
@@ -148,12 +148,21 @@ let do_subst id f subst = match f with
     [ Expr.f_not f; Expr.f_not q], mk_proof id f q u
   | _ -> assert false
 
+let soft_subst id f subst =
+  let q = Expr.partial_inst (to_var Unif.(subst.ty_map)) (to_var Unif.(subst.t_map)) f in
+  [ Expr.f_not f; q], mk_proof id f q subst
+
 (* Dispatcher extension part *)
 let id = Dispatcher.new_id ()
 
-let instanciation s =
+let hard_push s =
   let (f, s) = partition s in
-  let cl, p = do_subst id f s in
+  let cl, p = hard_subst id f s in
+  Dispatcher.push cl p
+
+let soft_push s =
+  let (f, s) = partition s in
+  let cl, p = soft_subst id f s in
   Dispatcher.push cl p
 
 ;;
@@ -165,3 +174,4 @@ Dispatcher.(register {
     preprocess = (fun _ -> ());
     if_sat = (fun _ -> ());
     })
+

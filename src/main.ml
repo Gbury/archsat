@@ -75,7 +75,7 @@ let argspec = Arg.align (List.sort arg_compare
     "-bt", Arg.Unit (fun () -> Printexc.record_backtrace true),
     " Enable stack traces";
     "-debug", Arg.Int Util.set_debug,
-    "<lvl> Sets the debug verbose level";
+    "<lvl> Sets the global debug verbose level";
     "-gc", Arg.Unit setup_gc_stat,
     " Outputs statistics about the GC";
     "-i", Arg.String Io.set_input,
