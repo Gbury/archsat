@@ -28,7 +28,10 @@ type copts = {
     size_limit : float;
 }
 
-let mk_opts file input output proof type_only exts p_proof p_model time size = {
+let mk_opts log debug file input output proof type_only exts p_proof p_model time size =
+    Util.set_debug log;
+    List.iter (fun (name, lvl) -> Util.Section.(set_debug (find name) lvl)) debug;
+    {
     formatter = Format.std_formatter;
     input_file = file;
     input_format = input;
@@ -43,7 +46,7 @@ let mk_opts file input output proof type_only exts p_proof p_model time size = {
 
     time_limit = time;
     size_limit = size;
-}
+    }
 
 (* Argument converter for integer with multiplier suffix *)
 let print_sint fmt f = Format.fprintf fmt "%f" f
@@ -90,12 +93,29 @@ let model = Arg.enum [
 (* Argument parsing *)
 let copts_sect = "COMMON OPTIONS"
 let help_secs = [
- `S copts_sect; `P "Common options";
+ `S copts_sect; `P "Common options for the prover";
  `S "BUGS"; `P "TODO";
 ]
 
+let log_sections =
+    let l = ref [] in
+    Util.Section.iter (fun (name, _) -> l := name :: !l);
+    !l
+
+let print_string b s = Printf.bprintf b "%s" s
+
 let copts_t =
   let docs = copts_sect in
+  let log =
+      let doc = "Set the global level for debug outpout." in
+      Arg.(value & opt int 0 & info ["v"] ~docs ~docv:"LVL" ~doc)
+  in
+  let debug =
+      let doc = Util.sprintf
+        "Set the debug level of the given section. Available sections are : %a."
+        (Util.pp_list ~sep:", " print_string) log_sections in
+      Arg.(value & opt_all (pair string int) [] & info ["debug"] ~docs ~docv:"NAME,LVL" ~doc)
+  in
   let file =
       let doc = "Input problem file." in
       Arg.(required & pos 0 (some file) None & info [] ~docv:"FILE" ~doc)
@@ -140,7 +160,7 @@ let copts_t =
                 "Without suffix, default to a size in octet." in
       Arg.(value & opt sint 1_000_000. & info ["s"; "size"] ~docs ~docv:"SIZE" ~doc)
   in
-  Term.(pure mk_opts $ file $ input $ output $ proof $ type_only $ exts $ print_proof $ print_model $ time $ size)
+  Term.(pure mk_opts $ log $ debug $ file $ input $ output $ proof $ type_only $ exts $ print_proof $ print_model $ time $ size)
 
 (*
 let logspec () =

@@ -44,6 +44,7 @@ module Section : sig
   val get_debug : t -> int option (** Specific level of this section, if any *)
   val cur_level : t -> int (** Current debug level, with parent inheritance *)
 
+  val find : string -> t
   val iter : ((string * t) -> unit) -> unit
 
   val root : t (** Default section, with no parent *)

@@ -86,7 +86,7 @@ let main () =
   (* Default extensions *)
   Dispatcher.set_exts "+eq,+uf,+tab,+prop,+skolem,+meta";
   (* Argument parsing *)
-  let info = Cmdliner.Term.(info ~sdocs:Options.copts_sect ~version:"0.1" "tabsat") in
+  let info = Cmdliner.Term.(info ~sdocs:Options.copts_sect ~man:Options.help_secs ~version:"0.1" "tabsat") in
   let opt = match Cmdliner.Term.eval (Options.copts_t, info) with
     | `Version | `Help | `Error `Parse | `Error `Term | `Error `Exn -> raise Exit
     | `Ok opt -> opt

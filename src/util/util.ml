@@ -100,6 +100,8 @@ module Section = struct
     yield ("", root);
     Hashtbl.iter (fun name sec -> yield (name,sec)) section_table
 
+  let find name = Hashtbl.find section_table name
+
   (* recursive lookup, with inheritance from parent *)
   let rec cur_level_rec s =
     if s.level = null_level

@@ -26,6 +26,8 @@ type copts = {
 }
 
 val copts_sect : string
-val copts_t : copts Cmdliner.Term.t
 
+val help_secs : Cmdliner.Manpage.block list
+
+val copts_t : copts Cmdliner.Term.t
 
