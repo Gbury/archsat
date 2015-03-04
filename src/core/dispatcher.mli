@@ -58,9 +58,6 @@ val new_id : unit -> id
 val register : extension -> unit
 (** Used in extensions files to register extensions. *)
 
-val register_options : (Arg.key * Arg.spec * Arg.doc) list -> unit
-(** Used in extensions files to register options. *)
-
 val activate : string -> unit
 (** Used in order to make one of the extensions registered previously active, i.e
     use the functions provided by the extension. *)
@@ -77,13 +74,6 @@ val set_exts : string -> unit
 
 val list_extensions : unit -> string list
 (** Returns the current list of extensions known to the dispatcher. *)
-
-
-(** {2 Solver-side functions} *)
-
-val get_options : unit -> (Arg.key * Arg.spec * Arg.doc) list
-(** Returns a list of options made available by the extensions *)
-
 
 (** {2 Extension-side helpers} *)
 

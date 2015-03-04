@@ -133,7 +133,7 @@ let meta_eval _ = None
 
 let meta_pre _ = ()
 ;;
-
+(*
 Dispatcher.register_options [
     "-meta.inst", Arg.String (function "false" -> no_inst := true | _ -> ()),
     " Decide wether meta are to be instanciated (default : true)";
@@ -141,6 +141,7 @@ Dispatcher.register_options [
     " Set the number of new metas to be generated at eash pass (default = 1)";
 ]
 ;;
+*)
 Dispatcher.(register {
     id = id;
     name = "meta";

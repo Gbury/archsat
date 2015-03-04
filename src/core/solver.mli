@@ -9,9 +9,6 @@ type res =
   | Unsat
   (** Type of results returned by the solver *)
 
-val get_options : unit -> (Arg.key * Arg.spec * Arg.doc) list
-(** Returns a list of command-line options to be added. *)
-
 val solve : unit -> res
 (** Try and solve the current set of assumptions *)
 
@@ -30,3 +27,4 @@ val get_proof : unit -> proof
 
 val print_proof_dot : Format.formatter -> proof -> unit
 (** Prints the proof on the given formatter. *)
+

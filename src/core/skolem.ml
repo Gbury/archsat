@@ -78,11 +78,13 @@ let tau_eval _ = None
 
 let tau_pre _ = ()
 ;;
+(*
 Dispatcher.register_options [
     "-skolem.kind", Arg.String (function "tau" -> epsilon := true | _ -> ()),
     " Decide of the strategy to use for existentially quantified variables (default : skolem, available : tau)";
 ]
 ;;
+*)
 Dispatcher.(register {
     id = id;
     name = "skolem";

@@ -52,12 +52,6 @@ type job = {
     mutable not_watched : term list;
 }
 
-(* Additional options *)
-(* ************************************************************************ *)
-
-let options = ref []
-let get_options () = !options
-
 (* Proof management *)
 (* ************************************************************************ *)
 
@@ -106,9 +100,6 @@ let active = ref []
 let register r =
   assert (not (List.exists (fun r' -> r'.name = r.name) !extensions));
   extensions := r :: !extensions
-
-let register_options l =
-  options := l @ !options
 
 let activate ext =
   let aux r = r.name = ext in

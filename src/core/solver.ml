@@ -3,11 +3,6 @@ let log_section = Util.Section.make "solver"
 let sat_log_section = Util.Section.make "mcsat"
 let log i fmt = Util.debug ~section:log_section i fmt
 
-(* Additional options for executable *)
-(* ************************************************************************ *)
-
-let get_options () = Dispatcher.get_options ()
-
 (* Wrapper around expressions *)
 (* ************************************************************************ *)
 
