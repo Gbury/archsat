@@ -173,5 +173,6 @@ Dispatcher.(register {
     eval_pred = (fun _ -> None);
     preprocess = (fun _ -> ());
     if_sat = (fun _ -> ());
+    options = (function t -> t);
     })
 

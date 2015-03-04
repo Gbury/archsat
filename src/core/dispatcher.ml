@@ -87,10 +87,11 @@ let new_id =
 type extension = {
   id : id;
   name : string;
+  if_sat : unit -> unit;
   assume : formula * int -> unit;
   eval_pred : formula -> (bool * int) option;
   preprocess : formula -> unit;
-  if_sat : unit -> unit;
+  options : Options.copts Cmdliner.Term.t -> Options.copts Cmdliner.Term.t;
 }
 
 let extensions = ref []
@@ -142,6 +143,16 @@ let find_ext id =
 (* Acces functions for active extensions *)
 let ext_iter f = List.iter f !active
 
+(* Additional command line options *)
+(* ************************************************************************ *)
+
+let add_opts t =
+    let res = ref t in
+    List.iter (fun r ->
+        res := r.options !res
+    ) !extensions;
+    !res
+
 (* Pre-processing *)
 (* ************************************************************************ *)
 
@@ -179,9 +190,7 @@ let rec check = function
   | { Expr.formula = Expr.ExTy (_, _, f) } ->
     check f
 
-let preprocess f =
-  ext_iter (fun r -> r.preprocess f);
-  check f
+let preprocess f = ext_iter (fun r -> r.preprocess f); check f
 
 (* Delayed propagation *)
 (* ************************************************************************ *)

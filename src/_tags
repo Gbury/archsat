@@ -3,7 +3,7 @@
 <base/*.cmx>: for-pack(Tabsat)
 <parsers/*>: for-pack(Tabsat)
 <input/*>: for-pack(Tabsat), package(cmdliner)
-<core/*>: for-pack(Tabsat), package(msat)
+<core/*>: for-pack(Tabsat), package(msat), package(cmdliner)
 <main.*>: package(msat), package(cmdliner)
 
 # enable stronger inlining everywhere

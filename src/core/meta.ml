@@ -8,7 +8,7 @@ module U = Hashtbl.Make(Unif)
 
 let id = Dispatcher.new_id ()
 let no_inst = ref false
-let incr = ref 1
+let meta_incr = ref 1
 
 (* Hashtbl to store number of generated metas for each formula *)
 let metas = H.create 256
@@ -125,23 +125,31 @@ let meta_assume lvl = function
 
 let find_all_insts () =
     S.iter (fun p _ -> S.iter (fun notp _ -> find_inst p notp) false_preds) true_preds;
-    for _ = 1 to !incr do
+    for _ = 1 to !meta_incr do
         H.iter (fun f _ -> do_formula f) metas
     done
 
 let meta_eval _ = None
 
 let meta_pre _ = ()
+
+let opts t =
+    let docs = Options.ext_sect in
+    let inst =
+        let doc = "Decide wether metavariables are to be instanciated (default: true)" in
+        Cmdliner.Arg.(value & opt bool true & info ["meta.inst"] ~docv:"BOOL" ~docs ~doc)
+    in
+    let incr =
+        let doc = "Set the number of new metas to be generated at each pass (default = 1)" in
+        Cmdliner.Arg.(value & opt int 1 & info ["meta.incr"] ~docv:"INT" ~docs ~doc)
+    in
+    let set_opts inst incr t =
+        no_inst := not inst;
+        meta_incr := incr;
+        t
+    in
+    Cmdliner.Term.(pure set_opts $ inst $ incr $ t)
 ;;
-(*
-Dispatcher.register_options [
-    "-meta.inst", Arg.String (function "false" -> no_inst := true | _ -> ()),
-    " Decide wether meta are to be instanciated (default : true)";
-    "-meta.incr", Arg.Int (fun i -> incr := i),
-    " Set the number of new metas to be generated at eash pass (default = 1)";
-]
-;;
-*)
 Dispatcher.(register {
     id = id;
     name = "meta";
@@ -149,5 +157,6 @@ Dispatcher.(register {
     eval_pred = meta_eval;
     preprocess = meta_pre;
     if_sat = find_all_insts;
+    options = opts;
   })
 

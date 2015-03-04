@@ -5,20 +5,20 @@ COMP=ocamlbuild -log $(LOG) -classic-display
 FLAGS=-use-ocamlfind -use-menhir -yaccflag '--explain'
 DIRS=-Is util,base,core,input,parsers
 DOC=tabsat.docdir/index.html
-TEST=main.native
+BIN=main.native
 
 NAME=tabsat
 LIB=$(addprefix $(NAME), .cma .cmxa .cmxs)
 
-all: build-lib test
+all: bin
 
 doc:
 	$(COMP) $(FLAGS) $(DIRS) $(DOC)
 
-build-test:
-	$(COMP) $(FLAGS) $(DIRS) $(TEST)
+build-bin:
+	$(COMP) $(FLAGS) $(DIRS) $(BIN)
 
-test: build-test
+bin: build-bin
 
 build-lib:
 	$(COMP) $(FLAGS) $(DIRS) $(LIB)
@@ -32,4 +32,4 @@ log:
 clean:
 	$(COMP) -clean
 
-.PHONY: clean doc all test lib build-test build-lib
+.PHONY: clean doc all bin lib build-bin build-lib

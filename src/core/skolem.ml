@@ -77,14 +77,19 @@ let tau_assume (f, i) = tau i f
 let tau_eval _ = None
 
 let tau_pre _ = ()
+
+let opts t =
+    let docs = Options.ext_sect in
+    let kind =
+        let doc = "Decide the strategy to use for existenciallyquantified variables, available are : skolem, tau" in
+        Cmdliner.Arg.(value & opt (enum ["tau", `Tau; "skolem", `Skolem]) `Skolem & info ["skolem.kind"] ~docv:"KIND" ~docs ~doc)
+    in
+    let set_opts kind t =
+        begin match kind with `Tau -> epsilon := true | `Skolem -> () end;
+        t
+    in
+    Cmdliner.Term.(pure set_opts $ kind $ t)
 ;;
-(*
-Dispatcher.register_options [
-    "-skolem.kind", Arg.String (function "tau" -> epsilon := true | _ -> ()),
-    " Decide of the strategy to use for existentially quantified variables (default : skolem, available : tau)";
-]
-;;
-*)
 Dispatcher.(register {
     id = id;
     name = "skolem";
@@ -92,5 +97,6 @@ Dispatcher.(register {
     eval_pred = tau_eval;
     preprocess = tau_pre;
     if_sat = (fun _ -> ());
+    options = opts;
   })
 

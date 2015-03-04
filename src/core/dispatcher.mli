@@ -32,6 +32,11 @@ exception Absurd of formula list * proof
 exception Extension_not_found of string
 (** Raised by activate *)
 
+(** {2 Command line options} *)
+
+val add_opts : Options.copts Cmdliner.Term.t -> Options.copts Cmdliner.Term.t
+(** Returnsa term with added command line options from extensions. *)
+
 (** {2 Proof management} *)
 
 val mk_proof : ?ty_args : Expr.ty list ->
@@ -45,10 +50,11 @@ val mk_proof : ?ty_args : Expr.ty list ->
 type extension = {
   id : id;
   name : string;
+  if_sat : unit -> unit;
   assume : formula * int -> unit;
   eval_pred : formula -> (bool * int) option;
   preprocess : formula -> unit;
-  if_sat : unit -> unit;
+  options : Options.copts Cmdliner.Term.t -> Options.copts Cmdliner.Term.t;
 }
 (** Type of plugins/extensions *)
 
@@ -87,7 +93,6 @@ val push : formula list -> proof -> unit
 
 val propagate : formula -> int -> unit
 (** Propagate the given formula at the given evaluation level. *)
-
 
 (** {2 Assignment functions} *)
 

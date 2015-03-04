@@ -6,18 +6,8 @@ exception Parsing_error of ParseLocation.t * string
 
 (** {2 IO Wrappers} *)
 
-type input =
-  | Auto
-  | Dimacs
-  | Tptp
-  | Smtlib
-
-type output =
-  | Standard
-  | Dot
-
-val set_input : input -> unit
-val set_output : output -> unit
+val set_input : Options.input -> unit
+val set_output : Options.output -> unit
 (** Sets the input or output to the given format.
     @raise Setting_not_found if the string is not recognised *)
 

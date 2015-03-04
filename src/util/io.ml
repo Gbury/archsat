@@ -4,18 +4,10 @@
 
 exception Parsing_error of ParseLocation.t * string
 
-type input =
-  | Auto
-  | Dimacs
-  | Tptp
-  | Smtlib
-
-type output =
-  | Standard
-  | Dot
-
 (* IO settings *)
 (* ************************************************************************ *)
+
+open Options
 
 let input = ref Auto
 let output = ref Standard

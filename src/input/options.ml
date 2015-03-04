@@ -2,6 +2,16 @@
 open Cmdliner
 
 (* Type definitions for common options *)
+type input =
+  | Auto
+  | Dimacs
+  | Tptp
+  | Smtlib
+
+type output =
+  | Standard
+  | Dot
+
 type model =
   | None
   | Simple
@@ -11,8 +21,8 @@ type copts = {
     (* Input/Output option *)
     formatter : Format.formatter;
     input_file : string;
-    input_format : Io.input;
-    output_format : Io.output;
+    input_format : input;
+    output_format : output;
 
     (* Proving options *)
     proof : bool;
@@ -49,7 +59,7 @@ let mk_opts log debug file input output proof type_only exts p_proof p_model tim
     }
 
 (* Argument converter for integer with multiplier suffix *)
-let print_sint fmt f = Format.fprintf fmt "%f" f
+let print_sint fmt f = Format.fprintf fmt "%.0f" f
 let parse_sint arg =
   let l = String.length arg in
   let multiplier m =
@@ -75,14 +85,14 @@ let sint = parse_sint, print_sint
 
 (* Argument converters for input/output *)
 let input = Arg.enum [
-  "auto", Io.Auto;
-  "dimacs", Io.Dimacs;
-  "tptp", Io.Tptp;
-  "smtlib", Io.Smtlib;
+  "auto", Auto;
+  "dimacs", Dimacs;
+  "tptp", Tptp;
+  "smtlib", Smtlib;
 ]
 let output = Arg.enum [
-  "standard", Io.Standard;
-  "dot", Io.Dot;
+  "standard", Standard;
+  "dot", Dot;
 ]
 let model = Arg.enum [
   "none", None;
@@ -92,19 +102,21 @@ let model = Arg.enum [
 
 (* Argument parsing *)
 let copts_sect = "COMMON OPTIONS"
+let ext_sect = "EXTENSIONS OPTIONS"
 let help_secs = [
  `S copts_sect; `P "Common options for the prover";
+ `S ext_sect; `P "Options used by the extensions (use only if you know what you're doing !).";
  `S "BUGS"; `P "TODO";
 ]
 
-let log_sections =
+let log_sections () =
     let l = ref [] in
-    Util.Section.iter (fun (name, _) -> l := name :: !l);
+    Util.Section.iter (fun (name, _) -> if name <> "" then l := name :: !l);
     !l
 
 let print_string b s = Printf.bprintf b "%s" s
 
-let copts_t =
+let copts_t () =
   let docs = copts_sect in
   let log =
       let doc = "Set the global level for debug outpout." in
@@ -113,8 +125,8 @@ let copts_t =
   let debug =
       let doc = Util.sprintf
         "Set the debug level of the given section. Available sections are : %a."
-        (Util.pp_list ~sep:", " print_string) log_sections in
-      Arg.(value & opt_all (pair string int) [] & info ["debug"] ~docs ~docv:"NAME,LVL" ~doc)
+        (Util.pp_list ~sep:", " print_string) (log_sections ()) in
+      Arg.(value & opt_all (pair string int) [] & info ["debug"] ~docs:ext_sect ~docv:"NAME,LVL" ~doc)
   in
   let file =
       let doc = "Input problem file." in
@@ -122,11 +134,11 @@ let copts_t =
   in
   let input =
       let doc = "Input format for the problem file." in
-      Arg.(value & opt input Io.Auto & info ["i"; "input"] ~docs ~docv:"INPUT" ~doc)
+      Arg.(value & opt input Auto & info ["i"; "input"] ~docs ~docv:"INPUT" ~doc)
   in
   let output =
       let doc = "Output format for printing results." in
-      Arg.(value & opt output Io.Standard & info ["o"; "output"] ~docs ~docv:"OUTPUT" ~doc)
+      Arg.(value & opt output Standard & info ["o"; "output"] ~docs ~docv:"OUTPUT" ~doc)
   in
   let proof =
       let doc = "If set, compute and check the resolution proofs for unsat results." in
@@ -161,32 +173,4 @@ let copts_t =
       Arg.(value & opt sint 1_000_000. & info ["s"; "size"] ~docs ~docv:"SIZE" ~doc)
   in
   Term.(pure mk_opts $ log $ debug $ file $ input $ output $ proof $ type_only $ exts $ print_proof $ print_model $ time $ size)
-
-(*
-let logspec () =
-    let res = ref [] in
-    Util.Section.iter (fun (name, s) ->
-        if name <> "" then
-            res := ("-debug." ^ name, Arg.Int (Util.Section.set_debug s),
-                    "<lvl> Sets the debug verbose level for section " ^ name) :: !res
-        );
-    !res
-
-let pp_string b s = Printf.bprintf b "%s" s
-
-let argspec = Arg.align (List.sort arg_compare
-    (Solver.get_options () @ logspec () @ [
-    "-bt", Arg.Unit (fun () -> Printexc.record_backtrace true),
-    " Enable stack traces";
-    "-debug", Arg.Int Util.set_debug,
-    "<lvl> Sets the global debug verbose level";
-    "-gc", Arg.Unit setup_gc_stat,
-    " Outputs statistics about the GC";
-    "-ext", Arg.String Dispatcher.set_exts,
-    "<extensions> Activate/deactivate extensions (default : +eq,+uf,+tab,+prop,+skolem,+meta)";
-  ]))
-
-*)
-
-
 

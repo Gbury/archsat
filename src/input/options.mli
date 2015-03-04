@@ -1,4 +1,14 @@
 
+type input =
+  | Auto
+  | Dimacs
+  | Tptp
+  | Smtlib
+
+type output =
+  | Standard
+  | Dot
+
 type model =
   | None
   | Simple
@@ -8,8 +18,8 @@ type copts = {
     (* Input/Output option *)
     formatter : Format.formatter;
     input_file : string;
-    input_format : Io.input;
-    output_format : Io.output;
+    input_format : input;
+    output_format : output;
 
     (* Proving options *)
     proof : bool;
@@ -26,8 +36,8 @@ type copts = {
 }
 
 val copts_sect : string
-
+val ext_sect : string
 val help_secs : Cmdliner.Manpage.block list
 
-val copts_t : copts Cmdliner.Term.t
+val copts_t : unit -> copts Cmdliner.Term.t
 

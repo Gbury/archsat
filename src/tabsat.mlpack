@@ -2,7 +2,7 @@
 Util
 Vector
 Backtrack
-Comparison
+Ec
 
 # Base modules
 Ast
@@ -10,8 +10,16 @@ Expr
 Unif
 Builtin
 
+# Input modules
+Io
+Options
+
 # Core modules
 Dispatcher
 Solver
 Inst
-
+Meta
+Skolem
+Tab
+Eq
+Functions

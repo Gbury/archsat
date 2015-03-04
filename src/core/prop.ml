@@ -73,4 +73,5 @@ D.(register {
     eval_pred = sat_eval;
     preprocess = sat_preprocess;
     if_sat = (fun _ -> ());
+    options = (function t -> t);
   })
