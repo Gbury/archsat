@@ -102,10 +102,10 @@ let model = Arg.enum [
 
 (* Argument parsing *)
 let copts_sect = "COMMON OPTIONS"
-let ext_sect = "EXTENSIONS OPTIONS"
+let ext_sect = "ADVANCED OPTIONS"
 let help_secs = [
  `S copts_sect; `P "Common options for the prover";
- `S ext_sect; `P "Options used by the extensions (use only if you know what you're doing !).";
+ `S ext_sect; `P "Options primarily used by the extensions (use only if you know what you're doing !).";
  `S "BUGS"; `P "TODO";
 ]
 
