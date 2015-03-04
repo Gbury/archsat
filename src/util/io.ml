@@ -3,7 +3,6 @@
 (* ************************************************************************ *)
 
 exception Parsing_error of ParseLocation.t * string
-exception Setting_not_found of string * string * string list
 
 type input =
   | Auto
@@ -21,27 +20,8 @@ type output =
 let input = ref Auto
 let output = ref Standard
 
-let input_list = [
-  "auto", Auto;
-  "dimacs", Dimacs;
-  "tptp", Tptp;
-  "smtlib", Smtlib;
-]
-
-let output_list = [
-  "standard", Standard;
-  "dot", Dot;
-]
-
-let set_flag opt arg flag l =
-  try flag := List.assoc arg l
-  with Not_found -> raise (Setting_not_found (opt, arg, List.map fst l))
-
-let set_input s = set_flag "Input" s input input_list
-let set_output s = set_flag "Output" s output output_list
-
-let accepted_input = List.map fst input_list
-let accepted_output = List.map fst output_list
+let set_input i = input := i
+let set_output o = output := o
 
 (* Input functions *)
 (* ************************************************************************ *)

@@ -2,9 +2,9 @@
 <util/*.cmx>: for-pack(Tabsat)
 <base/*.cmx>: for-pack(Tabsat)
 <parsers/*>: for-pack(Tabsat)
-<input/*>: for-pack(Tabsat)
+<input/*>: for-pack(Tabsat), package(cmdliner)
 <core/*>: for-pack(Tabsat), package(msat)
-<main.*>: package(msat)
+<main.*>: package(msat), package(cmdliner)
 
 # enable stronger inlining everywhere
 <util/vec.cmx>: inline(15)

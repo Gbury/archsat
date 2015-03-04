@@ -1,6 +1,8 @@
 
+(*
 let log_section = Util.Section.make "smtlib"
 let log i fmt = Util.debug ~section:log_section i fmt
+*)
 
 let translate c = c
 

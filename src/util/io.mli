@@ -4,21 +4,22 @@
 exception Parsing_error of ParseLocation.t * string
 (** Syntax error with loaction and error message. *)
 
-exception Setting_not_found of string * string * string list
-(** Raised by [set_input] and [set_output].
-    The first argument if the name of the option, the second the argument used, and third
-    the list of valid arguments. *)
-
 (** {2 IO Wrappers} *)
 
-val set_input : string -> unit
-val set_output : string -> unit
+type input =
+  | Auto
+  | Dimacs
+  | Tptp
+  | Smtlib
+
+type output =
+  | Standard
+  | Dot
+
+val set_input : input -> unit
+val set_output : output -> unit
 (** Sets the input or output to the given format.
     @raise Setting_not_found if the string is not recognised *)
-
-val accepted_input : string list
-val accepted_output : string list
-(** Returns the accepted arguments to [set_input] and [set_output] *)
 
 val parse_input : string -> Ast.command Queue.t
 (** Parse the given input file according to the current input options.
