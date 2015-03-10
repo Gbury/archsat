@@ -39,8 +39,9 @@ type copts = {
 }
 
 let mk_opts log debug file input output proof type_only exts p_proof p_model time size =
-    Util.set_debug log;
-    List.iter (fun (name, lvl) -> Util.Section.(set_debug (find name) lvl)) debug;
+    (* Set up debug levels *)
+    Util.set_debug log; List.iter (fun (s, lvl) -> Util.Section.set_debug s lvl) debug;
+    (* Global options record *)
     {
     formatter = Format.std_formatter;
     input_file = file;
@@ -83,6 +84,14 @@ let parse_sint arg =
 
 let sint = parse_sint, print_sint
 
+(* Argument converter for log sections *)
+let print_section fmt s = Format.fprintf fmt "%s" (Util.Section.full_name s)
+let parse_section arg =
+    try `Ok (Util.Section.find arg)
+    with Not_found -> `Error ("Invalid debug section '" ^ arg ^ "'")
+
+let section = parse_section, print_section
+
 (* Argument converters for input/output *)
 let input = Arg.enum [
   "auto", Auto;
@@ -120,13 +129,13 @@ let copts_t () =
   let docs = copts_sect in
   let log =
       let doc = "Set the global level for debug outpout." in
-      Arg.(value & opt int 0 & info ["v"] ~docs ~docv:"LVL" ~doc)
+      Arg.(value & opt int 0 & info ["v"; "verbose"] ~docs ~docv:"LVL" ~doc)
   in
   let debug =
       let doc = Util.sprintf
         "Set the debug level of the given section. Available sections are : %a."
         (Util.pp_list ~sep:", " print_string) (log_sections ()) in
-      Arg.(value & opt_all (pair string int) [] & info ["debug"] ~docs:ext_sect ~docv:"NAME,LVL" ~doc)
+      Arg.(value & opt_all (pair section int) [] & info ["debug"] ~docs:ext_sect ~docv:"NAME,LVL" ~doc)
   in
   let file =
       let doc = "Input problem file." in

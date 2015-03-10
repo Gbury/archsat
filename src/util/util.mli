@@ -54,7 +54,7 @@ module Section : sig
       It has a parent (default [root]), used to give it a name. It can
       also have a list of sections it inherits from.
       Unless specificed explicitely otherwise (using
-      {!set_debug}, the level of the section will be the max level of its
+      {!set_debug}) the level of the section will be the max level of its
       parent and its inherited sections. *)
 end
 

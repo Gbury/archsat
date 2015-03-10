@@ -4,7 +4,7 @@
 
 (* Private aliases *)
 type var_id = int
-type meta_index = int
+type 'a meta_index = int
 
 (* Variables, parametrized by the kind of the type of the variable *)
 type 'ty var = {
@@ -15,7 +15,7 @@ type 'ty var = {
 
 type 'ty meta = {
   meta_var : 'ty var;
-  meta_index : meta_index;
+  meta_index : 'ty meta_index;
   can_unify : bool;
 }
 
@@ -236,10 +236,13 @@ let print_formula fmt f = Format.fprintf fmt "⟦%a⟧" print_f f
 
 let hash h_skel l = Hashtbl.hash (h_skel, l)
 
+let hash_var v = v.var_id
+let hash_meta m = m.meta_var.var_id
+
 let rec hash_ty t =
   let h = match t.ty with
-    | TyVar v -> v.var_id
-    | TyMeta m -> m.meta_var.var_id
+    | TyVar v -> hash_var v
+    | TyMeta m -> hash_meta m
     | TyApp (f, args) ->
       hash f.var_id (List.rev_map get_ty_hash args)
   in
@@ -252,8 +255,8 @@ and get_ty_hash t =
 
 let rec hash_term t =
   let h = match t.term with
-    | Var v -> v.var_id
-    | Meta m -> m.meta_var.var_id
+    | Var v -> hash_var v
+    | Meta m -> hash_meta m
     | App (f, tys, args) ->
       hash f.var_id (List.rev_append
                       (List.rev_map get_ty_hash tys)
@@ -975,7 +978,7 @@ let new_term_metas f = match f.formula with
 
 module Var = struct
   type 'a t = 'a var
-  let hash v = v.var_id
+  let hash = hash_var
   let compare = compare_var
   let equal = equal_var
   let print = print_var
@@ -983,7 +986,7 @@ module Var = struct
 end
 module Meta = struct
   type 'a t = 'a meta
-  let hash m = m.meta_var.var_id
+  let hash = hash_meta
   let compare = compare_meta
   let equal = equal_meta
   let print = print_meta

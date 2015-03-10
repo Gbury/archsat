@@ -8,7 +8,7 @@ module U = Hashtbl.Make(Unif)
 
 let id = Dispatcher.new_id ()
 let no_inst = ref false
-let meta_incr = ref 1
+let meta_incr = ref 0
 
 (* Hashtbl to store number of generated metas for each formula *)
 let metas = H.create 256
@@ -141,7 +141,7 @@ let opts t =
     in
     let incr =
         let doc = "Set the number of new metas to be generated at each pass (default = 1)" in
-        Cmdliner.Arg.(value & opt int 1 & info ["meta.incr"] ~docv:"INT" ~docs ~doc)
+        Cmdliner.Arg.(value & opt int 0 & info ["meta.incr"] ~docv:"INT" ~docs ~doc)
     in
     let set_opts inst incr t =
         no_inst := not inst;

@@ -2,7 +2,12 @@
 module H = Hashtbl.Make(Expr.Formula)
 
 let id = Dispatcher.new_id ()
-let epsilon = ref false
+
+type kind =
+    | Tau
+    | Skolem
+
+let inst = ref Tau
 
 (* Set-hashtbl to tag translated formulas *)
 let seen = H.create 256
@@ -24,16 +29,13 @@ let mk_proof_term f p l taus = Dispatcher.mk_proof
 
 let get_ty_taus ty_args t_args l =
     assert (t_args = []);
-    if !epsilon then
-      List.map Expr.(fun v -> type_app (type_const ("e_" ^ v.var_name) 0) []) l
-    else
-      List.map (fun v -> Expr.type_app (Expr.get_ty_skolem v) ty_args) l
+    match !inst with
+    | Tau -> List.map Expr.(fun v -> type_app (type_const ("e_" ^ v.var_name) 0) []) l
+    | Skolem -> List.map (fun v -> Expr.type_app (Expr.get_ty_skolem v) ty_args) l
 
-let get_term_taus ty_args t_args l =
-    if !epsilon then
-      List.map Expr.(fun v -> term_app (term_const ("e_" ^ v.var_name) [] [] v.var_type) [] []) l
-    else
-      List.map (fun v -> Expr.term_app (Expr.get_term_skolem v) ty_args t_args) l
+let get_term_taus ty_args t_args l = match !inst with
+  | Tau -> List.map Expr.(fun v -> term_app (term_const ("t_" ^ v.var_name) [] [] v.var_type) [] []) l
+  | Skolem -> List.map (fun v -> Expr.term_app (Expr.get_term_skolem v) ty_args t_args) l
 
 let tau lvl = function
     | { Expr.formula = Expr.Ex (l, (ty_args, t_args), p) } as f ->
@@ -81,11 +83,11 @@ let tau_pre _ = ()
 let opts t =
     let docs = Options.ext_sect in
     let kind =
-        let doc = "Decide the strategy to use for existenciallyquantified variables, available are : skolem, tau" in
-        Cmdliner.Arg.(value & opt (enum ["tau", `Tau; "skolem", `Skolem]) `Skolem & info ["skolem.kind"] ~docv:"KIND" ~docs ~doc)
+        let doc = "Decide the strategy to use for existencially quantified variables, available are : skolem, tau" in
+        Cmdliner.Arg.(value & opt (enum ["tau", Tau; "skolem", Skolem]) Tau & info ["skolem.kind"] ~docv:"KIND" ~docs ~doc)
     in
     let set_opts kind t =
-        begin match kind with `Tau -> epsilon := true | `Skolem -> () end;
+        inst := kind;
         t
     in
     Cmdliner.Term.(pure set_opts $ kind $ t)

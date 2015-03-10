@@ -52,16 +52,16 @@ let merge s s' = {
 (* ************************************************************************ *)
 
 let rec protect_ty = function
+    | { Expr.ty = Expr.TyVar _ } as ty -> ty
     | { Expr.ty = Expr.TyMeta m } -> Expr.type_meta (Expr.protect m)
     | { Expr.ty = Expr.TyApp (f, ty_l) } ->
       Expr.type_app f (List.map protect_ty ty_l)
-    | ty -> ty
 
 let rec protect_term = function
+    | { Expr.term = Expr.Var _ } as t -> t
     | { Expr.term = Expr.Meta m } -> Expr.term_meta (Expr.protect m)
     | { Expr.term = Expr.App (f, ty_l, t_l) } ->
       Expr.term_app f (List.map protect_ty ty_l) (List.map protect_term t_l)
-    | t -> t
 
 let protect_inst s = {
     ty_map = Expr.Subst.fold (fun m ty acc ->
@@ -272,6 +272,8 @@ let fixpoint u =
 module H = Hashtbl.Make(struct
     type t = Expr.term * Expr.term
     let hash (s, t) = Hashtbl.hash (Expr.Term.hash s, Expr.Term.hash t)
+    let equal (s1, t1) (s2, t2) = Expr.Term.equal s1 s2 && Expr.Term.equal t1 t2
+    (*
     let equal (s1, t1) (s2, t2) =
         try
             let tmp = meta_match_term empty s1 s2 in
@@ -279,6 +281,7 @@ module H = Hashtbl.Make(struct
             true
         with Not_unifiable_ty _ | Not_unifiable_term _ ->
             false
+            *)
 end)
 
 let cache = H.create 4096
@@ -288,7 +291,8 @@ let cached_unify s t =
   try
       H.find cache key
   with Not_found ->
-      let res = fixpoint (unify_term s t) in
+      let res = unify_term s t in
+      let res = fixpoint res in
       H.add cache key res;
       res
 

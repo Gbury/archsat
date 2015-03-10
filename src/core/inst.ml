@@ -59,16 +59,25 @@ let quant_comparable p q = match quant_compare p q with
  * unifiers such that all formula generating the metas in
  * a unifier are comparable according to compare_quant. *)
 let belong_ty m s =
-    let p = Expr.get_meta_ty_def (index m) in
-    let aux m' _ = quant_comparable p (Expr.get_meta_ty_def (index m')) in
+    let f = Expr.get_meta_ty_def (index m) in
+    let aux m' _ =
+        let f' = Expr.get_meta_ty_def (index m') in
+        if Expr.Formula.equal f f' then index m = index m'
+        else quant_comparable f f'
+    in
     Expr.Subst.exists aux Unif.(s.ty_map)
 
 let belong_term m s =
-    let p = Expr.get_meta_def (index m) in
-    let aux m' _ = quant_comparable p (Expr.get_meta_def (index m')) in
+    let f = Expr.get_meta_def (index m) in
+    let aux m' _ =
+        let f' = Expr.get_meta_def (index m') in
+        if Expr.Formula.equal f f' then index m = index m'
+        else quant_comparable f f'
+    in
     Expr.Subst.exists aux Unif.(s.t_map)
 
-let split s =
+let split s = [s]
+(*
   let rec aux bind belongs acc m t = function
       | [] -> bind Unif.empty m t :: acc
       | s :: r ->
@@ -79,6 +88,7 @@ let split s =
   in
   Expr.Subst.fold (aux Unif.bind_term belong_term []) Unif.(s.t_map)
     (Expr.Subst.fold (aux Unif.bind_ty belong_ty []) Unif.(s.ty_map) [])
+*)
 
 (* Given an arbitrary substitution (Unif.t),
  * Returns a pair (formula * Unif.t) to instanciate
@@ -87,12 +97,11 @@ let partition s =
     let aux bind m t = function
         | None -> Some (index m, bind Unif.empty m t)
         | Some (min_index, acc) ->
-          let i = (index m : Expr.meta_index :> int) in
-          let j = (min_index : Expr.meta_index :> int) in
-          if j < 0 && i < j then
-            Some (index m, bind Unif.empty m t)
-          else if i = j then
-            Some (index m, bind acc m t)
+          let i = index m in
+          if i < min_index then
+            Some (i, bind Unif.empty m t)
+          else if i = min_index then
+            Some (i, bind acc m t)
           else
             Some (min_index, acc)
     in

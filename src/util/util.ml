@@ -75,7 +75,7 @@ module Section = struct
   (* full name -> section *)
   let section_table = Hashtbl.create 15
 
-  let set_debug s i = assert (i>=0); s.level <- i
+  let set_debug s i = s.level <- if i < 0 then null_level else i
   let clear_debug s = s.level <- null_level
   let get_debug s =
     if s.level=null_level then None else Some s.level
@@ -135,8 +135,8 @@ let debug ?(section=Section.root) l format =
     (* print header *)
     let now = get_total_time () in
     if section == Section.root
-    then Printf.bprintf debug_buf_ "%% [%.3f] " now
-    else Printf.bprintf debug_buf_ "%% [%.3f %s] "
+      then Printf.bprintf debug_buf_ "%% [%.3f] " now
+      else Printf.bprintf debug_buf_ "%% [%.3f %s] "
         now section.Section.full_name;
     Printf.kbprintf
       (fun b -> Buffer.output_buffer stdout b; print_char '\n'; flush stdout)
