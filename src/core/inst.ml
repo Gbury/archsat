@@ -76,8 +76,7 @@ let belong_term m s =
     in
     Expr.Subst.exists aux Unif.(s.t_map)
 
-let split s = [s]
-(*
+let split s =
   let rec aux bind belongs acc m t = function
       | [] -> bind Unif.empty m t :: acc
       | s :: r ->
@@ -88,7 +87,6 @@ let split s = [s]
   in
   Expr.Subst.fold (aux Unif.bind_term belong_term []) Unif.(s.t_map)
     (Expr.Subst.fold (aux Unif.bind_ty belong_ty []) Unif.(s.ty_map) [])
-*)
 
 (* Given an arbitrary substitution (Unif.t),
  * Returns a pair (formula * Unif.t) to instanciate
@@ -111,6 +109,8 @@ let partition s =
       match Expr.Subst.fold (aux Unif.bind_term) Unif.(s.t_map) None with
       | Some (i, u) -> Expr.get_meta_def i, u
       | None -> assert false
+
+let simplify s = snd (partition s)
 
 (* Produces a proof for the instanciation of the given formulas and unifiers *)
 let mk_proof id f p s = Dispatcher.mk_proof

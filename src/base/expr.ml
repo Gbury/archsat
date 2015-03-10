@@ -583,11 +583,7 @@ let mk_ty_var name ty =
 
 let ttype_var = mk_ttype_var
 let ty_var = mk_ty_var
-*)
-let ttype_var name = mk_var name Type
-let ty_var name ty = mk_var name ty
 
-(*
 let type_const_htbl : (string, ttype function_descr var) Hashtbl.t = Hashtbl.create 43
 let term_const_htbl : (string, ty function_descr var) Hashtbl.t = Hashtbl.create 43
 
@@ -616,6 +612,9 @@ let mk_ty_fn_id name tys args ret =
 let type_const = mk_ttype_fn_id
 let term_const = mk_ty_fn_id
 *)
+let ttype_var name = mk_var name Type
+let ty_var name ty = mk_var name ty
+
 let const name tys args ret = mk_var name {
     fun_vars = tys;
     fun_args = args;

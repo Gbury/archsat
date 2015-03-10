@@ -146,7 +146,6 @@ let parse_ttype_var = function
     | { Ast.term = Ast.Column (
         { Ast.term = Ast.Var s }, {Ast.term = Ast.Const Ast.Ttype}) } ->
       Expr.ttype_var s
-    (* | { Ast.term = Ast.Var s } -> *)
     | _ -> raise Typing_error
 
 let rec parse_ty env = function

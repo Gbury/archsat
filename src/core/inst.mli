@@ -13,6 +13,9 @@ val split : Unif.t -> Unif.t list
     Additionally, no formula generating metas from two different unifiers in the list
     are comparable. *)
 
+val simplify : Unif.t -> Unif.t
+(** TODO *)
+
 val soft_push : Unif.t -> unit
 val hard_push : Unif.t -> unit
 (** Takes an unifier and instanciates the given unifier, i.e pushed clauses to the sat solver

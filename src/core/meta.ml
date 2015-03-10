@@ -60,10 +60,11 @@ let do_unif u =
     U.add unif_set u (i + 1)
 
 let inst p notp =
-  let unif = Unif.cached_unify p notp in
+  let unif = Unif.unify_term p notp in
   log 5 "Unification found";
   print_inst unif;
   let l = Inst.split unif in
+  let l = List.map Inst.simplify l in
   let l = List.map Unif.protect_inst l in
   List.iter do_unif l
 
@@ -71,7 +72,8 @@ let find_inst p notp =
     try
         log 5 "Matching : %a ~~ %a" Expr.debug_term p Expr.debug_term notp;
         inst p notp;
-        inst notp p
+        inst notp p;
+        ()
     with
     | Unif.Not_unifiable_ty (a, b) ->
         log 15 "Couldn't unify types %a and %a" Expr.debug_ty a Expr.debug_ty b

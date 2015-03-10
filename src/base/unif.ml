@@ -70,6 +70,49 @@ let protect_inst s = {
         Expr.Subst.Meta.bind m (protect_term t) acc) s.t_map Expr.Subst.empty;
 }
 
+(* Manipulation over meta substitutions *)
+(* ************************************************************************ *)
+
+(* Substitutes meta instead of variables *)
+let rec type_subst_aux map = function
+  | { Expr.ty = Expr.TyVar _ } -> assert false
+  | { Expr.ty = Expr.TyMeta m } as t ->
+    begin try Expr.Subst.Meta.get m map with Not_found -> t end
+  | { Expr.ty = Expr.TyApp (f, args) } ->
+    Expr.type_app f (List.map (type_subst_aux map) args)
+
+let type_subst map t = if Expr.Subst.is_empty map then t else type_subst_aux map t
+
+let rec term_subst_aux ty_map t_map = function
+  | { Expr.term = Expr.Var _ } -> assert false
+  | { Expr.term = Expr.Meta m } as t ->
+    begin try Expr.Subst.Meta.get m t_map with Not_found -> t end
+  | { Expr.term = Expr.App (f, tys, args) } ->
+    Expr.term_app f (List.map (type_subst ty_map) tys) (List.map (term_subst_aux ty_map t_map) args)
+
+let term_subst ty_map t_map t =
+  if Expr.Subst.is_empty ty_map && Expr.Subst.is_empty t_map then
+      t
+  else
+      term_subst_aux ty_map t_map t
+
+(* Fixpoint on meta substitutions *)
+let fixpoint u =
+    let rec ty_apply ty =
+        let ty' = type_subst u.ty_map ty in
+        if Expr.Ty.equal ty ty' then ty
+        else ty_apply ty'
+    in
+    let rec t_apply t =
+        let t' = term_subst u.ty_map u.t_map t in
+        if Expr.Term.equal t t' then t
+        else t_apply t'
+    in
+    {
+        ty_map = Expr.Subst.fold (fun m t acc -> Expr.Subst.Meta.bind m (ty_apply t) acc) u.ty_map Expr.Subst.empty;
+        t_map = Expr.Subst.fold (fun m t acc -> Expr.Subst.Meta.bind m (t_apply t) acc) u.t_map Expr.Subst.empty;
+    }
+
 (* Meta-matching *)
 (* ************************************************************************ *)
 
@@ -175,7 +218,6 @@ let rec occurs_check_term subst v = function
     | { Expr.term= Expr.App (f, _, l) } -> List.exists (occurs_check_term subst v) l
     | _ -> false
 
-
 let rec robinson_ty subst s t =
     try robinson_ty subst (follow_ty subst s) t with Not_found ->
     try robinson_ty subst s (follow_ty subst t) with Not_found ->
@@ -220,51 +262,8 @@ let rec robinson_term subst s t =
         | _ -> raise (Not_unifiable_term (s, t))
       end
 
-let unify_ty s t = robinson_ty empty s t
-let unify_term s t = robinson_term empty s t
-
-(* Manipulation over meta substitutions *)
-(* ************************************************************************ *)
-
-(* Substitutes meta instead of variables *)
-let rec type_subst_aux map = function
-  | { Expr.ty = Expr.TyVar _ } -> assert false
-  | { Expr.ty = Expr.TyMeta m } as t ->
-    begin try Expr.Subst.Meta.get m map with Not_found -> t end
-  | { Expr.ty = Expr.TyApp (f, args) } ->
-    Expr.type_app f (List.map (type_subst_aux map) args)
-
-let type_subst map t = if Expr.Subst.is_empty map then t else type_subst_aux map t
-
-let rec term_subst_aux ty_map t_map = function
-  | { Expr.term = Expr.Var _ } -> assert false
-  | { Expr.term = Expr.Meta m } as t ->
-    begin try Expr.Subst.Meta.get m t_map with Not_found -> t end
-  | { Expr.term = Expr.App (f, tys, args) } ->
-    Expr.term_app f (List.map (type_subst ty_map) tys) (List.map (term_subst_aux ty_map t_map) args)
-
-let term_subst ty_map t_map t =
-  if Expr.Subst.is_empty ty_map && Expr.Subst.is_empty t_map then
-      t
-  else
-      term_subst_aux ty_map t_map t
-
-(* Fixpoint on meta substitutions *)
-let fixpoint u =
-    let rec ty_apply ty =
-        let ty' = type_subst u.ty_map ty in
-        if Expr.Ty.equal ty ty' then ty
-        else ty_apply ty'
-    in
-    let rec t_apply t =
-        let t' = term_subst u.ty_map u.t_map t in
-        if Expr.Term.equal t t' then t
-        else t_apply t'
-    in
-    {
-        ty_map = Expr.Subst.fold (fun m t acc -> Expr.Subst.Meta.bind m (ty_apply t) acc) u.ty_map Expr.Subst.empty;
-        t_map = Expr.Subst.fold (fun m t acc -> Expr.Subst.Meta.bind m (t_apply t) acc) u.t_map Expr.Subst.empty;
-    }
+let unify_ty s t = fixpoint (robinson_ty empty s t)
+let unify_term s t = fixpoint (robinson_term empty s t)
 
 (* Robinson unification with Caching (modulo meta switching) for term unification *)
 (* ************************************************************************ *)
@@ -272,8 +271,6 @@ let fixpoint u =
 module H = Hashtbl.Make(struct
     type t = Expr.term * Expr.term
     let hash (s, t) = Hashtbl.hash (Expr.Term.hash s, Expr.Term.hash t)
-    let equal (s1, t1) (s2, t2) = Expr.Term.equal s1 s2 && Expr.Term.equal t1 t2
-    (*
     let equal (s1, t1) (s2, t2) =
         try
             let tmp = meta_match_term empty s1 s2 in
@@ -281,7 +278,6 @@ module H = Hashtbl.Make(struct
             true
         with Not_unifiable_ty _ | Not_unifiable_term _ ->
             false
-            *)
 end)
 
 let cache = H.create 4096
@@ -292,7 +288,6 @@ let cached_unify s t =
       H.find cache key
   with Not_found ->
       let res = unify_term s t in
-      let res = fixpoint res in
       H.add cache key res;
       res
 
