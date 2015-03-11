@@ -178,6 +178,9 @@ let soft_push s =
 Dispatcher.(register {
     id = id;
     name = "inst";
+    descr = "Handles the pushing of clauses corresponding to instanciations. This plugin does not
+             do anything by itself, but rather is called by other plugins when doing instanciations.
+             Activating it is not required for other plugins to use it.";
     assume = (fun _ -> ());
     eval_pred = (fun _ -> None);
     preprocess = (fun _ -> ());

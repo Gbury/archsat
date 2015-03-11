@@ -71,6 +71,8 @@ let tab_pre _ = ()
 Dispatcher.(register {
     id = id;
     name = "tab";
+    descr = "Does lazy cnf conversion on input formulas whose topconstructor is a logical connective
+             (i.e quantified formulas are $(b,not) handled by this plugin).";
     assume = tab_assume;
     eval_pred = tab_eval;
     preprocess = tab_pre;

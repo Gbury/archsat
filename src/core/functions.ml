@@ -74,6 +74,7 @@ let rec uf_pre = function
 Dispatcher.(register {
     id = id;
     name = "uf";
+    descr = "Ensures consistency of assignments for function applications.";
     assume = (fun _ -> ());
     eval_pred = (fun _ -> None);
     preprocess = uf_pre;

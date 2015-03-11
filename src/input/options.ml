@@ -50,7 +50,7 @@ let mk_opts log debug file input output proof type_only exts p_proof p_model tim
 
     proof = proof || p_proof;
     solve = not type_only;
-    extensions = exts;
+    extensions = List.concat exts;
 
     print_model = p_model;
     print_proof = p_proof;
@@ -93,27 +93,34 @@ let parse_section arg =
 let section = parse_section, print_section
 
 (* Argument converters for input/output *)
-let input = Arg.enum [
+let input_list = [
   "auto", Auto;
   "dimacs", Dimacs;
   "tptp", Tptp;
   "smtlib", Smtlib;
 ]
-let output = Arg.enum [
+let output_list = [
   "standard", Standard;
   "dot", Dot;
 ]
-let model = Arg.enum [
+let model_list = [
   "none", None;
   "simple", Simple;
   "full", Full;
 ]
 
+let input = Arg.enum input_list
+let output = Arg.enum output_list
+let model = Arg.enum model_list
+
 (* Argument parsing *)
 let copts_sect = "COMMON OPTIONS"
 let ext_sect = "ADVANCED OPTIONS"
-let help_secs = [
+let help_secs ext_doc = [
  `S copts_sect; `P "Common options for the prover";
+ `S "EXTENSIONS"; `P "Available extensions are listed in this section. Each paragraph starts with the extension's name,
+ and a description of what the extension does.";
+ ] @ ext_doc @ [
  `S ext_sect; `P "Options primarily used by the extensions (use only if you know what you're doing !).";
  `S "BUGS"; `P "TODO";
 ]
@@ -133,8 +140,8 @@ let copts_t () =
   in
   let debug =
       let doc = Util.sprintf
-        "Set the debug level of the given section. Available sections are : %a."
-        (Util.pp_list ~sep:", " print_string) (log_sections ()) in
+        "Set the debug level of the given section, as a pair : '$(b,section),$(b,level)'.
+        Available sections are : %a." (Util.pp_list ~sep:", " print_string) (log_sections ()) in
       Arg.(value & opt_all (pair section int) [] & info ["debug"] ~docs:ext_sect ~docv:"NAME,LVL" ~doc)
   in
   let file =
@@ -142,15 +149,20 @@ let copts_t () =
       Arg.(required & pos 0 (some file) None & info [] ~docv:"FILE" ~doc)
   in
   let input =
-      let doc = "Input format for the problem file." in
+      let doc = Util.sprintf
+      "Set the format for the input file to $(docv) (%a)."
+      (Util.pp_list ~sep:", " print_string) (List.map fst input_list) in
       Arg.(value & opt input Auto & info ["i"; "input"] ~docs ~docv:"INPUT" ~doc)
   in
   let output =
-      let doc = "Output format for printing results." in
+      let doc = Util.sprintf
+      "Set the output for printing results to $(docv) (%a)."
+      (Util.pp_list ~sep:", " print_string) (List.map fst output_list) in
       Arg.(value & opt output Standard & info ["o"; "output"] ~docs ~docv:"OUTPUT" ~doc)
   in
   let proof =
-      let doc = "If set, compute and check the resolution proofs for unsat results." in
+      let doc = "If set, compute and check the resolution proofs for unsat results. This option
+                 does not trigger printing of the proof (see $(b,--proof) option)." in
       Arg.(value & flag & info ["check"] ~docs ~doc)
   in
   let type_only =
@@ -158,15 +170,21 @@ let copts_t () =
       Arg.(value & flag & info ["type-only"] ~docs ~doc)
   in
   let exts =
-      let doc = "Activate/deactivate extensions." in
-      Arg.(value & opt (list string) [] & info ["x"; "ext"] ~docs ~docv:"EXTS" ~doc)
+      let doc = "Activate/deactivate extensions, using their names (see EXTENSIONS section).
+                 Prefixing an extension with a $(b,'-') deactivates it, while using only its name
+                 (possibly with the $(b,'+') prefix, but not necessarily) will activate it.
+                 Many extensions may be specified separating them with a colon, or using this
+                 option multiple times." in
+      Arg.(value & opt_all (list string) [] & info ["x"; "ext"] ~docs ~docv:"EXTS" ~doc)
   in
   let print_proof =
       let doc = "Print proof for unsat results (implies proof generation)." in
       Arg.(value & flag & info ["p"; "proof"] ~docs ~doc)
   in
   let print_model =
-      let doc = "Print model for sat results according to $(docv)." in
+      let doc = Util.sprintf
+      "Set the option for printing the model (if one is found) to $(docv) (%a)."
+      (Util.pp_list ~sep:", " print_string) (List.map fst model_list) in
       Arg.(value & opt model None & info ["m"; "model"] ~docs ~docv:"MODEL" ~doc)
   in
   let time =

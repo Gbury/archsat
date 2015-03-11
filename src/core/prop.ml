@@ -69,6 +69,7 @@ let rec sat_preprocess = function
 D.(register {
     id = id;
     name = "prop";
+    descr = "Handles consitency of assignments with regards to predicates (i.e functions which returns a Prop).";
     assume = sat_assume;
     eval_pred = sat_eval;
     preprocess = sat_preprocess;

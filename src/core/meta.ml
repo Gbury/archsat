@@ -155,6 +155,8 @@ let opts t =
 Dispatcher.(register {
     id = id;
     name = "meta";
+    descr = "Generate meta variables for universally quantified formulas, and use unification to push
+             possible instanciations to the 'inst' module.";
     assume = (fun (f, lvl) -> meta_assume lvl f);
     eval_pred = meta_eval;
     preprocess = meta_pre;

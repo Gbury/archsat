@@ -83,19 +83,20 @@ let do_command opt = function
 
 (* Main function *)
 let main () =
-  (* Default extensions *)
-  Dispatcher.set_exts "+eq,+uf,+tab,+prop,+skolem,+meta";
   (* Argument parsing *)
-  let info = Cmdliner.Term.(info ~sdocs:Options.copts_sect ~man:Options.help_secs ~version:"0.1" "tabsat") in
+  let man = Options.help_secs (Dispatcher.ext_doc ()) in
+  let info = Cmdliner.Term.(info ~sdocs:Options.copts_sect ~man ~version:"0.1" "tabsat") in
   let opt = match Cmdliner.Term.eval (Dispatcher.add_opts (Options.copts_t ()), info) with
     | `Version | `Help | `Error `Parse | `Error `Term | `Error `Exn -> raise Exit
     | `Ok opt -> opt
   in
   (* Gc alarm for limits *)
   let _ = Gc.create_alarm (check opt.time_limit opt.size_limit) in
-  (* Side-effects options *)
+  (* Io options *)
   Io.set_input opt.input_format;
   Io.set_output opt.output_format;
+  (* Extensions options *)
+  Dispatcher.set_exts "+eq,+uf,+tab,+prop,+skolem,+meta";
   List.iter Dispatcher.set_ext opt.extensions;
   (* Input file parsing *)
   let commands = wrap "parse" Io.parse_input opt.input_file in

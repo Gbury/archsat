@@ -87,6 +87,7 @@ let new_id =
 type extension = {
   id : id;
   name : string;
+  descr : string;
   if_sat : unit -> unit;
   assume : formula * int -> unit;
   eval_pred : formula -> (bool * int) option;
@@ -135,12 +136,18 @@ let set_ext s =
 
 let set_exts s = List.iter set_ext (Util.str_split ~by:"," s)
 
+
+(* Info about extensions *)
 let list_extensions () = List.map (fun r -> r.name) !extensions
+
+let doc_of_ext r = `I ("$(b," ^ r.name ^ ")", r.descr)
+
+let ext_doc () = List.map doc_of_ext
+    (List.sort (fun r r' -> compare r.name r'.name) !extensions)
 
 let find_ext id =
     List.find (fun ext -> ext.id = id) !extensions
 
-(* Acces functions for active extensions *)
 let ext_iter f = List.iter f !active
 
 (* Additional command line options *)

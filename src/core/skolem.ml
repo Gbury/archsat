@@ -95,6 +95,7 @@ let opts t =
 Dispatcher.(register {
     id = id;
     name = "skolem";
+    descr = "Generate skolem or tau for existencially quantified formulas (see options).";
     assume = tau_assume;
     eval_pred = tau_eval;
     preprocess = tau_pre;

@@ -50,6 +50,7 @@ val mk_proof : ?ty_args : Expr.ty list ->
 type extension = {
   id : id;
   name : string;
+  descr : string;
   if_sat : unit -> unit;
   assume : formula * int -> unit;
   eval_pred : formula -> (bool * int) option;
@@ -80,6 +81,9 @@ val set_exts : string -> unit
 
 val list_extensions : unit -> string list
 (** Returns the current list of extensions known to the dispatcher. *)
+
+val ext_doc : unit -> Cmdliner.Manpage.block list
+(** Returns a documentation on available options. *)
 
 (** {2 Extension-side helpers} *)
 

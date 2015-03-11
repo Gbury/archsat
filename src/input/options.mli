@@ -37,7 +37,7 @@ type copts = {
 
 val copts_sect : string
 val ext_sect : string
-val help_secs : Cmdliner.Manpage.block list
+val help_secs : Cmdliner.Manpage.block list -> Cmdliner.Manpage.block list
 
 val copts_t : unit -> copts Cmdliner.Term.t
 
