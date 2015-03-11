@@ -191,7 +191,7 @@ let copts_t () =
   in
   let file =
       let doc = "Input problem file." in
-      Arg.(required & pos 0 (some file) None & info [] ~docv:"FILE" ~doc)
+      Arg.(required & pos 0 (some non_dir_file) None & info [] ~docv:"FILE" ~doc)
   in
   let input =
       let doc = Util.sprintf
