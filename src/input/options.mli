@@ -10,7 +10,7 @@ type output =
   | Dot
 
 type model =
-  | None
+  | NoModel
   | Simple
   | Full
 

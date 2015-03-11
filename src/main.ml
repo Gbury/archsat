@@ -33,7 +33,7 @@ let check time_limit size_limit = function () ->
 let get_model p_model =
     List.sort (fun (t, _) (t', _) -> Expr.Term.compare t t')
     (match p_model with
-    | None -> assert false
+    | NoModel -> assert false
     | Simple -> Solver.model ()
     | Full -> Solver.full_model ())
 
@@ -67,7 +67,8 @@ let do_command opt = function
         | Solver.Sat ->
           Io.print_res opt.formatter "Sat" (Sys.time ());
           begin match opt.print_model with
-            | None -> () | _ ->
+            | NoModel -> ()
+            | _ ->
               Io.fprintf opt.formatter "Model :";
               Io.print_model opt.formatter (get_model opt.print_model)
           end
