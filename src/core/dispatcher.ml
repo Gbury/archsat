@@ -86,6 +86,7 @@ let new_id =
 
 type extension = {
   id : id;
+  prio : int;
   name : string;
   descr : string;
   if_sat : unit -> unit;
@@ -94,6 +95,11 @@ type extension = {
   preprocess : formula -> unit;
   options : Options.copts Cmdliner.Term.t -> Options.copts Cmdliner.Term.t;
 }
+
+let mk_ext ?(descr="")?(prio=0) ?(if_sat=(fun () -> ()))
+           ?(assume=(fun _ -> ())) ?(eval_pred=(fun _ -> None))
+           ?(preprocess=(fun _ -> ())) ?(options=(fun t -> t)) id name =
+    { id; prio; name; descr; if_sat; assume; eval_pred; preprocess; options }
 
 let extensions = ref []
 
@@ -108,7 +114,7 @@ let activate ext =
   try
     let r = List.find aux !extensions in
     if not (List.exists aux !active) then
-      active := r :: !active
+        active := List.merge (fun r r' -> compare r'.prio r.prio) [r] !active
     else
       log 0 "WARNING: Extension %s already activated" ext
   with Not_found ->

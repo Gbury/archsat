@@ -71,13 +71,7 @@ let rec uf_pre = function
   | _ -> ()
 
 ;;
-Dispatcher.(register {
-    id = id;
-    name = "uf";
-    descr = "Ensures consistency of assignments for function applications.";
-    assume = (fun _ -> ());
-    eval_pred = (fun _ -> None);
-    preprocess = uf_pre;
-    if_sat = (fun _ -> ());
-    options = (function t -> t);
-  })
+Dispatcher.(register (mk_ext
+    ~descr:"Ensures consistency of assignments for function applications."
+    ~preprocess:uf_pre id "uf"
+))

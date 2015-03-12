@@ -1,10 +1,15 @@
 
-(*
+let id = Dispatcher.new_id ()
+
 let log_section = Util.Section.make "inst"
 let log i fmt = Util.debug ~section:log_section i fmt
-*)
+
+let print_inst l s =
+    Expr.Subst.iter (fun k v -> log l " |- %a -> %a" Expr.debug_meta k Expr.debug_term v) Unif.(s.t_map)
 
 (* Instanciation helpers *)
+(* ************************************************************************ *)
+
 let index m = Expr.(m.meta_index)
 
 (* Partial order, representing the inclusion on quantified formulas
@@ -113,78 +118,112 @@ let partition s =
 let simplify s = snd (partition s)
 
 (* Produces a proof for the instanciation of the given formulas and unifiers *)
-let mk_proof id f p s = Dispatcher.mk_proof
+let mk_proof f p s = Dispatcher.mk_proof
     ~ty_args:(Expr.Subst.fold (fun m t l -> Expr.type_meta m :: t :: l) Unif.(s.ty_map) [])
     ~term_args:(Expr.Subst.fold (fun m t l -> Expr.term_meta m :: t :: l) Unif.(s.t_map) [])
     ~formula_args:[f; p] id "inst"
 
-let saturate u =
-  let s_ty =
-    try
-      List.fold_left (fun s m -> Expr.Subst.Meta.bind m (Expr.type_meta (Expr.protect m)) s) Expr.Subst.empty
-        (Expr.ty_metas_of_index (index (fst (Expr.Subst.choose Unif.(u.ty_map)))))
-    with Not_found -> Expr.Subst.empty
-  in
-  let s_t =
-    try
-      List.fold_left (fun s m -> Expr.Subst.Meta.bind m (Expr.term_meta (Expr.protect m)) s) Expr.Subst.empty
-        (Expr.term_metas_of_index (index (fst (Expr.Subst.choose Unif.(u.t_map)))))
-    with Not_found -> Expr.Subst.empty
-  in
-  Unif.({
-      ty_map = Expr.Subst.fold Expr.Subst.Meta.bind u.ty_map s_ty;
-      t_map = Expr.Subst.fold Expr.Subst.Meta.bind u.t_map s_t;
-  })
-
 let to_var s = Expr.Subst.fold (fun {Expr.meta_var = v} t acc -> Expr.Subst.Var.bind v t acc) s Expr.Subst.empty
 
-let hard_subst id f subst = match f with
-  | { Expr.formula = Expr.All (_, _, p) } ->
-    let u = saturate subst in
-    let q = Expr.formula_subst Expr.Subst.empty (to_var Unif.(u.t_map)) p in
-    [ Expr.f_not f; q], mk_proof id f q u
-  | { Expr.formula = Expr.AllTy (_, _, p) } ->
-    let u = saturate subst in
-    let q = Expr.formula_subst (to_var Unif.(u.ty_map)) Expr.Subst.empty p in
-    [ Expr.f_not f; q], mk_proof id f q u
-  | { Expr.formula = Expr.Not { Expr.formula = Expr.Ex (_, _, p) } } ->
-    let u = saturate subst in
-    let q = Expr.formula_subst Expr.Subst.empty (to_var Unif.(u.t_map)) p in
-    [ Expr.f_not f; Expr.f_not q], mk_proof id f q u
-  | { Expr.formula = Expr.Not { Expr.formula = Expr.ExTy (_, _, p) } } ->
-    let u = saturate subst in
-    let q = Expr.formula_subst (to_var Unif.(u.ty_map)) Expr.Subst.empty p in
-    [ Expr.f_not f; Expr.f_not q], mk_proof id f q u
-  | _ -> assert false
-
-let soft_subst id f subst =
+let soft_subst f subst =
   let q = Expr.partial_inst (to_var Unif.(subst.ty_map)) (to_var Unif.(subst.t_map)) f in
-  [ Expr.f_not f; q], mk_proof id f q subst
-
-(* Dispatcher extension part *)
-let id = Dispatcher.new_id ()
-
-let hard_push s =
-  let (f, s) = partition s in
-  let cl, p = hard_subst id f s in
-  Dispatcher.push cl p
+  [ Expr.f_not f; q], mk_proof f q subst
 
 let soft_push s =
   let (f, s) = partition s in
-  let cl, p = soft_subst id f s in
+  let cl, p = soft_subst f s in
   Dispatcher.push cl p
 
+(* Heap for prioritizing instanciations *)
+(* ************************************************************************ *)
+
+module Inst = struct
+    type t = {
+        unif : Unif.t;
+        score : int;
+        age : int;
+    }
+
+    let age = ref 0
+    let clock () = incr age
+
+    let mk u k = {
+        unif = u;
+        score = k;
+        age = !age;
+    }
+
+    let leq t1 t2 = t1.score + t1.age <= t2.score + t2.age
+end
+
+module Q = Heap.Make(Inst)
+module H = Hashtbl.Make(Unif)
+
+let heap = ref Q.empty
+let inst_set = H.create 4096
+let inst_incr = ref 3
+
+let get_u i = Inst.(i.unif)
+
+let add ?(score=0) u =
+    if not (H.mem inst_set u) then begin
+        log 10 "New inst :";
+        print_inst 10 u;
+        H.add inst_set u false;
+        heap := Q.add !heap (Inst.mk u score)
+    end else
+        log 10 "Redondant inst :";
+        print_inst 10 u
+
+let push inst =
+    log 5 "Pushing inst :";
+    print_inst 5 (get_u inst);
+    H.replace inst_set (get_u inst) true;
+    soft_push (get_u inst)
+
+let take f k =
+    let aux f i =
+        for _ = 1 to i do
+          match Q.take !heap with
+          | None -> ()
+          | Some (new_h, min) ->
+            heap := new_h;
+            f min;
+        done
+    in
+    if k > 0 then
+        aux f k
+    else
+        aux f (Q.size !heap - k)
+
+let inst_sat () =
+    take push !inst_incr;
+    Inst.clock ()
+
+(* Extension registering *)
+(* ************************************************************************ *)
+
+let opts t =
+    let docs = Options.ext_sect in
+    let n_of_inst =
+        let doc = "Decides how many instanciations are pushed to the solver each round.
+                   If $(docv) is a strictly positive number, then at each round, the $(docv)
+                   most promising instanciations are pushed. If $(docv) is negative, then all
+                   but the $(docv) least promising instanciations are pushed." in
+        Cmdliner.Arg.(value & opt int 3 & info ["inst.nb"] ~docv:"N" ~docs ~doc)
+    in
+    let set_opts nb t =
+        inst_incr := nb;
+        t
+    in
+    Cmdliner.Term.(pure set_opts $ n_of_inst $ t)
+
 ;;
-Dispatcher.(register {
-    id = id;
-    name = "inst";
-    descr = "Handles the pushing of clauses corresponding to instanciations. This plugin does not
-             do anything by itself, but rather is called by other plugins when doing instanciations.
-             Activating it is not required for other plugins to use it.";
-    assume = (fun _ -> ());
-    eval_pred = (fun _ -> None);
-    preprocess = (fun _ -> ());
-    if_sat = (fun _ -> ());
-    options = (function t -> t);
-    })
+Dispatcher.(register (mk_ext
+    ~prio:~-1 ~if_sat:inst_sat ~options:opts
+    ~descr:"Handles the pushing of clauses corresponding to instanciations. This plugin does not
+            do anything by itself, but rather is called by other plugins when doing instanciations.
+            Activating it is not required for other plugins to use it."
+    id "inst"
+    ))
 

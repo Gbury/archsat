@@ -97,7 +97,7 @@ let main () =
   Io.set_input opt.input_format;
   Io.set_output opt.output_format;
   (* Extensions options *)
-  Dispatcher.set_exts "+eq,+uf,+tab,+prop,+skolem,+meta";
+  Dispatcher.set_exts "+eq,+uf,+tab,+prop,+skolem,+meta,+inst";
   List.iter Dispatcher.set_ext opt.extensions;
   (* Input file parsing *)
   let commands = wrap "parse" Io.parse_input opt.input_file in

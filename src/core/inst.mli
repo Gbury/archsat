@@ -1,11 +1,4 @@
 
-val quant_compare : Expr.formula -> Expr.formula -> int option
-(** Partial order representing the sub-formula inclusion on quantified
-    formulas. *)
-
-val quant_comparable : Expr.formula -> Expr.formula -> bool
-(** Returns if the two given formulas are comparable according to compare_quant. *)
-
 val split : Unif.t -> Unif.t list
 (** Splits an arbitray unifier into a list. Each unifiers u in the list
     is such that in the set of formulas that generated the metas in u, all formula
@@ -14,10 +7,9 @@ val split : Unif.t -> Unif.t list
     are comparable. *)
 
 val simplify : Unif.t -> Unif.t
-(** TODO *)
+(** Simplifies the given unifier to eliminate metas that can not be instanciated directly. *)
 
-val soft_push : Unif.t -> unit
-val hard_push : Unif.t -> unit
-(** Takes an unifier and instanciates the given unifier, i.e pushed clauses to the sat solver
-    that realizes the unifier. *)
+val add : ?score:int -> Unif.t -> unit
+(** Add a unifier to the list of instanciations to do, possibly giving it a score.
+    Unifiers with lower scores are prioritized when pushing instanciations to the solver. *)
 

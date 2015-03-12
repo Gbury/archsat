@@ -121,13 +121,10 @@ let rec eq_pre = function
   | _ -> ()
 
 ;;
-D.(register {
-    id = id;
-    name = "eq";
-    descr = "Ensures consistency of assignment with regards to the equality predicates.";
-    assume = eq_assume;
-    eval_pred = eq_eval;
-    preprocess = eq_pre;
-    if_sat = (fun _ -> ());
-    options = (function t -> t);
-  })
+D.(register (mk_ext
+    ~descr:"Ensures consistency of assignment with regards to the equality predicates."
+    ~assume:eq_assume
+    ~eval_pred:eq_eval
+    ~preprocess:eq_pre
+    id "eq"
+))

@@ -66,13 +66,10 @@ let rec sat_preprocess = function
   | _ -> ()
 
 ;;
-D.(register {
-    id = id;
-    name = "prop";
-    descr = "Handles consitency of assignments with regards to predicates (i.e functions which returns a Prop).";
-    assume = sat_assume;
-    eval_pred = sat_eval;
-    preprocess = sat_preprocess;
-    if_sat = (fun _ -> ());
-    options = (function t -> t);
-  })
+D.(register (mk_ext
+    ~descr:"Handles consitency of assignments with regards to predicates (i.e functions which returns a Prop)."
+    ~assume:sat_assume
+    ~eval_pred:sat_eval
+    ~preprocess:sat_preprocess
+    id "prop"
+))

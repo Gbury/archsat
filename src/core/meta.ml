@@ -4,7 +4,6 @@ let log i fmt = Util.debug ~section:log_section i fmt
 
 module H = Hashtbl.Make(Expr.Formula)
 module S = Backtrack.HashtblBack(Expr.Term)
-module U = Hashtbl.Make(Unif)
 
 let id = Dispatcher.new_id ()
 let no_inst = ref false
@@ -38,35 +37,22 @@ let mk_proof_term f metas = Dispatcher.mk_proof
   id "meta"
 
 (* Set of predicates to unify *)
-let unif_set = U.create 1024
 let true_preds = S.create ~size:4096 Dispatcher.stack
 let false_preds = S.create ~size:4096 Dispatcher.stack
 
 let mem x tbl = S.mem tbl x
 
-let print_inst s =
-    Expr.Subst.iter (fun k v -> log 5 " |- %a -> %a" Expr.debug_meta k Expr.debug_term v) Unif.(s.t_map)
-
-let do_unif u =
-  if not (U.mem unif_set u) then begin
-    U.add unif_set u 0;
-    log 10 " New Inst:";
-    print_inst u;
-    if not !no_inst then
-      Inst.soft_push u
-  end else
-    log 10 " Redondant inst.";
-    let i = U.find unif_set u in
-    U.add unif_set u (i + 1)
+let do_inst u = Inst.add u
 
 let inst p notp =
   let unif = Unif.unify_term p notp in
   log 5 "Unification found";
-  print_inst unif;
+  Expr.Subst.iter (fun k v -> log 5 " |- %a -> %a"
+    Expr.debug_meta k Expr.debug_term v) Unif.(unif.t_map);
   let l = Inst.split unif in
   let l = List.map Inst.simplify l in
   let l = List.map Unif.protect_inst l in
-  List.iter do_unif l
+  List.iter do_inst l
 
 let find_inst p notp =
     try
@@ -131,10 +117,6 @@ let find_all_insts () =
         H.iter (fun f _ -> do_formula f) metas
     done
 
-let meta_eval _ = None
-
-let meta_pre _ = ()
-
 let opts t =
     let docs = Options.ext_sect in
     let inst =
@@ -152,15 +134,12 @@ let opts t =
     in
     Cmdliner.Term.(pure set_opts $ inst $ incr $ t)
 ;;
-Dispatcher.(register {
-    id = id;
-    name = "meta";
-    descr = "Generate meta variables for universally quantified formulas, and use unification to push
-             possible instanciations to the 'inst' module.";
-    assume = (fun (f, lvl) -> meta_assume lvl f);
-    eval_pred = meta_eval;
-    preprocess = meta_pre;
-    if_sat = find_all_insts;
-    options = opts;
-  })
+
+Dispatcher.(register (mk_ext
+    ~descr:"Generate meta variables for universally quantified formulas, and use unification to push
+            possible instanciations to the 'inst' module."
+    ~assume:(fun (f, lvl) -> meta_assume lvl f)
+    ~if_sat:find_all_insts
+    ~options:opts id "meta"
+  ))
 

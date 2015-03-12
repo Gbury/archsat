@@ -92,14 +92,11 @@ let opts t =
     in
     Cmdliner.Term.(pure set_opts $ kind $ t)
 ;;
-Dispatcher.(register {
-    id = id;
-    name = "skolem";
-    descr = "Generate skolem or tau for existencially quantified formulas (see options).";
-    assume = tau_assume;
-    eval_pred = tau_eval;
-    preprocess = tau_pre;
-    if_sat = (fun _ -> ());
-    options = opts;
-  })
+Dispatcher.(register (mk_ext
+    ~descr:"Generate skolem or tau for existencially quantified formulas (see options)."
+    ~assume:tau_assume
+    ~eval_pred:tau_eval
+    ~preprocess:tau_pre
+    ~options:opts id "skolem"
+))
 

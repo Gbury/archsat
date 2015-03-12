@@ -49,6 +49,7 @@ val mk_proof : ?ty_args : Expr.ty list ->
 
 type extension = {
   id : id;
+  prio : int;
   name : string;
   descr : string;
   if_sat : unit -> unit;
@@ -61,6 +62,15 @@ type extension = {
 
 val new_id : unit -> id
 (** Generates a new, unique extension id. *)
+
+val mk_ext :
+    ?descr:string -> ?prio:int ->
+    ?if_sat:(unit -> unit) ->
+    ?assume:(formula * int -> unit) ->
+    ?eval_pred:(formula -> (bool * int) option) ->
+    ?preprocess:(formula -> unit) -> ?options:(Options.copts Cmdliner.Term.t -> Options.copts Cmdliner.Term.t) ->
+    id -> string -> extension
+(** Generate a new extension with defaults values. Default priority if [0]. *)
 
 val register : extension -> unit
 (** Used in extensions files to register extensions. *)
