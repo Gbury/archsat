@@ -63,18 +63,12 @@ let tab_assume (f, i) =
     tab f;
     H.add st f i
 
-let tab_eval _ = None
-
-let tab_pre _ = ()
-
 ;;
 Dispatcher.(register (
     mk_ext
       ~descr:"Does lazy cnf conversion on input formulas whose topconstructor is a logical connective
               (i.e quantified formulas are $(b,not) handled by this plugin)."
       ~assume:tab_assume
-      ~eval_pred:tab_eval
-      ~preprocess:tab_pre
       id "tab"
   ))
 

@@ -76,10 +76,6 @@ let tau lvl = function
 
 let tau_assume (f, i) = tau i f
 
-let tau_eval _ = None
-
-let tau_pre _ = ()
-
 let opts t =
   let docs = Options.ext_sect in
   let kind =
@@ -96,8 +92,6 @@ Dispatcher.(register (
     mk_ext
       ~descr:"Generate skolem or tau for existencially quantified formulas (see options)."
       ~assume:tau_assume
-      ~eval_pred:tau_eval
-      ~preprocess:tau_pre
       ~options:opts id "skolem"
   ))
 

@@ -13,6 +13,7 @@ type 'ty var = {
   var_type : 'ty;
 }
 
+(* Metavariables, basically, wrapped variables *)
 type 'ty meta = {
   meta_var : 'ty var;
   meta_index : 'ty meta_index;
@@ -22,12 +23,14 @@ type 'ty meta = {
 (* Type for first order types *)
 type ttype = Type
 
+(* The type of functions *)
 type 'ty function_descr = {
   fun_vars : ttype var list; (* prenex forall *)
   fun_args : 'ty list;
   fun_ret : 'ty;
 }
 
+(* Types *)
 type ty_descr =
   | TyVar of ttype var (** Bound variables *)
   | TyMeta of ttype meta
@@ -35,7 +38,8 @@ type ty_descr =
 
 and ty = {
   ty : ty_descr;
-  mutable ty_hash : int;
+  ty_goalness : int;
+  mutable ty_hash : int; (** lazy hash *)
 }
 
 (* Terms & formulas *)
@@ -47,6 +51,7 @@ type term_descr =
 and term = {
   term    : term_descr;
   t_type  : ty;
+  t_goalness : int;
   mutable t_hash : int; (* lazy hash *)
 }
 
@@ -626,7 +631,7 @@ let term_const = const
 (* Types & substitutions *)
 (* ************************************************************************ *)
 
-let mk_ty ty = { ty; ty_hash = -1 }
+let mk_ty ty = { ty; ty_goalness = 0; ty_hash = -1 }
 
 let type_var v = mk_ty (TyVar v)
 
@@ -670,6 +675,7 @@ let type_inst f tys args =
 let mk_term t ty = {
   term = t;
   t_type = ty;
+  t_goalness = 0;
   t_hash = -1;
 }
 
@@ -971,6 +977,19 @@ let new_ty_metas f = match f.formula with
 let new_term_metas f = match f.formula with
   | Not { formula = Ex(l, _, _) } | All (l, _, _) -> mk_metas l f
   | _ -> invalid_arg "new_term_metas"
+
+(* Goalness manipulation *)
+(* ************************************************************************ *)
+
+let rec ty_with_goalness k = function
+  | { ty = TyApp (f, l) } as ty ->
+    { ty with ty = TyApp (f, List.map (ty_with_goalness k) l); ty_goalness = k; }
+  | ty -> { ty with ty_goalness = k }
+
+let rec term_with_goalness k = function
+  | { term = App (f, l, l') } as t ->
+    { t with term = App (f, List.map (ty_with_goalness k) l, List.map (term_with_goalness k) l'); t_goalness = k; }
+  | t -> { t with t_goalness = k }
 
 (* Modules for simpler function names *)
 (* ************************************************************************ *)

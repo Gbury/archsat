@@ -20,6 +20,12 @@ exception Typing_error
 exception Scoping_error of string
 exception Bad_arity of string * int * Ast.term list
 
+(* Goalness settings *)
+(* ************************************************************************ *)
+
+let hyp_goalness = 0
+let lemma_goalness = 1
+
 (* Global Environment *)
 (* ************************************************************************ *)
 
@@ -139,7 +145,7 @@ let find_type_var env s = find_var env.type_vars s
 let find_term_var env s = find_var env.term_vars s
 let find_prop_var env s = find_var env.prop_vars s
 
-(* Term parsing *)
+(* Expression parsing *)
 (* ************************************************************************ *)
 
 let parse_ttype_var = function

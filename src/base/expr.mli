@@ -37,6 +37,7 @@ type ty_descr = private
 
 and ty = private {
   ty : ty_descr;
+  ty_goalness : int;
   mutable ty_hash : int; (** Use Ty.hash instead *)
 }
 
@@ -50,6 +51,7 @@ type term_descr = private
 and term = private {
   term    : term_descr;
   t_type  : ty;
+  t_goalness : int;
   mutable t_hash : int; (** Use Term.hash instead *)
 }
 
@@ -235,6 +237,12 @@ val f_all : ty var list -> formula -> formula
 val f_allty : ttype var list -> formula -> formula
 val f_ex : ty var list -> formula -> formula
 val f_exty : ttype var list -> formula -> formula
+
+(** {5 Goalness} *)
+
+val ty_with_goalness : int -> ty -> ty
+val term_with_goalness : int -> term -> term
+(** Returns an equal expression but with given goalness (also applies to subterms). *)
 
 (** { 2 Interpretation and Assignations} *)
 

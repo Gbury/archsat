@@ -27,7 +27,6 @@ let mark f =
   i := !i + 1
 
 (* Small helper *)
-(* TODO *)
 let mk_proof_ty f metas = Dispatcher.mk_proof
     ~ty_args:([])
     id "meta"
@@ -42,6 +41,7 @@ let false_preds = S.create ~size:4096 Dispatcher.stack
 
 let mem x tbl = S.mem tbl x
 
+(* Unification of predicates *)
 let do_inst u = Inst.add u
 
 let inst p notp =
@@ -66,6 +66,7 @@ let find_inst p notp =
   | Unif.Not_unifiable_term (a, b) ->
     log 15 "Couldn't unify terms %a and %a" Expr.debug_term a Expr.debug_term b
 
+(* Meta generation & predicates storing *)
 let do_formula = function
   | { Expr.formula = Expr.All (l, _, p) } as f ->
     mark f;
