@@ -47,30 +47,30 @@ type command =
 (* ************************************************************************ *)
 
 let debug_symbol b = function
-    | Int s -> Printf.bprintf b "Int(%s)" s
-    | Rat s -> Printf.bprintf b "Rat(%s)" s
-    | Real s -> Printf.bprintf b "Real(%s)" s
-    | Hexa s -> Printf.bprintf b "Hexa(%s)" s
-    | Binary s -> Printf.bprintf b "Bin(%s)" s
-    | String s -> Printf.bprintf b "%s" s
-    | Ttype -> Printf.bprintf b "tType"
-    | Wildcard -> Printf.bprintf b "_"
-    | True -> Printf.bprintf b "True"
-    | False -> Printf.bprintf b "False"
-    | Eq -> Printf.bprintf b "="
-    | Distinct -> Printf.bprintf b "Distinct"
-    | Ite -> Printf.bprintf b "Ite"
-    | Arrow -> Printf.bprintf b "->"
-    | All -> Printf.bprintf b "Forall"
-    | AllTy -> Printf.bprintf b "ForallTy"
-    | Ex -> Printf.bprintf b "Exists"
-    | Let -> Printf.bprintf b "Let"
-    | And -> Printf.bprintf b "/\\"
-    | Or -> Printf.bprintf b "\\/"
-    | Xor -> Printf.bprintf b "xor"
-    | Imply -> Printf.bprintf b "=>"
-    | Equiv -> Printf.bprintf b "<=>"
-    | Not -> Printf.bprintf b "Not"
+  | Int s -> Printf.bprintf b "Int(%s)" s
+  | Rat s -> Printf.bprintf b "Rat(%s)" s
+  | Real s -> Printf.bprintf b "Real(%s)" s
+  | Hexa s -> Printf.bprintf b "Hexa(%s)" s
+  | Binary s -> Printf.bprintf b "Bin(%s)" s
+  | String s -> Printf.bprintf b "%s" s
+  | Ttype -> Printf.bprintf b "tType"
+  | Wildcard -> Printf.bprintf b "_"
+  | True -> Printf.bprintf b "True"
+  | False -> Printf.bprintf b "False"
+  | Eq -> Printf.bprintf b "="
+  | Distinct -> Printf.bprintf b "Distinct"
+  | Ite -> Printf.bprintf b "Ite"
+  | Arrow -> Printf.bprintf b "->"
+  | All -> Printf.bprintf b "Forall"
+  | AllTy -> Printf.bprintf b "ForallTy"
+  | Ex -> Printf.bprintf b "Exists"
+  | Let -> Printf.bprintf b "Let"
+  | And -> Printf.bprintf b "/\\"
+  | Or -> Printf.bprintf b "\\/"
+  | Xor -> Printf.bprintf b "xor"
+  | Imply -> Printf.bprintf b "=>"
+  | Equiv -> Printf.bprintf b "<=>"
+  | Not -> Printf.bprintf b "Not"
 
 let rec print_list_pre f sep b = function
   | [] -> ()
@@ -79,14 +79,14 @@ let rec print_list_pre f sep b = function
     print_list_pre f sep b r
 
 let rec debug_term b t = match t.term with
-    | Var s -> Printf.bprintf b "%s" s
-    | Column (t1, t2) -> Printf.bprintf b "%a:%a" debug_term t1 debug_term t2
-    | Const sym -> Printf.bprintf b "(%a)" debug_symbol sym
-    | App (f, l) ->
-      Printf.bprintf b "(%a%a)" debug_term f (print_list_pre debug_term " ") l
-    | Binding (sym, l, p) ->
-      Printf.bprintf b "%a:%a.%a" debug_symbol sym
-        (print_list_pre debug_term " ") l debug_term p
+  | Var s -> Printf.bprintf b "%s" s
+  | Column (t1, t2) -> Printf.bprintf b "%a:%a" debug_term t1 debug_term t2
+  | Const sym -> Printf.bprintf b "(%a)" debug_symbol sym
+  | App (f, l) ->
+    Printf.bprintf b "(%a%a)" debug_term f (print_list_pre debug_term " ") l
+  | Binding (sym, l, p) ->
+    Printf.bprintf b "%a:%a.%a" debug_symbol sym
+      (print_list_pre debug_term " ") l debug_term p
 
 let print_command_name fmt = function
   | Sat _ -> Format.fprintf fmt "Cnf-assume (dimacs)"

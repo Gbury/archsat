@@ -135,8 +135,8 @@ let debug ?(section=Section.root) l format =
     (* print header *)
     let now = get_total_time () in
     if section == Section.root
-      then Printf.bprintf debug_buf_ "%% [%.3f] " now
-      else Printf.bprintf debug_buf_ "%% [%.3f %s] "
+    then Printf.bprintf debug_buf_ "%% [%.3f] " now
+    else Printf.bprintf debug_buf_ "%% [%.3f %s] "
         now section.Section.full_name;
     Printf.kbprintf
       (fun b -> Buffer.output_buffer stdout b; print_char '\n'; flush stdout)

@@ -36,8 +36,8 @@ let tab = function
   (* 'Imply' traduction *)
   | { Expr.formula = Expr.Imply (p, q) } as r ->
     let left = List.map Expr.f_not (match p with
-      | { Expr.formula = Expr.And l } -> l
-      | _ -> [p]) in
+        | { Expr.formula = Expr.And l } -> l
+        | _ -> [p]) in
     let right = match q with
       | { Expr.formula = Expr.Or l } -> l
       | _ -> [q] in
@@ -58,22 +58,23 @@ let tab = function
 
 let tab_assume (f, i) =
   try
-      ignore (H.find st f)
+    ignore (H.find st f)
   with Not_found ->
-      tab f;
-      H.add st f i
+    tab f;
+    H.add st f i
 
 let tab_eval _ = None
 
 let tab_pre _ = ()
 
 ;;
-Dispatcher.(register (mk_ext
-    ~descr:"Does lazy cnf conversion on input formulas whose topconstructor is a logical connective
-            (i.e quantified formulas are $(b,not) handled by this plugin)."
-    ~assume:tab_assume
-    ~eval_pred:tab_eval
-    ~preprocess:tab_pre
-    id "tab"
-))
+Dispatcher.(register (
+    mk_ext
+      ~descr:"Does lazy cnf conversion on input formulas whose topconstructor is a logical connective
+              (i.e quantified formulas are $(b,not) handled by this plugin)."
+      ~assume:tab_assume
+      ~eval_pred:tab_eval
+      ~preprocess:tab_pre
+      id "tab"
+  ))
 

@@ -109,14 +109,14 @@ let rec debug_ty b ty = match ty.ty with
     Printf.bprintf b "%a(%a)" debug_var f (Util.pp_list ~sep:", " debug_ty) l
 
 let debug_params b = function
-    | [] -> ()
-    | l -> Printf.bprintf b "∀ %a. " (Util.pp_list ~sep:", " debug_var) l
+  | [] -> ()
+  | l -> Printf.bprintf b "∀ %a. " (Util.pp_list ~sep:", " debug_var) l
 
 let debug_sig print b f =
-    match f.fun_args with
-    | [] -> Printf.bprintf b "%a%a" debug_params f.fun_vars print f.fun_ret
-    | l -> Printf.bprintf b "%a%a -> %a" debug_params f.fun_vars
-        (Util.pp_list ~sep:" -> " print) l print f.fun_ret
+  match f.fun_args with
+  | [] -> Printf.bprintf b "%a%a" debug_params f.fun_vars print f.fun_ret
+  | l -> Printf.bprintf b "%a%a -> %a" debug_params f.fun_vars
+           (Util.pp_list ~sep:" -> " print) l print f.fun_ret
 
 let debug_fun_ty = debug_sig debug_ty
 let debug_fun_ttype = debug_sig debug_ttype
@@ -157,13 +157,13 @@ let rec debug_formula b f =
   | Imply (p, q) -> Printf.bprintf b "%a ⇒ %a" aux p aux q
   | Equiv (p, q) -> Printf.bprintf b "%a ⇔ %a" aux p aux q
   | All (l, _, f) -> Printf.bprintf b "∀ %a. %a"
-                    (Util.pp_list ~sep:", " debug_var_ty) l debug_formula f
+                       (Util.pp_list ~sep:", " debug_var_ty) l debug_formula f
   | AllTy (l, _, f) -> Printf.bprintf b "∀ %a. %a"
-                      (Util.pp_list ~sep:", " debug_var_ttype) l debug_formula f
+                         (Util.pp_list ~sep:", " debug_var_ttype) l debug_formula f
   | Ex (l, _, f) -> Printf.bprintf b "∃ %a. %a"
-                   (Util.pp_list ~sep:", " debug_var_ty) l debug_formula f
+                      (Util.pp_list ~sep:", " debug_var_ty) l debug_formula f
   | ExTy (l, _, f) -> Printf.bprintf b "∃ %a. %a"
-                   (Util.pp_list ~sep:", " debug_var_ttype) l debug_formula f
+                        (Util.pp_list ~sep:", " debug_var_ttype) l debug_formula f
 
 (* Printing functions *)
 (* ************************************************************************ *)
@@ -211,23 +211,23 @@ let rec print_f fmt f =
     | _ -> Format.fprintf fmt "(%a)" print_f f
   in
   match f.formula with
-    | Equal (a, b) -> Format.fprintf fmt "%a = %a" print_term a print_term b
-    | Pred t -> Format.fprintf fmt "%a" print_term t
-    | True -> Format.fprintf fmt "⊤"
-    | False -> Format.fprintf fmt "⊥"
-    | Not f -> Format.fprintf fmt "¬ %a" aux f
-    | And l -> Format.fprintf fmt "%a" (print_list aux " ∧ ") l
-    | Or l -> Format.fprintf fmt "%a" (print_list aux " ∨ ") l
-    | Imply (p, q) -> Format.fprintf fmt "%a ⇒ %a" aux p aux q
-    | Equiv (p, q) -> Format.fprintf fmt "%a ⇔ %a" aux p aux q
-    | All (l, _, f) -> Format.fprintf fmt "∀ %a. %a"
+  | Equal (a, b) -> Format.fprintf fmt "%a = %a" print_term a print_term b
+  | Pred t -> Format.fprintf fmt "%a" print_term t
+  | True -> Format.fprintf fmt "⊤"
+  | False -> Format.fprintf fmt "⊥"
+  | Not f -> Format.fprintf fmt "¬ %a" aux f
+  | And l -> Format.fprintf fmt "%a" (print_list aux " ∧ ") l
+  | Or l -> Format.fprintf fmt "%a" (print_list aux " ∨ ") l
+  | Imply (p, q) -> Format.fprintf fmt "%a ⇒ %a" aux p aux q
+  | Equiv (p, q) -> Format.fprintf fmt "%a ⇔ %a" aux p aux q
+  | All (l, _, f) -> Format.fprintf fmt "∀ %a. %a"
+                       (print_list print_var_ty ", ") l print_f f
+  | AllTy (l, _, f) -> Format.fprintf fmt "∀ %a. %a"
+                         (print_list print_var_ttype ", ") l print_f f
+  | Ex (l, _, f) -> Format.fprintf fmt "∃ %a. %a"
                       (print_list print_var_ty ", ") l print_f f
-    | AllTy (l, _, f) -> Format.fprintf fmt "∀ %a. %a"
+  | ExTy (l, _, f) -> Format.fprintf fmt "∃ %a. %a"
                         (print_list print_var_ttype ", ") l print_f f
-    | Ex (l, _, f) -> Format.fprintf fmt "∃ %a. %a"
-                     (print_list print_var_ty ", ") l print_f f
-    | ExTy (l, _, f) -> Format.fprintf fmt "∃ %a. %a"
-                       (print_list print_var_ttype ", ") l print_f f
 
 let print_formula fmt f = Format.fprintf fmt "⟦%a⟧" print_f f
 
@@ -259,8 +259,8 @@ let rec hash_term t =
     | Meta m -> hash_meta m
     | App (f, tys, args) ->
       hash f.var_id (List.rev_append
-                      (List.rev_map get_ty_hash tys)
-                      (List.rev_map get_term_hash args))
+                       (List.rev_map get_ty_hash tys)
+                       (List.rev_map get_term_hash args))
   in
   t.t_hash <- h
 
@@ -315,9 +315,9 @@ let compare_var: 'a. 'a var -> 'a var -> int =
   fun v1 v2 -> compare v1.var_id v2.var_id
 
 let compare_meta m1 m2 =
-    match compare m1.meta_index m2.meta_index with
-    | 0 -> compare_var m1.meta_var m2.meta_var
-    | x -> x
+  match compare m1.meta_index m2.meta_index with
+  | 0 -> compare_var m1.meta_var m2.meta_var
+  | x -> x
 
 let equal_var v1 v2 = compare_var v1 v2 = 0
 let equal_meta m1 m2 = compare_meta m1 m2 = 0
@@ -428,9 +428,9 @@ let equal_formula u v =
 
 module Subst = struct
   module Mi = Map.Make(struct
-    type t = int * int
-    let compare (a, b) (c, d) = match compare a c with 0 -> compare b d | x -> x
-  end)
+      type t = int * int
+      let compare (a, b) (c, d) = match compare a c with 0 -> compare b d | x -> x
+    end)
 
   type ('a, 'b) t = ('a * 'b) Mi.t
 
@@ -619,7 +619,7 @@ let const name tys args ret = mk_var name {
     fun_vars = tys;
     fun_args = args;
     fun_ret = ret;
-}
+  }
 let type_const name n = const name [] (Util.times n (fun () -> Type)) Type
 let term_const = const
 
@@ -760,13 +760,13 @@ let init_term_skolem v tys args ret =
   end
 
 let init_ty_skolems l (ty_vars, t_vars) =
-    assert (t_vars = []); (* Else we would have dependent types *)
-    let n = List.length ty_vars in
-    List.iter (fun v -> init_ty_skolem v n) l
+  assert (t_vars = []); (* Else we would have dependent types *)
+  let n = List.length ty_vars in
+  List.iter (fun v -> init_ty_skolem v n) l
 
 let init_term_skolems l (ty_vars, t_vars) =
-    let args_types = List.map (fun v -> v.var_type) t_vars in
-    List.iter (fun v -> init_term_skolem v ty_vars args_types v.var_type) l
+  let args_types = List.map (fun v -> v.var_type) t_vars in
+  List.iter (fun v -> init_term_skolem v ty_vars args_types v.var_type) l
 
 (* Formulas & substitutions *)
 (* ************************************************************************ *)
@@ -827,43 +827,43 @@ let f_equiv p q = mk_formula (Equiv (p, q))
 
 let f_all l f =
   if l = [] then f else
-  let l, f = match f.formula with
-    | All (l', _, f') -> l @ l', f'
-    | _ -> l, f
-  in
-  let fv = formula_fv (mk_formula (All (l, ([], []), f))) in
-  init_term_skolems l fv;
-  mk_formula (All (l, to_free_vars fv, f))
+    let l, f = match f.formula with
+      | All (l', _, f') -> l @ l', f'
+      | _ -> l, f
+    in
+    let fv = formula_fv (mk_formula (All (l, ([], []), f))) in
+    init_term_skolems l fv;
+    mk_formula (All (l, to_free_vars fv, f))
 
 let f_allty l f =
   if l = [] then f else
-  let l, f = match f.formula with
-    | AllTy (l', _, f') -> l @ l', f'
-    | _ -> l, f
-  in
-  let fv = formula_fv (mk_formula (AllTy (l, ([], []), f))) in
-  init_ty_skolems l fv;
-  mk_formula (AllTy (l, to_free_vars fv, f))
+    let l, f = match f.formula with
+      | AllTy (l', _, f') -> l @ l', f'
+      | _ -> l, f
+    in
+    let fv = formula_fv (mk_formula (AllTy (l, ([], []), f))) in
+    init_ty_skolems l fv;
+    mk_formula (AllTy (l, to_free_vars fv, f))
 
 let f_ex l f =
   if l = [] then f else
-  let l, f = match f.formula with
-    | Ex (l', _, f') -> l @ l', f'
-    | _ -> l, f
-  in
-  let fv = formula_fv (mk_formula (Ex (l, ([], []), f))) in
-  init_term_skolems l fv;
-  mk_formula (Ex (l, to_free_vars fv, f))
+    let l, f = match f.formula with
+      | Ex (l', _, f') -> l @ l', f'
+      | _ -> l, f
+    in
+    let fv = formula_fv (mk_formula (Ex (l, ([], []), f))) in
+    init_term_skolems l fv;
+    mk_formula (Ex (l, to_free_vars fv, f))
 
 let f_exty l f =
   if l = [] then f else
-  let l, f = match f.formula with
-    | AllTy (l', _, f') -> l @ l', f'
-    | _ -> l, f
-  in
-  let fv = formula_fv (mk_formula (ExTy (l, ([], []), f))) in
-  init_ty_skolems l fv;
-  mk_formula (ExTy (l, to_free_vars fv, f))
+    let l, f = match f.formula with
+      | AllTy (l', _, f') -> l @ l', f'
+      | _ -> l, f
+    in
+    let fv = formula_fv (mk_formula (ExTy (l, ([], []), f))) in
+    init_ty_skolems l fv;
+    mk_formula (ExTy (l, to_free_vars fv, f))
 
 let rec new_binder_subst ty_map subst acc = function
   | [] -> List.rev acc, subst
@@ -906,10 +906,10 @@ let rec formula_subst ty_map t_map f =
     mk_formula (ExTy (l, (tys, t), (formula_subst ty_map t_map p)))
 
 let formula_subst ty_map t_map f =
-    Subst.iter (fun _ ty -> match ty.ty with TyVar _ -> assert false | _ -> ()) ty_map;
-    Subst.iter (fun _ t -> match t.term with Var _ -> assert false | _ -> ()) t_map;
-    if Subst.is_empty ty_map && Subst.is_empty t_map then f
-    else formula_subst ty_map t_map f
+  Subst.iter (fun _ ty -> match ty.ty with TyVar _ -> assert false | _ -> ()) ty_map;
+  Subst.iter (fun _ t -> match t.term with Var _ -> assert false | _ -> ()) t_map;
+  if Subst.is_empty ty_map && Subst.is_empty t_map then f
+  else formula_subst ty_map t_map f
 
 let partial_inst ty_map t_map f = match f.formula with
   | All (l, args, p) ->

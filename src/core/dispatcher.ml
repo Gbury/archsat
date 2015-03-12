@@ -13,11 +13,11 @@ type id = int
 type term = Expr.term
 type formula = Expr.formula
 type lemma = {
-    proof_ext : id;
-    proof_name : string;
-    proof_ty_args : Expr.ty list;
-    proof_term_args : Expr.term list;
-    proof_formula_args : Expr.formula list;
+  proof_ext : id;
+  proof_name : string;
+  proof_ty_args : Expr.ty list;
+  proof_term_args : Expr.term list;
+  proof_formula_args : Expr.formula list;
 }
 type proof = lemma
 
@@ -44,32 +44,32 @@ type eval_res =
   | Unknown
 
 type job = {
-    job_ext : id;
-    job_n : int;
-    mutable job_done : int;
-    job_callback : unit -> unit;
-    mutable watched : term list;
-    mutable not_watched : term list;
+  job_ext : id;
+  job_n : int;
+  mutable job_done : int;
+  job_callback : unit -> unit;
+  mutable watched : term list;
+  mutable not_watched : term list;
 }
 
 (* Proof management *)
 (* ************************************************************************ *)
 
 let mk_proof ?(ty_args=[]) ?(term_args=[]) ?(formula_args=[]) id name = {
-    proof_ext = id;
-    proof_name = name;
-    proof_ty_args = ty_args;
-    proof_term_args = term_args;
-    proof_formula_args = formula_args;
+  proof_ext = id;
+  proof_name = name;
+  proof_ty_args = ty_args;
+  proof_term_args = term_args;
+  proof_formula_args = formula_args;
 }
 
 let proof_debug p =
-    let color = match p.proof_name with
-      | "inst" -> Some "PURPLE"
-      | "tab" -> Some "LIGHTBLUE"
-      | _ -> None
-    in
-    p.proof_name, p.proof_formula_args, p.proof_term_args, color
+  let color = match p.proof_name with
+    | "inst" -> Some "PURPLE"
+    | "tab" -> Some "LIGHTBLUE"
+    | _ -> None
+  in
+  p.proof_name, p.proof_formula_args, p.proof_term_args, color
 
 (* Extensions registering *)
 (* ************************************************************************ *)
@@ -81,8 +81,8 @@ exception Extension_not_found of string
 let _fail s = raise (Bad_assertion s)
 
 let new_id =
-    let i = ref 0 in
-    (fun () -> incr i; !i)
+  let i = ref 0 in
+  (fun () -> incr i; !i)
 
 type extension = {
   id : id;
@@ -97,9 +97,9 @@ type extension = {
 }
 
 let mk_ext ?(descr="")?(prio=0) ?(if_sat=(fun () -> ()))
-           ?(assume=(fun _ -> ())) ?(eval_pred=(fun _ -> None))
-           ?(preprocess=(fun _ -> ())) ?(options=(fun t -> t)) id name =
-    { id; prio; name; descr; if_sat; assume; eval_pred; preprocess; options }
+    ?(assume=(fun _ -> ())) ?(eval_pred=(fun _ -> None))
+    ?(preprocess=(fun _ -> ())) ?(options=(fun t -> t)) id name =
+  { id; prio; name; descr; if_sat; assume; eval_pred; preprocess; options }
 
 let extensions = ref []
 
@@ -114,7 +114,7 @@ let activate ext =
   try
     let r = List.find aux !extensions in
     if not (List.exists aux !active) then
-        active := List.merge (fun r r' -> compare r'.prio r.prio) [r] !active
+      active := List.merge (fun r r' -> compare r'.prio r.prio) [r] !active
     else
       log 0 "WARNING: Extension %s already activated" ext
   with Not_found ->
@@ -127,18 +127,18 @@ let deactivate ext =
       raise (Extension_not_found ext);
     let l1, l2 = List.partition aux !active in
     begin match l1 with
-    | [] -> log 0 "WARNING: Extension %s already deactivated" ext
-    | [r] -> active := l2
-    | _ -> assert false
+      | [] -> log 0 "WARNING: Extension %s already deactivated" ext
+      | [r] -> active := l2
+      | _ -> assert false
     end
   with Not_found ->
     raise (Extension_not_found ext)
 
 let set_ext s =
-    match s.[0] with
-    | '-' -> deactivate (String.sub s 1 (String.length s - 1))
-    | '+' -> activate (String.sub s 1 (String.length s - 1))
-    | _ -> activate s
+  match s.[0] with
+  | '-' -> deactivate (String.sub s 1 (String.length s - 1))
+  | '+' -> activate (String.sub s 1 (String.length s - 1))
+  | _ -> activate s
 
 let set_exts s = List.iter set_ext (Util.str_split ~by:"," s)
 
@@ -152,7 +152,7 @@ let ext_doc () = List.map doc_of_ext
     (List.sort (fun r r' -> compare r.name r'.name) !extensions)
 
 let find_ext id =
-    List.find (fun ext -> ext.id = id) !extensions
+  List.find (fun ext -> ext.id = id) !extensions
 
 let ext_iter f = List.iter f !active
 
@@ -160,11 +160,11 @@ let ext_iter f = List.iter f !active
 (* ************************************************************************ *)
 
 let add_opts t =
-    let res = ref t in
-    List.iter (fun r ->
-        res := r.options !res
+  let res = ref t in
+  List.iter (fun r ->
+      res := r.options !res
     ) !extensions;
-    !res
+  !res
 
 (* Pre-processing *)
 (* ************************************************************************ *)
@@ -286,35 +286,35 @@ let add_job job t =
   H.replace watch_map t (job :: l)
 
 let call_job j =
-    if j.job_done < !last_backtrack then begin
-        j.job_done <- !last_backtrack;
-        j.job_callback ()
-    end
+  if j.job_done < !last_backtrack then begin
+    j.job_done <- !last_backtrack;
+    j.job_callback ()
+  end
 
 let update_watch x j =
-    let rec find p acc = function
-        | [] -> raise Not_found
-        | y :: r when p y -> y, List.rev_append r acc
-        | y :: r -> find p (y :: acc) r
-    in
+  let rec find p acc = function
+    | [] -> raise Not_found
+    | y :: r when p y -> y, List.rev_append r acc
+    | y :: r -> find p (y :: acc) r
+  in
+  try
+    let _, old_watched = find (Expr.Term.equal x) [] j.watched in
     try
-      let _, old_watched = find (Expr.Term.equal x) [] j.watched in
-      try
-        let y, old_not_watched = find (fun y -> not (is_assigned y)) [] j.not_watched in
-        log 10 "New watcher (%a) for job from %s" Expr.debug_term y (find_ext j.job_ext).name;
-        j.not_watched <- x :: old_not_watched;
-        j.watched <- y :: old_watched;
-        add_job j y
-      with Not_found ->
-        add_job j x;
-        log 10 "Calling job from %s" (find_ext j.job_ext).name;
-        call_job j
+      let y, old_not_watched = find (fun y -> not (is_assigned y)) [] j.not_watched in
+      log 10 "New watcher (%a) for job from %s" Expr.debug_term y (find_ext j.job_ext).name;
+      j.not_watched <- x :: old_not_watched;
+      j.watched <- y :: old_watched;
+      add_job j y
     with Not_found ->
-      let ext = find_ext j.job_ext in
-      log 0 "Error for job from %s, looking for %d, called by %a" ext.name j.job_n Expr.debug_term x;
-      log 0 "watched : %a" (Util.pp_list ~sep:" || " Expr.debug_term) j.watched;
-      log 0 "not_watched : %a" (Util.pp_list ~sep:" || " Expr.debug_term) j.not_watched;
-      assert false
+      add_job j x;
+      log 10 "Calling job from %s" (find_ext j.job_ext).name;
+      call_job j
+  with Not_found ->
+    let ext = find_ext j.job_ext in
+    log 0 "Error for job from %s, looking for %d, called by %a" ext.name j.job_n Expr.debug_term x;
+    log 0 "watched : %a" (Util.pp_list ~sep:" || " Expr.debug_term) j.watched;
+    log 0 "not_watched : %a" (Util.pp_list ~sep:" || " Expr.debug_term) j.not_watched;
+    assert false
 
 let new_job id k watched not_watched f = {
   job_ext = id;
@@ -380,16 +380,16 @@ let rec try_eval t =
 *)
 
 let rec assign_watch t = function
-    | [] -> ()
-    | j :: r ->
-      begin
-        try
-          update_watch t j
-        with Absurd _ as e ->
-          List.iter (fun job -> add_job job t) r;
-          raise e
-      end;
-      assign_watch t r
+  | [] -> ()
+  | j :: r ->
+    begin
+      try
+        update_watch t j
+      with Absurd _ as e ->
+        List.iter (fun job -> add_job job t) r;
+        raise e
+    end;
+    assign_watch t r
 
 and set_assign t v lvl =
   try
@@ -437,12 +437,12 @@ let assume s =
     Unsat (l, p)
 
 let if_sat s =
-    log 5 "Iteration with complete model";
-    begin try
-        ext_iter (fun ext -> ext.if_sat ())
+  log 5 "Iteration with complete model";
+  begin try
+      ext_iter (fun ext -> ext.if_sat ())
     with Absurd _ -> assert false
-    end;
-    do_push s.push
+  end;
+  do_push s.push
 
 let assign t =
   log 5 "Finding assignment for %a" Expr.debug_term t;

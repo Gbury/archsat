@@ -3,11 +3,11 @@ let log_section = Util.Section.make "union-find"
 let log i fmt = Util.debug ~section:log_section i fmt
 
 module type Key = sig
-    type t
-    val hash : t -> int
-    val equal : t -> t -> bool
-    val compare : t -> t -> int
-    val debug : Buffer.t -> t -> unit
+  type t
+  val hash : t -> int
+  val equal : t -> t -> bool
+  val compare : t -> t -> int
+  val debug : Buffer.t -> t -> unit
 end
 
 module type S = sig
@@ -54,17 +54,17 @@ module Make(T : Key) = struct
   }
 
   let create s = {
-      size = H.create s;
-      expl = H.create s;
-      repr = H.create s;
+    size = H.create s;
+    expl = H.create s;
+    repr = H.create s;
   }
 
   let debug_tag b = function
-      | None -> Printf.bprintf b "_"
-      | Some (y, v) -> Printf.bprintf b "%a : %a" T.debug y T.debug v
+    | None -> Printf.bprintf b "_"
+    | Some (y, v) -> Printf.bprintf b "%a : %a" T.debug y T.debug v
 
   let debug_forbidden =
-   M.iter (fun x (y, z) -> log 50 "    |-  %a (%a <> %a)" T.debug x T.debug y T.debug z)
+    M.iter (fun x (y, z) -> log 50 "    |-  %a (%a <> %a)" T.debug x T.debug y T.debug z)
 
   let debug_m x { rank; tag; forbidden } =
     log 50 "Repr for %a :" T.debug x;
@@ -120,13 +120,13 @@ module Make(T : Key) = struct
     let new_m = {
       rank = if mx.rank = my.rank then mx.rank + 1 else mx.rank;
       tag = (match mx.tag, my.tag with
-        | Some (z, t1), Some (w, t2) ->
-          if not (T.equal t1 t2) then begin
-            log 20 "Tag shenanigan : %a (%a) <> %a (%a)" T.debug t1 T.debug z T.debug t2 T.debug w;
-            raise (Equal (z, w))
-          end else Some (z, t1)
-        | Some t, None | None, Some t -> Some t
-        | None, None -> None);
+          | Some (z, t1), Some (w, t2) ->
+            if not (T.equal t1 t2) then begin
+              log 20 "Tag shenanigan : %a (%a) <> %a (%a)" T.debug t1 T.debug z T.debug t2 T.debug w;
+              raise (Equal (z, w))
+            end else Some (z, t1)
+          | Some t, None | None, Some t -> Some t
+          | None, None -> None);
       forbidden = M.merge (fun _ b1 b2 -> match b1, b2 with
           | Some r, _ | None, Some r -> Some r | _ -> assert false)
           mx.forbidden my.forbidden;}
@@ -170,11 +170,11 @@ module Make(T : Key) = struct
     if T.compare rx ry = 0 then
       raise (Equal (x, y))
     else match mx.tag, my.tag with
-    | Some (a, v), Some (b, v') when T.compare v v' = 0 ->
-      raise (Same_tag(a, b))
-    | _ ->
-      H.add h.repr ry (Repr { my with forbidden = M.add rx (x, y) my.forbidden });
-      H.add h.repr rx (Repr { mx with forbidden = M.add ry (x, y) mx.forbidden })
+      | Some (a, v), Some (b, v') when T.compare v v' = 0 ->
+        raise (Same_tag(a, b))
+      | _ ->
+        H.add h.repr ry (Repr { my with forbidden = M.add rx (x, y) my.forbidden });
+        H.add h.repr rx (Repr { mx with forbidden = M.add ry (x, y) mx.forbidden })
 
   (* Equivalence closure with explanation output *)
   let find_parent v m = find_hash m v v
@@ -232,7 +232,7 @@ module Make(T : Key) = struct
   let add_tag t x v =
     log 30 "Adding %a -> %a" T.debug x T.debug v;
     try
-        tag t x v;
+      tag t x v;
     with Equal (a, b) ->
       log 3 "Tag error";
       raise (Unsat (a, b, expl t a b))
@@ -241,7 +241,7 @@ module Make(T : Key) = struct
     log 30 "Adding %a = %a" T.debug i T.debug j;
     add_eq_aux t i j;
     try
-        union t i j;
+      union t i j;
     with Equal (a, b) ->
       log 3 "Equality error : %a = %a" T.debug a T.debug b;
       raise (Unsat (a, b, expl t a b))

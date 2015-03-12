@@ -17,7 +17,7 @@ exception Out_of_space
 
 (* GC Stats *)
 let setup_gc_stat () =
-    at_exit (fun () -> Gc.print_stat stdout;)
+  at_exit (fun () -> Gc.print_stat stdout;)
 
 (* GC alarm for time/space limits *)
 let check time_limit size_limit = function () ->
@@ -31,24 +31,24 @@ let check time_limit size_limit = function () ->
 
 (* Model printing *)
 let get_model p_model =
-    List.sort (fun (t, _) (t', _) -> Expr.Term.compare t t')
+  List.sort (fun (t, _) (t', _) -> Expr.Term.compare t t')
     (match p_model with
-    | NoModel -> assert false
-    | Simple -> Solver.model ()
-    | Full -> Solver.full_model ())
+     | NoModel -> assert false
+     | Simple -> Solver.model ()
+     | Full -> Solver.full_model ())
 
 (* Logging *)
 let start_section s =
-    Util.debug 1 "=== %s %s" s (String.make (64 - String.length s) '=')
+  Util.debug 1 "=== %s %s" s (String.make (64 - String.length s) '=')
 
 let end_section () = ()
-    (* Util.debug 1 "%s" (String.make 69 '=') *)
+(* Util.debug 1 "%s" (String.make 69 '=') *)
 
 let wrap s f x =
-    start_section s;
-    let res = f x in
-    end_section ();
-    res
+  start_section s;
+  let res = f x in
+  end_section ();
+  res
 
 (* Execute given command *)
 let do_command opt = function

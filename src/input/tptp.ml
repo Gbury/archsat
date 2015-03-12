@@ -40,14 +40,14 @@ let log i fmt = Util.debug ~section:log_section i fmt
 let t_assert name t = Ast.Assert (A.string_of_name name, t)
 
 let arity_of_type_constr s = function
-    | { Ast.term = Ast.Const Ast.Ttype } -> 0
-    | { Ast.term = Ast.App ({Ast.term = Ast.Const Ast.Arrow}, l) } ->
-      List.iter (fun t -> if not (Ast.(t.term) = Ast.Const Ast.Ttype)
-        then raise (Syntax_error ("Ill-formed new type declaration for " ^ s))) l;
-      List.length l - 1
-    | t ->
-      log 0 "Expected new type, received : %a" Ast.debug_term t;
-      raise (Syntax_error ("Ill-formed new type declaration for : " ^ s))
+  | { Ast.term = Ast.Const Ast.Ttype } -> 0
+  | { Ast.term = Ast.App ({Ast.term = Ast.Const Ast.Arrow}, l) } ->
+    List.iter (fun t -> if not (Ast.(t.term) = Ast.Const Ast.Ttype)
+                then raise (Syntax_error ("Ill-formed new type declaration for " ^ s))) l;
+    List.length l - 1
+  | t ->
+    log 0 "Expected new type, received : %a" Ast.debug_term t;
+    raise (Syntax_error ("Ill-formed new type declaration for : " ^ s))
 
 let translate q = function
   | AU.FOF (name, (A.R_axiom | A.R_hypothesis), t, _)

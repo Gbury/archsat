@@ -49,7 +49,7 @@ let solve () =
 let assume l =
   incr _i;
   List.iter (fun cl -> log 1 "Assuming (%d) : %a" !_i
-    (Util.pp_list ~sep:"; " Expr.debug_formula) cl) l;
+                (Util.pp_list ~sep:"; " Expr.debug_formula) cl) l;
   try
     Smt.assume l !_i
   with Smt.Unsat -> ()

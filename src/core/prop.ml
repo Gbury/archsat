@@ -40,10 +40,10 @@ let rec sat_eval = function
   | _ -> None
 
 let f_eval f () =
-    match sat_eval f with
-    | Some(true, lvl) -> D.propagate f lvl
-    | Some(false, lvl) -> D.propagate (Expr.f_not f) lvl
-    | None -> ()
+  match sat_eval f with
+  | Some(true, lvl) -> D.propagate f lvl
+  | Some(false, lvl) -> D.propagate (Expr.f_not f) lvl
+  | None -> ()
 
 let rec sat_preprocess = function
   | { Expr.formula = Expr.Pred ({Expr.term = Expr.App (p, _, _)} as t)} as f
@@ -66,10 +66,11 @@ let rec sat_preprocess = function
   | _ -> ()
 
 ;;
-D.(register (mk_ext
-    ~descr:"Handles consitency of assignments with regards to predicates (i.e functions which returns a Prop)."
-    ~assume:sat_assume
-    ~eval_pred:sat_eval
-    ~preprocess:sat_preprocess
-    id "prop"
-))
+D.(register (
+    mk_ext
+      ~descr:"Handles consitency of assignments with regards to predicates (i.e functions which returns a Prop)."
+      ~assume:sat_assume
+      ~eval_pred:sat_eval
+      ~preprocess:sat_preprocess
+      id "prop"
+  ))

@@ -36,7 +36,7 @@ let set_interpretation t () = match t with
                 mk_proof (t :: t' :: [])))
           | _ -> assert false
         end
-    with Not_found ->
+      with Not_found ->
         H.add st u (t, t_v)
     end
   | _ -> assert false
@@ -71,7 +71,8 @@ let rec uf_pre = function
   | _ -> ()
 
 ;;
-Dispatcher.(register (mk_ext
-    ~descr:"Ensures consistency of assignments for function applications."
-    ~preprocess:uf_pre id "uf"
-))
+Dispatcher.(register (
+    mk_ext
+      ~descr:"Ensures consistency of assignments for function applications."
+      ~preprocess:uf_pre id "uf"
+  ))

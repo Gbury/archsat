@@ -123,13 +123,13 @@ module Make(E : PARTIAL_ORD) = struct
     | N (r, _, _, _) -> r
 
   (* Make a balanced node labelled with [x], and subtrees [a] and [b].
-    We ensure that the right child's rank is ≤ to the rank of the
-    left child (leftist property). The rank of the resulting node
-    is the length of the rightmost path. *)
+     We ensure that the right child's rank is ≤ to the rank of the
+     left child (leftist property). The rank of the resulting node
+     is the length of the rightmost path. *)
   let _make_node x a b =
     if _rank a >= _rank b
-      then N (_rank b + 1, x, a, b)
-      else N (_rank a + 1, x, b, a)
+    then N (_rank b + 1, x, a, b)
+    else N (_rank a + 1, x, b, a)
 
   let rec merge t1 t2 =
     match t1, t2 with
@@ -137,8 +137,8 @@ module Make(E : PARTIAL_ORD) = struct
     | E, t -> t
     | N (_, x, a1, b1), N (_, y, a2, b2) ->
       if E.leq x y
-        then _make_node x a1 (merge b1 t2)
-        else _make_node y a2 (merge t1 b2)
+      then _make_node x a1 (merge b1 t2)
+      else _make_node y a2 (merge t1 b2)
 
   let insert x h =
     merge (N(1,x,E,E)) h
@@ -149,7 +149,7 @@ module Make(E : PARTIAL_ORD) = struct
     | E -> E
     | N(_, x, l, r) when p x -> _make_node x (filter p l) (filter p r)
     | N(_, _, l, r) ->
-        merge (filter p l) (filter p r)
+      merge (filter p l) (filter p r)
 
   let find_min_exn = function
     | E -> raise Empty
@@ -174,9 +174,9 @@ module Make(E : PARTIAL_ORD) = struct
   let rec fold f acc h = match h with
     | E -> acc
     | N (_, x, a, b) ->
-        let acc = f acc x in
-        let acc = fold f acc a in
-        fold f acc b
+      let acc = f acc x in
+      let acc = fold f acc a in
+      fold f acc b
 
   let rec size = function
     | E -> 0
@@ -188,7 +188,7 @@ module Make(E : PARTIAL_ORD) = struct
     let rec aux acc h = match h with
       | E -> acc
       | N(_,x,l,r) ->
-          x::aux (aux acc l) r
+        x::aux (aux acc l) r
     in aux [] h
 
   let of_list l = List.fold_left add empty l
@@ -203,22 +203,22 @@ module Make(E : PARTIAL_ORD) = struct
   let rec of_klist h l = match l() with
     | `Nil -> h
     | `Cons (x, l') ->
-        let h' = add h x in
-        of_klist h' l'
+      let h' = add h x in
+      of_klist h' l'
 
   let to_klist h =
     let rec next stack () = match stack with
       | [] -> `Nil
       | E :: stack' -> next stack' ()
       | N (_, x, a, b) :: stack' ->
-          `Cons (x, next (a :: b :: stack'))
+        `Cons (x, next (a :: b :: stack'))
     in
     next [h]
 
   let rec of_gen h g = match g () with
     | None -> h
     | Some x ->
-        of_gen (add h x) g
+      of_gen (add h x) g
 
   let to_gen h =
     let stack = Stack.create () in
@@ -229,9 +229,9 @@ module Make(E : PARTIAL_ORD) = struct
       else match Stack.pop stack with
         | E -> next()
         | N (_, x, a, b) ->
-            Stack.push a stack;
-            Stack.push b stack;
-            Some x
+          Stack.push a stack;
+          Stack.push b stack;
+          Some x
     in next
 
   let rec to_tree h () = match h with

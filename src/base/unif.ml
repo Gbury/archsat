@@ -40,34 +40,34 @@ let compare s u =
   | x -> x
 
 let equal s u =
-    Expr.Subst.equal Expr.Ty.equal s.ty_map u.ty_map &&
-    Expr.Subst.equal Expr.Term.equal s.t_map u.t_map
+  Expr.Subst.equal Expr.Ty.equal s.ty_map u.ty_map &&
+  Expr.Subst.equal Expr.Term.equal s.t_map u.t_map
 
 let merge s s' = {
-    ty_map = Expr.Subst.fold Expr.Subst.Meta.bind s.ty_map s'.ty_map;
-    t_map = Expr.Subst.fold Expr.Subst.Meta.bind s.t_map s'.t_map;
+  ty_map = Expr.Subst.fold Expr.Subst.Meta.bind s.ty_map s'.ty_map;
+  t_map = Expr.Subst.fold Expr.Subst.Meta.bind s.t_map s'.t_map;
 }
 
 (* Metavariable protection *)
 (* ************************************************************************ *)
 
 let rec protect_ty = function
-    | { Expr.ty = Expr.TyVar _ } as ty -> ty
-    | { Expr.ty = Expr.TyMeta m } -> Expr.type_meta (Expr.protect m)
-    | { Expr.ty = Expr.TyApp (f, ty_l) } ->
-      Expr.type_app f (List.map protect_ty ty_l)
+  | { Expr.ty = Expr.TyVar _ } as ty -> ty
+  | { Expr.ty = Expr.TyMeta m } -> Expr.type_meta (Expr.protect m)
+  | { Expr.ty = Expr.TyApp (f, ty_l) } ->
+    Expr.type_app f (List.map protect_ty ty_l)
 
 let rec protect_term = function
-    | { Expr.term = Expr.Var _ } as t -> t
-    | { Expr.term = Expr.Meta m } -> Expr.term_meta (Expr.protect m)
-    | { Expr.term = Expr.App (f, ty_l, t_l) } ->
-      Expr.term_app f (List.map protect_ty ty_l) (List.map protect_term t_l)
+  | { Expr.term = Expr.Var _ } as t -> t
+  | { Expr.term = Expr.Meta m } -> Expr.term_meta (Expr.protect m)
+  | { Expr.term = Expr.App (f, ty_l, t_l) } ->
+    Expr.term_app f (List.map protect_ty ty_l) (List.map protect_term t_l)
 
 let protect_inst s = {
-    ty_map = Expr.Subst.fold (fun m ty acc ->
-        Expr.Subst.Meta.bind m (protect_ty ty) acc) s.ty_map Expr.Subst.empty;
-    t_map = Expr.Subst.fold (fun m t acc ->
-        Expr.Subst.Meta.bind m (protect_term t) acc) s.t_map Expr.Subst.empty;
+  ty_map = Expr.Subst.fold (fun m ty acc ->
+      Expr.Subst.Meta.bind m (protect_ty ty) acc) s.ty_map Expr.Subst.empty;
+  t_map = Expr.Subst.fold (fun m t acc ->
+      Expr.Subst.Meta.bind m (protect_term t) acc) s.t_map Expr.Subst.empty;
 }
 
 (* Manipulation over meta substitutions *)
@@ -92,92 +92,92 @@ let rec term_subst_aux ty_map t_map = function
 
 let term_subst ty_map t_map t =
   if Expr.Subst.is_empty ty_map && Expr.Subst.is_empty t_map then
-      t
+    t
   else
-      term_subst_aux ty_map t_map t
+    term_subst_aux ty_map t_map t
 
 (* Fixpoint on meta substitutions *)
 let fixpoint u =
-    let rec ty_apply ty =
-        let ty' = type_subst u.ty_map ty in
-        if Expr.Ty.equal ty ty' then ty
-        else ty_apply ty'
-    in
-    let rec t_apply t =
-        let t' = term_subst u.ty_map u.t_map t in
-        if Expr.Term.equal t t' then t
-        else t_apply t'
-    in
-    {
-        ty_map = Expr.Subst.fold (fun m t acc -> Expr.Subst.Meta.bind m (ty_apply t) acc) u.ty_map Expr.Subst.empty;
-        t_map = Expr.Subst.fold (fun m t acc -> Expr.Subst.Meta.bind m (t_apply t) acc) u.t_map Expr.Subst.empty;
-    }
+  let rec ty_apply ty =
+    let ty' = type_subst u.ty_map ty in
+    if Expr.Ty.equal ty ty' then ty
+    else ty_apply ty'
+  in
+  let rec t_apply t =
+    let t' = term_subst u.ty_map u.t_map t in
+    if Expr.Term.equal t t' then t
+    else t_apply t'
+  in
+  {
+    ty_map = Expr.Subst.fold (fun m t acc -> Expr.Subst.Meta.bind m (ty_apply t) acc) u.ty_map Expr.Subst.empty;
+    t_map = Expr.Subst.fold (fun m t acc -> Expr.Subst.Meta.bind m (t_apply t) acc) u.t_map Expr.Subst.empty;
+  }
 
 (* Meta-matching *)
 (* ************************************************************************ *)
 
 (* Operations on involutions *)
 let inv_map_ty u m1 m2 =
-    try
-        let t1 = get_ty u m1 in
-        let t2 = Expr.type_meta m2 in
-        if not (Expr.Ty.equal t1 t2) then
-            raise (Not_unifiable_ty (t1, t2))
-        else
-            u
-    with Not_found ->
-        bind_ty (bind_ty u m1 (Expr.type_meta m2)) m2 (Expr.type_meta m1)
+  try
+    let t1 = get_ty u m1 in
+    let t2 = Expr.type_meta m2 in
+    if not (Expr.Ty.equal t1 t2) then
+      raise (Not_unifiable_ty (t1, t2))
+    else
+      u
+  with Not_found ->
+    bind_ty (bind_ty u m1 (Expr.type_meta m2)) m2 (Expr.type_meta m1)
 
 let inv_map_term u m1 m2 =
-    try
-        let t1 = get_term u m1 in
-        let t2 = Expr.term_meta m2 in
-        if not (Expr.Term.equal t1 t2) then
-            raise (Not_unifiable_term (t1, t2))
-        else
-            u
-    with Not_found ->
-        bind_term (bind_term u m1 (Expr.term_meta m2)) m2 (Expr.term_meta m1)
+  try
+    let t1 = get_term u m1 in
+    let t2 = Expr.term_meta m2 in
+    if not (Expr.Term.equal t1 t2) then
+      raise (Not_unifiable_term (t1, t2))
+    else
+      u
+  with Not_found ->
+    bind_term (bind_term u m1 (Expr.term_meta m2)) m2 (Expr.term_meta m1)
 
 (* Finding meta-stable involutions *)
 let rec meta_match_ty subst s t =
-      begin match s, t with
-        | _, { Expr.ty = Expr.TyVar _ } | { Expr.ty = Expr.TyVar _}, _ -> assert false
-        | { Expr.ty = Expr.TyMeta ({ Expr.meta_var = v1 } as m1)},
-          { Expr.ty = Expr.TyMeta ({ Expr.meta_var = v2 } as m2)} ->
-          if Expr.Var.equal v1 v2 then
-            inv_map_ty subst m1 m2
-          else
-              raise (Not_unifiable_ty (s, t))
-        | { Expr.ty = Expr.TyApp (f, f_args) },
-          { Expr.ty = Expr.TyApp (g, g_args) } ->
-          if Expr.Var.equal f g then
-            List.fold_left2 meta_match_ty subst f_args g_args
-          else
-            raise (Not_unifiable_ty (s, t))
-        | _ -> raise (Not_unifiable_ty (s, t))
-      end
+  begin match s, t with
+    | _, { Expr.ty = Expr.TyVar _ } | { Expr.ty = Expr.TyVar _}, _ -> assert false
+    | { Expr.ty = Expr.TyMeta ({ Expr.meta_var = v1 } as m1)},
+      { Expr.ty = Expr.TyMeta ({ Expr.meta_var = v2 } as m2)} ->
+      if Expr.Var.equal v1 v2 then
+        inv_map_ty subst m1 m2
+      else
+        raise (Not_unifiable_ty (s, t))
+    | { Expr.ty = Expr.TyApp (f, f_args) },
+      { Expr.ty = Expr.TyApp (g, g_args) } ->
+      if Expr.Var.equal f g then
+        List.fold_left2 meta_match_ty subst f_args g_args
+      else
+        raise (Not_unifiable_ty (s, t))
+    | _ -> raise (Not_unifiable_ty (s, t))
+  end
 
 let rec meta_match_term subst s t =
-    log 90 "trying %a <-> %a" Expr.debug_term s Expr.debug_term t;
-      begin match s, t with
-        | _, { Expr.term = Expr.Var _ } | { Expr.term = Expr.Var _}, _ -> assert false
-        | { Expr.term = Expr.Meta ({ Expr.meta_var = v1 } as m1) },
-          { Expr.term = Expr.Meta ({ Expr.meta_var = v2 } as m2)} ->
-          if Expr.Var.equal v1 v2 then
-            inv_map_term subst m1 m2
-          else
-              raise (Not_unifiable_term (s, t))
-        | { Expr.term = Expr.App (f, f_ty_args, f_t_args) },
-          { Expr.term = Expr.App (g, g_ty_args, g_t_args) } ->
-          if Expr.Var.equal f g then
-            List.fold_left2 meta_match_term
-              (List.fold_left2 meta_match_ty subst f_ty_args g_ty_args)
-              f_t_args g_t_args
-          else
-            raise (Not_unifiable_term (s, t))
-        | _ -> raise (Not_unifiable_term (s, t))
-      end
+  log 90 "trying %a <-> %a" Expr.debug_term s Expr.debug_term t;
+  begin match s, t with
+    | _, { Expr.term = Expr.Var _ } | { Expr.term = Expr.Var _}, _ -> assert false
+    | { Expr.term = Expr.Meta ({ Expr.meta_var = v1 } as m1) },
+      { Expr.term = Expr.Meta ({ Expr.meta_var = v2 } as m2)} ->
+      if Expr.Var.equal v1 v2 then
+        inv_map_term subst m1 m2
+      else
+        raise (Not_unifiable_term (s, t))
+    | { Expr.term = Expr.App (f, f_ty_args, f_t_args) },
+      { Expr.term = Expr.App (g, g_ty_args, g_t_args) } ->
+      if Expr.Var.equal f g then
+        List.fold_left2 meta_match_term
+          (List.fold_left2 meta_match_ty subst f_ty_args g_ty_args)
+          f_t_args g_t_args
+      else
+        raise (Not_unifiable_term (s, t))
+    | _ -> raise (Not_unifiable_term (s, t))
+  end
 
 (*
 let match_ty_meta s t = meta_match_ty empty s t
@@ -205,21 +205,21 @@ let follow_term subst = function
   | _ -> raise Not_found
 
 let rec occurs_check_ty subst v = function
-    | { Expr.ty = Expr.TyMeta m } as v' ->
-      begin try occurs_check_ty subst v (get_ty subst m)
+  | { Expr.ty = Expr.TyMeta m } as v' ->
+    begin try occurs_check_ty subst v (get_ty subst m)
       with Not_found -> Expr.Ty.equal v v' end
-    | { Expr.ty = Expr.TyApp (f, l) } -> List.exists (occurs_check_ty subst v) l
-    | _ -> false
+  | { Expr.ty = Expr.TyApp (f, l) } -> List.exists (occurs_check_ty subst v) l
+  | _ -> false
 
 let rec occurs_check_term subst v = function
-    | { Expr.term = Expr.Meta m } as v' ->
-      begin try occurs_check_term subst v (get_term subst m)
+  | { Expr.term = Expr.Meta m } as v' ->
+    begin try occurs_check_term subst v (get_term subst m)
       with Not_found -> Expr.Term.equal v v' end
-    | { Expr.term= Expr.App (f, _, l) } -> List.exists (occurs_check_term subst v) l
-    | _ -> false
+  | { Expr.term= Expr.App (f, _, l) } -> List.exists (occurs_check_term subst v) l
+  | _ -> false
 
 let rec robinson_ty subst s t =
-    try robinson_ty subst (follow_ty subst s) t with Not_found ->
+  try robinson_ty subst (follow_ty subst s) t with Not_found ->
     try robinson_ty subst s (follow_ty subst t) with Not_found ->
       begin match s, t with
         | _ when Expr.Ty.equal s t -> subst
@@ -240,7 +240,7 @@ let rec robinson_ty subst s t =
       end
 
 let rec robinson_term subst s t =
-    try robinson_term subst (follow_term subst s) t with Not_found ->
+  try robinson_term subst (follow_term subst s) t with Not_found ->
     try robinson_term subst s (follow_term subst t) with Not_found ->
       begin match s, t with
         | _ when Expr.Term.equal s t -> subst
@@ -272,22 +272,22 @@ module H = Hashtbl.Make(struct
     type t = Expr.term * Expr.term
     let hash (s, t) = Hashtbl.hash (Expr.Term.hash s, Expr.Term.hash t)
     let equal (s1, t1) (s2, t2) =
-        try
-            let tmp = meta_match_term empty s1 s2 in
-            let _ = meta_match_term tmp t1 t2 in
-            true
-        with Not_unifiable_ty _ | Not_unifiable_term _ ->
-            false
-end)
+      try
+        let tmp = meta_match_term empty s1 s2 in
+        let _ = meta_match_term tmp t1 t2 in
+        true
+      with Not_unifiable_ty _ | Not_unifiable_term _ ->
+        false
+  end)
 
 let cache = H.create 4096
 
 let cached_unify s t =
   let key = (s, t) in
   try
-      H.find cache key
+    H.find cache key
   with Not_found ->
-      let res = unify_term s t in
-      H.add cache key res;
-      res
+    let res = unify_term s t in
+    H.add cache key res;
+    res
 
