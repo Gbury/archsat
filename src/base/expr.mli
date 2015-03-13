@@ -5,6 +5,7 @@
 
 (** {3 Variables} *)
 type var_id = private int
+type goalness = private int
 type 'a meta_index = private int
 
 type 'ty var = private {
@@ -175,6 +176,13 @@ end
 
 (** {2 Constructors} *)
 
+(** {5 Goalness} *)
+
+val goal : goalness
+val hypothesis : goalness
+(** Standard goalness for goals (theorem/lemmas to prove), and hypothesis (assumptions) repectly.
+    Unless otherwise specified, types and terms have hypothesis goalness. *)
+
 (** {5 Variables & Constants} *)
 
 val ttype_var : string -> ttype var
@@ -211,15 +219,15 @@ val get_term_skolem : ty var -> ty function_descr var
 val type_prop : ty
 val prop_cstr : ttype function_descr var
 
-val type_var : ttype var -> ty
-val type_meta : ttype meta -> ty
-val type_app : ttype function_descr var -> ty list -> ty
+val type_var : ?goalness:goalness -> ttype var -> ty
+val type_meta : ?goalness:goalness -> ttype meta -> ty
+val type_app : ?goalness:goalness -> ttype function_descr var -> ty list -> ty
 
 (** {5 Terms} *)
 
-val term_var : ty var -> term
-val term_meta : ty meta -> term
-val term_app : ty function_descr var -> ty list -> term list -> term
+val term_var : ?goalness:goalness -> ty var -> term
+val term_meta : ?goalness:goalness -> ty meta -> term
+val term_app : ?goalness:goalness -> ty function_descr var -> ty list -> term list -> term
 
 (** {5 Formulas} *)
 
@@ -237,12 +245,6 @@ val f_all : ty var list -> formula -> formula
 val f_allty : ttype var list -> formula -> formula
 val f_ex : ty var list -> formula -> formula
 val f_exty : ttype var list -> formula -> formula
-
-(** {5 Goalness} *)
-
-val ty_with_goalness : int -> ty -> ty
-val term_with_goalness : int -> term -> term
-(** Returns an equal expression but with given goalness (also applies to subterms). *)
 
 (** { 2 Interpretation and Assignations} *)
 
@@ -275,6 +277,10 @@ val term_fv : term -> ttype var list * ty var list
 val formula_fv : formula -> ttype var list * ty var list
 (** Returns the free variables of a given expression, that is the variables that
     are not bound by a quantifier. *)
+
+val metas_in_ty : ty -> ttype meta list * ty meta list
+val metas_in_term : term -> ttype meta list * ty meta list
+(** Returns the list of metavariables occuring in a term. *)
 
 (** {2 Substitutions} *)
 

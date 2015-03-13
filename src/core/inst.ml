@@ -212,7 +212,7 @@ let opts t =
                    If $(docv) is a strictly positive number, then at each round, the $(docv)
                    most promising instanciations are pushed. If $(docv) is negative, then all
                    but the $(docv) least promising instanciations are pushed." in
-    Cmdliner.Arg.(value & opt int 3 & info ["inst.nb"] ~docv:"N" ~docs ~doc)
+    Cmdliner.Arg.(value & opt int 100 & info ["inst.nb"] ~docv:"N" ~docs ~doc)
   in
   let set_opts nb t =
     inst_incr := nb;

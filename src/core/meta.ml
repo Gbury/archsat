@@ -9,6 +9,24 @@ let id = Dispatcher.new_id ()
 let no_inst = ref false
 let meta_incr = ref 0
 
+(* Heuristics *)
+type heuristic =
+  | No_heuristic
+  | Goal_directed
+
+let heuristic_setting = ref No_heuristic
+
+let heur_list = [
+  "none", No_heuristic;
+  "goal", Goal_directed;
+]
+
+let heur_conv = Cmdliner.Arg.enum heur_list
+
+let score u = match !heuristic_setting with
+  | No_heuristic -> 0
+  | Goal_directed -> Heuristic.goal_directed u
+
 (* Hashtbl to store number of generated metas for each formula *)
 let metas = H.create 256
 
@@ -26,7 +44,7 @@ let mark f =
   let i = get_nb_metas f in
   i := !i + 1
 
-(* Small helper *)
+(* Proofs *)
 let mk_proof_ty f metas = Dispatcher.mk_proof
     ~ty_args:([])
     id "meta"
@@ -42,7 +60,7 @@ let false_preds = S.create ~size:4096 Dispatcher.stack
 let mem x tbl = S.mem tbl x
 
 (* Unification of predicates *)
-let do_inst u = Inst.add u
+let do_inst u = Inst.add ~score:(score u) u
 
 let inst p notp =
   let unif = Unif.unify_term p notp in
@@ -128,12 +146,19 @@ let opts t =
     let doc = "Set the number of new metas to be generated at each pass." in
     Cmdliner.Arg.(value & opt int 0 & info ["meta.incr"] ~docv:"INT" ~docs ~doc)
   in
-  let set_opts inst incr t =
+  let heuristic =
+    let doc = Util.sprintf
+      "Select heuristic to use when assigning scores to possible unifiers/instanciations.
+       $(docv) may be %s" (Cmdliner.Arg.doc_alts_enum ~quoted:true heur_list) in
+    Cmdliner.Arg.(value & opt heur_conv No_heuristic & info ["meta.heur"] ~docv:"HEUR" ~docs ~doc)
+  in
+  let set_opts heur inst incr t =
+    heuristic_setting := heur;
     no_inst := not inst;
     meta_incr := incr;
     t
   in
-  Cmdliner.Term.(pure set_opts $ inst $ incr $ t)
+  Cmdliner.Term.(pure set_opts $ heuristic $ inst $ incr $ t)
 ;;
 
 Dispatcher.(register (

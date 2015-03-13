@@ -4,6 +4,7 @@
 
 (* Private aliases *)
 type var_id = int
+type goalness = int
 type 'a meta_index = int
 
 (* Variables, parametrized by the kind of the type of the variable *)
@@ -38,7 +39,7 @@ type ty_descr =
 
 and ty = {
   ty : ty_descr;
-  ty_goalness : int;
+  ty_goalness : goalness;
   mutable ty_hash : int; (** lazy hash *)
 }
 
@@ -51,7 +52,7 @@ type term_descr =
 and term = {
   term    : term_descr;
   t_type  : ty;
-  t_goalness : int;
+  t_goalness : goalness;
   mutable t_hash : int; (* lazy hash *)
 }
 
@@ -95,6 +96,12 @@ exception Cannot_interpret of term
 
 exception Subst_error_ty_scope of ttype var
 exception Subst_error_term_scope of ty var
+
+(* Goalness settings *)
+(* ************************************************************************ *)
+
+let goal = 1
+let hypothesis = 0
 
 (* Debug printing functions *)
 (* ************************************************************************ *)
@@ -631,18 +638,18 @@ let term_const = const
 (* Types & substitutions *)
 (* ************************************************************************ *)
 
-let mk_ty ty = { ty; ty_goalness = 0; ty_hash = -1 }
+let mk_ty ?(goalness=hypothesis) ty = { ty; ty_goalness = goalness; ty_hash = -1 }
 
-let type_var v = mk_ty (TyVar v)
+let type_var ?goalness v = mk_ty ?goalness (TyVar v)
 
-let type_meta m = mk_ty (TyMeta m)
+let type_meta ?goalness m = mk_ty ?goalness (TyMeta m)
 
-let type_app f args =
+let type_app ?goalness f args =
   assert (f.var_type.fun_vars = []);
   if List.length args <> List.length f.var_type.fun_args then
     raise (Type_error_ty_app (f, args))
   else
-    mk_ty (TyApp (f, args))
+    mk_ty ?goalness (TyApp (f, args))
 
 (* builtin prop type *)
 let prop_cstr = type_const "Prop" 0
@@ -652,7 +659,7 @@ let type_prop = type_app prop_cstr []
 let rec type_subst_aux map t = match t.ty with
   | TyVar v -> begin try Subst.Var.get v map with Not_found -> t end
   | TyMeta m -> begin try Subst.Var.get m.meta_var map with Not_found -> t end
-  | TyApp (f, args) -> type_app f (List.map (type_subst_aux map) args)
+  | TyApp (f, args) -> type_app ~goalness:t.ty_goalness f (List.map (type_subst_aux map) args)
 
 let type_subst map t = if Subst.is_empty map then t else type_subst_aux map t
 
@@ -672,21 +679,21 @@ let type_inst f tys args =
 (* Terms & substitutions *)
 (* ************************************************************************ *)
 
-let mk_term t ty = {
+let mk_term ?(goalness=hypothesis) t ty = {
   term = t;
   t_type = ty;
-  t_goalness = 0;
+  t_goalness = goalness;
   t_hash = -1;
 }
 
-let term_var v =
-  mk_term (Var v) v.var_type
+let term_var ?goalness v =
+  mk_term ?goalness (Var v) v.var_type
 
-let term_meta m =
-  mk_term (Meta m) m.meta_var.var_type
+let term_meta ?goalness m =
+  mk_term ?goalness (Meta m) m.meta_var.var_type
 
-let term_app f ty_args t_args =
-  mk_term (App (f, ty_args, t_args)) (type_inst f ty_args t_args)
+let term_app ?goalness f ty_args t_args =
+  mk_term ?goalness (App (f, ty_args, t_args)) (type_inst f ty_args t_args)
 
 let rec term_subst_aux ty_map t_map t = match t.term with
   | Var v ->
@@ -694,7 +701,7 @@ let rec term_subst_aux ty_map t_map t = match t.term with
   | Meta m ->
     begin try Subst.Var.get m.meta_var t_map with Not_found -> t end
   | App (f, tys, args) ->
-    term_app f (List.map (type_subst ty_map) tys) (List.map (term_subst_aux ty_map t_map) args)
+    term_app ~goalness:t.t_goalness f (List.map (type_subst ty_map) tys) (List.map (term_subst_aux ty_map t_map) args)
 
 let term_subst ty_map t_map t =
   if Subst.is_empty ty_map && Subst.is_empty t_map then t else term_subst_aux ty_map t_map t
@@ -743,6 +750,30 @@ let term_fv = term_free_vars ([], [])
 let formula_fv = formula_free_vars ([], [])
 
 let to_free_vars (tys, ts) = List.map type_var tys, List.map term_var ts
+
+(* Metavariable count *)
+(* ************************************************************************ *)
+
+let init_metas acc = acc (* all the work is done in merge_fv *)
+
+let merge_metas (ty1, t1) (ty2, t2) =
+  Util.list_merge compare_meta ty1 ty2,
+  Util.list_merge compare_meta t1 t2
+
+let rec ty_free_metas acc ty = match ty.ty with
+  | TyVar _ -> acc
+  | TyMeta m -> merge_metas acc ([m], [])
+  | TyApp (_, args) -> List.fold_left ty_free_metas acc args
+
+let rec term_free_metas acc t = match t.term with
+  | Var _ -> acc
+  | Meta m -> merge_metas acc ([], [m])
+  | App (_, tys, args) ->
+    let acc' = List.fold_left ty_free_metas acc tys in
+    List.fold_left term_free_metas acc' args
+
+let metas_in_ty = ty_free_metas ([], [])
+let metas_in_term = term_free_metas ([], [])
 
 (* Taus *)
 (* ************************************************************************ *)
@@ -977,19 +1008,6 @@ let new_ty_metas f = match f.formula with
 let new_term_metas f = match f.formula with
   | Not { formula = Ex(l, _, _) } | All (l, _, _) -> mk_metas l f
   | _ -> invalid_arg "new_term_metas"
-
-(* Goalness manipulation *)
-(* ************************************************************************ *)
-
-let rec ty_with_goalness k = function
-  | { ty = TyApp (f, l) } as ty ->
-    { ty with ty = TyApp (f, List.map (ty_with_goalness k) l); ty_goalness = k; }
-  | ty -> { ty with ty_goalness = k }
-
-let rec term_with_goalness k = function
-  | { term = App (f, l, l') } as t ->
-    { t with term = App (f, List.map (ty_with_goalness k) l, List.map (term_with_goalness k) l'); t_goalness = k; }
-  | t -> { t with t_goalness = k }
 
 (* Modules for simpler function names *)
 (* ************************************************************************ *)
