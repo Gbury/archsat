@@ -106,7 +106,7 @@ module Section = struct
   let rec cur_level_rec s =
     if s.level = null_level
     then match s.descr with
-      | Root -> 0
+      | Root -> -1
       | Sub (_, parent, []) -> cur_level_rec parent
       | Sub (_, parent, [i]) -> max (cur_level_rec parent) (cur_level_rec i)
       | Sub (_, parent, inheriting) ->

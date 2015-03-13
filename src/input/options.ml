@@ -38,9 +38,14 @@ type copts = {
   size_limit : float;
 }
 
-let mk_opts log debug file input output proof type_only exts p_proof p_model time size =
+let mk_opts quiet log debug file input output proof type_only exts p_proof p_model time size =
   (* Set up debug levels *)
-  Util.set_debug log; List.iter (fun (s, lvl) -> Util.Section.set_debug s lvl) debug;
+  if quiet then
+    Util.Section.clear_debug Util.Section.root
+  else begin
+    Util.set_debug log;
+    List.iter (fun (s, lvl) -> Util.Section.set_debug s lvl) debug
+  end;
   (* Global options record *)
   {
     formatter = Format.std_formatter;
@@ -179,6 +184,10 @@ let log_sections () =
 
 let copts_t () =
   let docs = copts_sect in
+  let quiet =
+    let doc = "Supress all output but the result status of the problem" in
+    Arg.(value & flag & info ["q"; "quiet"] ~docs ~doc)
+  in
   let log =
     let doc = "Set the global level for debug outpout." in
     Arg.(value & opt int 0 & info ["v"; "verbose"] ~docs ~docv:"LVL" ~doc)
@@ -244,5 +253,5 @@ let copts_t () =
               "Without suffix, default to a size in octet." in
     Arg.(value & opt c_size 1_000_000_000. & info ["s"; "size"] ~docs ~docv:"SIZE" ~doc)
   in
-  Term.(pure mk_opts $ log $ debug $ file $ input $ output $ proof $ type_only $ exts $ print_proof $ print_model $ time $ size)
+  Term.(pure mk_opts $ quiet $ log $ debug $ file $ input $ output $ proof $ type_only $ exts $ print_proof $ print_model $ time $ size)
 

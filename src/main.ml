@@ -39,7 +39,7 @@ let get_model p_model =
 
 (* Logging *)
 let start_section s =
-  Util.debug 1 "=== %s %s" s (String.make (64 - String.length s) '=')
+  Util.debug 0 "=== %s %s" s (String.make (64 - String.length s) '=')
 
 let end_section () = ()
 (* Util.debug 1 "%s" (String.make 69 '=') *)
@@ -97,7 +97,7 @@ let main () =
   Io.set_input opt.input_format;
   Io.set_output opt.output_format;
   (* Extensions options *)
-  Dispatcher.set_exts "+eq,+uf,+tab,+prop,+skolem,+meta,+inst";
+  Dispatcher.set_exts "+eq,+uf,+tab,+prop,+skolem,+meta,+inst,+stats";
   List.iter Dispatcher.set_ext opt.extensions;
   (* Input file parsing *)
   let commands = wrap "parse" Io.parse_input opt.input_file in
