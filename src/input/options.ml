@@ -30,7 +30,7 @@ type copts = {
   extensions : string list;
 
   (* Printing options *)
-  print_proof : bool;
+  print_proof : out_channel option;
   print_model : model;
 
   (* Limits *)
@@ -53,16 +53,19 @@ let mk_opts quiet log debug file input output proof type_only exts p_proof p_mod
     input_format = input;
     output_format = output;
 
-    proof = proof || p_proof;
+    proof = proof || (p_proof <> None);
     solve = not type_only;
     extensions = List.concat exts;
 
     print_model = p_model;
-    print_proof = p_proof;
+    print_proof = (match p_proof with | Some s -> Some (open_out s) | None -> None);
 
     time_limit = time;
     size_limit = size;
   }
+
+let clean opt =
+  match opt.print_proof with Some out -> close_out out | None -> ()
 
 (* Argument converter for integer with multiplier suffix *)
 let nb_sec_minute = 60
@@ -233,7 +236,7 @@ let copts_t () =
   in
   let print_proof =
     let doc = "Print proof for unsat results (implies proof generation)." in
-    Arg.(value & flag & info ["p"; "proof"] ~docs ~doc)
+    Arg.(value & opt (some string) None & info ["p"; "proof"] ~docs ~doc)
   in
   let print_model =
     let doc = Util.sprintf

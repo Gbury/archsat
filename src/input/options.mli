@@ -27,13 +27,15 @@ type copts = {
     extensions : string list;
 
     (* Printing options *)
-    print_proof : bool;
+    print_proof : out_channel option;
     print_model : model;
 
     (* Limits *)
     time_limit : float;
     size_limit : float;
 }
+
+val clean : copts -> unit
 
 val copts_sect : string
 val ext_sect : string

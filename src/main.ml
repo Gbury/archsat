@@ -74,11 +74,17 @@ let do_command opt = function
               Io.fprintf opt.formatter "Model :";
               Io.print_model opt.formatter (get_model opt.print_model)
           end
+        (* Proof found *)
         | Solver.Unsat ->
           Io.print_res opt.formatter "Unsat" (Sys.time ());
-          if opt.print_proof then
+          if opt.proof then begin
             let proof = Solver.get_proof () in
-            Io.print_proof opt.formatter proof
+            begin match opt.print_proof with
+            | Some out ->
+              Io.print_proof (Format.formatter_of_out_channel out) proof
+            | None -> ()
+            end
+          end
       end
   | c ->
     Io.fprintf opt.formatter "%a : operation not supported yet" Ast.print_command_name c;
@@ -104,7 +110,9 @@ let main () =
   (* Input file parsing *)
   let commands = wrap "parse" Io.parse_input opt.input_file in
   (* Commands execution *)
-  Queue.iter (do_command opt) commands
+  Queue.iter (do_command opt) commands;
+  (* Clean up *)
+  Options.clean opt
 ;;
 
 try

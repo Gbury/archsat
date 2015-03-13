@@ -38,8 +38,6 @@ module Smt = Msat.Mcsolver.Make(struct
 (* Solving *)
 type res = Sat | Unsat
 
-let _i = ref 0
-
 let solve () =
   try
     Smt.solve ();
@@ -47,11 +45,10 @@ let solve () =
   with Smt.Unsat -> Unsat
 
 let assume l =
-  incr _i;
-  List.iter (fun cl -> log 1 "Assuming (%d) : %a" !_i
+  List.iter (fun cl -> log 1 "Assuming : %a"
                 (Util.pp_list ~sep:"; " Expr.debug_formula) cl) l;
   try
-    Smt.assume l !_i
+    Smt.assume l
   with Smt.Unsat -> ()
 
 (* Model output *)
@@ -63,7 +60,6 @@ let full_model = Dispatcher.model
 type proof = Smt.Proof.proof
 
 let get_proof () =
-  Smt.Proof.learn (Smt.history ());
   match Smt.unsat_conflict () with
   | None -> assert false
   | Some c -> Smt.Proof.prove_unsat c
