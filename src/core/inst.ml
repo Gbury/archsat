@@ -161,8 +161,7 @@ module H = Hashtbl.Make(Unif)
 
 let heap = ref Q.empty
 let inst_set = H.create 4096
-let inst_incr = ref 3
-let inst_done = ref 0
+let inst_incr = ref 0
 
 let get_u i = Inst.(i.unif)
 
@@ -178,7 +177,7 @@ let add ?(score=0) u =
 
 let push inst =
   log 5 "Pushing inst :";
-  incr inst_done;
+  Stats.inst_done ();
   print_inst 5 (get_u inst);
   H.replace inst_set (get_u inst) true;
   soft_push (get_u inst)
@@ -200,8 +199,7 @@ let take f k =
 
 let inst_sat () =
   take push !inst_incr;
-  Stats.register_msg "Instanciations done : %d" !inst_done;
-  inst_done := 0;
+  Stats.inst_remaining (Q.size !heap);
   Inst.clock ()
 
 (* Extension registering *)

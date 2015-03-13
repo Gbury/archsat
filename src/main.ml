@@ -10,6 +10,7 @@ module Prop = Prop
 module Functions = Functions
 module Skolem = Skolem
 module Meta = Meta
+module Stats = Stats
 
 (* Types and exceptions *)
 exception Out_of_time
@@ -64,6 +65,7 @@ let do_command opt = function
     if opt.solve then
       let res = wrap "solve" Solver.solve () in
       begin match res with
+        (* Model found *)
         | Solver.Sat ->
           Io.print_res opt.formatter "Sat" (Sys.time ());
           begin match opt.print_model with

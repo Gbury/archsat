@@ -121,11 +121,11 @@ let find_all_insts () =
 let opts t =
   let docs = Options.ext_sect in
   let inst =
-    let doc = "Decide wether metavariables are to be instanciated (default: true)" in
+    let doc = "Decide wether metavariables are to be instanciated." in
     Cmdliner.Arg.(value & opt bool true & info ["meta.inst"] ~docv:"BOOL" ~docs ~doc)
   in
   let incr =
-    let doc = "Set the number of new metas to be generated at each pass (default = 1)" in
+    let doc = "Set the number of new metas to be generated at each pass." in
     Cmdliner.Arg.(value & opt int 0 & info ["meta.incr"] ~docv:"INT" ~docs ~doc)
   in
   let set_opts inst incr t =
