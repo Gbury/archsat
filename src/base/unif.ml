@@ -48,6 +48,9 @@ let merge s s' = {
   t_map = Expr.Subst.fold Expr.Subst.Meta.bind s.t_map s'.t_map;
 }
 
+let print_inst l s =
+  Expr.Subst.iter (fun k v -> log l " |- %a -> %a" Expr.debug_meta k Expr.debug_term v) s.t_map
+
 (* Metavariable protection *)
 (* ************************************************************************ *)
 
@@ -98,6 +101,8 @@ let term_subst ty_map t_map t =
 
 (* Fixpoint on meta substitutions *)
 let fixpoint u =
+  log 50 "Fixpoint :";
+  print_inst 50 u;
   let rec ty_apply ty =
     let ty' = type_subst u.ty_map ty in
     if Expr.Ty.equal ty ty' then ty

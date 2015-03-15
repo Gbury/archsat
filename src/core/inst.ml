@@ -171,9 +171,10 @@ let add ?(score=0) u =
     print_inst 10 u;
     H.add inst_set u false;
     heap := Q.add !heap (Inst.mk u score)
-  end else
+  end else begin
     log 10 "Redondant inst :";
-  print_inst 10 u
+    print_inst 10 u
+  end
 
 let push inst =
   log 5 "Pushing inst :";
