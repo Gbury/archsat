@@ -38,7 +38,9 @@ type copts = {
   size_limit : float;
 }
 
-let mk_opts quiet log debug file input output proof type_only exts p_proof p_model time size =
+let mk_opts bt quiet log debug file input output proof type_only exts p_proof p_model time size =
+  if bt then
+    Printexc.record_backtrace true;
   (* Set up debug levels *)
   if quiet then
     Util.Section.clear_debug Util.Section.root
@@ -187,6 +189,10 @@ let log_sections () =
 
 let copts_t () =
   let docs = copts_sect in
+  let bt =
+      let doc = "Enables printing of backtraces." in
+      Arg.(value & flag & info ["b"; "backtrace"] ~docs:ext_sect ~doc)
+  in
   let quiet =
     let doc = "Supress all output but the result status of the problem" in
     Arg.(value & flag & info ["q"; "quiet"] ~docs ~doc)
@@ -220,7 +226,7 @@ let copts_t () =
   let proof =
     let doc = "If set, compute and check the resolution proofs for unsat results. This option
                  does not trigger printing of the proof (see $(b,--proof) option)." in
-    Arg.(value & flag & info ["check"] ~docs ~doc)
+    Arg.(value & flag & info ["c"; "check"] ~docs ~doc)
   in
   let type_only =
     let doc = "Only parse and type the given problem. Do not attempt to solve." in
@@ -256,5 +262,5 @@ let copts_t () =
               "Without suffix, default to a size in octet." in
     Arg.(value & opt c_size 1_000_000_000. & info ["s"; "size"] ~docs ~docv:"SIZE" ~doc)
   in
-  Term.(pure mk_opts $ quiet $ log $ debug $ file $ input $ output $ proof $ type_only $ exts $ print_proof $ print_model $ time $ size)
+  Term.(pure mk_opts $ bt $ quiet $ log $ debug $ file $ input $ output $ proof $ type_only $ exts $ print_proof $ print_model $ time $ size)
 
