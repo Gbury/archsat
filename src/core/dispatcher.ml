@@ -217,11 +217,11 @@ let push clause ext_name =
 let propagate f lvl =
   Stack.push (f, lvl) propagate_stack
 
-let do_propagate f =
+let do_propagate propagate =
   while not (Stack.is_empty propagate_stack) do
-    let (a, b) = Stack.pop propagate_stack in
-    log 10 "Propagating : %a" Expr.debug_formula a;
-    f a b
+    let (t, lvl) = Stack.pop propagate_stack in
+    log 10 "Propagating : %a" Expr.debug_formula t;
+    propagate t lvl
   done
 
 let do_push f =
@@ -424,7 +424,8 @@ let assume s =
       match s.get i with
       | Lit f, lvl ->
         log 1 " Assuming (%d) %a" lvl Expr.debug_formula f;
-        ext_iter (fun ext -> ext.assume (f, lvl))
+        ext_iter (fun ext -> log 100 "  assuming (%s): %a" ext.name
+                     Expr.debug_formula f; ext.assume (f, lvl))
       | Assign (t, v), lvl -> set_assign t v lvl; log 100 "assignment done"
     done;
     log 8 "Propagating (%d)" (Stack.length propagate_stack);

@@ -47,17 +47,7 @@ val mk_proof : ?ty_args : Expr.ty list ->
 
 (** {2 Extension Registering} *)
 
-type extension = {
-  id : id;
-  prio : int;
-  name : string;
-  descr : string;
-  if_sat : unit -> unit;
-  assume : formula * int -> unit;
-  eval_pred : formula -> (bool * int) option;
-  preprocess : formula -> unit;
-  options : Options.copts Cmdliner.Term.t -> Options.copts Cmdliner.Term.t;
-}
+type extension
 (** Type of plugins/extensions *)
 
 val new_id : unit -> id

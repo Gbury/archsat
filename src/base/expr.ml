@@ -273,7 +273,7 @@ let rec hash_term t =
     | Var v -> hash_var v
     | Meta m -> hash_meta m
     | App (f, tys, args) ->
-      hash f.var_id (List.rev_append
+      hash (hash_var f) (List.rev_append
                        (List.rev_map get_ty_hash tys)
                        (List.rev_map get_term_hash args))
   in

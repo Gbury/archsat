@@ -40,7 +40,9 @@ let compare s u =
   | x -> x
 
 let equal s u =
-  Expr.Subst.equal Expr.Ty.equal s.ty_map u.ty_map &&
+  let a = s.ty_map in
+  let b = u.ty_map in
+  Expr.Subst.equal Expr.Ty.equal a b &&
   Expr.Subst.equal Expr.Term.equal s.t_map u.t_map
 
 let merge s s' = {
