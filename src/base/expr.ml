@@ -1,4 +1,7 @@
 
+let log_section = Util.Section.make "expr"
+let log i fmt = Util.debug ~section:log_section i fmt
+
 (* Type definitions *)
 (* ************************************************************************ *)
 
@@ -110,7 +113,7 @@ let debug_var b v = Printf.bprintf b "%s" v.var_name
 
 let debug_meta b m = Printf.bprintf b "m%d_%a" m.meta_index debug_var m.meta_var
 
-let debug_ttype b = function Type -> Printf.bprintf b "$tType"
+let debug_ttype b Type = Printf.bprintf b "$tType"
 
 let rec debug_ty b ty = match ty.ty with
   | TyVar v -> debug_var b v
@@ -543,6 +546,7 @@ let assigner v =
   | Some (_, f) -> f
 
 let assign t =
+  log 100 "calling assigner for %a" debug_term t;
   try match t.term with
     | Var v -> (assigner v) t
     | Meta m -> (assigner m.meta_var) t

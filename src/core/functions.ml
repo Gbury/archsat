@@ -11,12 +11,14 @@ let mk_proof l = Dispatcher.mk_proof ~term_args:l id "f-eq"
 
 let set_interpretation t () = match t with
   | { Expr.term = Expr.App (f, tys, l) } ->
+    log 100 "Looking at %a" Expr.debug_term t;
     let is_prop = Expr.(Ty.equal t.t_type type_prop) in
     let t_v, _ = Dispatcher.get_assign t in
     let l' = List.map (fun x -> fst (Dispatcher.get_assign x)) l in
     let u = Expr.term_app f tys l' in
     begin try
         let t', u_v = H.find st u in
+        log 100 "found match : %a" Expr.debug_term t';
         if not (Expr.Term.equal t_v u_v) then begin
           match t' with
           | { Expr.term = Expr.App (_, _, r) } when is_prop ->
@@ -37,6 +39,7 @@ let set_interpretation t () = match t with
           | _ -> assert false
         end
       with Not_found ->
+        log 100 "no match, adding to table";
         H.add st u (t, t_v)
     end
   | _ -> assert false
