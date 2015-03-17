@@ -38,16 +38,8 @@ type copts = {
   size_limit : float;
 }
 
-let mk_opts bt quiet log debug file input output proof type_only exts p_proof p_model time size =
-  if bt then
-    Printexc.record_backtrace true;
-  (* Set up debug levels *)
-  if quiet then
-    Util.Section.clear_debug Util.Section.root
-  else begin
-    Util.set_debug log;
-    List.iter (fun (s, lvl) -> Util.Section.set_debug s lvl) debug
-  end;
+(* Option values *)
+let mk_opts () file input output proof type_only exts p_proof p_model time size =
   (* Global options record *)
   {
     formatter = Format.std_formatter;
@@ -65,6 +57,21 @@ let mk_opts bt quiet log debug file input output proof type_only exts p_proof p_
     time_limit = time;
     size_limit = size;
   }
+
+(* Side-effects options *)
+let set_opts gc bt quiet log debug =
+  if gc then
+    at_exit (fun () -> Gc.print_stat stdout;);
+  (* Backtrace printing *)
+  if bt then
+    Printexc.record_backtrace true;
+  (* Set up debug levels *)
+  if quiet then
+    Util.Section.clear_debug Util.Section.root
+  else begin
+    Util.set_debug log;
+    List.iter (fun (s, lvl) -> Util.Section.set_debug s lvl) debug
+  end
 
 let clean opt =
   match opt.print_proof with Some out -> close_out out | None -> ()
@@ -189,6 +196,10 @@ let log_sections () =
 
 let copts_t () =
   let docs = copts_sect in
+  let gc =
+    let doc = "Print statistics about the gc upon exiting" in
+    Arg.(value & flag & info ["g"; "gc"] ~docs:ext_sect ~doc)
+  in
   let bt =
       let doc = "Enables printing of backtraces." in
       Arg.(value & flag & info ["b"; "backtrace"] ~docs:ext_sect ~doc)
@@ -262,5 +273,6 @@ let copts_t () =
               "Without suffix, default to a size in octet." in
     Arg.(value & opt c_size 1_000_000_000. & info ["s"; "size"] ~docs ~docv:"SIZE" ~doc)
   in
-  Term.(pure mk_opts $ bt $ quiet $ log $ debug $ file $ input $ output $ proof $ type_only $ exts $ print_proof $ print_model $ time $ size)
+  Term.(pure mk_opts $ (pure set_opts $ gc $ bt $ quiet $ log $ debug) $
+  file $ input $ output $ proof $ type_only $ exts $ print_proof $ print_model $ time $ size)
 
