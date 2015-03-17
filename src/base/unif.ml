@@ -83,8 +83,10 @@ let rec type_subst_aux map = function
   | { Expr.ty = Expr.TyVar _ } -> assert false
   | { Expr.ty = Expr.TyMeta m } as t ->
     begin try Expr.Subst.Meta.get m map with Not_found -> t end
-  | { Expr.ty = Expr.TyApp (f, args) } ->
-    Expr.type_app f (List.map (type_subst_aux map) args)
+  | { Expr.ty = Expr.TyApp (f, args) } as ty ->
+    let new_args = List.map (type_subst_aux map) args in
+    if List.for_all2 (==) args new_args then ty
+    else Expr.type_app f new_args
 
 let type_subst map t = if Expr.Subst.is_empty map then t else type_subst_aux map t
 
@@ -92,14 +94,15 @@ let rec term_subst_aux ty_map t_map = function
   | { Expr.term = Expr.Var _ } -> assert false
   | { Expr.term = Expr.Meta m } as t ->
     begin try Expr.Subst.Meta.get m t_map with Not_found -> t end
-  | { Expr.term = Expr.App (f, tys, args) } ->
-    Expr.term_app f (List.map (type_subst ty_map) tys) (List.map (term_subst_aux ty_map t_map) args)
+  | { Expr.term = Expr.App (f, tys, args) } as t ->
+    let new_tys = List.map (type_subst ty_map) tys in
+    let new_args = List.map (term_subst_aux ty_map t_map) args in
+    if List.for_all2 (==) tys new_tys && List.for_all2 (==) args new_args then t
+    else Expr.term_app f new_tys new_args
 
 let term_subst ty_map t_map t =
-  if Expr.Subst.is_empty ty_map && Expr.Subst.is_empty t_map then
-    t
-  else
-    term_subst_aux ty_map t_map t
+  if Expr.Subst.is_empty ty_map && Expr.Subst.is_empty t_map then t
+  else term_subst_aux ty_map t_map t
 
 (* Fixpoint on meta substitutions *)
 let fixpoint u =
@@ -146,13 +149,16 @@ let inv_map_term u m1 m2 =
   with Not_found ->
     bind_term (bind_term u m1 (Expr.term_meta m2)) m2 (Expr.term_meta m1)
 
+let meta_def m = Expr.(get_meta_def m.meta_index)
+let meta_ty_def m = Expr.(get_meta_ty_def m.meta_index)
+
 (* Finding meta-stable involutions *)
 let rec meta_match_ty subst s t =
   begin match s, t with
     | _, { Expr.ty = Expr.TyVar _ } | { Expr.ty = Expr.TyVar _}, _ -> assert false
     | { Expr.ty = Expr.TyMeta ({ Expr.meta_var = v1 } as m1)},
       { Expr.ty = Expr.TyMeta ({ Expr.meta_var = v2 } as m2)} ->
-      if Expr.Var.equal v1 v2 then
+      if Expr.Var.equal v1 v2 && Expr.Formula.equal (meta_ty_def m1) (meta_ty_def m2) then
         inv_map_ty subst m1 m2
       else
         raise (Not_unifiable_ty (s, t))
@@ -171,7 +177,7 @@ let rec meta_match_term subst s t =
     | _, { Expr.term = Expr.Var _ } | { Expr.term = Expr.Var _}, _ -> assert false
     | { Expr.term = Expr.Meta ({ Expr.meta_var = v1 } as m1) },
       { Expr.term = Expr.Meta ({ Expr.meta_var = v2 } as m2)} ->
-      if Expr.Var.equal v1 v2 then
+      if Expr.Var.equal v1 v2 && Expr.Formula.equal (meta_def m1) (meta_def m2) then
         inv_map_term subst m1 m2
       else
         raise (Not_unifiable_term (s, t))

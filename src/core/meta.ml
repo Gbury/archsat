@@ -63,7 +63,7 @@ let mem x tbl = S.mem tbl x
 let do_inst u = Inst.add ~score:(score u) u
 
 let inst p notp =
-  let unif = Unif.unify_term p notp in
+  let unif = Unif.cached_unify p notp in
   log 5 "Unification found";
   Expr.Subst.iter (fun k v -> log 5 " |- %a -> %a"
                       Expr.debug_meta k Expr.debug_term v) Unif.(unif.t_map);

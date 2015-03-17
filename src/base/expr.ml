@@ -664,7 +664,10 @@ let type_prop = type_app prop_cstr []
 let rec type_subst_aux map t = match t.ty with
   | TyVar v -> begin try Subst.Var.get v map with Not_found -> t end
   | TyMeta m -> begin try Subst.Var.get m.meta_var map with Not_found -> t end
-  | TyApp (f, args) -> type_app ~goalness:t.ty_goalness f (List.map (type_subst_aux map) args)
+  | TyApp (f, args) ->
+    let new_args = List.map (type_subst_aux map) args in
+    if List.for_all2 (==) args new_args then t
+    else type_app ~goalness:t.ty_goalness f new_args
 
 let type_subst map t = if Subst.is_empty map then t else type_subst_aux map t
 
@@ -701,12 +704,13 @@ let term_app ?goalness f ty_args t_args =
   mk_term ?goalness (App (f, ty_args, t_args)) (type_inst f ty_args t_args)
 
 let rec term_subst_aux ty_map t_map t = match t.term with
-  | Var v ->
-    begin try Subst.Var.get v t_map with Not_found -> t end
-  | Meta m ->
-    begin try Subst.Var.get m.meta_var t_map with Not_found -> t end
+  | Var v -> begin try Subst.Var.get v t_map with Not_found -> t end
+  | Meta m -> begin try Subst.Var.get m.meta_var t_map with Not_found -> t end
   | App (f, tys, args) ->
-    term_app ~goalness:t.t_goalness f (List.map (type_subst ty_map) tys) (List.map (term_subst_aux ty_map t_map) args)
+    let new_tys = List.map (type_subst ty_map) tys in
+    let new_args = List.map (term_subst_aux ty_map t_map) args in
+    if List.for_all2 (==) new_tys tys && List.for_all2 (==) new_args args then t
+    else term_app ~goalness:t.t_goalness f new_tys new_args
 
 let term_subst ty_map t_map t =
   if Subst.is_empty ty_map && Subst.is_empty t_map then t else term_subst_aux ty_map t_map t
@@ -758,8 +762,6 @@ let to_free_vars (tys, ts) = List.map type_var tys, List.map term_var ts
 
 (* Metavariable count *)
 (* ************************************************************************ *)
-
-let init_metas acc = acc (* all the work is done in merge_fv *)
 
 let merge_metas (ty1, t1) (ty2, t2) =
   Util.list_merge compare_meta ty1 ty2,
@@ -921,13 +923,37 @@ let rec new_binder_subst ty_map subst acc = function
 let rec formula_subst ty_map t_map f =
   match f.formula with
   | True | False -> f
-  | Equal (a, b) -> f_equal (term_subst ty_map t_map a) (term_subst ty_map t_map b)
-  | Pred t -> f_pred (term_subst ty_map t_map t)
-  | Not f -> f_not (formula_subst ty_map t_map f)
-  | And l -> f_and (List.map (formula_subst ty_map t_map) l)
-  | Or l -> f_or (List.map (formula_subst ty_map t_map) l)
-  | Imply (p, q) -> f_imply (formula_subst ty_map t_map p) (formula_subst ty_map t_map q)
-  | Equiv (p, q) -> f_equiv (formula_subst ty_map t_map p) (formula_subst ty_map t_map q)
+  | Equal (a, b) ->
+    let new_a = term_subst ty_map t_map a in
+    let new_b = term_subst ty_map t_map b in
+    if a == new_a && b == new_b then f
+    else f_equal new_a new_b
+  | Pred t ->
+    let new_t = term_subst ty_map t_map t in
+    if t == new_t then f
+    else f_pred new_t
+  | Not p ->
+    let new_p = formula_subst ty_map t_map p in
+    if p == new_p then f
+    else f_not new_p
+  | And l ->
+    let new_l = List.map (formula_subst ty_map t_map) l in
+    if List.for_all2 (==) l new_l then f
+    else f_and new_l
+  | Or l ->
+    let new_l = List.map (formula_subst ty_map t_map) l in
+    if List.for_all2 (==) l new_l then f
+    else f_or new_l
+  | Imply (p, q) ->
+    let new_p = formula_subst ty_map t_map p in
+    let new_q = formula_subst ty_map t_map q in
+    if p == new_p && q == new_q then f
+    else f_imply new_p new_q
+  | Equiv (p, q) ->
+    let new_p = formula_subst ty_map t_map p in
+    let new_q = formula_subst ty_map t_map q in
+    if p == new_p && q == new_q then f
+    else f_equiv new_p new_q
   | All (l, (ty, t), p) ->
     let l', t_map = new_binder_subst ty_map t_map [] l in
     let tys = List.map (type_subst ty_map) ty in
