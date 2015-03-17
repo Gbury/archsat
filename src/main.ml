@@ -26,6 +26,15 @@ let check time_limit size_limit = function () ->
   else if s > size_limit then
     raise Out_of_space
 
+let al = ref None
+let setup_alarm t s = match !al with
+  | None -> al := Some (Gc.create_alarm (check t s))
+  | Some _ -> assert false
+
+let delete_alarm () = match !al with
+  | Some alarm -> Gc.delete_alarm alarm
+  | None -> ()
+
 (* Model printing *)
 let get_model p_model =
   List.sort (fun (t, _) (t', _) -> Expr.Term.compare t t')
@@ -63,7 +72,7 @@ let do_command opt = function
       begin match res with
         (* Model found *)
         | Solver.Sat ->
-          Io.print_res opt.formatter "Sat" (Sys.time ());
+          Io.print_res opt.formatter "Sat";
           begin match opt.print_model with
             | NoModel -> ()
             | _ ->
@@ -72,7 +81,7 @@ let do_command opt = function
           end
         (* Proof found *)
         | Solver.Unsat ->
-          Io.print_res opt.formatter "Unsat" (Sys.time ());
+          Io.print_res opt.formatter "Unsat";
           if opt.proof then begin
             let proof = Solver.get_proof () in
             begin match opt.print_proof with
@@ -96,7 +105,7 @@ let main () =
     | `Ok opt -> opt
   in
   (* Gc alarm for limits *)
-  let _ = Gc.create_alarm (check opt.time_limit opt.size_limit) in
+  setup_alarm opt.time_limit opt.size_limit;
   (* Io options *)
   Io.set_input opt.input_format;
   Io.set_output opt.output_format;
@@ -116,11 +125,11 @@ try
 with
 | Exit -> ()
 | Out_of_time ->
-  Io.print_res Format.std_formatter "Timeout" (Sys.time ());
-  exit 1
+  delete_alarm ();
+  Io.print_res Format.std_formatter "Timeout"
 | Out_of_space ->
-  Io.print_res Format.std_formatter "Out of space" (Sys.time ());
-  exit 1
+  delete_alarm ();
+  Io.print_res Format.std_formatter "Out of space"
 | Io.Parsing_error (l, msg) ->
   Format.fprintf Format.std_formatter "%a:@\n%s@." ParseLocation.fmt l msg;
   exit 2

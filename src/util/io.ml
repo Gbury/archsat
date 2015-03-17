@@ -73,7 +73,7 @@ let print_proof fmt p =
   | Standard -> fprintf fmt "Standard proof output not supported yet."
   | Dot -> Solver.print_proof_dot fmt p
 
-let print_res fmt status time =
-  fprintf fmt "%s (%.3f)"  status time
+let print_res fmt status =
+  fprintf fmt "%s (%.3f)" status (Sys.time ())
 
 
