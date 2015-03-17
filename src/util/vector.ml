@@ -85,12 +85,10 @@ let get t i =
 
 let set t i v =
   if i < 0 || i > t.sz then invalid_arg "vec.set";
-  t.sz <- max t.sz (i+1);  (* can set first empty slot *)
-  Array.unsafe_set t.data i v
-
-let set_unsafe t i v =
-  if i < 0 || i >= Array.length t.data then invalid_arg "vec.set_unsafe";
-  t.sz <- max t.sz (i+1);
+  if i = t.sz then begin
+    grow_to_double_size t;
+    t.sz <- t.sz + 1
+  end;
   Array.unsafe_set t.data i v
 
 let copy t =
@@ -100,7 +98,6 @@ let copy t =
 let move_to t t' =
   t'.data <- Array.copy t.data;
   t'.sz <- t.sz
-
 
 let remove t e =
   let j = ref 0 in

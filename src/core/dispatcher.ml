@@ -424,9 +424,8 @@ let assume s =
       match s.get i with
       | Lit f, lvl ->
         log 1 " Assuming (%d) %a" lvl Expr.debug_formula f;
-        ext_iter (fun ext -> log 100 "  assuming (%s): %a" ext.name
-                     Expr.debug_formula f; ext.assume (f, lvl))
-      | Assign (t, v), lvl -> set_assign t v lvl; log 100 "assignment done"
+        ext_iter (fun ext -> ext.assume (f, lvl))
+      | Assign (t, v), lvl -> set_assign t v lvl
     done;
     log 8 "Propagating (%d)" (Stack.length propagate_stack);
     do_propagate s.propagate;
@@ -472,14 +471,11 @@ exception Found_eval of bool * int
 let eval_aux f =
   try
     ext_iter (fun ext ->
-        log 100 " eval: ext '%s'" ext.name;
         match ext.eval_pred f with
         | Some (b, lvl) -> raise (Found_eval (b, lvl))
         | _ -> ());
-        log 100 "no results";
     Unknown
   with Found_eval (b, lvl) ->
-      log 100 "found evaluation";
     Valued (b, lvl)
 
 let eval formula =

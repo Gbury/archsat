@@ -1,6 +1,8 @@
 
+(*
 let log_section = Util.Section.make "expr"
 let log i fmt = Util.debug ~section:log_section i fmt
+*)
 
 (* Type definitions *)
 (* ************************************************************************ *)
@@ -546,7 +548,6 @@ let assigner v =
   | Some (_, f) -> f
 
 let assign t =
-  log 100 "calling assigner for %a" debug_term t;
   try match t.term with
     | Var v -> (assigner v) t
     | Meta m -> (assigner m.meta_var) t

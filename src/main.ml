@@ -16,10 +16,6 @@ module Stats = Stats
 exception Out_of_time
 exception Out_of_space
 
-(* GC Stats *)
-let setup_gc_stat () =
-  at_exit (fun () -> Gc.print_stat stdout;)
-
 (* GC alarm for time/space limits *)
 let check time_limit size_limit = function () ->
   let t = Sys.time () in

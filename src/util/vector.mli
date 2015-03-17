@@ -71,9 +71,6 @@ val set : 'a t -> int -> 'a -> unit
     free slot if [not (is_full vec)], or
     @raise Invalid_argument if the index is not valid *)
 
-val set_unsafe : 'a t -> int -> 'a -> unit
-(* undocumented. TODO remove asap *)
-
 val copy : 'a t -> 'a t
 (** Fresh copy *)
 

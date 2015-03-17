@@ -5,7 +5,7 @@ COMP=ocamlbuild -log $(LOG) -classic-display
 FLAGS=-use-ocamlfind -use-menhir -yaccflag '--explain'
 DIRS=-Is util,base,core,input,parsers
 DOC=tabsat.docdir/index.html
-BIN=main.d.byte
+BIN=main.native
 
 NAME=tabsat
 LIB=$(addprefix $(NAME), .cma .cmxa .cmxs)
