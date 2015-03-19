@@ -113,6 +113,29 @@ let do_formula = function
     Dispatcher.push [Expr.f_not f; Expr.f_not q] (mk_proof_ty f metas)
   | _ -> assert false
 
+let do_meta_inst = function
+  | { Expr.formula = Expr.All (l, _, p) } as f ->
+    mark f;
+    let metas = Expr.new_term_metas f in
+    let u = List.fold_left (fun s m -> Unif.bind_term s m (Expr.term_meta m)) Unif.empty metas in
+    Inst.add u
+  | { Expr.formula = Expr.Not { Expr.formula = Expr.Ex (l, _, p) } } as f ->
+    mark f;
+    let metas = Expr.new_term_metas f in
+    let u = List.fold_left (fun s m -> Unif.bind_term s m (Expr.term_meta m)) Unif.empty metas in
+    Inst.add u
+  | { Expr.formula = Expr.AllTy (l, _, p) } as f ->
+    mark f;
+    let metas = Expr.new_ty_metas f in
+    let u = List.fold_left (fun s m -> Unif.bind_ty s m (Expr.type_meta m)) Unif.empty metas in
+    Inst.add u
+  | { Expr.formula = Expr.Not { Expr.formula = Expr.ExTy (l, _, p) } } as f ->
+    mark f;
+    let metas = Expr.new_ty_metas f in
+    let u = List.fold_left (fun s m -> Unif.bind_ty s m (Expr.type_meta m)) Unif.empty metas in
+    Inst.add u
+  | _ -> assert false
+
 (* Assuming function *)
 let meta_assume lvl = function
   (* Term metas generation *)
@@ -133,7 +156,7 @@ let meta_assume lvl = function
 let find_all_insts () =
   S.iter (fun p _ -> S.iter (fun notp _ -> find_inst p notp) false_preds) true_preds;
   if !meta_incr then
-    H.iter (fun f _ -> do_formula f) metas
+    H.iter (fun f _ -> do_meta_inst f) metas
 
 let opts t =
   let docs = Options.ext_sect in
