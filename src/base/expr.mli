@@ -82,6 +82,7 @@ type formula_descr = private
 and formula = private {
   formula : formula_descr;
   mutable f_hash : int; (** Use Formula.hash instead *)
+  mutable f_vars : (ttype var list * ty var list) option;
 }
 
 (** {3 Exceptions} *)

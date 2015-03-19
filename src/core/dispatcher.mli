@@ -35,7 +35,7 @@ exception Extension_not_found of string
 (** {2 Command line options} *)
 
 val add_opts : Options.copts Cmdliner.Term.t -> Options.copts Cmdliner.Term.t
-(** Returnsa term with added command line options from extensions. *)
+(** Returns a term with added command line options from extensions. *)
 
 (** {2 Proof management} *)
 
@@ -54,12 +54,14 @@ val new_id : unit -> id
 (** Generates a new, unique extension id. *)
 
 val mk_ext :
-    ?descr:string -> ?prio:int ->
-    ?if_sat:(unit -> unit) ->
-    ?assume:(formula * int -> unit) ->
-    ?eval_pred:(formula -> (bool * int) option) ->
-    ?preprocess:(formula -> unit) -> ?options:(Options.copts Cmdliner.Term.t -> Options.copts Cmdliner.Term.t) ->
-    id -> string -> extension
+  ?descr:string -> ?prio:int ->
+  ?peek:(formula -> unit) ->
+  ?if_sat:(unit -> unit) ->
+  ?assume:(formula * int -> unit) ->
+  ?eval_pred:(formula -> (bool * int) option) ->
+  ?preprocess:(formula -> (formula * proof) option) ->
+  ?options:(Options.copts Cmdliner.Term.t -> Options.copts Cmdliner.Term.t) ->
+  id -> string -> extension
 (** Generate a new extension with defaults values. Default priority if [0]. *)
 
 val register : extension -> unit
@@ -84,6 +86,10 @@ val list_extensions : unit -> string list
 
 val ext_doc : unit -> Cmdliner.Manpage.block list
 (** Returns a documentation on available options. *)
+
+(** {2 Solver functions} *)
+val pre_process : formula -> formula
+(** Give the formula to extensions for pre-processing. *)
 
 (** {2 Extension-side helpers} *)
 

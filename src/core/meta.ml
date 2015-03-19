@@ -7,7 +7,8 @@ module S = Backtrack.HashtblBack(Expr.Term)
 
 let id = Dispatcher.new_id ()
 let no_inst = ref false
-let meta_incr = ref 0
+let meta_start = ref 0
+let meta_incr = ref false
 
 (* Heuristics *)
 type heuristic =
@@ -115,10 +116,9 @@ let do_formula = function
 (* Assuming function *)
 let meta_assume lvl = function
   (* Term metas generation *)
-  | { Expr.formula = Expr.All (l, _, p) } as f ->
-    if not (has_been_seen f) then do_formula f
-  | { Expr.formula = Expr.Not { Expr.formula = Expr.Ex (l, _, p) } } as f ->
-    if not (has_been_seen f) then do_formula f
+  | ({ Expr.formula = Expr.Not { Expr.formula = Expr.Ex (l, _, p) } } as f)
+  | ({ Expr.formula = Expr.All (l, _, p) } as f) ->
+    if not (has_been_seen f) then for _ = 1 to !meta_start do do_formula f done
   (* Unification discovery *)
   | { Expr.formula = Expr.Pred p } ->
     if not (mem p true_preds) then begin
@@ -132,9 +132,8 @@ let meta_assume lvl = function
 
 let find_all_insts () =
   S.iter (fun p _ -> S.iter (fun notp _ -> find_inst p notp) false_preds) true_preds;
-  for _ = 1 to !meta_incr do
+  if !meta_incr then
     H.iter (fun f _ -> do_formula f) metas
-  done
 
 let opts t =
   let docs = Options.ext_sect in
@@ -142,9 +141,13 @@ let opts t =
     let doc = "Decide wether metavariables are to be instanciated." in
     Cmdliner.Arg.(value & opt bool true & info ["meta.inst"] ~docv:"BOOL" ~docs ~doc)
   in
+  let start =
+    let doc = "Initial number of metavariables to generate for new formulas" in
+    Cmdliner.Arg.(value & opt int 2 & info ["meta.start"] ~docv:"N" ~docs ~doc)
+  in
   let incr =
     let doc = "Set the number of new metas to be generated at each pass." in
-    Cmdliner.Arg.(value & opt int 0 & info ["meta.incr"] ~docv:"INT" ~docs ~doc)
+    Cmdliner.Arg.(value & opt bool false & info ["meta.incr"] ~docs ~doc)
   in
   let heuristic =
     let doc = Util.sprintf
@@ -152,13 +155,14 @@ let opts t =
        $(docv) may be %s" (Cmdliner.Arg.doc_alts_enum ~quoted:true heur_list) in
     Cmdliner.Arg.(value & opt heur_conv No_heuristic & info ["meta.heur"] ~docv:"HEUR" ~docs ~doc)
   in
-  let set_opts heur inst incr t =
+  let set_opts heur start inst incr t =
     heuristic_setting := heur;
     no_inst := not inst;
+    meta_start := start;
     meta_incr := incr;
     t
   in
-  Cmdliner.Term.(pure set_opts $ heuristic $ inst $ incr $ t)
+  Cmdliner.Term.(pure set_opts $ heuristic $ start $ inst $ incr $ t)
 ;;
 
 Dispatcher.(register (

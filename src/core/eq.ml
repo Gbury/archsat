@@ -126,6 +126,6 @@ D.(register (
       ~descr:"Ensures consistency of assignment with regards to the equality predicates."
       ~assume:eq_assume
       ~eval_pred:eq_eval
-      ~preprocess:eq_pre
+      ~peek:eq_pre
       id "eq"
   ))

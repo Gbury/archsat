@@ -11,6 +11,7 @@ module Functions = Functions
 module Skolem = Skolem
 module Meta = Meta
 module Stats = Stats
+module Cnf = Cnf
 
 (* Types and exceptions *)
 exception Out_of_time

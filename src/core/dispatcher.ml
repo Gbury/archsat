@@ -85,21 +85,42 @@ let new_id =
   (fun () -> incr i; !i)
 
 type extension = {
+  (* Extension description *)
   id : id;
   prio : int;
   name : string;
   descr : string;
+
+  (* Called once on each new formula *)
+  peek : formula -> unit;
+
+  (* Called at the end of each round of solving *)
   if_sat : unit -> unit;
+
+  (* Called on each formula that the solver assigns to true *)
   assume : formula * int -> unit;
+
+  (* Evaluate a formula with the current assignments *)
   eval_pred : formula -> (bool * int) option;
-  preprocess : formula -> unit;
+
+  (* Pre-process input formulas *)
+  preprocess : formula -> (formula * proof) option;
+
+  (* Add options to the command line utility *)
   options : Options.copts Cmdliner.Term.t -> Options.copts Cmdliner.Term.t;
 }
 
-let mk_ext ?(descr="")?(prio=0) ?(if_sat=(fun () -> ()))
-    ?(assume=(fun _ -> ())) ?(eval_pred=(fun _ -> None))
-    ?(preprocess=(fun _ -> ())) ?(options=(fun t -> t)) id name =
-  { id; prio; name; descr; if_sat; assume; eval_pred; preprocess; options }
+let mk_ext
+    ?(descr="")
+    ?(prio=0)
+    ?(peek=(fun _ -> ()))
+    ?(if_sat=(fun () -> ()))
+    ?(assume=(fun _ -> ()))
+    ?(eval_pred=(fun _ -> None))
+    ?(preprocess=(fun _ -> None))
+    ?(options=(fun t -> t))
+    id name =
+      { id; prio; name; descr; peek; if_sat; assume; eval_pred; preprocess; options; }
 
 let extensions = ref []
 
@@ -156,6 +177,8 @@ let find_ext id =
 
 let ext_iter f = List.iter f !active
 
+let ext_fold f x = List.fold_left f x !active
+
 (* Additional command line options *)
 (* ************************************************************************ *)
 
@@ -203,7 +226,18 @@ let rec check = function
   | { Expr.formula = Expr.ExTy (_, _, f) } ->
     check f
 
-let preprocess f = ext_iter (fun r -> r.preprocess f); check f
+let peek_at f = ext_iter (fun r -> r.peek f); check f
+
+let pre_process f =
+  let aux f r = match r.preprocess f with
+    | None -> f
+    | Some (f', _) -> f' (* TODO: register the proof *)
+  in
+  let f' = ext_fold aux f in
+  log 5 "Pre-processing :";
+  log 5 "  %a" Expr.debug_formula f;
+  log 5 "  %a" Expr.debug_formula f';
+  f'
 
 (* Delayed propagation *)
 (* ************************************************************************ *)
@@ -461,7 +495,7 @@ let rec iter_assign_aux f e = match Expr.(e.term) with
   | _ -> f e
 
 let iter_assignable f e =
-  preprocess e;
+  peek_at e;
   match Expr.(e.formula) with
   | Expr.Equal (a, b) -> iter_assign_aux f a; iter_assign_aux f b
   | Expr.Pred p -> iter_assign_aux f p

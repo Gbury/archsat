@@ -45,6 +45,7 @@ let solve () =
   with Smt.Unsat -> Unsat
 
 let assume l =
+  let l = List.map (List.map Dispatcher.pre_process) l in
   List.iter (fun cl -> log 1 "Assuming : %a"
                 (Util.pp_list ~sep:"; " Expr.debug_formula) cl) l;
   try

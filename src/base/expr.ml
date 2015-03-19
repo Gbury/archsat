@@ -86,6 +86,7 @@ type formula_descr =
 and formula = {
   formula : formula_descr;
   mutable f_hash  : int; (* lazy hash *)
+  mutable f_vars : (ttype var list * ty var list) option;
 }
 
 (* Exceptions *)
@@ -722,11 +723,14 @@ let rec var_occurs var t = match t.term with
 (* Free variables *)
 (* ************************************************************************ *)
 
-let init_fv acc = acc (* all the work is done in merge_fv *)
+let null_fv = [], []
 
 let merge_fv (ty1, t1) (ty2, t2) =
   Util.list_merge compare_var ty1 ty2,
   Util.list_merge compare_var t1 t2
+
+let clean_fv (ty, t) =
+  Util.list_uniq equal_var ty, Util.list_uniq equal_var t
 
 let remove_fv (ty1, t1) (ty2, t2) =
   List.filter (fun v -> not (Util.list_mem equal_var v ty2)) ty1,
@@ -737,6 +741,8 @@ let rec ty_free_vars acc ty = match ty.ty with
   | TyMeta _ -> acc
   | TyApp (_, args) -> List.fold_left ty_free_vars acc args
 
+let ty_fv = ty_free_vars null_fv
+
 let rec term_free_vars acc t = match t.term with
   | Var v -> merge_fv acc ([], [v])
   | Meta _ -> acc
@@ -744,19 +750,29 @@ let rec term_free_vars acc t = match t.term with
     let acc' = List.fold_left ty_free_vars acc tys in
     List.fold_left term_free_vars acc' args
 
-let rec formula_free_vars acc f = match f.formula with
-  | Pred t -> init_fv (term_free_vars acc t)
-  | Equal (a, b) -> init_fv (term_free_vars (term_free_vars acc a) b)
-  | True | False -> acc
-  | Not p -> formula_free_vars acc p
-  | And l | Or l -> List.fold_left formula_free_vars acc l
-  | Imply (p, q) | Equiv (p, q) -> formula_free_vars (formula_free_vars acc p) q
-  | AllTy (l, _, p) | ExTy (l, _, p) -> remove_fv (formula_free_vars acc p) (l, [])
-  | All (l, _, p) | Ex (l, _, p) -> remove_fv (formula_free_vars acc p) ([], l)
+let term_fv = term_free_vars null_fv
 
-let ty_fv = ty_free_vars ([], [])
-let term_fv = term_free_vars ([], [])
-let formula_fv = formula_free_vars ([], [])
+let rec formula_free_vars f = match f.formula with
+  | Pred t -> term_fv t
+  | True | False -> null_fv
+  | Equal (a, b) -> merge_fv (term_fv a) (term_fv b)
+  | Not p -> formula_fv p
+  | And l | Or l ->
+    let l' = List.map formula_fv l in
+    List.fold_left merge_fv null_fv l'
+  | Imply (p, q) | Equiv (p, q) ->
+    merge_fv (formula_fv p) (formula_fv q)
+  | AllTy (l, _, p) | ExTy (l, _, p) ->
+    remove_fv (formula_fv p) (l, [])
+  | All (l, _, p) | Ex (l, _, p) ->
+    remove_fv (formula_fv p) ([], l)
+
+and formula_fv f = match f.f_vars with
+  | Some res -> res
+  | None ->
+    let res = clean_fv (formula_free_vars f) in
+    f.f_vars <- Some res;
+    res
 
 let to_free_vars (tys, ts) = List.map type_var tys, List.map term_var ts
 
@@ -792,16 +808,12 @@ let get_ty_skolem v = Hashtbl.find ty_taus v.var_id
 let get_term_skolem v = Hashtbl.find term_taus v.var_id
 
 let init_ty_skolem v n =
-  if not (Hashtbl.mem ty_taus v.var_id) then begin
-    let res = type_const ("sk_" ^ v.var_name) n in
-    Hashtbl.add ty_taus v.var_id res
-  end
+  let res = type_const ("sk_" ^ v.var_name) n in
+  Hashtbl.add ty_taus v.var_id res
 
 let init_term_skolem v tys args ret =
-  if not (Hashtbl.mem term_taus v.var_id) then begin
-    let res = term_const ("sk_" ^ v.var_name) tys args ret in
-    Hashtbl.add term_taus v.var_id res
-  end
+  let res = term_const ("sk_" ^ v.var_name) tys args ret in
+  Hashtbl.add term_taus v.var_id res
 
 let init_ty_skolems l (ty_vars, t_vars) =
   assert (t_vars = []); (* Else we would have dependent types *)
@@ -815,7 +827,11 @@ let init_term_skolems l (ty_vars, t_vars) =
 (* Formulas & substitutions *)
 (* ************************************************************************ *)
 
-let mk_formula f = {formula = f; f_hash = -1; }
+let mk_formula f = {
+  formula = f;
+  f_hash = -1;
+  f_vars = None;
+}
 
 let f_equal a b =
   if not (equal_ty a.t_type b.t_type) then
@@ -1002,8 +1018,8 @@ let partial_inst ty_map t_map f = match f.formula with
 (* ************************************************************************ *)
 
 (* Metas refer to an index which stores the defining formula for the variable *)
-let meta_ty_index = Vector.make 37 ({ formula = True; f_hash = -1 }, [])
-let meta_term_index = Vector.make 37 ({ formula = True; f_hash = -1 }, [])
+let meta_ty_index = Vector.make 37 (f_true, [])
+let meta_term_index = Vector.make 37 (f_true, [])
 
 (* Metas *)
 let mk_meta v i = {

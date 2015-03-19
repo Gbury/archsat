@@ -10,6 +10,6 @@ tff(p, type, p: $i > $o).
 
 % Problem
 tff(test, conjecture,
-    ? [X] : (p(X) => ! [Y] : p(Y))
+    ? [X, Y] : (X = a & Y = b)
 ).
 

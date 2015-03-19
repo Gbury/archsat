@@ -74,5 +74,5 @@ let rec uf_pre = function
 Dispatcher.(register (
     mk_ext
       ~descr:"Ensures consistency of assignments for function applications."
-      ~preprocess:uf_pre id "uf"
+      ~peek:uf_pre id "uf"
   ))

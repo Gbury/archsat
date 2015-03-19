@@ -167,19 +167,19 @@ let get_u i = Inst.(i.unif)
 
 let add ?(score=0) u =
   if not (H.mem inst_set u) then begin
-    log 10 "New inst :";
-    print_inst 10 u;
+    log 5 "New inst :";
+    print_inst 5 u;
     H.add inst_set u false;
     heap := Q.add !heap (Inst.mk u score)
   end else begin
-    log 10 "Redondant inst :";
+    log 15 "Redondant inst :";
     print_inst 10 u
   end
 
 let push inst =
-  log 5 "Pushing inst :";
   Stats.inst_done ();
-  print_inst 5 (get_u inst);
+  log 10 "Pushing inst :";
+  print_inst 10 (get_u inst);
   H.replace inst_set (get_u inst) true;
   soft_push (get_u inst)
 

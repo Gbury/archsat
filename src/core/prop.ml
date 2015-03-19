@@ -71,6 +71,6 @@ D.(register (
       ~descr:"Handles consitency of assignments with regards to predicates (i.e functions which returns a Prop)."
       ~assume:sat_assume
       ~eval_pred:sat_eval
-      ~preprocess:sat_preprocess
+      ~peek:sat_preprocess
       id "prop"
   ))
