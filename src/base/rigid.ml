@@ -46,8 +46,8 @@ let rec debug_ss b = function
 (* Exceptions *)
 (* ************************************************************************ *)
 
+exception Sat_solved_form
 exception Unsat_solved_form
-exception Unsat_simple_system
 
 (* Checking simple systems *)
 (* ************************************************************************ *)
@@ -140,6 +140,8 @@ let rec check_equal t = function
 let valid_ss = function
   | Empty -> true
   | Greater (t, s) -> check_greater t s
+  | Equal (t, ((Equal(t', _) | Greater (t', _)) as s)) ->
+    Expr.Term.compare t t' > 0 && check_equal t s
   | Equal (t, s) -> check_equal t s
 
 (* Simple systems from solved forms *)
@@ -177,25 +179,28 @@ let get_level levels v = try H.find levels v with Not_found -> 0
 let incr_level levels v = H.replace levels v (get_level levels v + 1)
 
 let rec find_ss g levels lvl s =
-  if length s = G.nb_vertex g.graph then begin
-    [s]
-  end else begin
-    let r = ref [] in
+  if length s = G.nb_vertex g.graph then raise Sat_solved_form
+  else begin
     G.iter_vertex (fun v ->
         if get_in g v = 0 then begin
           let g = decr_in g v in
           let g = G.fold_succ (fun v' g' -> incr_level levels v'; decr_in g' v') g.graph v g in
-          if lvl >= get_level levels v && valid_ss (Equal (v, s)) then begin
-            r := (find_ss g levels lvl (Equal (v, s))) @ !r
-          end;
-          if valid_ss (Greater (v, s)) && length s > 0 then begin
-            r := (find_ss g levels (lvl + 1) (Greater (v, s))) @ !r
-          end;
+          if lvl >= get_level levels v && valid_ss (Equal (v, s)) then
+            find_ss g levels lvl (Equal (v, s));
+          if valid_ss (Greater (v, s)) && length s > 0 then
+            find_ss g levels (lvl + 1) (Greater (v, s));
         end
-      ) g.graph;
-    !r
+      ) g.graph
   end
 
+let valid_sf sf =
+  try
+    let levels = H.create 64 in
+    find_ss (graph sf) levels 0 Empty;
+    false
+  with
+  | Unsat_solved_form -> false
+  | Sat_solved_form -> true
 
 (* Computing solved forms *)
 (* ************************************************************************ *)
