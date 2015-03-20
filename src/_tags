@@ -1,10 +1,10 @@
 # Compilation options
-<util/*.cmx>: for-pack(Tabsat)
-<base/*.cmx>: for-pack(Tabsat)
+<util/*>: for-pack(Tabsat)
+<base/*>: for-pack(Tabsat), package(ocamlgraph)
 <parsers/*>: for-pack(Tabsat)
 <input/*>: for-pack(Tabsat), package(cmdliner)
 <core/*>: for-pack(Tabsat), package(msat), package(cmdliner)
-<main.*>: package(msat), package(cmdliner)
+<main.*>: package(msat), package(cmdliner), package(ocamlgraph)
 
 # enable stronger inlining everywhere
 <util/vec.cmx>: inline(15)

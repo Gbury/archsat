@@ -1,4 +1,6 @@
 #require "msat";;
+#require "cmdliner";;
+#require "ocamlgraph";;
 #directory "_build";;
 #load "tabsat.cma";;
 
@@ -7,3 +9,24 @@ open Tabsat;;
 #install_printer Expr.print_ty;;
 #install_printer Expr.print_term;;
 #install_printer Expr.print_formula;;
+
+let x = Expr.ty_var "x" Builtin.type_i;;
+let y = Expr.ty_var "y" Builtin.type_i;;
+let p = Expr.term_const "p" [] [Builtin.type_i; Builtin.type_i] Expr.type_prop;;
+let f = Expr.term_const "f" [] [Builtin.type_i] Builtin.type_i;;
+let g = Expr.term_const "g" [] [Builtin.type_i] Builtin.type_i;;
+
+let q = Expr.f_all [x; y] (Expr.f_pred (Expr.term_app p [] [Expr.term_var x; Expr.term_var y]));;
+let mx, my = match Expr.new_term_metas q with [mx; my] -> mx, my | _ -> assert false;;
+
+let u = Expr.term_meta my;;
+let v = Expr.term_meta mx;;
+let w = Expr.term_app g [] [v];;
+let z = Expr.term_app f [] [w];;
+
+let sf = { Rigid.solved = Unif.empty; Rigid.constraints = [u, z] };;
+
+let g = Rigid.graph sf;;
+
+let res () = Rigid.find_ss g (Rigid.H.create 16) 0 Rigid.Empty;;
+

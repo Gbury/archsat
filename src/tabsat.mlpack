@@ -3,6 +3,10 @@ Util
 Vector
 Backtrack
 Ec
+Heuristic
+Comparison
+Lpo
+Rigid
 
 # Base modules
 Ast
@@ -14,12 +18,30 @@ Builtin
 Io
 Options
 
+# Dimacs parsing
+Dimacs
+Parsedimacs
+
+# Tptp parsing
+Tptp
+Ast_tptp
+Parsetptp
+Lextptp
+
+# Smtlib parsing
+Smtlib
+Parsesmtlib
+Lexsmtlib
+
 # Core modules
 Dispatcher
 Solver
+
+# Extensions
 Inst
 Meta
 Skolem
 Tab
 Eq
 Functions
+Stats

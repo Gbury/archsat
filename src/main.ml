@@ -13,6 +13,9 @@ module Meta = Meta
 module Stats = Stats
 module Cnf = Cnf
 
+(* Temp modules *)
+module Lpo = Lpo
+
 (* Types and exceptions *)
 exception Out_of_time
 exception Out_of_space
