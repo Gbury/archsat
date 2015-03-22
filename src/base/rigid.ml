@@ -205,6 +205,73 @@ let valid_sf sf =
 (* Computing solved forms *)
 (* ************************************************************************ *)
 
+let sf_belongs sf (s, t) =
+  List.exists (fun (s', t') ->
+      Expr.Term.equal s s' && Expr.Term.equal t t') sf.constraints
+
+let follow_term subst = function
+  | { Expr.term = Expr.Meta m } -> Unif.get_term subst m
+  | _ -> raise Not_found
+
+let rec add_eq sf s t =
+  try add_eq sf (follow_term sf.solved s) t with Not_found ->
+    try add_eq sf s (follow_term sf.solved t) with Not_found ->
+      match s, t with
+      | _ when Expr.Term.equal s t -> [sf]
+      | { Expr.term = Expr.Var _ }, _
+      | _, { Expr.term = Expr.Var _ } ->
+        assert false
+      | ({ Expr.term = Expr.Meta m } as v), w
+      | w, ({ Expr.term = Expr.Meta m } as v) ->
+        if Unif.occurs_check_term sf.solved v w then []
+        else add_subst sf m w
+      | { Expr.term = Expr.App (f, _, f_args) },
+        {Expr.term = Expr.App(g, _, g_args) } ->
+        if Expr.Var.compare f g = 0 then
+          List.fold_left2 add_eq_set [sf] f_args g_args
+        else
+          []
+
+and add_eq_set l s t = Util.list_flatmap (fun sf -> add_eq sf s t) l
+
+and add_subst sf m t =
+  List.fold_left (fun acc (s, t) -> add_gt_set acc t s)
+    [{solved = Unif.bind_term sf.solved m t; constraints = []}] sf.constraints
+
+and add_gt sf s t =
+  try add_eq sf (follow_term sf.solved s) t with Not_found ->
+    try add_eq sf s (follow_term sf.solved t) with Not_found ->
+      match s, t with
+      | { Expr.term = Expr.Var _ }, _
+      | _, { Expr.term = Expr.Var _ } ->
+        assert false
+      | { Expr.term = Expr.Meta _ }, _
+        when Unif.occurs_check_term sf.solved s t -> []
+      | _, { Expr.term = Expr.Meta _ }
+        when Unif.occurs_check_term sf.solved t s -> [sf]
+      | { Expr.term = Expr.Meta _ }, _ | _, { Expr.term = Expr.Meta _ }
+        when sf_belongs sf (s, t) -> []
+      | { Expr.term = Expr.Meta _ }, _ | _, { Expr.term = Expr.Meta _ } ->
+        [{sf with constraints = (t, s) :: sf.constraints }]
+      | { Expr.term = Expr.App (f, _, f_args) },
+        { Expr.term = Expr.App (g, _, g_args) } ->
+        begin match Expr.Var.compare f g with
+          | n when n > 0 ->
+            List.fold_left (fun acc ti -> add_eq_set acc s ti) [sf] g_args
+          | n when n < 0 ->
+            Util.list_flatmap (fun si -> add_eq sf si t @ add_gt sf si t) f_args
+          | _ (* n = 0 *) ->
+            let res = Util.list_flatmap (fun si -> add_eq sf si t @ add_gt sf si t) f_args in
+            let eq = [sf] in
+            fst (List.fold_left2 (fun (res, eq) si ti ->
+                let h = add_gt_set eq si ti in
+                let h = List.fold_left (fun h tj -> add_gt_set h s tj) h g_args in
+                res @ h, add_eq_set eq si ti
+              ) (res, eq) f_args g_args)
+        end
+
+and add_gt_set l s t = Util.list_flatmap (fun sf -> add_gt sf s t) l
+
 (* BSE Calculus *)
 (* ************************************************************************ *)
 
