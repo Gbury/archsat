@@ -720,6 +720,13 @@ let rec var_occurs var t = match t.term with
   | Var v | Meta { meta_var = v } -> equal_var var v
   | App (f, tys, args) -> List.exists (var_occurs var) args
 
+let rec term_replace (t, t') t'' = match t''.term with
+  | _ when equal_term t t'' -> t'
+  | App (f, ty_args, t_args) ->
+    term_app ~goalness:t''.t_goalness f ty_args
+      (List.map (term_replace (t, t')) t_args)
+  | _ -> t''
+
 (* Free variables *)
 (* ************************************************************************ *)
 

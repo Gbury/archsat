@@ -18,9 +18,9 @@ module T = Graph.Traverse.Dfs(G)
 
 type term = Expr.Term.t
 
-type solved_form = {
-  solved : Unif.t;
-  constraints : (term * term) list; (* t < t' *)
+type graph = {
+  graph : G.t;
+  incoming : int M.t;
 }
 
 type simple_system =
@@ -28,9 +28,22 @@ type simple_system =
   | Equal of term * simple_system (* t = ... *)
   | Greater of term * simple_system (* t > ... *)
 
-type graph = {
-  graph : G.t;
-  incoming : int M.t;
+type solved_form = {
+  solved : Unif.t;
+  constraints : (term * term) list; (* t < t' *)
+}
+
+type rule =
+  | ER
+  | RRBS
+  | LRBS
+
+type problem = {
+  eqs : (term * term) array;
+  last_rule : rule;
+  goal : term * term;
+  lrbs_index : int;
+  constr : solved_form list;
 }
 
 (* Printing *)
@@ -46,8 +59,10 @@ let rec debug_ss b = function
 (* Exceptions *)
 (* ************************************************************************ *)
 
-exception Sat_solved_form
-exception Unsat_solved_form
+exception Sat_solved_form (** NOT exported *)
+exception Unsat_solved_form (** NOT exported *)
+
+exception Not_unifiable
 
 (* Checking simple systems *)
 (* ************************************************************************ *)
@@ -205,6 +220,11 @@ let valid_sf sf =
 (* Computing solved forms *)
 (* ************************************************************************ *)
 
+let sf_empty = {
+  solved = Unif.empty;
+  constraints = [];
+}
+
 let sf_belongs sf (s, t) =
   List.exists (fun (s', t') ->
       Expr.Term.equal s s' && Expr.Term.equal t t') sf.constraints
@@ -272,6 +292,77 @@ and add_gt sf s t =
 
 and add_gt_set l s t = Util.list_flatmap (fun sf -> add_gt sf s t) l
 
+let rec sf_set_sat = function
+    | [] -> []
+    | (sf :: r) as l ->
+      if valid_sf sf then
+        l
+      else
+        sf_set_sat r
+
 (* BSE Calculus *)
 (* ************************************************************************ *)
 
+let mk_pb l u v =
+  let a = Array.of_list (Util.list_fmap (function
+      | { Expr.formula = Expr.Equal (a, b) } -> Some (a, b) | _ -> None) l) in
+  {
+    eqs = a;
+    goal = (u, v);
+    last_rule = ER;
+    lrbs_index = -1;
+    constr = [sf_empty];
+  }
+
+let rec apply_er k pb =
+  let (s, t) = pb.goal in
+  match sf_set_sat (add_eq_set pb.constr s t) with
+  | [] -> apply_rrbs k pb
+  | res :: _ -> res.solved
+
+and apply_rrbs k pb =
+  let (a, b) = pb.goal in
+  match sf_set_sat (add_gt_set pb.constr a b) with
+  | [] -> begin match (sf_set_sat (add_gt_set pb.constr b a)) with
+      | [] -> apply_lrbs k pb
+      | l -> rrbs_aux k { pb with constr = l } b a
+        end
+  | l -> rrbs_aux k { pb with constr = l } a b
+
+and rrbs_aux k pb s t =
+  match pb.last_rule with
+  | LRBS -> rrbs_index k pb s t [| pb.eqs.(pb.lrbs_index) |] 0
+  | _ -> rrbs_index k pb s t pb.eqs 0
+
+and rrbs_index k pb s t eqs i =
+  if i >= Array.length eqs then
+    apply_lrbs k pb
+  else begin
+    let (l, r) = eqs.(i) in
+    match (sf_set_sat (add_gt_set pb.constr l r)) with
+    | [] -> begin match (sf_set_sat (add_gt_set pb.constr r l)) with
+        | [] -> rrbs_index k pb s t eqs (i + 1)
+        | sat ->
+          rrbs_eq (fun () -> rrbs_index k pb s t eqs (i + 1))
+            { pb with constr = sat } s t r l (subterms s)
+      end
+    | sat ->
+      rrbs_eq (fun () -> rrbs_index k pb s t eqs (i + 1))
+        { pb with constr = sat } s t l r (subterms s)
+  end
+
+and rrbs_eq k pb s t l r = function
+  | [] -> k ()
+  | p :: subs ->
+    begin match sf_set_sat (add_eq_set pb.constr l p) with
+      | [] -> rrbs_eq k pb s t l r subs
+      | sat ->
+        apply_er (fun () -> rrbs_eq k pb s t l r subs)
+          { pb with last_rule = RRBS; constr = sat;
+                    goal = (Expr.term_replace (p,r) s, t) }
+    end
+
+and apply_lrbs k pb = k ()
+
+let unify eqs s t =
+  apply_er (fun () -> raise Not_unifiable) (mk_pb eqs s t)

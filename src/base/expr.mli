@@ -343,6 +343,10 @@ type ty_subst = (ttype var, ty) Subst.t
 type term_subst = (ty var, term) Subst.t
 (** Abreviations for the substitution of types and terms respectively. *)
 
+val term_replace : term * term -> term -> term
+(** [term_replace (t, t') t''] returns the term [t''] where every occurence of [t]
+    has been replace by [t']. *)
+
 val type_subst : ty_subst -> ty -> ty
 val term_subst : ty_subst -> term_subst -> term -> term
 val formula_subst : ty_subst -> term_subst -> formula -> formula
