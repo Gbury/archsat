@@ -247,7 +247,7 @@ val f_allty : ttype var list -> formula -> formula
 val f_ex : ty var list -> formula -> formula
 val f_exty : ttype var list -> formula -> formula
 
-(** { 2 Interpretation and Assignations} *)
+(** {2 Interpretation and Assignations} *)
 
 type 't eval =
   | Interpreted of 't * int

@@ -1,5 +1,9 @@
 
-(** mSAT solver instanciated with Dispatcher Plugin *)
+(** {1 Core solver}
+
+    mSAT solver instanciated with Dispatcher Plugin, see
+    {{: https://github.com/Gbury/mSAT} mSAT}.
+*)
 
 type proof
 (** The abstract type of proofs given by the solver. *)

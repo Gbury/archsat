@@ -39,7 +39,7 @@ type rule =
   | LRBS
 
 type problem = {
-  eqs : (term * term) array;
+  eqs : (term * term) Parray.t;
   last_rule : rule;
   goal : term * term;
   lrbs_index : int;
@@ -304,7 +304,7 @@ let rec sf_set_sat = function
 (* ************************************************************************ *)
 
 let mk_pb l u v =
-  let a = Array.of_list (Util.list_fmap (function
+  let a = Parray.of_list (Util.list_fmap (function
       | { Expr.formula = Expr.Equal (a, b) } -> Some (a, b) | _ -> None) l) in
   {
     eqs = a;
@@ -331,14 +331,14 @@ and apply_rrbs k pb =
 
 and rrbs_aux k pb s t =
   match pb.last_rule with
-  | LRBS -> rrbs_index k pb s t [| pb.eqs.(pb.lrbs_index) |] 0
+  | LRBS -> rrbs_index k pb s t (Parray.make 1 (Parray.get pb.eqs pb.lrbs_index)) 0
   | _ -> rrbs_index k pb s t pb.eqs 0
 
 and rrbs_index k pb s t eqs i =
-  if i >= Array.length eqs then
+  if i >= Parray.length eqs then
     apply_lrbs k pb
   else begin
-    let (l, r) = eqs.(i) in
+    let (l, r) = Parray.get eqs i in
     match (sf_set_sat (add_gt_set pb.constr l r)) with
     | [] -> begin match (sf_set_sat (add_gt_set pb.constr r l)) with
         | [] -> rrbs_index k pb s t eqs (i + 1)
