@@ -37,7 +37,7 @@ let inst_remaining r =
   Vector.set state.instanciations s (i, r)
 
 (* Print stats and prep for next round *)
-let clock () =
+let clock _ =
   print_state state;
   let i = state.cur_round + 1 in
   init_round state i

@@ -3,12 +3,11 @@ let log_section = Util.Section.make "meta"
 let log i fmt = Util.debug ~section:log_section i fmt
 
 module H = Hashtbl.Make(Expr.Formula)
-module S = Backtrack.HashtblBack(Expr.Term)
 
 let id = Dispatcher.new_id ()
-let no_inst = ref false
 let meta_start = ref 0
 let meta_incr = ref false
+
 
 (* Heuristics *)
 type heuristic =
@@ -28,8 +27,55 @@ let score u = match !heuristic_setting with
   | No_heuristic -> 0
   | Goal_directed -> Heuristic.goal_directed u
 
-(* Hashtbl to store number of generated metas for each formula *)
-let metas = H.create 256
+(* Unification options *)
+type unif =
+  | No_unif
+  | Simple
+  | ERigid
+
+let unif_setting = ref No_unif
+
+let unif_list = [
+  "none", No_unif;
+  "simple", Simple;
+  "eunif", ERigid;
+]
+
+let unif_conv = Cmdliner.Arg.enum unif_list
+
+(* 'Parsing' of formulas *)
+
+type state = {
+  mutable true_preds : Expr.term list;
+  mutable false_preds : Expr.term list;
+  mutable equalities : (Expr.term * Expr.term) list;
+  mutable inequalities : (Expr.term * Expr.term) list;
+}
+
+let empty_st () = {
+  true_preds = [];
+  false_preds = [];
+  equalities = [];
+  inequalities = [];
+}
+
+let parse_slice iter =
+  let res = empty_st () in
+  iter (function
+      | { Expr.formula = Expr.Pred p } ->
+        res.true_preds <- p :: res.true_preds
+      | { Expr.formula = Expr.Not { Expr.formula = Expr.Pred p } } ->
+        res.false_preds <- p :: res.false_preds
+      | { Expr.formula = Expr.Equal (a, b) } ->
+        res.equalities <- (a, b) :: res.equalities
+      | { Expr.formula = Expr.Not { Expr.formula = Expr.Equal (a, b) } } ->
+        res.inequalities <- (a, b) :: res.inequalities
+      | _ -> ()
+    );
+  res
+
+(* Meta variables *)
+let metas = H.create 32
 
 let get_nb_metas f =
   try
@@ -53,37 +99,6 @@ let mk_proof_ty f metas = Dispatcher.mk_proof
 let mk_proof_term f metas = Dispatcher.mk_proof
     ~term_args:([])
     id "meta"
-
-(* Set of predicates to unify *)
-let true_preds = S.create ~size:4096 Dispatcher.stack
-let false_preds = S.create ~size:4096 Dispatcher.stack
-
-let mem x tbl = S.mem tbl x
-
-(* Unification of predicates *)
-let do_inst u = Inst.add ~score:(score u) u
-
-let inst p notp =
-  let unif = Unif.cached_unify p notp in
-  log 5 "Unification found";
-  Expr.Subst.iter (fun k v -> log 5 " |- %a -> %a"
-                      Expr.debug_meta k Expr.debug_term v) Unif.(unif.t_map);
-  let l = Inst.split unif in
-  let l = List.map Inst.simplify l in
-  let l = List.map Unif.protect_inst l in
-  List.iter do_inst l
-
-let find_inst p notp =
-  try
-    log 5 "Matching : %a ~~ %a" Expr.debug_term p Expr.debug_term notp;
-    inst p notp;
-    inst notp p;
-    ()
-  with
-  | Unif.Not_unifiable_ty (a, b) ->
-    log 15 "Couldn't unify types %a and %a" Expr.debug_ty a Expr.debug_ty b
-  | Unif.Not_unifiable_term (a, b) ->
-    log 15 "Couldn't unify terms %a and %a" Expr.debug_term a Expr.debug_term b
 
 (* Meta generation & predicates storing *)
 let do_formula = function
@@ -138,31 +153,70 @@ let do_meta_inst = function
 
 (* Assuming function *)
 let meta_assume lvl = function
-  (* Term metas generation *)
-  | ({ Expr.formula = Expr.Not { Expr.formula = Expr.Ex (l, _, p) } } as f)
-  | ({ Expr.formula = Expr.All (l, _, p) } as f) ->
+  | ({ Expr.formula = Expr.Not { Expr.formula = Expr.ExTy _ } } as f)
+  | ({ Expr.formula = Expr.Not { Expr.formula = Expr.Ex _ } } as f)
+  | ({ Expr.formula = Expr.AllTy _ } as f)
+  | ({ Expr.formula = Expr.All _ } as f) ->
     if not (has_been_seen f) then for _ = 1 to !meta_start do do_formula f done
-  (* Unification discovery *)
-  | { Expr.formula = Expr.Pred p } ->
-    if not (mem p true_preds) then begin
-      S.add true_preds p lvl
-    end
-  | { Expr.formula = Expr.Not { Expr.formula = Expr.Pred p } } ->
-    if not (mem p false_preds) then begin
-      S.add false_preds p lvl
-    end
   | _ -> ()
 
-let find_all_insts () =
-  S.iter (fun p _ -> S.iter (fun notp _ -> find_inst p notp) false_preds) true_preds;
+(* Unification of predicates *)
+let do_inst u = Inst.add ~score:(score u) u
+
+let print_inst l s =
+  Expr.Subst.iter (fun k v -> log l " |- %a -> %a" Expr.debug_meta k Expr.debug_term v) Unif.(s.t_map)
+
+let inst u =
+  log 5 "Unification found";
+  print_inst 5 u;
+  let l = Inst.split u in
+  let l = List.map Inst.simplify l in
+  let l = List.map Unif.protect_inst l in
+  List.iter do_inst l
+
+let find_inst unif p notp =
+  try
+    log 5 "Matching : %a ~~ %a" Expr.debug_term p Expr.debug_term notp;
+    List.iter inst (unif p notp)
+  with
+  | Unif.Not_unifiable_ty (a, b) ->
+    log 15 "Couldn't unify types %a and %a" Expr.debug_ty a Expr.debug_ty b
+  | Unif.Not_unifiable_term (a, b) ->
+    log 15 "Couldn't unify terms %a and %a" Expr.debug_term a Expr.debug_term b
+  | Rigid.Not_unifiable ->
+    log 15 "Unification failed for %a and %a" Expr.debug_term p Expr.debug_term notp
+
+let find_all_insts iter =
   if !meta_incr then
-    H.iter (fun f _ -> do_meta_inst f) metas
+    H.iter (fun f _ -> do_meta_inst f) metas;
+  match !unif_setting with
+  | No_unif -> ()
+  | _ ->
+    let st = parse_slice iter in
+    let unif = match !unif_setting with
+      | No_unif -> assert false
+      | Simple -> (fun p q -> [Unif.cached_unify p q; Unif.cached_unify p q])
+      | ERigid ->
+        if st.equalities = [] then
+          (fun p q -> [Unif.cached_unify p q])
+        else begin
+          List.iter (fun (a, b) ->
+              log 50 "Eq : %a = %a" Expr.debug_term a Expr.debug_term b
+            ) st.equalities;
+          Rigid.unify st.equalities
+        end
+    in
+    List.iter (fun p -> List.iter (fun notp  ->
+        find_inst unif p notp) st.false_preds) st.true_preds;
+    List.iter (fun (a, b) -> find_inst unif a b) st.inequalities
 
 let opts t =
   let docs = Options.ext_sect in
   let inst =
-    let doc = "Decide wether metavariables are to be instanciated." in
-    Cmdliner.Arg.(value & opt bool true & info ["meta.inst"] ~docv:"BOOL" ~docs ~doc)
+    let doc = Util.sprintf
+      "Select unification method to use in order to find instanciations
+       $(docv) may be %s." (Cmdliner.Arg.doc_alts_enum ~quoted:false unif_list) in
+    Cmdliner.Arg.(value & opt unif_conv No_unif & info ["meta.find"] ~docv:"METHOD" ~docs ~doc)
   in
   let start =
     let doc = "Initial number of metavariables to generate for new formulas" in
@@ -180,7 +234,7 @@ let opts t =
   in
   let set_opts heur start inst incr t =
     heuristic_setting := heur;
-    no_inst := not inst;
+    unif_setting := inst;
     meta_start := start;
     meta_incr := incr;
     t

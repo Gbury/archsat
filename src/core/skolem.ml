@@ -30,7 +30,7 @@ let mk_proof_term f p l taus = Dispatcher.mk_proof
 let get_ty_taus ty_args t_args l =
   assert (t_args = []);
   match !inst with
-  | Tau -> List.map Expr.(fun v -> type_app (type_const ("e_" ^ v.var_name) 0) []) l
+  | Tau -> List.map Expr.(fun v -> type_app (type_const ("t_" ^ v.var_name) 0) []) l
   | Skolem -> List.map (fun v -> Expr.type_app (Expr.get_ty_skolem v) ty_args) l
 
 let get_term_taus ty_args t_args l = match !inst with

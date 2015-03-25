@@ -112,7 +112,7 @@ let hypothesis = 0
 (* Debug printing functions *)
 (* ************************************************************************ *)
 
-let debug_var b v = Printf.bprintf b "%s" v.var_name
+let debug_var b v = Printf.bprintf b "%s_%d" v.var_name v.var_id
 
 let debug_meta b m = Printf.bprintf b "m%d_%a" m.meta_index debug_var m.meta_var
 

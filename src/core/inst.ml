@@ -198,7 +198,7 @@ let take f k =
   else
     aux f (Q.size !heap - k)
 
-let inst_sat () =
+let inst_sat _ =
   take push !inst_incr;
   Stats.inst_remaining (Q.size !heap);
   Inst.clock ()

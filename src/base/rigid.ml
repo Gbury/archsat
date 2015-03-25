@@ -50,7 +50,7 @@ type problem = {
 (* ************************************************************************ *)
 
 let rec debug_ss b = function
-  | Empty -> ()
+  | Empty -> Printf.bprintf b "."
   | Equal(t, Empty) | Greater (t, Empty) ->
     Printf.bprintf b "%a" Expr.debug_term t
   | Equal (t, s) -> Printf.bprintf b "%a = %a" Expr.debug_term t debug_ss s
@@ -59,7 +59,7 @@ let rec debug_ss b = function
 (* Exceptions *)
 (* ************************************************************************ *)
 
-exception Sat_solved_form (** NOT exported *)
+exception Sat_solved_form of simple_system (** NOT exported *)
 exception Unsat_solved_form (** NOT exported *)
 
 exception Not_unifiable
@@ -194,7 +194,7 @@ let get_level levels v = try H.find levels v with Not_found -> 0
 let incr_level levels v = H.replace levels v (get_level levels v + 1)
 
 let rec find_ss g levels lvl s =
-  if length s = G.nb_vertex g.graph then raise Sat_solved_form
+  if length s = G.nb_vertex g.graph then raise (Sat_solved_form s)
   else begin
     G.iter_vertex (fun v ->
         if get_in g v = 0 then begin
@@ -215,7 +215,7 @@ let valid_sf sf =
     false
   with
   | Unsat_solved_form -> false
-  | Sat_solved_form -> true
+  | Sat_solved_form _ -> true
 
 (* Computing solved forms *)
 (* ************************************************************************ *)
@@ -229,14 +229,17 @@ let sf_belongs sf (s, t) =
   List.exists (fun (s', t') ->
       Expr.Term.equal s s' && Expr.Term.equal t t') sf.constraints
 
-let follow_term subst = function
-  | { Expr.term = Expr.Meta m } -> Unif.get_term subst m
-  | _ -> raise Not_found
+let rec eval_ty subst = function
+  | { Expr.ty = Expr.TyVar _ } -> assert false
+  | { Expr.ty = Expr.TyMeta m } as ty ->
+    begin try eval_ty subst (Unif.get_ty subst m) with Not_found -> ty end
+  | { Expr.ty = Expr.TyApp (f, args) } ->
+    Expr.type_app f (List.map (eval_ty subst) args)
 
 let rec add_eq sf s t =
-  try add_eq sf (follow_term sf.solved s) t with Not_found ->
-    try add_eq sf s (follow_term sf.solved t) with Not_found ->
-      match s, t with
+  let s = Unif.follow_term sf.solved s in
+  let t = Unif.follow_term sf.solved t in
+  match s, t with
       | _ when Expr.Term.equal s t -> [sf]
       | { Expr.term = Expr.Var _ }, _
       | _, { Expr.term = Expr.Var _ } ->
@@ -245,23 +248,34 @@ let rec add_eq sf s t =
       | w, ({ Expr.term = Expr.Meta m } as v) ->
         if Unif.occurs_check_term sf.solved v w then []
         else add_subst sf m w
-      | { Expr.term = Expr.App (f, _, f_args) },
-        {Expr.term = Expr.App(g, _, g_args) } ->
-        if Expr.Var.compare f g = 0 then
-          List.fold_left2 add_eq_set [sf] f_args g_args
-        else
+      | { Expr.term = Expr.App (f, f_ty_args, f_args) },
+        { Expr.term = Expr.App(g, g_ty_args, g_args) } ->
+        if Expr.Var.compare f g = 0 then begin
+          try
+            let u = List.fold_left2 Unif.robinson_ty
+                sf.solved f_ty_args g_ty_args in
+            List.fold_left2 add_eq_set [{sf with solved = u}] f_args g_args
+          with Unif.Not_unifiable_ty _ ->
+            []
+        end else
           []
 
 and add_eq_set l s t = Util.list_flatmap (fun sf -> add_eq sf s t) l
 
 and add_subst sf m t =
-  List.fold_left (fun acc (s, t) -> add_gt_set acc t s)
-    [{solved = Unif.bind_term sf.solved m t; constraints = []}] sf.constraints
+  if Expr.(Ty.equal m.meta_var.var_type (eval_ty sf.solved t.t_type)) then begin
+    log 15 "Subst : %a -> %a" Expr.debug_meta m Expr.debug_term t;
+    List.fold_left (fun acc (s, t) -> add_gt_set acc t s)
+      [{solved = Unif.bind_term sf.solved m t; constraints = []}] sf.constraints
+  end else begin
+    log 15 "Refused subst : %a -> %a" Expr.debug_meta m Expr.debug_term t;
+    []
+  end
 
 and add_gt sf s t =
-  try add_eq sf (follow_term sf.solved s) t with Not_found ->
-    try add_eq sf s (follow_term sf.solved t) with Not_found ->
-      match s, t with
+  let s = Unif.follow_term sf.solved s in
+  let t = Unif.follow_term sf.solved t in
+  match s, t with
       | { Expr.term = Expr.Var _ }, _
       | _, { Expr.term = Expr.Var _ } ->
         assert false
@@ -277,15 +291,15 @@ and add_gt sf s t =
         { Expr.term = Expr.App (g, _, g_args) } ->
         begin match Expr.Var.compare f g with
           | n when n > 0 ->
-            List.fold_left (fun acc ti -> add_eq_set acc s ti) [sf] g_args
+            List.fold_left (fun acc ti -> add_gt_set acc s ti) [sf] g_args
           | n when n < 0 ->
             Util.list_flatmap (fun si -> add_eq sf si t @ add_gt sf si t) f_args
-          | _ (* n = 0 *) ->
+          | _ (* f = g *) ->
             let res = Util.list_flatmap (fun si -> add_eq sf si t @ add_gt sf si t) f_args in
             let eq = [sf] in
             fst (List.fold_left2 (fun (res, eq) si ti ->
                 let h = add_gt_set eq si ti in
-                let h = List.fold_left (fun h tj -> add_gt_set h s tj) h g_args in
+                let h = List.fold_left (fun h' tj -> add_gt_set h' s tj) h g_args in
                 res @ h, add_eq_set eq si ti
               ) (res, eq) f_args g_args)
         end
@@ -304,8 +318,7 @@ let rec sf_set_sat = function
 (* ************************************************************************ *)
 
 let mk_pb l u v =
-  let a = Parray.of_list (Util.list_fmap (function
-      | { Expr.formula = Expr.Equal (a, b) } -> Some (a, b) | _ -> None) l) in
+  let a = Parray.of_list l in
   {
     eqs = a;
     goal = (u, v);
@@ -314,55 +327,63 @@ let mk_pb l u v =
     constr = [sf_empty];
   }
 
-let rec apply_er k pb =
+let rec apply_er acc k pb =
   let (s, t) = pb.goal in
   match sf_set_sat (add_eq_set pb.constr s t) with
-  | [] -> apply_rrbs k pb
-  | res :: _ -> res.solved
+  | [] -> apply_rrbs acc k pb
+  | l -> k (List.rev_append l acc)
 
-and apply_rrbs k pb =
+and apply_rrbs acc k pb =
   let (a, b) = pb.goal in
-  match sf_set_sat (add_gt_set pb.constr a b) with
-  | [] -> begin match (sf_set_sat (add_gt_set pb.constr b a)) with
-      | [] -> apply_lrbs k pb
-      | l -> rrbs_aux k { pb with constr = l } b a
-        end
-  | l -> rrbs_aux k { pb with constr = l } a b
+  rrbs_aux acc (fun res ->
+      rrbs_aux res (fun res ->
+          apply_lrbs res k pb
+        ) pb b a
+    ) pb a b
 
-and rrbs_aux k pb s t =
-  match pb.last_rule with
-  | LRBS -> rrbs_index k pb s t (Parray.make 1 (Parray.get pb.eqs pb.lrbs_index)) 0
-  | _ -> rrbs_index k pb s t pb.eqs 0
-
-and rrbs_index k pb s t eqs i =
-  if i >= Parray.length eqs then
-    apply_lrbs k pb
-  else begin
-    let (l, r) = Parray.get eqs i in
-    match (sf_set_sat (add_gt_set pb.constr l r)) with
-    | [] -> begin match (sf_set_sat (add_gt_set pb.constr r l)) with
-        | [] -> rrbs_index k pb s t eqs (i + 1)
-        | sat ->
-          rrbs_eq (fun () -> rrbs_index k pb s t eqs (i + 1))
-            { pb with constr = sat } s t r l (subterms s)
-      end
-    | sat ->
-      rrbs_eq (fun () -> rrbs_index k pb s t eqs (i + 1))
-        { pb with constr = sat } s t l r (subterms s)
-  end
-
-and rrbs_eq k pb s t l r = function
-  | [] -> k ()
-  | p :: subs ->
-    begin match sf_set_sat (add_eq_set pb.constr l p) with
-      | [] -> rrbs_eq k pb s t l r subs
-      | sat ->
-        apply_er (fun () -> rrbs_eq k pb s t l r subs)
-          { pb with last_rule = RRBS; constr = sat;
-                    goal = (Expr.term_replace (p,r) s, t) }
+and rrbs_aux acc k pb s t =
+  match sf_set_sat (add_gt_set pb.constr s t) with
+  | [] -> k acc
+  | sat ->
+    let pb = { pb with constr = sat } in
+    begin match pb.last_rule with
+      | LRBS -> rrbs_index acc k pb s t (Parray.make 1 (Parray.get pb.eqs pb.lrbs_index)) 0 
+      | _ -> rrbs_index acc k pb s t pb.eqs 0
     end
 
-and apply_lrbs k pb = k ()
+and rrbs_index acc k pb s t eqs i =
+  if i >= Parray.length eqs then
+    apply_lrbs acc k pb
+  else begin
+    let (l, r) = Parray.get eqs i in
+    let subs = subterms s in
+    rrbs_eq_pre acc (fun res ->
+        rrbs_eq_pre res (fun res ->
+            rrbs_index res k pb s t eqs (i + 1)
+          ) pb s t r l subs
+      ) pb s t l r subs
+  end
+
+and rrbs_eq_pre acc k pb s t l r subs =
+  match sf_set_sat (add_gt_set pb.constr l r) with
+  | [] -> k acc
+  | sat -> rrbs_eq acc k { pb with constr = sat } s t l r subs
+
+and rrbs_eq acc k pb s t l r = function
+  | [] -> k acc
+  | { Expr.term = Expr.Meta _ } :: subs -> rrbs_eq acc k pb s t l r subs
+  | p :: subs ->
+    begin match sf_set_sat (add_eq_set pb.constr l p) with
+      | [] -> rrbs_eq acc k pb s t l r subs
+      | sat ->
+        let s' = Expr.term_replace (p,r) s in
+        apply_er acc (fun res -> rrbs_eq res k pb s t l r subs)
+          { pb with last_rule = RRBS; constr = sat; goal = (s', t) }
+    end
+
+and apply_lrbs acc k pb = k acc
 
 let unify eqs s t =
-  apply_er (fun () -> raise Not_unifiable) (mk_pb eqs s t)
+  match apply_er [] (fun x -> x) (mk_pb eqs s t) with
+  | [] -> raise Not_unifiable
+  | l -> List.map (fun sf -> sf.solved) l

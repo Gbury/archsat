@@ -9,7 +9,11 @@ tff(f, type, f: $i > $i).
 tff(p, type, p: $i > $o).
 
 % Problem
+tff(f_def, axiom,
+    ! [X] : f(X) = X
+).
+
 tff(test, conjecture,
-    ? [X, Y] : (X = a & Y = b)
+  p(f(a)) => p(a)
 ).
 
