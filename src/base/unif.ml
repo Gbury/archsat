@@ -248,7 +248,9 @@ let rec occurs_check_term subst v = function
   | _ -> false
 
 let rec robinson_ty subst s t =
-      begin match (follow_ty subst s), (follow_ty subst t) with
+  let s = follow_ty subst s in
+  let t = follow_ty subst t in
+  match s, t with
         | _ when Expr.Ty.equal s t -> subst
         | _, { Expr.ty = Expr.TyVar _ } | { Expr.ty = Expr.TyVar _}, _ -> assert false
         | ({ Expr.ty = Expr.TyMeta ({Expr.can_unify= true} as v) } as m), u
@@ -264,10 +266,11 @@ let rec robinson_ty subst s t =
           else
             raise (Not_unifiable_ty (s, t))
         | _ -> raise (Not_unifiable_ty (s, t))
-      end
 
 let rec robinson_term subst s t =
-      begin match (follow_term subst s), (follow_term subst t) with
+  let s = follow_term subst s in
+  let t = follow_term subst t in
+  match s, t with
         | _ when Expr.Term.equal s t -> subst
         | _, { Expr.term = Expr.Var _ } | { Expr.term = Expr.Var _}, _ -> assert false
         | ({ Expr.term = Expr.Meta ({Expr.can_unify= true} as v) } as m), u
@@ -285,7 +288,6 @@ let rec robinson_term subst s t =
           else
             raise (Not_unifiable_term (s, t))
         | _ -> raise (Not_unifiable_term (s, t))
-      end
 
 let unify_ty s t = fixpoint (robinson_ty empty s t)
 let unify_term s t = fixpoint (robinson_term empty s t)

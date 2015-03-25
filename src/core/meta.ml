@@ -166,8 +166,7 @@ let do_inst u = Inst.add ~score:(score u) u
 let print_inst l s =
   Expr.Subst.iter (fun k v -> log l " |- %a -> %a" Expr.debug_meta k Expr.debug_term v) Unif.(s.t_map)
 
-let inst unif p notp =
-  let u = unif p notp in
+let inst u =
   log 5 "Unification found";
   print_inst 5 u;
   let l = Inst.split u in
@@ -178,9 +177,7 @@ let inst unif p notp =
 let find_inst unif p notp =
   try
     log 5 "Matching : %a ~~ %a" Expr.debug_term p Expr.debug_term notp;
-    inst unif p notp;
-    inst unif notp p;
-    ()
+    List.iter inst (unif p notp)
   with
   | Unif.Not_unifiable_ty (a, b) ->
     log 15 "Couldn't unify types %a and %a" Expr.debug_ty a Expr.debug_ty b
@@ -198,12 +195,16 @@ let find_all_insts iter =
     let st = parse_slice iter in
     let unif = match !unif_setting with
       | No_unif -> assert false
-      | Simple -> Unif.cached_unify
+      | Simple -> (fun p q -> [Unif.cached_unify p q; Unif.cached_unify p q])
       | ERigid ->
         if st.equalities = [] then
-          Unif.cached_unify
-        else
+          (fun p q -> [Unif.cached_unify p q])
+        else begin
+          List.iter (fun (a, b) ->
+              log 50 "Eq : %a = %a" Expr.debug_term a Expr.debug_term b
+            ) st.equalities;
           Rigid.unify st.equalities
+        end
     in
     List.iter (fun p -> List.iter (fun notp  ->
         find_inst unif p notp) st.false_preds) st.true_preds;
