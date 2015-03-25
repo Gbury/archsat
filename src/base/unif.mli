@@ -39,6 +39,9 @@ val protect_term : Expr.term -> Expr.term
 val occurs_check_ty : t -> Expr.ty -> Expr.ty -> bool
 val occurs_check_term : t -> Expr.term -> Expr.term -> bool
 
+val robinson_ty : t -> Expr.ty -> Expr.ty -> t
+val robinson_term : t -> Expr.term -> Expr.term -> t
+
 val unify_ty : Expr.ty -> Expr.ty -> t
 val unify_term : Expr.term -> Expr.term -> t
 

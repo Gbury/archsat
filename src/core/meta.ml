@@ -163,9 +163,13 @@ let meta_assume lvl = function
 (* Unification of predicates *)
 let do_inst u = Inst.add ~score:(score u) u
 
+let print_inst l s =
+  Expr.Subst.iter (fun k v -> log l " |- %a -> %a" Expr.debug_meta k Expr.debug_term v) Unif.(s.t_map)
+
 let inst unif p notp =
   let u = unif p notp in
   log 5 "Unification found";
+  print_inst 5 u;
   let l = Inst.split u in
   let l = List.map Inst.simplify l in
   let l = List.map Unif.protect_inst l in

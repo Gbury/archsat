@@ -458,7 +458,9 @@ let assume s =
       | Lit f, lvl ->
         log 1 " Assuming (%d) %a" lvl Expr.debug_formula f;
         ext_iter (fun ext -> ext.assume (f, lvl))
-      | Assign (t, v), lvl -> set_assign t v lvl
+      | Assign (t, v), lvl ->
+        log 1 " Assuming (%d) %a -> %a" lvl Expr.debug_term t Expr.debug_term v;
+        set_assign t v lvl
     done;
     log 8 "Propagating (%d)" (Stack.length propagate_stack);
     do_propagate s.propagate;
@@ -470,7 +472,7 @@ let assume s =
     Unsat (l, p)
 
 let if_sat s =
-  log 5 "Iteration with complete model";
+  log 1 "Iteration with complete model";
   let iter f =
     for i = s.start to s.start + s.length - 1 do
       match s.get i with
