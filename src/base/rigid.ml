@@ -229,10 +229,6 @@ let sf_belongs sf (s, t) =
   List.exists (fun (s', t') ->
       Expr.Term.equal s s' && Expr.Term.equal t t') sf.constraints
 
-let follow_term subst = function
-  | { Expr.term = Expr.Meta m } -> Unif.get_term subst m
-  | _ -> raise Not_found
-
 let rec eval_ty subst = function
   | { Expr.ty = Expr.TyVar _ } -> assert false
   | { Expr.ty = Expr.TyMeta m } as ty ->
@@ -241,9 +237,7 @@ let rec eval_ty subst = function
     Expr.type_app f (List.map (eval_ty subst) args)
 
 let rec add_eq sf s t =
-  try add_eq sf (follow_term sf.solved s) t with Not_found ->
-    try add_eq sf s (follow_term sf.solved t) with Not_found ->
-      match s, t with
+      match (Unif.follow_term sf.solved s), (Unif.follow_term sf.solved t) with
       | _ when Expr.Term.equal s t -> [sf]
       | { Expr.term = Expr.Var _ }, _
       | _, { Expr.term = Expr.Var _ } ->
@@ -275,9 +269,7 @@ and add_subst sf m t =
     []
 
 and add_gt sf s t =
-  try add_gt sf (follow_term sf.solved s) t with Not_found ->
-    try add_gt sf s (follow_term sf.solved t) with Not_found ->
-      match s, t with
+      match (Unif.follow_term sf.solved s), (Unif.follow_term sf.solved t) with
       | { Expr.term = Expr.Var _ }, _
       | _, { Expr.term = Expr.Var _ } ->
         assert false

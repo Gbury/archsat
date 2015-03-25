@@ -20,11 +20,17 @@ val equal : t -> t -> bool
 val get_ty : t -> Expr.ttype Expr.meta -> Expr.ty
 val get_term : t -> Expr.ty Expr.meta -> Expr.term
 
+val get_ty_opt : t -> Expr.ttype Expr.meta -> Expr.ty option
+val get_term_opt : t -> Expr.ty Expr.meta -> Expr.term option
+
 val mem_ty : t -> Expr.ttype Expr.meta -> bool
 val mem_term : t -> Expr.ty Expr.meta -> bool
 
 val bind_ty : t -> Expr.ttype Expr.meta -> Expr.ty -> t
 val bind_term : t -> Expr.ty Expr.meta -> Expr.term -> t
+
+val follow_ty : t -> Expr.ty -> Expr.ty
+val follow_term : t -> Expr.term -> Expr.term
 
 val merge : t -> t -> t
 
