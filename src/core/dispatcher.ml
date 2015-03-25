@@ -95,7 +95,7 @@ type extension = {
   peek : formula -> unit;
 
   (* Called at the end of each round of solving *)
-  if_sat : unit -> unit;
+  if_sat : ((formula -> unit) -> unit) -> unit;
 
   (* Called on each formula that the solver assigns to true *)
   assume : formula * int -> unit;
@@ -114,7 +114,7 @@ let mk_ext
     ?(descr="")
     ?(prio=0)
     ?(peek=(fun _ -> ()))
-    ?(if_sat=(fun () -> ()))
+    ?(if_sat=(fun _ -> ()))
     ?(assume=(fun _ -> ()))
     ?(eval_pred=(fun _ -> None))
     ?(preprocess=(fun _ -> None))
@@ -162,7 +162,6 @@ let set_ext s =
   | _ -> activate s
 
 let set_exts s = List.iter set_ext (Util.str_split ~by:"," s)
-
 
 (* Info about extensions *)
 let list_extensions () = List.map (fun r -> r.name) !extensions
@@ -472,8 +471,15 @@ let assume s =
 
 let if_sat s =
   log 5 "Iteration with complete model";
+  let iter f =
+    for i = s.start to s.start + s.length - 1 do
+      match s.get i with
+      | Lit g, _ -> f g
+      | _ -> ()
+    done
+  in
   begin try
-      ext_iter (fun ext -> ext.if_sat ())
+      ext_iter (fun ext -> ext.if_sat iter)
     with Absurd _ -> assert false
   end;
   do_push s.push

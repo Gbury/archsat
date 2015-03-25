@@ -304,8 +304,7 @@ let rec sf_set_sat = function
 (* ************************************************************************ *)
 
 let mk_pb l u v =
-  let a = Array.of_list (Util.list_fmap (function
-      | { Expr.formula = Expr.Equal (a, b) } -> Some (a, b) | _ -> None) l) in
+  let a = Array.of_list l in
   {
     eqs = a;
     goal = (u, v);

@@ -56,7 +56,7 @@ val new_id : unit -> id
 val mk_ext :
   ?descr:string -> ?prio:int ->
   ?peek:(formula -> unit) ->
-  ?if_sat:(unit -> unit) ->
+  ?if_sat:(((formula -> unit) -> unit) -> unit) ->
   ?assume:(formula * int -> unit) ->
   ?eval_pred:(formula -> (bool * int) option) ->
   ?preprocess:(formula -> (formula * proof) option) ->
