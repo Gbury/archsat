@@ -167,8 +167,8 @@ let print_inst l s =
   Expr.Subst.iter (fun k v -> log l " |- %a -> %a" Expr.debug_meta k Expr.debug_term v) Unif.(s.t_map)
 
 let inst u =
-  log 5 "Unification found";
-  print_inst 5 u;
+  log 40 "Unification found";
+  print_inst 40 u;
   let l = Inst.split u in
   let l = List.map Inst.simplify l in
   let l = List.map Unif.protect_inst l in
@@ -176,15 +176,15 @@ let inst u =
 
 let find_inst unif p notp =
   try
-    log 5 "Matching : %a ~~ %a" Expr.debug_term p Expr.debug_term notp;
+    log 50 "Matching : %a ~~ %a" Expr.debug_term p Expr.debug_term notp;
     List.iter inst (unif p notp)
   with
   | Unif.Not_unifiable_ty (a, b) ->
-    log 15 "Couldn't unify types %a and %a" Expr.debug_ty a Expr.debug_ty b
+    log 60 "Couldn't unify types %a and %a" Expr.debug_ty a Expr.debug_ty b
   | Unif.Not_unifiable_term (a, b) ->
-    log 15 "Couldn't unify terms %a and %a" Expr.debug_term a Expr.debug_term b
+    log 60 "Couldn't unify terms %a and %a" Expr.debug_term a Expr.debug_term b
   | Rigid.Not_unifiable ->
-    log 15 "Unification failed for %a and %a" Expr.debug_term p Expr.debug_term notp
+    log 60 "Unification failed for %a and %a" Expr.debug_term p Expr.debug_term notp
 
 let find_all_insts iter =
   if !meta_incr then
@@ -192,13 +192,16 @@ let find_all_insts iter =
   match !unif_setting with
   | No_unif -> ()
   | _ ->
+    log 5 "Parsing input formulas";
     let st = parse_slice iter in
+    log 10 "Found : %d true preds, %d false preds, %d equalities, %d inequalities"
+      (List.length st.true_preds) (List.length st.false_preds) (List.length st.equalities) (List.length st.inequalities);
     let unif = match !unif_setting with
       | No_unif -> assert false
-      | Simple -> (fun p q -> [Unif.cached_unify p q; Unif.cached_unify p q])
+      | Simple -> (fun p q -> [Unif.cached_unify p q; Unif.cached_unify q p])
       | ERigid ->
         if st.equalities = [] then
-          (fun p q -> [Unif.cached_unify p q])
+          (fun p q -> [Unif.cached_unify p q; Unif.cached_unify q p])
         else begin
           List.iter (fun (a, b) ->
               log 50 "Eq : %a = %a" Expr.debug_term a Expr.debug_term b

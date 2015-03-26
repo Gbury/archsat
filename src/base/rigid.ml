@@ -34,7 +34,6 @@ type solved_form = {
 }
 
 type rule =
-  | ER
   | RRBS
   | LRBS
 
@@ -306,13 +305,7 @@ and add_gt sf s t =
 
 and add_gt_set l s t = Util.list_flatmap (fun sf -> add_gt sf s t) l
 
-let rec sf_set_sat = function
-    | [] -> []
-    | (sf :: r) as l ->
-      if valid_sf sf then
-        l
-      else
-        sf_set_sat r
+let sf_set_sat = List.filter valid_sf
 
 (* BSE Calculus *)
 (* ************************************************************************ *)
@@ -322,7 +315,7 @@ let mk_pb l u v =
   {
     eqs = a;
     goal = (u, v);
-    last_rule = ER;
+    last_rule = RRBS;
     lrbs_index = -1;
     constr = [sf_empty];
   }
@@ -347,8 +340,8 @@ and rrbs_aux acc k pb s t =
   | sat ->
     let pb = { pb with constr = sat } in
     begin match pb.last_rule with
-      | LRBS -> rrbs_index acc k pb s t (Parray.make 1 (Parray.get pb.eqs pb.lrbs_index)) 0 
-      | _ -> rrbs_index acc k pb s t pb.eqs 0
+      | LRBS -> rrbs_index acc k pb s t (Parray.make 1 (Parray.get pb.eqs pb.lrbs_index)) 0
+      | RRBS -> rrbs_index acc k pb s t pb.eqs 0
     end
 
 and rrbs_index acc k pb s t eqs i =
@@ -381,7 +374,63 @@ and rrbs_eq acc k pb s t l r = function
           { pb with last_rule = RRBS; constr = sat; goal = (s', t) }
     end
 
-and apply_lrbs acc k pb = k acc
+and apply_lrbs acc k pb =
+  match pb.last_rule with
+  | RRBS -> lrbs_jump_rrbs acc k pb 0 0
+  | LRBS -> lrbs_jump_lrbs acc k pb 0 pb.lrbs_index
+
+and lrbs_jump_lrbs acc k pb j i =
+  if j >= Parray.length pb.eqs then
+    lrbs_jump_rrbs acc k pb pb.lrbs_index 0
+  else
+    lrbs_index acc (fun res ->
+        lrbs_jump_lrbs res k pb (j + 1) i
+      ) pb j i
+
+and lrbs_jump_rrbs acc k pb j i =
+  if j >= Parray.length pb.eqs then
+    k acc
+  else if i >= Parray.length pb.eqs then
+    lrbs_jump_rrbs acc k pb (j + 1) 0
+  else
+    lrbs_index acc (fun res ->
+        lrbs_jump_rrbs res k pb j (i + 1)
+      ) pb j i
+
+and lrbs_index acc k pb j i =
+    let s, t = Parray.get pb.eqs j in
+    let l, r = Parray.get pb.eqs i in
+    lrbs_aux acc (fun res ->
+        lrbs_aux res k pb j t s l r
+      ) pb j s t l r
+
+and lrbs_aux acc k pb j s t l r =
+  match sf_set_sat (add_gt_set pb.constr s t) with
+  | [] -> k acc
+  | sat ->
+    let pb = { pb with constr = sat } in
+    let subs = subterms s in
+    lrbs_eq_pre acc (fun res ->
+        lrbs_eq_pre res k pb j s t r l subs
+      ) pb j s t l r subs
+
+and lrbs_eq_pre acc k pb j s t l r subs =
+  match sf_set_sat (add_gt_set pb.constr l r) with
+  | [] -> k acc
+  | sat -> lrbs_eq acc k { pb with constr = sat } j s t l r subs
+
+and lrbs_eq acc k pb j s t l r = function
+  | [] -> k acc
+  | { Expr.term = Expr.Meta _ } :: subs -> lrbs_eq acc k pb j s t l r subs
+  | p :: subs ->
+    begin match sf_set_sat (add_eq_set pb.constr l p) with
+      | [] -> lrbs_eq acc k pb j s t l r subs
+      | sat ->
+        let s' = Expr.term_replace (p,r) s in
+        apply_er acc (fun res -> lrbs_eq res k pb j s t l r subs)
+          { pb with last_rule = LRBS; lrbs_index = j; constr = sat;
+                    eqs = Parray.set pb.eqs j (s',t) }
+    end
 
 let unify eqs s t =
   match apply_er [] (fun x -> x) (mk_pb eqs s t) with
