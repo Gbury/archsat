@@ -7,6 +7,13 @@ type kind =
   | Tau
   | Skolem
 
+let kind_list = [
+  "tau", Tau;
+  "skolem", Skolem;
+]
+
+let kind_conv = Cmdliner.Arg.enum kind_list
+
 let inst = ref Tau
 
 (* Set-hashtbl to tag translated formulas *)
@@ -79,8 +86,10 @@ let tau_assume (f, i) = tau i f
 let opts t =
   let docs = Options.ext_sect in
   let kind =
-    let doc = "Decide the strategy to use for existencially quantified variables, available are : skolem, tau" in
-    Cmdliner.Arg.(value & opt (enum ["tau", Tau; "skolem", Skolem]) Tau & info ["skolem.kind"] ~docv:"KIND" ~docs ~doc)
+    let doc = Util.sprintf
+        "Decide the strategy to use for existencially quantified variables.
+         $(docv) may be %s" (Cmdliner.Arg.doc_alts_enum ~quoted:false kind_list) in
+    Cmdliner.Arg.(value & opt kind_conv Skolem & info ["skolem.kind"] ~docv:"KIND" ~docs ~doc)
   in
   let set_opts kind t =
     inst := kind;

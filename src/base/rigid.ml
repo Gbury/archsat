@@ -435,4 +435,5 @@ and lrbs_eq acc k pb j s t l r = function
 let unify eqs s t =
   match apply_er [] (fun x -> x) (mk_pb eqs s t) with
   | [] -> raise Not_unifiable
-  | l -> List.map (fun sf -> sf.solved) l
+  | l -> List.map (fun sf -> Unif.fixpoint sf.solved) l
+

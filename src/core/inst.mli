@@ -9,7 +9,7 @@ val split : Unif.t -> Unif.t list
 val simplify : Unif.t -> Unif.t
 (** Simplifies the given unifier to eliminate metas that can not be instanciated directly. *)
 
-val add : ?score:int -> Unif.t -> unit
+val add : ?delay:int -> ?score:int -> Unif.t -> unit
 (** Add a unifier to the list of instanciations to do, possibly giving it a score.
     Unifiers with lower scores are prioritized when pushing instanciations to the solver. *)
 

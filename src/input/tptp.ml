@@ -37,7 +37,7 @@ let log_section = Util.Section.make "tptp"
 let log i fmt = Util.debug ~section:log_section i fmt
 
 (** {2 Translation} *)
-let t_assert name t = Ast.Assert (A.string_of_name name, t)
+let t_assert name t b = Ast.Assert (A.string_of_name name, t, b)
 
 let arity_of_type_constr s = function
   | { Ast.term = Ast.Const Ast.Ttype } -> 0
@@ -52,21 +52,21 @@ let arity_of_type_constr s = function
 let translate q = function
   | AU.FOF (name, (A.R_axiom | A.R_hypothesis), t, _)
   | AU.TFF (name, (A.R_axiom | A.R_hypothesis), t, _) ->
-    Queue.push (t_assert name t) q
+    Queue.push (t_assert name t false) q
   | AU.FOF (name, (A.R_assumption | A.R_lemma | A.R_theorem), t, _)
   | AU.TFF (name, (A.R_assumption | A.R_lemma | A.R_theorem), t, _) ->
     Queue.push Ast.Push q;
-    Queue.push (t_assert name (Ast.not_ t)) q;
+    Queue.push (t_assert name (Ast.not_ t) true) q;
     Queue.push Ast.CheckSat q;
     Queue.push Ast.Pop q;
-    Queue.push (t_assert name (Ast.not_ t)) q
+    Queue.push (t_assert name (Ast.not_ t) false) q
   | AU.FOF (name, A.R_conjecture, t, _)
   | AU.TFF (name, A.R_conjecture, t, _) ->
-    Queue.push (t_assert name (Ast.not_ t)) q;
+    Queue.push (t_assert name (Ast.not_ t) true) q;
     Queue.push Ast.CheckSat q
   | AU.FOF (name, A.R_negated_conjecture, t, _)
   | AU.TFF (name, A.R_negated_conjecture, t, _) ->
-    Queue.push (t_assert name t) q;
+    Queue.push (t_assert name t true) q;
     Queue.push Ast.CheckSat q
   | AU.NewType (name, s, t) ->
     let n = arity_of_type_constr s t in

@@ -58,6 +58,17 @@ let merge s s' = {
   t_map = Expr.Subst.fold Expr.Subst.Meta.bind s.t_map s'.t_map;
 }
 
+let inverse s =
+  Expr.Subst.fold (fun m t s ->
+      match t with
+      | { Expr.term = Expr.Meta m' } -> bind_term s m' (Expr.term_meta m)
+      | _ -> bind_term s m t
+    ) s.t_map (Expr.Subst.fold (fun m ty s ->
+      match ty with
+      | { Expr.ty = Expr.TyMeta m' } -> bind_ty s m' (Expr.type_meta m)
+      | _ -> bind_ty s m ty
+    ) s.ty_map empty)
+
 let print_inst l s =
   Expr.Subst.iter (fun k v -> log l " |- %a -> %a" Expr.debug_meta k Expr.debug_term v) s.t_map
 
@@ -292,7 +303,7 @@ let rec robinson_term subst s t =
 let unify_ty s t = fixpoint (robinson_ty empty s t)
 let unify_term s t = fixpoint (robinson_term empty s t)
 
-(* Robinson unification with Caching (modulo meta switching) for term unification *)
+(* Caching (modulo meta switching) *)
 (* ************************************************************************ *)
 
 module H = Hashtbl.Make(struct
@@ -307,14 +318,18 @@ module H = Hashtbl.Make(struct
         false
   end)
 
-let cache = H.create 4096
+type 'a cache = 'a H.t
 
-let cached_unify s t =
-  let key = (s, t) in
+let new_cache () = H.create 4096
+
+let clear_cache = H.clear
+
+let with_cache cache f a b =
+  let key = (a, b) in
   try
     H.find cache key
   with Not_found ->
-    let res = unify_term s t in
+    let res = f a b in
     H.add cache key res;
     res
 

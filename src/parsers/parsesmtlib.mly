@@ -182,7 +182,7 @@ command:
   | OPEN DEFINE_FUN SYMBOL OPEN sorted_var_star CLOSE sort term CLOSE   { [Ast.Alias (Ast.sym $3, $5, Ast.column $7 $8)] }
   | OPEN PUSH NUMERAL CLOSE                                             { Util.times (int_of_string $3) (fun _ -> Ast.Push) }
   | OPEN POP NUMERAL CLOSE                                              { Util.times (int_of_string $3) (fun _ -> Ast.Pop) }
-  | OPEN ASSERT term CLOSE                                              { [Ast.Assert (assert_name (), $3)] }
+  | OPEN ASSERT term CLOSE                                              { [Ast.Assert (assert_name (), $3, false)] }
   | OPEN CHECK_SAT CLOSE                                                { [Ast.CheckSat] }
   | OPEN GET_ASSERTIONS CLOSE                                           { [] }
   | OPEN GET_PROOF CLOSE                                                { [] }

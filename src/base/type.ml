@@ -315,8 +315,9 @@ let new_const_def (sym, t) =
   | _ ->
     log 0 "Illicit type declaration for symbol : %a" Ast.debug_symbol sym
 
-let parse t =
-  let f = parse_formula ~goalness:Expr.goal empty_env t in
+let parse is_goal t =
+  let goalness = if is_goal then Expr.goal else Expr.hypothesis in
+  let f = parse_formula ~goalness empty_env t in
   log 1 "New expr : %a" Expr.debug_formula f;
   f
 

@@ -7,7 +7,7 @@ module H = Hashtbl.Make(Expr.Formula)
 let id = Dispatcher.new_id ()
 let meta_start = ref 0
 let meta_incr = ref false
-
+let meta_max = ref 10
 
 (* Heuristics *)
 type heuristic =
@@ -32,6 +32,7 @@ type unif =
   | No_unif
   | Simple
   | ERigid
+  | Auto
 
 let unif_setting = ref No_unif
 
@@ -39,6 +40,7 @@ let unif_list = [
   "none", No_unif;
   "simple", Simple;
   "eunif", ERigid;
+  "auto", Auto;
 ]
 
 let unif_conv = Cmdliner.Arg.enum unif_list
@@ -75,7 +77,7 @@ let parse_slice iter =
   res
 
 (* Meta variables *)
-let metas = H.create 32
+let metas = H.create 128
 
 let get_nb_metas f =
   try
@@ -89,7 +91,9 @@ let has_been_seen f = !(get_nb_metas f) > 0
 
 let mark f =
   let i = get_nb_metas f in
-  i := !i + 1
+  let j = !i + 1 in
+  i := j;
+  j
 
 (* Proofs *)
 let mk_proof_ty f metas = Dispatcher.mk_proof
@@ -103,25 +107,25 @@ let mk_proof_term f metas = Dispatcher.mk_proof
 (* Meta generation & predicates storing *)
 let do_formula = function
   | { Expr.formula = Expr.All (l, _, p) } as f ->
-    mark f;
+    let _ = mark f in
     let metas = List.map Expr.term_meta (Expr.new_term_metas f) in
     let subst = List.fold_left2 (fun s v t -> Expr.Subst.Var.bind v t s) Expr.Subst.empty l metas in
     let q = Expr.formula_subst Expr.Subst.empty subst p in
     Dispatcher.push [Expr.f_not f; q] (mk_proof_term f metas)
   | { Expr.formula = Expr.Not { Expr.formula = Expr.Ex (l, _, p) } } as f ->
-    mark f;
+    let _ = mark f in
     let metas = List.map Expr.term_meta (Expr.new_term_metas f) in
     let subst = List.fold_left2 (fun s v t -> Expr.Subst.Var.bind v t s) Expr.Subst.empty l metas in
     let q = Expr.formula_subst Expr.Subst.empty subst p in
     Dispatcher.push [Expr.f_not f; Expr.f_not q] (mk_proof_term f metas)
   | { Expr.formula = Expr.AllTy (l, _, p) } as f ->
-    mark f;
+    let _ = mark f in
     let metas = List.map Expr.type_meta (Expr.new_ty_metas f) in
     let subst = List.fold_left2 (fun s v t -> Expr.Subst.Var.bind v t s) Expr.Subst.empty l metas in
     let q = Expr.formula_subst subst Expr.Subst.empty p in
     Dispatcher.push [Expr.f_not f; q] (mk_proof_ty f metas)
   | { Expr.formula = Expr.Not { Expr.formula = Expr.ExTy (l, _, p) } } as f ->
-    mark f;
+    let _ = mark f in
     let metas = List.map Expr.type_meta (Expr.new_ty_metas f) in
     let subst = List.fold_left2 (fun s v t -> Expr.Subst.Var.bind v t s) Expr.Subst.empty l metas in
     let q = Expr.formula_subst subst Expr.Subst.empty p in
@@ -130,25 +134,33 @@ let do_formula = function
 
 let do_meta_inst = function
   | { Expr.formula = Expr.All (l, _, p) } as f ->
-    mark f;
-    let metas = Expr.new_term_metas f in
-    let u = List.fold_left (fun s m -> Unif.bind_term s m (Expr.term_meta m)) Unif.empty metas in
-    Inst.add u
+    let i = mark f in
+    if i <= !meta_max then begin
+      let metas = Expr.new_term_metas f in
+      let u = List.fold_left (fun s m -> Unif.bind_term s m (Expr.term_meta m)) Unif.empty metas in
+      Inst.add ~delay:(i*i + 1) u
+    end
   | { Expr.formula = Expr.Not { Expr.formula = Expr.Ex (l, _, p) } } as f ->
-    mark f;
-    let metas = Expr.new_term_metas f in
-    let u = List.fold_left (fun s m -> Unif.bind_term s m (Expr.term_meta m)) Unif.empty metas in
-    Inst.add u
+    let i = mark f in
+    if i <= !meta_max then begin
+      let metas = Expr.new_term_metas f in
+      let u = List.fold_left (fun s m -> Unif.bind_term s m (Expr.term_meta m)) Unif.empty metas in
+      Inst.add ~delay:(i*i + 1) u
+    end
   | { Expr.formula = Expr.AllTy (l, _, p) } as f ->
-    mark f;
-    let metas = Expr.new_ty_metas f in
-    let u = List.fold_left (fun s m -> Unif.bind_ty s m (Expr.type_meta m)) Unif.empty metas in
-    Inst.add u
+    let i = mark f in
+    if i <= !meta_max then begin
+      let metas = Expr.new_ty_metas f in
+      let u = List.fold_left (fun s m -> Unif.bind_ty s m (Expr.type_meta m)) Unif.empty metas in
+      Inst.add ~delay:(i*i + 1) u
+    end
   | { Expr.formula = Expr.Not { Expr.formula = Expr.ExTy (l, _, p) } } as f ->
-    mark f;
-    let metas = Expr.new_ty_metas f in
-    let u = List.fold_left (fun s m -> Unif.bind_ty s m (Expr.type_meta m)) Unif.empty metas in
-    Inst.add u
+    let i = mark f in
+    if i <= !meta_max then begin
+      let metas = Expr.new_ty_metas f in
+      let u = List.fold_left (fun s m -> Unif.bind_ty s m (Expr.type_meta m)) Unif.empty metas in
+      Inst.add ~delay:(i*i + 1) u
+    end
   | _ -> assert false
 
 (* Assuming function *)
@@ -161,7 +173,9 @@ let meta_assume lvl = function
   | _ -> ()
 
 (* Unification of predicates *)
-let do_inst u = Inst.add ~score:(score u) u
+let do_inst u =
+  Inst.add ~score:(score u) (Unif.inverse u);
+  Inst.add ~score:(score u) u
 
 let print_inst l s =
   Expr.Subst.iter (fun k v -> log l " |- %a -> %a" Expr.debug_meta k Expr.debug_term v) Unif.(s.t_map)
@@ -186,6 +200,17 @@ let find_inst unif p notp =
   | Rigid.Not_unifiable ->
     log 60 "Unification failed for %a and %a" Expr.debug_term p Expr.debug_term notp
 
+let simple_cache = Unif.new_cache ()
+let rec unif_f st = function
+  | No_unif -> (fun _ _ -> [])
+  | Simple ->
+    (fun p q -> [Unif.with_cache simple_cache Unif.unify_term p q])
+  | ERigid ->
+    Unif.with_cache (Unif.new_cache ()) (Rigid.unify st.equalities)
+  | Auto ->
+    if st.equalities = [] then unif_f st Simple
+    else unif_f st ERigid
+
 let find_all_insts iter =
   if !meta_incr then
     H.iter (fun f _ -> do_meta_inst f) metas;
@@ -196,19 +221,7 @@ let find_all_insts iter =
     let st = parse_slice iter in
     log 10 "Found : %d true preds, %d false preds, %d equalities, %d inequalities"
       (List.length st.true_preds) (List.length st.false_preds) (List.length st.equalities) (List.length st.inequalities);
-    let unif = match !unif_setting with
-      | No_unif -> assert false
-      | Simple -> (fun p q -> [Unif.cached_unify p q; Unif.cached_unify q p])
-      | ERigid ->
-        if st.equalities = [] then
-          (fun p q -> [Unif.cached_unify p q; Unif.cached_unify q p])
-        else begin
-          List.iter (fun (a, b) ->
-              log 50 "Eq : %a = %a" Expr.debug_term a Expr.debug_term b
-            ) st.equalities;
-          Rigid.unify st.equalities
-        end
-    in
+    let unif = unif_f st !unif_setting in
     List.iter (fun p -> List.iter (fun notp  ->
         find_inst unif p notp) st.false_preds) st.true_preds;
     List.iter (fun (a, b) -> find_inst unif a b) st.inequalities
@@ -219,15 +232,15 @@ let opts t =
     let doc = Util.sprintf
       "Select unification method to use in order to find instanciations
        $(docv) may be %s." (Cmdliner.Arg.doc_alts_enum ~quoted:false unif_list) in
-    Cmdliner.Arg.(value & opt unif_conv No_unif & info ["meta.find"] ~docv:"METHOD" ~docs ~doc)
+    Cmdliner.Arg.(value & opt unif_conv Auto & info ["meta.find"] ~docv:"METHOD" ~docs ~doc)
   in
   let start =
     let doc = "Initial number of metavariables to generate for new formulas" in
-    Cmdliner.Arg.(value & opt int 2 & info ["meta.start"] ~docv:"N" ~docs ~doc)
+    Cmdliner.Arg.(value & opt int 1 & info ["meta.start"] ~docv:"N" ~docs ~doc)
   in
   let incr =
     let doc = "Set the number of new metas to be generated at each pass." in
-    Cmdliner.Arg.(value & opt bool false & info ["meta.incr"] ~docs ~doc)
+    Cmdliner.Arg.(value & opt bool true & info ["meta.incr"] ~docs ~doc)
   in
   let heuristic =
     let doc = Util.sprintf

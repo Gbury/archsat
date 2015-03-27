@@ -39,7 +39,7 @@ type command =
   | TypeDef of string * symbol * term       (** Type definition *)
   | TypeAlias of symbol * term list * term  (** Type alias (smtlib style) *)
   | Alias of symbol * term list * term      (** Alias (smtlib style) *)
-  | Assert of string * term                 (** Add term to the assertions *)
+  | Assert of string * term * bool          (** Add term to the assertions *)
   | CheckSat                                (** Check-sat *)
   | Unknown                                 (** For non-implemented smtlib commands *)
 

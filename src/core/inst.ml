@@ -158,19 +158,24 @@ end
 
 module Q = Heap.Make(Inst)
 module H = Hashtbl.Make(Unif)
+module M = Map.Make(struct type t = int let compare = compare end)
 
 let heap = ref Q.empty
+let delayed = ref []
 let inst_set = H.create 4096
 let inst_incr = ref 0
 
 let get_u i = Inst.(i.unif)
 
-let add ?(score=0) u =
+let add ?(delay=0) ?(score=0) u =
   if not (H.mem inst_set u) then begin
     log 5 "New inst :";
     print_inst 5 u;
     H.add inst_set u false;
-    heap := Q.add !heap (Inst.mk u score)
+    if delay <= 0 then
+      heap := Q.add !heap (Inst.mk u score)
+    else
+      delayed := (Inst.mk u score, delay) :: !delayed
   end else begin
     log 15 "Redondant inst :";
     print_inst 10 u
@@ -196,9 +201,26 @@ let take f k =
   if k > 0 then
     aux f k
   else
-    aux f (Q.size !heap - k)
+    aux f (Q.size !heap + k)
+
+let rec decr_delay () =
+  if !delayed = [] then
+    ()
+  else begin
+    delayed := Util.list_fmap (fun (u, d) ->
+        if d > 1 then
+          Some (u, d - 1)
+        else begin
+          heap := Q.add !heap u;
+          None
+        end
+      ) !delayed;
+    if Q.size !heap = 0 then
+      decr_delay ()
+  end
 
 let inst_sat _ =
+  decr_delay ();
   take push !inst_incr;
   Stats.inst_remaining (Q.size !heap);
   Inst.clock ()
@@ -213,7 +235,7 @@ let opts t =
                    If $(docv) is a strictly positive number, then at each round, the $(docv)
                    most promising instanciations are pushed. If $(docv) is negative, then all
                    but the $(docv) least promising instanciations are pushed." in
-    Cmdliner.Arg.(value & opt int 100 & info ["inst.nb"] ~docv:"N" ~docs ~doc)
+    Cmdliner.Arg.(value & opt int 0 & info ["inst.nb"] ~docv:"N" ~docs ~doc)
   in
   let set_opts nb t =
     inst_incr := nb;

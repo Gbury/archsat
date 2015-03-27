@@ -64,8 +64,8 @@ let do_command opt = function
     wrap ("typing " ^ name) Type.new_type_def (s, n)
   | Ast.TypeDef (name, s, t) ->
     wrap ("typing " ^ name) Type.new_const_def (s, t)
-  | Ast.Assert (name, t) ->
-    let f = wrap ("typing " ^ name) Type.parse t in
+  | Ast.Assert (name, t, is_goal) ->
+    let f = wrap ("typing " ^ name) (Type.parse is_goal) t in
     if opt.solve then wrap "assume" Solver.assume [[f]]
   | Ast.CheckSat ->
     if opt.solve then
