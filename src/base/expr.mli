@@ -317,6 +317,18 @@ module Subst : sig
   val equal : ('b -> 'b -> bool) -> ('a, 'b) t -> ('a, 'b) t -> bool
   (** Comparison and hash functions, with a comparison/hash function on values as parameter *)
 
+  val debug :
+    (Buffer.t -> 'a -> unit) ->
+    (Buffer.t -> 'b -> unit) ->
+    Buffer.t -> ('a, 'b) t -> unit
+  (** Prints the substitution, using the given functions to print keys and values. *)
+
+  val print :
+    (Format.formatter -> 'a -> unit) ->
+    (Format.formatter -> 'b -> unit) ->
+    Format.formatter -> ('a, 'b) t -> unit
+  (** Prints the substitution, using the given functions to print keys and values. *)
+
   val choose : ('a, 'b) t -> 'a * 'b
   (** Return one binding of the given substitution, or raise Not_found if the substitution is empty.*)
 
@@ -342,6 +354,9 @@ end
 type ty_subst = (ttype var, ty) Subst.t
 type term_subst = (ty var, term) Subst.t
 (** Abreviations for the substitution of types and terms respectively. *)
+
+val debug_ty_subst : Buffer.t -> ty_subst -> unit
+val debug_term_subst : Buffer.t -> term_subst -> unit
 
 val term_replace : term * term -> term -> term
 (** [term_replace (t, t') t''] returns the term [t''] where every occurence of [t]

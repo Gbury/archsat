@@ -472,7 +472,7 @@ let assume s =
     Unsat (l, p)
 
 let if_sat s =
-  log 1 "Iteration with complete model";
+  log 0 "Iteration with complete model";
   let iter f =
     for i = s.start to s.start + s.length - 1 do
       match s.get i with

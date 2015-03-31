@@ -112,7 +112,7 @@ let hypothesis = 0
 (* Debug printing functions *)
 (* ************************************************************************ *)
 
-let debug_var b v = Printf.bprintf b "%s_%d" v.var_name v.var_id
+let debug_var b v = Printf.bprintf b "%s" v.var_name
 
 let debug_meta b m = Printf.bprintf b "m%d_%a" m.meta_index debug_var m.meta_var
 
@@ -482,6 +482,18 @@ module Subst = struct
     with Exit ->
       false
 
+  let debug debug_key debug_value buf map =
+    let aux _ (key, value) =
+      Printf.bprintf buf "%a -> %a; " debug_key key debug_value value
+    in
+    Printf.bprintf buf "%a" (fun _ -> Mi.iter aux) map
+
+  let print print_key print_value fmt map =
+    let aux _ (key, value) =
+      Format.fprintf fmt "%a -> %a@ " print_key key print_value value
+    in
+    Format.fprintf fmt "@[<hov 0>%a@]" (fun _ -> Mi.iter aux) map
+
   module type S = sig
     type 'a key
     val get : 'a key -> ('a key, 'b) t -> 'b
@@ -514,6 +526,9 @@ end
 
 type ty_subst = (ttype var, ty) Subst.t
 type term_subst = (ty var, term) Subst.t
+
+let debug_ty_subst = Subst.debug debug_var debug_ty
+let debug_term_subst = Subst.debug debug_var debug_term
 
 (* Interpreting and assigning *)
 (* ************************************************************************ *)

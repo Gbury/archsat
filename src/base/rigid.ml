@@ -110,10 +110,10 @@ let rec ss_compare_aux t t' = function
   | Equal (_, s) | Greater (_, s) -> ss_compare_aux t t' s
 
 let ss_compare s t t' =
-  if Expr.Term.equal t t' then Comparison.Eq
-  else match Lpo.compare t t' with
-    | Comparison.Incomparable -> ss_compare_aux t t' s
-    | cmp -> cmp
+  if Expr.Term.equal t t' then
+    Comparison.Eq
+  else
+    ss_compare_aux t t' s
 
 let ss_equal s t t' = ss_compare s t t' = Comparison.Eq
 let ss_greatereq s t t' = match ss_compare s t t' with
@@ -243,8 +243,8 @@ let rec add_eq sf s t =
       | { Expr.term = Expr.Var _ }, _
       | _, { Expr.term = Expr.Var _ } ->
         assert false
-      | ({ Expr.term = Expr.Meta m } as v), w
-      | w, ({ Expr.term = Expr.Meta m } as v) ->
+      | ({ Expr.term = Expr.Meta ({ Expr.can_unify = true } as m)} as v), w
+      | w, ({ Expr.term = Expr.Meta ({ Expr.can_unify = true } as m)} as v) ->
         if Unif.occurs_check_term sf.solved v w then []
         else add_subst sf m w
       | { Expr.term = Expr.App (f, f_ty_args, f_args) },
@@ -258,6 +258,7 @@ let rec add_eq sf s t =
             []
         end else
           []
+      | _ -> []
 
 and add_eq_set l s t = Util.list_flatmap (fun sf -> add_eq sf s t) l
 
@@ -296,11 +297,15 @@ and add_gt sf s t =
           | _ (* f = g *) ->
             let res = Util.list_flatmap (fun si -> add_eq sf si t @ add_gt sf si t) f_args in
             let eq = [sf] in
-            fst (List.fold_left2 (fun (res, eq) si ti ->
+            let rec aux (res, eq) = function
+              | [], [] -> res
+              | si :: r, ti :: r' ->
                 let h = add_gt_set eq si ti in
-                let h = List.fold_left (fun h' tj -> add_gt_set h' s tj) h g_args in
-                res @ h, add_eq_set eq si ti
-              ) (res, eq) f_args g_args)
+                let h = List.fold_left (fun h' tj -> add_gt_set h' s tj) h r' in
+                aux (res @ h, add_eq_set eq si ti) (r, r')
+              | _ -> assert false
+            in
+            aux (res, eq) (f_args, g_args)
         end
 
 and add_gt_set l s t = Util.list_flatmap (fun sf -> add_gt sf s t) l

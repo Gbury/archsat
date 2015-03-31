@@ -56,7 +56,7 @@ module Stack = struct
       | Call2 (f, x, y, op) -> f x y; pop op
       | Call3 (f, x, y, z, op) -> f x y z; pop op
     in
-    log 5 "Backtracking to level %d" lvl;
+    log 3 "Backtracking to level %d" lvl;
     pop t.stack
 
   let pop t = backtrack t (t.level - 1)

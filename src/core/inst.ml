@@ -4,9 +4,6 @@ let id = Dispatcher.new_id ()
 let log_section = Util.Section.make "inst"
 let log i fmt = Util.debug ~section:log_section i fmt
 
-let print_inst l s =
-  Expr.Subst.iter (fun k v -> log l " |- %a -> %a" Expr.debug_meta k Expr.debug_term v) Unif.(s.t_map)
-
 (* Instanciation helpers *)
 (* ************************************************************************ *)
 
@@ -118,75 +115,90 @@ let partition s =
 let simplify s = snd (partition s)
 
 (* Produces a proof for the instanciation of the given formulas and unifiers *)
-let mk_proof f p s = Dispatcher.mk_proof
-    ~ty_args:(Expr.Subst.fold (fun m t l -> Expr.type_meta m :: t :: l) Unif.(s.ty_map) [])
-    ~term_args:(Expr.Subst.fold (fun m t l -> Expr.term_meta m :: t :: l) Unif.(s.t_map) [])
+let mk_proof f p ty_map t_map = Dispatcher.mk_proof
+    ~ty_args:(Expr.Subst.fold (fun v t l -> Expr.type_var v :: t :: l) ty_map [])
+    ~term_args:(Expr.Subst.fold (fun v t l -> Expr.term_var v :: t :: l) t_map [])
     ~formula_args:[f; p] id "inst"
 
 let to_var s = Expr.Subst.fold (fun {Expr.meta_var = v} t acc -> Expr.Subst.Var.bind v t acc) s Expr.Subst.empty
 
-let soft_subst f subst =
-  let q = Expr.partial_inst (to_var Unif.(subst.ty_map)) (to_var Unif.(subst.t_map)) f in
-  [ Expr.f_not f; q], mk_proof f q subst
-
-let soft_push s =
-  let (f, s) = partition s in
-  let cl, p = soft_subst f s in
-  Dispatcher.push cl p
+let soft_subst f ty_subst term_subst =
+  let q = Expr.partial_inst ty_subst term_subst f in
+  [ Expr.f_not f; q], mk_proof f q ty_subst term_subst
 
 (* Heap for prioritizing instanciations *)
 (* ************************************************************************ *)
 
 module Inst = struct
   type t = {
-    unif : Unif.t;
-    score : int;
     age : int;
+    score : int;
+    formula : Expr.formula;
+    ty_subst : Expr.ty_subst;
+    term_subst : Expr.term_subst;
   }
 
+  (* Age counter *)
   let age = ref 0
   let clock () = incr age
 
-  let mk u k = {
-    unif = u;
-    score = k;
+  (* Constructor *)
+  let mk u k =
+    let f, s = partition u in
+    {
     age = !age;
-  }
+    score = k;
+    formula = f;
+    ty_subst = to_var Unif.(s.ty_map);
+    term_subst = to_var Unif.(s.t_map);
+    }
 
+  (* debug printing *)
+  let debug b t =
+    Printf.bprintf b "%a%a" Expr.debug_ty_subst t.ty_subst Expr.debug_term_subst t.term_subst
+
+  (* Comparison for the Heap *)
   let leq t1 t2 = t1.score + t1.age <= t2.score + t2.age
+
+  (* Hash and equality for the hashtbl. *)
+  let hash t =
+    Hashtbl.hash (Expr.Formula.hash t.formula,
+                  Expr.Subst.hash Expr.Ty.hash t.ty_subst,
+                  Expr.Subst.hash Expr.Term.hash t.term_subst)
+
+  let equal t t' =
+    Expr.Formula.equal t.formula t'.formula &&
+    Expr.Subst.equal Expr.Ty.equal t.ty_subst t'.ty_subst &&
+    Expr.Subst.equal Expr.Term.equal t.term_subst t'.term_subst
 end
 
 module Q = Heap.Make(Inst)
-module H = Hashtbl.Make(Unif)
-module M = Map.Make(struct type t = int let compare = compare end)
+module H = Hashtbl.Make(Inst)
 
 let heap = ref Q.empty
 let delayed = ref []
 let inst_set = H.create 4096
 let inst_incr = ref 0
 
-let get_u i = Inst.(i.unif)
-
 let add ?(delay=0) ?(score=0) u =
-  if not (H.mem inst_set u) then begin
-    log 5 "New inst :";
-    print_inst 5 u;
-    H.add inst_set u false;
+  let t = Inst.mk u score in
+  if not (H.mem inst_set t) then begin
+    H.add inst_set t false;
+    log 10 "New inst : %a" Inst.debug t;
     if delay <= 0 then
-      heap := Q.add !heap (Inst.mk u score)
+      heap := Q.add !heap t
     else
-      delayed := (Inst.mk u score, delay) :: !delayed
-  end else begin
-    log 15 "Redondant inst :";
-    print_inst 10 u
-  end
+      delayed := (t, delay) :: !delayed
+  end else
+    log 15 "Redondant inst : %a" Inst.debug t
 
 let push inst =
   Stats.inst_done ();
-  log 10 "Pushing inst :";
-  print_inst 10 (get_u inst);
-  H.replace inst_set (get_u inst) true;
-  soft_push (get_u inst)
+  H.replace inst_set inst true;
+  log 5 "Pushed inst : %a" Inst.debug inst;
+  let open Inst in
+  let cl, p = soft_subst inst.formula inst.ty_subst inst.term_subst in
+  Dispatcher.push cl p
 
 let take f k =
   let aux f i =

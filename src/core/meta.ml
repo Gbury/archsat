@@ -221,6 +221,8 @@ let find_all_insts iter =
     let st = parse_slice iter in
     log 10 "Found : %d true preds, %d false preds, %d equalities, %d inequalities"
       (List.length st.true_preds) (List.length st.false_preds) (List.length st.equalities) (List.length st.inequalities);
+    log 50 "equalities :";
+    List.iter (fun (a, b) -> log 50 "%a = %a" Expr.debug_term a Expr.debug_term b) st.equalities;
     let unif = unif_f st !unif_setting in
     List.iter (fun p -> List.iter (fun notp  ->
         find_inst unif p notp) st.false_preds) st.true_preds;
