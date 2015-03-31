@@ -23,7 +23,6 @@ type 'ty var = {
 type 'ty meta = {
   meta_var : 'ty var;
   meta_index : 'ty meta_index;
-  can_unify : bool;
 }
 
 (* Type for first order types *)
@@ -1047,10 +1046,7 @@ let meta_term_index = Vector.make 37 (f_true, [])
 let mk_meta v i = {
   meta_var = v;
   meta_index = i;
-  can_unify = true;
 }
-
-let protect meta = { meta with can_unify = false }
 
 let get_meta_def i = fst (Vector.get meta_term_index i)
 let get_meta_ty_def i = fst (Vector.get meta_ty_index i)

@@ -79,14 +79,6 @@ val with_cache : 'a cache -> (Expr.term -> Expr.term -> 'a) ->
   Expr.term -> Expr.term -> 'a
 (** Wraps the given function with the given cache. *)
 
-(** {2 Meta protection} *)
-
-val protect_inst : t -> t
-val protect_ty : Expr.ty -> Expr.ty
-val protect_term : Expr.term -> Expr.term
-(** Prevents meta-variables in given terms and types (or substitutions bindings)
-    from being instanciated in later unifications. *)
-
 (** {2 Robinson unification} *)
 
 val unify_ty : Expr.ty -> Expr.ty -> t

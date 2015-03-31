@@ -174,8 +174,8 @@ let meta_assume lvl = function
 
 (* Unification of predicates *)
 let do_inst u =
-  Inst.add ~score:(score u) (Unif.inverse u);
-  Inst.add ~score:(score u) u
+  (* Inst.add ~score:(score u) (Unif.inverse u); *)
+  Inst.add ~score:(score u) (Unif.inverse u)
 
 let print_inst l s =
   Expr.Subst.iter (fun k v -> log l " |- %a -> %a" Expr.debug_meta k Expr.debug_term v) Unif.(s.t_map)
@@ -184,14 +184,14 @@ let inst u =
   log 40 "Unification found";
   print_inst 40 u;
   let l = Inst.split u in
-  let l = List.map Inst.simplify l in
-  let l = List.map Unif.protect_inst l in
   List.iter do_inst l
+
+let cache = Unif.new_cache ()
 
 let find_inst unif p notp =
   try
     log 50 "Matching : %a ~~ %a" Expr.debug_term p Expr.debug_term notp;
-    List.iter inst (unif p notp)
+    (* Unif.with_cache cache *) unif p notp
   with
   | Unif.Not_unifiable_ty (a, b) ->
     log 60 "Couldn't unify types %a and %a" Expr.debug_ty a Expr.debug_ty b
@@ -200,30 +200,36 @@ let find_inst unif p notp =
   | Rigid.Not_unifiable ->
     log 60 "Unification failed for %a and %a" Expr.debug_term p Expr.debug_term notp
 
-let simple_cache = Unif.new_cache ()
 let rec unif_f st = function
-  | No_unif -> (fun _ _ -> [])
+  | No_unif -> (fun _ _ -> ())
   | Simple ->
-    (fun p q -> [Unif.with_cache simple_cache Unif.unify_term p q])
+    Unif.clear_cache cache;
+    (fun p q -> inst (Unif.unify_term p q))
   | ERigid ->
-    Unif.with_cache (Unif.new_cache ()) (Rigid.unify st.equalities)
+    Unif.clear_cache cache;
+    Rigid.unify st.equalities inst
   | Auto ->
     if st.equalities = [] then unif_f st Simple
     else unif_f st ERigid
 
 let find_all_insts iter =
+  (* Create new metas *)
   if !meta_incr then
     H.iter (fun f _ -> do_meta_inst f) metas;
+  (* Look at instanciation settings *)
   match !unif_setting with
   | No_unif -> ()
   | _ ->
+    (* Analysing assummed formulas *)
     log 5 "Parsing input formulas";
     let st = parse_slice iter in
     log 10 "Found : %d true preds, %d false preds, %d equalities, %d inequalities"
       (List.length st.true_preds) (List.length st.false_preds) (List.length st.equalities) (List.length st.inequalities);
     log 50 "equalities :";
     List.iter (fun (a, b) -> log 50 "%a = %a" Expr.debug_term a Expr.debug_term b) st.equalities;
+    (* Choosing unification function *)
     let unif = unif_f st !unif_setting in
+    (* Iter unification through all possibilities. *)
     List.iter (fun p -> List.iter (fun notp  ->
         find_inst unif p notp) st.false_preds) st.true_preds;
     List.iter (fun (a, b) -> find_inst unif a b) st.inequalities

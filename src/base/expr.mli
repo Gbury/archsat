@@ -17,7 +17,6 @@ type 'ty var = private {
 type 'ty meta = private {
   meta_var : 'ty var;
   meta_index : 'ty meta_index;
-  can_unify : bool;
 }
 
 (** {3 Types} *)
@@ -204,9 +203,6 @@ val new_term_metas : formula -> ty meta list
 val term_metas_of_index : ty meta_index -> ty meta list
 (** [other_term_metas m] returns the list [l] of term metas that was generated together with [m]
     i.e [m] is a meta in [l] and [l] was returned by [new_term_metas] previously. *)
-
-val protect : 'a meta -> 'a meta
-(** Returns a meta equal to its argument, but that shouldn't be unified. (field 'can_unify' set to false) *)
 
 (** {5 Skolems symbols} *)
 

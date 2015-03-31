@@ -72,28 +72,6 @@ let inverse s =
 let print_inst l s =
   Expr.Subst.iter (fun k v -> log l " |- %a -> %a" Expr.debug_meta k Expr.debug_term v) s.t_map
 
-(* Metavariable protection *)
-(* ************************************************************************ *)
-
-let rec protect_ty = function
-  | { Expr.ty = Expr.TyVar _ } as ty -> ty
-  | { Expr.ty = Expr.TyMeta m } -> Expr.type_meta (Expr.protect m)
-  | { Expr.ty = Expr.TyApp (f, ty_l) } ->
-    Expr.type_app f (List.map protect_ty ty_l)
-
-let rec protect_term = function
-  | { Expr.term = Expr.Var _ } as t -> t
-  | { Expr.term = Expr.Meta m } -> Expr.term_meta (Expr.protect m)
-  | { Expr.term = Expr.App (f, ty_l, t_l) } ->
-    Expr.term_app f (List.map protect_ty ty_l) (List.map protect_term t_l)
-
-let protect_inst s = {
-  ty_map = Expr.Subst.fold (fun m ty acc ->
-      Expr.Subst.Meta.bind m (protect_ty ty) acc) s.ty_map Expr.Subst.empty;
-  t_map = Expr.Subst.fold (fun m t acc ->
-      Expr.Subst.Meta.bind m (protect_term t) acc) s.t_map Expr.Subst.empty;
-}
-
 (* Manipulation over meta substitutions *)
 (* ************************************************************************ *)
 
@@ -248,14 +226,14 @@ let rec occurs_check_ty subst v = function
   | { Expr.ty = Expr.TyMeta m } as v' ->
     begin try occurs_check_ty subst v (get_ty subst m)
       with Not_found -> Expr.Ty.equal v v' end
-  | { Expr.ty = Expr.TyApp (f, l) } -> List.exists (occurs_check_ty subst v) l
+  | { Expr.ty = Expr.TyApp (_, l) } -> List.exists (occurs_check_ty subst v) l
   | _ -> false
 
 let rec occurs_check_term subst v = function
   | { Expr.term = Expr.Meta m } as v' ->
     begin try occurs_check_term subst v (get_term subst m)
       with Not_found -> Expr.Term.equal v v' end
-  | { Expr.term= Expr.App (f, _, l) } -> List.exists (occurs_check_term subst v) l
+  | { Expr.term = Expr.App (_, _, l) } -> List.exists (occurs_check_term subst v) l
   | _ -> false
 
 let rec robinson_ty subst s t =
@@ -264,8 +242,8 @@ let rec robinson_ty subst s t =
   match s, t with
         | _ when Expr.Ty.equal s t -> subst
         | _, { Expr.ty = Expr.TyVar _ } | { Expr.ty = Expr.TyVar _}, _ -> assert false
-        | ({ Expr.ty = Expr.TyMeta ({Expr.can_unify= true} as v) } as m), u
-        | u, ({ Expr.ty = Expr.TyMeta ({Expr.can_unify = true} as v) } as m) ->
+        | ({ Expr.ty = Expr.TyMeta v } as m), u
+        | u, ({ Expr.ty = Expr.TyMeta v } as m) ->
           if occurs_check_ty subst m u then
             raise (Not_unifiable_ty (m, u))
           else
@@ -276,7 +254,6 @@ let rec robinson_ty subst s t =
             List.fold_left2 robinson_ty subst f_args g_args
           else
             raise (Not_unifiable_ty (s, t))
-        | _ -> raise (Not_unifiable_ty (s, t))
 
 let rec robinson_term subst s t =
   let s = follow_term subst s in
@@ -284,8 +261,8 @@ let rec robinson_term subst s t =
   match s, t with
         | _ when Expr.Term.equal s t -> subst
         | _, { Expr.term = Expr.Var _ } | { Expr.term = Expr.Var _}, _ -> assert false
-        | ({ Expr.term = Expr.Meta ({Expr.can_unify= true} as v) } as m), u
-        | u, ({ Expr.term = Expr.Meta ({Expr.can_unify = true} as v) } as m) ->
+        | ({ Expr.term = Expr.Meta v } as m), u
+        | u, ({ Expr.term = Expr.Meta v } as m) ->
           if occurs_check_term subst m u then
             raise (Not_unifiable_term (m, u))
           else
@@ -298,7 +275,6 @@ let rec robinson_term subst s t =
               f_t_args g_t_args
           else
             raise (Not_unifiable_term (s, t))
-        | _ -> raise (Not_unifiable_term (s, t))
 
 let unify_ty s t = fixpoint (robinson_ty empty s t)
 let unify_term s t = fixpoint (robinson_term empty s t)
