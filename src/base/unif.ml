@@ -22,6 +22,10 @@ type t = {
 
 let empty = { ty_map = Expr.Subst.empty; t_map = Expr.Subst.empty; }
 
+let is_empty u =
+  Expr.Subst.is_empty u.ty_map &&
+  Expr.Subst.is_empty u.t_map
+
 let mem_ty subst m = Expr.Subst.Meta.mem m subst.ty_map
 let mem_term subst m = Expr.Subst.Meta.mem m subst.t_map
 
@@ -69,48 +73,34 @@ let print_inst l s =
 (* ************************************************************************ *)
 
 (* Substitutes meta instead of variables *)
-let rec type_subst_aux map = function
+let rec type_subst_aux u = function
   | { Expr.ty = Expr.TyVar _ } -> assert false
   | { Expr.ty = Expr.TyMeta m } as t ->
-    begin try Expr.Subst.Meta.get m map with Not_found -> t end
+    begin try Expr.Subst.Meta.get m u.ty_map with Not_found -> t end
   | { Expr.ty = Expr.TyApp (f, args) } as ty ->
-    let new_args = List.map (type_subst_aux map) args in
+    let new_args = List.map (type_subst_aux u) args in
     if List.for_all2 (==) args new_args then ty
     else Expr.type_app f new_args
 
-let type_subst map t = if Expr.Subst.is_empty map then t else type_subst_aux map t
+let type_subst u t = if Expr.Subst.is_empty u.ty_map then t else type_subst_aux u t
 
-let rec term_subst_aux ty_map t_map = function
+let rec term_subst_aux u = function
   | { Expr.term = Expr.Var _ } -> assert false
   | { Expr.term = Expr.Meta m } as t ->
-    begin try Expr.Subst.Meta.get m t_map with Not_found -> t end
+    begin try Expr.Subst.Meta.get m u.t_map with Not_found -> t end
   | { Expr.term = Expr.App (f, tys, args) } as t ->
-    let new_tys = List.map (type_subst ty_map) tys in
-    let new_args = List.map (term_subst_aux ty_map t_map) args in
+    let new_tys = List.map (type_subst u) tys in
+    let new_args = List.map (term_subst_aux u) args in
     if List.for_all2 (==) tys new_tys && List.for_all2 (==) args new_args then t
     else Expr.term_app f new_tys new_args
 
-let term_subst ty_map t_map t =
-  if Expr.Subst.is_empty ty_map && Expr.Subst.is_empty t_map then t
-  else term_subst_aux ty_map t_map t
+let term_subst u t =
+  if is_empty u then t else term_subst_aux u t
 
 (* Fixpoint on meta substitutions *)
-let fixpoint u =
-  log 50 "Fixpoint :";
-  print_inst 50 u;
-  let rec ty_apply ty =
-    let ty' = type_subst u.ty_map ty in
-    if Expr.Ty.equal ty ty' then ty
-    else ty_apply ty'
-  in
-  let rec t_apply t =
-    let t' = term_subst u.ty_map u.t_map t in
-    if Expr.Term.equal t t' then t
-    else t_apply t'
-  in
-  {
-    ty_map = Expr.Subst.fold (fun m t acc -> Expr.Subst.Meta.bind m (ty_apply t) acc) u.ty_map Expr.Subst.empty;
-    t_map = Expr.Subst.fold (fun m t acc -> Expr.Subst.Meta.bind m (t_apply t) acc) u.t_map Expr.Subst.empty;
+let fixpoint u = {
+    ty_map = Expr.Subst.fold (fun m t acc -> Expr.Subst.Meta.bind m (type_subst u t) acc) u.ty_map Expr.Subst.empty;
+    t_map = Expr.Subst.fold (fun m t acc -> Expr.Subst.Meta.bind m (term_subst u t) acc) u.t_map Expr.Subst.empty;
   }
 
 (* Meta-matching *)

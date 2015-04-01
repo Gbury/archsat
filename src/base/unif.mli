@@ -53,6 +53,11 @@ val inverse : t -> t
     for bindings of [s] which binds a meta-variable [m] to another meta-variable [m'],
     in which case, the substitution returned contains a binding from [m'] to [m] instead. *)
 
+val type_subst : t -> Expr.ty -> Expr.ty
+val term_subst : t -> Expr.term -> Expr.term
+(** Subsitutions of meta-variables, given a unifier. May not terminate if the substitution
+    contains cycles. *)
+
 val fixpoint : t -> t
 (** Computes the fixpoint of the substitution. May not terminate if the substitution
     contains cylces. Consequently, occurs_check should return false on all bindings of the substitution. *)

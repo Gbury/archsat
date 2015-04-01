@@ -328,7 +328,7 @@ let rec apply_er k pb =
   let (s, t) = pb.goal in
   match sf_set_sat (add_eq_set pb.constr s t) with
   | [] -> apply_rrbs k pb
-  | l -> List.iter (fun sf -> k sf.solved) l
+  | l -> List.iter (fun sf -> k (Unif.fixpoint sf.solved)) l
 
 and apply_rrbs k pb =
   let (a, b) = pb.goal in

@@ -60,7 +60,8 @@ and term = private {
 type free_vars = ty list * term list
 
 type formula_descr = private
-  | Pred of term (** Atoms *)
+  (** Atoms *)
+  | Pred of term
   | Equal of term * term
 
   (** Prop constructors *)
@@ -353,6 +354,7 @@ type term_subst = (ty var, term) Subst.t
 
 val debug_ty_subst : Buffer.t -> ty_subst -> unit
 val debug_term_subst : Buffer.t -> term_subst -> unit
+(** Debug printing functions for substitutions. *)
 
 val term_replace : term * term -> term -> term
 (** [term_replace (t, t') t''] returns the term [t''] where every occurence of [t]
