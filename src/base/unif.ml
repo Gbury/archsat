@@ -48,15 +48,8 @@ let compare s u =
   | x -> x
 
 let equal s u =
-  let a = s.ty_map in
-  let b = u.ty_map in
-  Expr.Subst.equal Expr.Ty.equal a b &&
+  Expr.Subst.equal Expr.Ty.equal s.ty_map u.ty_map &&
   Expr.Subst.equal Expr.Term.equal s.t_map u.t_map
-
-let merge s s' = {
-  ty_map = Expr.Subst.fold Expr.Subst.Meta.bind s.ty_map s'.ty_map;
-  t_map = Expr.Subst.fold Expr.Subst.Meta.bind s.t_map s'.t_map;
-}
 
 let inverse s =
   Expr.Subst.fold (fun m t s ->

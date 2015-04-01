@@ -451,6 +451,7 @@ module Subst = struct
 
   type ('a, 'b) t = ('a * 'b) Mi.t
 
+  (* Usual functions *)
   let empty = Mi.empty
 
   let is_empty = Mi.is_empty
@@ -461,12 +462,14 @@ module Subst = struct
 
   let bindings s = Mi.fold (fun _ (key, value) acc -> (key, value) :: acc) s []
 
+  (* Comparisons *)
   let equal f = Mi.equal (fun (_, value1) (_, value2) -> f value1 value2)
   let compare f = Mi.compare (fun (_, value1) (_, value2) -> f value1 value2)
   let hash h s = Mi.fold (fun i (_, value) acc -> Hashtbl.hash (acc, i, h value)) s 1
 
   let choose m = snd (Mi.choose m)
 
+  (* Iterators *)
   let exists pred s =
     try
       iter (fun m s -> if pred m s then raise Exit) s;

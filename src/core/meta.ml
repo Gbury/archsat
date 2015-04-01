@@ -2,9 +2,13 @@
 let log_section = Util.Section.make "meta"
 let log i fmt = Util.debug ~section:log_section i fmt
 
+let id = Dispatcher.new_id ()
+
 module H = Hashtbl.Make(Expr.Formula)
 
-let id = Dispatcher.new_id ()
+(* Extension parameters *)
+(* ************************************************************************ *)
+
 let meta_start = ref 0
 let meta_incr = ref false
 let meta_max = ref 10
@@ -45,7 +49,8 @@ let unif_list = [
 
 let unif_conv = Cmdliner.Arg.enum unif_list
 
-(* 'Parsing' of formulas *)
+(* Assumed formula parsing *)
+(* ************************************************************************ *)
 
 type state = {
   mutable true_preds : Expr.term list;
@@ -60,6 +65,10 @@ let empty_st () = {
   equalities = [];
   inequalities = [];
 }
+
+let debug_st n st =
+  log n "Found : %d true preds, %d false preds, %d equalities, %d inequalities"
+    (List.length st.true_preds) (List.length st.false_preds) (List.length st.equalities) (List.length st.inequalities)
 
 let parse_slice iter =
   let res = empty_st () in
@@ -77,6 +86,8 @@ let parse_slice iter =
   res
 
 (* Meta variables *)
+(* ************************************************************************ *)
+
 let metas = H.create 128
 
 let get_nb_metas f =
@@ -172,26 +183,23 @@ let meta_assume lvl = function
     if not (has_been_seen f) then for _ = 1 to !meta_start do do_formula f done
   | _ -> ()
 
-(* Unification of predicates *)
-let do_inst u =
-  (* Inst.add ~score:(score u) (Unif.inverse u); *)
-  Inst.add ~score:(score u) (Unif.inverse u)
+(* Finding instanciations *)
+(* ************************************************************************ *)
 
 let print_inst l s =
   Expr.Subst.iter (fun k v -> log l " |- %a -> %a" Expr.debug_meta k Expr.debug_term v) Unif.(s.t_map)
 
-let inst u =
-  log 40 "Unification found";
-  print_inst 40 u;
-  let l = Inst.split u in
-  List.iter do_inst l
+(* Unification of predicates *)
+let do_inst u = Inst.add ~score:(score u) u
+
+let inst u = List.iter do_inst (Inst.split u)
 
 let cache = Unif.new_cache ()
 
 let find_inst unif p notp =
   try
     log 50 "Matching : %a ~~ %a" Expr.debug_term p Expr.debug_term notp;
-    (* Unif.with_cache cache *) unif p notp
+    Unif.with_cache cache unif p notp
   with
   | Unif.Not_unifiable_ty (a, b) ->
     log 60 "Couldn't unify types %a and %a" Expr.debug_ty a Expr.debug_ty b
@@ -203,7 +211,6 @@ let find_inst unif p notp =
 let rec unif_f st = function
   | No_unif -> (fun _ _ -> ())
   | Simple ->
-    Unif.clear_cache cache;
     (fun p q -> inst (Unif.unify_term p q))
   | ERigid ->
     Unif.clear_cache cache;
@@ -223,16 +230,15 @@ let find_all_insts iter =
     (* Analysing assummed formulas *)
     log 5 "Parsing input formulas";
     let st = parse_slice iter in
-    log 10 "Found : %d true preds, %d false preds, %d equalities, %d inequalities"
-      (List.length st.true_preds) (List.length st.false_preds) (List.length st.equalities) (List.length st.inequalities);
-    log 50 "equalities :";
-    List.iter (fun (a, b) -> log 50 "%a = %a" Expr.debug_term a Expr.debug_term b) st.equalities;
     (* Choosing unification function *)
     let unif = unif_f st !unif_setting in
     (* Iter unification through all possibilities. *)
     List.iter (fun p -> List.iter (fun notp  ->
         find_inst unif p notp) st.false_preds) st.true_preds;
     List.iter (fun (a, b) -> find_inst unif a b) st.inequalities
+
+(* Extension registering *)
+(* ************************************************************************ *)
 
 let opts t =
   let docs = Options.ext_sect in

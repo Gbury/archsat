@@ -43,31 +43,33 @@ val follow_term : t -> Expr.term -> Expr.term
 (** Applies bindings in the substitution until either
     a non-meta variable if found, or the meta-variable is not in the substitution.
     Pseudo-code examples :
-    [follow_term \[x, y; y, f(a)\] x = f(a)]
-    [follow_term \[x; f(y); y, a] x = f(y)] *)
-
-val merge : t -> t -> t
-(** [merge s s'] adds all bindings of [s] to [s'] and returns the result.
-    In particular bindings of [s] will override bindings of [s'] if there are collisions. *)
+    {ul
+      {li [follow_term \[x -> y; y -> f(a)\] x = f(a)]}
+      {li [follow_term \[x -> f(y); y -> a\] x = f(y)]}
+    } *)
 
 val inverse : t -> t
 (** [inverse s] returns a substitution with the same bindings as [s] except
     for bindings of [s] which binds a meta-variable [m] to another meta-variable [m'],
-    in which case, the substitution returned contains a binding from [m'] to [m]. *)
+    in which case, the substitution returned contains a binding from [m'] to [m] instead. *)
 
 val fixpoint : t -> t
 (** Computes the fixpoint of the substitution. May not terminate if the substitution
-    contains cylces, i.e occurs_check should return false on all bindings of the substitution. *)
+    contains cylces. Consequently, occurs_check should return false on all bindings of the substitution. *)
 
 (** {2 Unification caching} *)
 
 type 'a cache
 (** The type of caches for binary functions on terms, with return type 'a.
     Currently implemented with a Hash table.
-    Two pair of terms are equal iff there exists an involution
-    of the meta-variables unifying the temrs, such that
-    meta variables are only bound to meta-variables generated
-    by the same formula. *)
+    Two pair of terms [(s, t)] and [(s', t')] are equal iff there exists
+    an involution of the meta-variables [u], such that:
+    {ul
+      {li [u] unifies [s] with [s'] and [t] with [t']}
+      {li Any binding in [u] that links a meta [m] to a meta [m']
+          verifies that [m] and [m'] are defined by the same formula.}
+    }
+    *)
 
 val new_cache : unit -> 'a cache
 (** Create a new cache. *)
