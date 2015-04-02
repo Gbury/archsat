@@ -149,16 +149,23 @@ let rec generalize = function
     List.iter (fun v -> log 15 " |- %a" Expr.debug_var_ty v) t_vars;
     Expr.f_allty ty_vars (Expr.f_all t_vars f)
 
-let prenex f = generalize (specialize empty_env f)
+let prenex = function
+  (*
+  | ({ Expr.formula = Expr.Not { Expr.formula = Expr.Equiv _ } } as f)
+  | ({ Expr.formula = Expr.Equiv _ } as f) -> f
+     *)
+  | f ->generalize (specialize empty_env f)
 
 let do_formula f =
   let f' = prenex f in
-  log 5 "%a" Expr.debug_formula f;
-  log 5 "%a" Expr.debug_formula f';
-  if Expr.Formula.equal f f' then
+  log 5 "from : %a" Expr.debug_formula f;
+  if Expr.Formula.equal f f' then begin
+    log 5 "not changed.";
     None
-  else
+  end else begin
+    log 5 "to   : %a" Expr.debug_formula f';
     Some (f', Dispatcher.mk_proof id "todo")
+  end
 
 ;;
 Dispatcher.(register (
