@@ -188,9 +188,12 @@ let add ?(delay=0) ?(score=0) u =
     if delay <= 0 then
       heap := Q.add !heap t
     else
-      delayed := (t, delay) :: !delayed
-  end else
-    log 15 "Redondant inst : %a" Inst.debug t
+      delayed := (t, delay) :: !delayed;
+    true
+  end else begin
+    log 15 "Redondant inst : %a" Inst.debug t;
+    false
+  end
 
 let push inst =
   Stats.inst_done ();

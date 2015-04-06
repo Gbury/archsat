@@ -61,8 +61,6 @@ let rec debug_ss b = function
 exception Sat_solved_form of simple_system (** NOT exported *)
 exception Unsat_solved_form (** NOT exported *)
 
-exception Not_unifiable
-
 (* Checking simple systems *)
 (* ************************************************************************ *)
 

@@ -88,15 +88,19 @@ val with_cache : 'a cache -> (Expr.term -> Expr.term -> 'a) ->
 
 (** {2 Robinson unification} *)
 
-val unify_ty : Expr.ty -> Expr.ty -> t
-val unify_term : Expr.term -> Expr.term -> t
-(** Unification on types and terms. Currently uses robinson unification. *)
-
 val occurs_check_ty : t -> Expr.ty -> Expr.ty -> bool
 val occurs_check_term : t -> Expr.term -> Expr.term -> bool
 (** Occurs check on terms and types. *)
 
 val robinson_ty : t -> Expr.ty -> Expr.ty -> t
 val robinson_term : t -> Expr.term -> Expr.term -> t
-(** Robinson unification with input substitution. Can be used to extend substitutions. *)
+(** Robinson unification with input substitution. Can be used to extend substitutions.
+    @raise Not_unifiable_ty _
+    @raise Not_unifiable_term _ *)
+
+val unify_ty : (t -> unit) -> Expr.ty -> Expr.ty -> unit
+val unify_term : (t -> unit) -> Expr.term -> Expr.term -> unit
+(** Unification on types and terms. Expects a function to deal with
+    the substitutionif if found. Currently uses robinson unification. *)
+
 

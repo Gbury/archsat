@@ -259,8 +259,15 @@ let rec robinson_term subst s t =
           else
             raise (Not_unifiable_term (s, t))
 
-let unify_ty s t = fixpoint (robinson_ty empty s t)
-let unify_term s t = fixpoint (robinson_term empty s t)
+let unify_ty f s t =
+  try
+    f (fixpoint (robinson_ty empty s t))
+  with Not_unifiable_ty _ -> ()
+
+let unify_term f s t =
+  try
+    f (fixpoint (robinson_term empty s t))
+  with Not_unifiable_ty _ | Not_unifiable_term _ -> ()
 
 (* Caching (modulo meta switching) *)
 (* ************************************************************************ *)

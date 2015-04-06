@@ -1,6 +1,4 @@
 
-exception Not_unifiable
-
 val unify :
   (Expr.term * Expr.term) list ->
   (Unif.t -> unit) ->

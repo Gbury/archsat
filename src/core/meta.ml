@@ -6,6 +6,8 @@ let id = Dispatcher.new_id ()
 
 module H = Hashtbl.Make(Expr.Formula)
 
+exception Found_unif
+
 (* Extension parameters *)
 (* ************************************************************************ *)
 
@@ -149,28 +151,28 @@ let do_meta_inst = function
     if i <= !meta_max then begin
       let metas = Expr.new_term_metas f in
       let u = List.fold_left (fun s m -> Unif.bind_term s m (Expr.term_meta m)) Unif.empty metas in
-      Inst.add ~delay:(i*i + 1) u
+      ignore (Inst.add ~delay:(i*i + 1) u)
     end
   | { Expr.formula = Expr.Not { Expr.formula = Expr.Ex (l, _, p) } } as f ->
     let i = mark f in
     if i <= !meta_max then begin
       let metas = Expr.new_term_metas f in
       let u = List.fold_left (fun s m -> Unif.bind_term s m (Expr.term_meta m)) Unif.empty metas in
-      Inst.add ~delay:(i*i + 1) u
+      ignore (Inst.add ~delay:(i*i + 1) u)
     end
   | { Expr.formula = Expr.AllTy (l, _, p) } as f ->
     let i = mark f in
     if i <= !meta_max then begin
       let metas = Expr.new_ty_metas f in
       let u = List.fold_left (fun s m -> Unif.bind_ty s m (Expr.type_meta m)) Unif.empty metas in
-      Inst.add ~delay:(i*i + 1) u
+      ignore (Inst.add ~delay:(i*i + 1) u)
     end
   | { Expr.formula = Expr.Not { Expr.formula = Expr.ExTy (l, _, p) } } as f ->
     let i = mark f in
     if i <= !meta_max then begin
       let metas = Expr.new_ty_metas f in
       let u = List.fold_left (fun s m -> Unif.bind_ty s m (Expr.type_meta m)) Unif.empty metas in
-      Inst.add ~delay:(i*i + 1) u
+      ignore (Inst.add ~delay:(i*i + 1) u)
     end
   | _ -> assert false
 
@@ -190,9 +192,12 @@ let print_inst l s =
   Expr.Subst.iter (fun k v -> log l " |- %a -> %a" Expr.debug_meta k Expr.debug_term v) Unif.(s.t_map)
 
 (* Unification of predicates *)
-let do_inst u = Inst.add ~score:(score u) u
+let do_inst u =
+  Inst.add ~score:(score u) u
 
-let inst u = List.iter do_inst (Inst.split u)
+let inst u =
+  if List.exists (fun b -> b) (List.map do_inst (Inst.split u)) then
+    raise Found_unif
 
 let cache = Unif.new_cache ()
 
@@ -200,18 +205,12 @@ let find_inst unif p notp =
   try
     log 50 "Matching : %a ~~ %a" Expr.debug_term p Expr.debug_term notp;
     Unif.with_cache cache unif p notp
-  with
-  | Unif.Not_unifiable_ty (a, b) ->
-    log 60 "Couldn't unify types %a and %a" Expr.debug_ty a Expr.debug_ty b
-  | Unif.Not_unifiable_term (a, b) ->
-    log 60 "Couldn't unify terms %a and %a" Expr.debug_term a Expr.debug_term b
-  | Rigid.Not_unifiable ->
-    log 60 "Unification failed for %a and %a" Expr.debug_term p Expr.debug_term notp
+  with Found_unif ->()
 
 let rec unif_f st = function
   | No_unif -> (fun _ _ -> ())
   | Simple ->
-    (fun p q -> inst (Unif.unify_term p q))
+    Unif.unify_term inst
   | ERigid ->
     Unif.clear_cache cache;
     Rigid.unify st.equalities inst
