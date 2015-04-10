@@ -13,6 +13,8 @@ let log i fmt = Util.debug ~section:log_section i fmt
 
 module M = Map.Make(Expr.Term)
 module H = Hashtbl.Make(Expr.Term)
+module U = Map.Make(Unif)
+
 module G = Graph.Persistent.Digraph.Concrete(Expr.Term)
 module T = Graph.Traverse.Dfs(G)
 
@@ -33,6 +35,8 @@ type solved_form = {
   constraints : (term * term) list; (* t < t' *)
 }
 
+type solved_form_list = (term * term) list list U.t
+
 type rule =
   | RRBS
   | LRBS
@@ -42,7 +46,7 @@ type problem = {
   last_rule : rule;
   goal : term * term;
   lrbs_index : int;
-  constr : solved_form list;
+  constr : solved_form_list;
 }
 
 (* Printing *)
@@ -60,6 +64,52 @@ let rec debug_ss b = function
 
 exception Sat_solved_form of simple_system (** NOT exported *)
 exception Unsat_solved_form (** NOT exported *)
+
+(* Solved forms misc *)
+(* ************************************************************************ *)
+
+let compare_constr (a, b) (a', b') =
+  match Expr.Term.compare a a' with
+  | 0 -> Expr.Term.compare b b'
+  | x -> x
+let compare_cl = Util.lexicograph compare_constr
+
+let sf_add_lt sf s t = (* Add s < t to sf *)
+  { sf with
+    constraints = Util.list_merge compare_constr sf.constraints [(s, t)]
+  }
+
+(* Solved forms list as map from solved to contraints. *)
+let empty_sf_list = U.empty
+let sf_singleton sf = U.singleton sf.solved [sf.constraints]
+
+let get_cl l sf =
+  try
+    U.find sf.solved l
+  with Not_found -> []
+
+let add_sf m sf =
+  let cl = get_cl m sf in
+  U.add sf.solved (Util.list_merge compare_cl cl [sf.constraints]) m
+
+let sf_merge m m' =
+  U.merge (fun solved v v' -> match v, v' with
+      | Some l, None | None, Some l -> Some l
+      | Some l, Some l' -> Some (Util.list_merge compare_cl l l')
+      | None, None -> assert false) m m'
+
+let sf_filter f m =
+  U.fold (fun u l acc -> match List.filter f l with
+        [] -> acc | l' -> U.add u l' acc) empty_sf_list m
+
+let sf_fold f acc m =
+  U.fold (fun solved l acc' ->
+      List.fold_left (fun acc'' constraints ->
+          f { solved; constraints } acc'')
+        acc' l)
+    m acc
+
+let sf_is_empty m = U.is_empty m
 
 (* Checking simple systems *)
 (* ************************************************************************ *)
@@ -83,27 +133,27 @@ let rec ss_compare_aux t t' = function
   | Empty -> Comparison.Incomparable
   | Equal (t'', s) when Expr.Term.equal t t'' ->
     begin match ss_appears t' false s with
-    | None -> Comparison.Incomparable
-    | Some true -> Comparison.Gt
-    | Some false -> Comparison.Eq
+      | None -> Comparison.Incomparable
+      | Some true -> Comparison.Gt
+      | Some false -> Comparison.Eq
     end
   | Equal (t'', s) when Expr.Term.equal t' t'' ->
     begin match ss_appears t' false s with
-    | None -> Comparison.Incomparable
-    | Some true -> Comparison.Lt
-    | Some false -> Comparison.Eq
+      | None -> Comparison.Incomparable
+      | Some true -> Comparison.Lt
+      | Some false -> Comparison.Eq
     end
   | Greater (t'', s) when Expr.Term.equal t t'' ->
     begin match ss_appears t' true s with
-    | None -> Comparison.Incomparable
-    | Some true -> Comparison.Gt
-    | Some false -> assert false
+      | None -> Comparison.Incomparable
+      | Some true -> Comparison.Gt
+      | Some false -> assert false
     end
   | Greater (t'', s) when Expr.Term.equal t' t'' ->
     begin match ss_appears t' true s with
-    | None -> Comparison.Incomparable
-    | Some true -> Comparison.Lt
-    | Some false -> assert false
+      | None -> Comparison.Incomparable
+      | Some true -> Comparison.Lt
+      | Some false -> assert false
     end
   | Equal (_, s) | Greater (_, s) -> ss_compare_aux t t' s
 
@@ -152,8 +202,6 @@ let rec check_equal t = function
 let valid_ss = function
   | Empty -> true
   | Greater (t, s) -> check_greater t s
-  | Equal (t, ((Equal(t', _) | Greater (t', _)) as s)) ->
-    Expr.Term.compare t t' > 0 && check_equal t s
   | Equal (t, s) -> check_equal t s
 
 (* Simple systems from solved forms *)
@@ -178,12 +226,12 @@ let add_vertex g v = G.fold_vertex
     (fun t g -> if Lpo.compare t v = Comparison.Lt then add_edge g t v else g)
     g.graph { g with graph = G.add_vertex g.graph v }
 
-let graph s =
-  let l = Util.list_flatmap (fun (t, t') -> subterms t @ subterms t') s.constraints in
+let graph c =
+  let l = Util.list_flatmap (fun (t, t') -> List.rev_append (subterms t) (subterms t')) c in
   let l = List.sort_uniq Expr.Term.compare l in
   let l = List.sort (fun t t' -> Comparison.to_total (Lpo.compare t t')) l in
   let g = List.fold_left add_vertex empty_graph l in
-  let g = List.fold_left (fun g (t, t') -> add_edge g t t') g s.constraints in
+  let g = List.fold_left (fun g (t, t') -> add_edge g t t') g c in
   if T.has_cycle g.graph then raise Unsat_solved_form
   else g
 
@@ -205,10 +253,10 @@ let rec find_ss g levels lvl s =
       ) g.graph
   end
 
-let valid_sf sf =
+let valid_sf constrs =
   try
     let levels = H.create 64 in
-    find_ss (graph sf) levels 0 Empty;
+    find_ss (graph constrs) levels 0 Empty;
     false
   with
   | Unsat_solved_form -> false
@@ -226,88 +274,79 @@ let sf_belongs sf (s, t) =
   List.exists (fun (s', t') ->
       Expr.Term.equal s s' && Expr.Term.equal t t') sf.constraints
 
-let rec eval_ty subst = function
-  | { Expr.ty = Expr.TyVar _ } -> assert false
-  | { Expr.ty = Expr.TyMeta m } as ty ->
-    begin try eval_ty subst (Unif.get_ty subst m) with Not_found -> ty end
-  | { Expr.ty = Expr.TyApp (f, args) } ->
-    Expr.type_app f (List.map (eval_ty subst) args)
-
 let rec add_eq sf s t =
   let s = Unif.follow_term sf.solved s in
   let t = Unif.follow_term sf.solved t in
   match s, t with
-      | _ when Expr.Term.equal s t -> [sf]
-      | { Expr.term = Expr.Var _ }, _
-      | _, { Expr.term = Expr.Var _ } ->
-        assert false
-      | ({ Expr.term = Expr.Meta m} as v), w
-      | w, ({ Expr.term = Expr.Meta m} as v) ->
-        if Unif.occurs_check_term sf.solved v w then []
-        else add_subst sf m w
-      | { Expr.term = Expr.App (f, f_ty_args, f_args) },
-        { Expr.term = Expr.App(g, g_ty_args, g_args) } ->
-        if Expr.Var.compare f g = 0 then begin
-          try
-            let u = List.fold_left2 Unif.robinson_ty
-                sf.solved f_ty_args g_ty_args in
-            List.fold_left2 add_eq_set [{sf with solved = u}] f_args g_args
-          with Unif.Not_unifiable_ty _ ->
-            []
-        end else
-          []
+  | _ when Expr.Term.equal s t -> sf_singleton sf
+  | ({ Expr.term = Expr.Meta m} as v), w
+  | w, ({ Expr.term = Expr.Meta m} as v) ->
+    if Unif.occurs_check_term sf.solved v w then empty_sf_list
+    else add_subst sf m w
+  | { Expr.term = Expr.App (f, f_ty_args, f_args) },
+    { Expr.term = Expr.App(g, g_ty_args, g_args) } ->
+    if Expr.Var.compare f g = 0 then begin
+      try
+        let u = List.fold_left2 Unif.robinson_ty
+            sf.solved f_ty_args g_ty_args in
+        List.fold_left2 add_eq_set (sf_singleton {sf with solved = u}) f_args g_args
+      with Unif.Not_unifiable_ty _ ->
+        empty_sf_list
+    end else
+      empty_sf_list
+  | { Expr.term = Expr.Var _ }, _
+  | _, { Expr.term = Expr.Var _ } ->
+    assert false
 
-and add_eq_set l s t = Util.list_flatmap (fun sf -> add_eq sf s t) l
+and add_eq_set l s t = sf_fold (fun sf acc -> sf_merge acc (add_eq sf s t)) empty_sf_list l
 
 and add_subst sf m t =
-  if Expr.(Ty.equal m.meta_var.var_type (eval_ty sf.solved t.t_type)) then begin
-    log 15 "Subst : %a -> %a" Expr.debug_meta m Expr.debug_term t;
+  try
+    let u = Unif.robinson_ty sf.solved Expr.(m.meta_var.var_type) Expr.(t.t_type) in
     List.fold_left (fun acc (s, t) -> add_gt_set acc t s)
-      [{solved = Unif.bind_term sf.solved m t; constraints = []}] sf.constraints
-  end else begin
-    log 15 "Refused subst : %a -> %a" Expr.debug_meta m Expr.debug_term t;
-    []
-  end
+      (sf_singleton {solved = Unif.bind_term u m t; constraints = []}) sf.constraints
+  with Unif.Not_unifiable_ty (ty, ty') ->
+    empty_sf_list
 
 and add_gt sf s t =
   let s = Unif.follow_term sf.solved s in
   let t = Unif.follow_term sf.solved t in
   match s, t with
-      | { Expr.term = Expr.Var _ }, _
-      | _, { Expr.term = Expr.Var _ } ->
-        assert false
-      | { Expr.term = Expr.Meta _ }, _
-        when Unif.occurs_check_term sf.solved s t -> []
-      | _, { Expr.term = Expr.Meta _ }
-        when Unif.occurs_check_term sf.solved t s -> [sf]
-      | { Expr.term = Expr.Meta _ }, _ | _, { Expr.term = Expr.Meta _ }
-        when sf_belongs sf (s, t) -> []
-      | { Expr.term = Expr.Meta _ }, _ | _, { Expr.term = Expr.Meta _ } ->
-        [{sf with constraints = (t, s) :: sf.constraints }]
-      | { Expr.term = Expr.App (f, _, f_args) },
-        { Expr.term = Expr.App (g, _, g_args) } ->
-        begin match Expr.Var.compare f g with
-          | n when n > 0 ->
-            List.fold_left (fun acc ti -> add_gt_set acc s ti) [sf] g_args
-          | n when n < 0 ->
-            Util.list_flatmap (fun si -> add_eq sf si t @ add_gt sf si t) f_args
-          | _ (* f = g *) ->
-            let res = Util.list_flatmap (fun si -> add_eq sf si t @ add_gt sf si t) f_args in
-            let eq = [sf] in
-            let rec aux (res, eq) = function
-              | [], [] -> res
-              | si :: r, ti :: r' ->
-                let h = add_gt_set eq si ti in
-                let h = List.fold_left (fun h' tj -> add_gt_set h' s tj) h r' in
-                aux (res @ h, add_eq_set eq si ti) (r, r')
-              | _ -> assert false
-            in
-            aux (res, eq) (f_args, g_args)
-        end
+  | { Expr.term = Expr.Meta _ }, _
+    when Unif.occurs_check_term sf.solved s t -> empty_sf_list
+  | _, { Expr.term = Expr.Meta _ }
+    when Unif.occurs_check_term sf.solved t s -> sf_singleton sf
+  | { Expr.term = Expr.Meta _ }, _ | _, { Expr.term = Expr.Meta _ }
+    when sf_belongs sf (s, t) -> empty_sf_list
+  | { Expr.term = Expr.Meta _ }, _ | _, { Expr.term = Expr.Meta _ } ->
+    sf_singleton (sf_add_lt sf t s)
+  | { Expr.term = Expr.App (f, _, f_args) },
+    { Expr.term = Expr.App (g, _, g_args) } ->
+    begin match Expr.Var.compare f g with
+      | n when n > 0 ->
+        List.fold_left (fun acc ti -> add_gt_set acc s ti) (sf_singleton sf) g_args
+      | n when n < 0 ->
+        List.fold_left (fun acc si -> sf_merge (sf_merge acc (add_eq sf si t)) (add_gt sf si t)) empty_sf_list f_args
+      | _ (* f = g *) ->
+        let res = List.fold_left (fun acc si -> sf_merge (sf_merge acc (add_eq sf si t)) (add_gt sf si t)) empty_sf_list f_args in
+        let eq = sf_singleton sf in
+        let rec aux (res, eq) = function
+          | [], [] -> res
+          | si :: r, ti :: r' ->
+            let h = add_gt_set eq si ti in
+            let h = List.fold_left (fun h' tj -> add_gt_set h' s tj) h r' in
+            aux (sf_merge res h, add_eq_set eq si ti) (r, r')
+          | _ -> assert false
+        in
+        aux (res, eq) (f_args, g_args)
+    end
+  | { Expr.term = Expr.Var _ }, _
+  | _, { Expr.term = Expr.Var _ } ->
+    assert false
 
-and add_gt_set l s t = Util.list_flatmap (fun sf -> add_gt sf s t) l
+and add_gt_set l s t = sf_fold (fun sf acc -> sf_merge acc (add_gt sf s t)) empty_sf_list l
 
-let sf_set_sat = List.filter valid_sf
+let sf_set_sat = sf_filter valid_sf
 
 (* BSE Calculus *)
 (* ************************************************************************ *)
@@ -319,14 +358,16 @@ let mk_pb l u v =
     goal = (u, v);
     last_rule = RRBS;
     lrbs_index = -1;
-    constr = [sf_empty];
+    constr = sf_singleton sf_empty;
   }
 
 let rec apply_er k pb =
   let (s, t) = pb.goal in
-  match sf_set_sat (add_eq_set pb.constr s t) with
-  | [] -> apply_rrbs k pb
-  | l -> List.iter (fun sf -> k (Unif.fixpoint sf.solved)) l
+  let res = sf_set_sat (add_eq_set pb.constr s t) in
+  if sf_is_empty res then
+    apply_rrbs k pb
+  else
+    U.iter (fun solved _ -> k (Unif.fixpoint solved)) res
 
 and apply_rrbs k pb =
   let (a, b) = pb.goal in
@@ -335,14 +376,13 @@ and apply_rrbs k pb =
   apply_lrbs k pb
 
 and rrbs_aux k pb s t =
-  match sf_set_sat (add_gt_set pb.constr s t) with
-  | [] -> ()
-  | sat ->
+  let sat = sf_set_sat (add_gt_set pb.constr s t) in
+  if not (sf_is_empty sat) then begin
     let pb = { pb with constr = sat } in
-    begin match pb.last_rule with
-      | LRBS -> rrbs_index k pb s t (Parray.make 1 (Parray.get pb.eqs pb.lrbs_index)) 0
-      | RRBS -> rrbs_index k pb s t pb.eqs 0
-    end
+    match pb.last_rule with
+    | LRBS -> rrbs_index k pb s t (Parray.make 1 (Parray.get pb.eqs pb.lrbs_index)) 0
+    | RRBS -> rrbs_index k pb s t pb.eqs 0
+  end
 
 and rrbs_index k pb s t eqs i =
   if i >= Parray.length eqs then
@@ -356,75 +396,95 @@ and rrbs_index k pb s t eqs i =
   end
 
 and rrbs_eq_pre k pb s t l r subs =
-  match sf_set_sat (add_gt_set pb.constr l r) with
-  | [] -> ()
-  | sat -> rrbs_eq k { pb with constr = sat } s t l r subs
+  let sat = sf_set_sat (add_gt_set pb.constr l r) in
+  if not (sf_is_empty sat) then begin
+    let pb = { pb with constr = sat } in
+    rrbs_eq k pb s t l r subs
+  end
 
 and rrbs_eq k pb s t l r = function
   | [] -> ()
   | { Expr.term = Expr.Meta _ } :: subs -> rrbs_eq k pb s t l r subs
   | p :: subs ->
-    begin match sf_set_sat (add_eq_set pb.constr l p) with
-      | [] -> rrbs_eq k pb s t l r subs
-      | sat ->
-        let s' = Expr.term_replace (p,r) s in
-        apply_er k { pb with last_rule = RRBS; constr = sat; goal = (s', t) };
-        rrbs_eq k pb s t l r subs
+    let sat = sf_set_sat (add_eq_set pb.constr l p) in
+    if sf_is_empty sat then
+      rrbs_eq k pb s t l r subs
+    else begin
+      let s' = Expr.term_replace (p,r) s in
+      apply_er k { pb with last_rule = RRBS; lrbs_index = -1;
+                           constr = sat; goal = (s', t) };
+      rrbs_eq k pb s t l r subs
     end
 
 and apply_lrbs k pb =
   match pb.last_rule with
-  | RRBS -> lrbs_jump_rrbs k pb 0 0
+  | RRBS -> lrbs_jump_rrbs k pb 0
   | LRBS -> lrbs_jump_lrbs k pb 0 pb.lrbs_index
 
 and lrbs_jump_lrbs k pb j i =
   if j >= Parray.length pb.eqs then
-    lrbs_jump_rrbs k pb pb.lrbs_index 0
+    lrbs_jump_rrbs k pb pb.lrbs_index
   else begin
     lrbs_index k pb j i;
     lrbs_jump_lrbs k pb (j + 1) i
   end
 
-and lrbs_jump_rrbs k pb j i =
+and lrbs_jump_rrbs k pb j =
   if j >= Parray.length pb.eqs then ()
-  else if i >= Parray.length pb.eqs then
-    lrbs_jump_rrbs k pb (j + 1) 0
   else begin
-    lrbs_index k pb j i;
-    lrbs_jump_rrbs k pb j (i + 1)
+    let s, t = Parray.get pb.eqs j in
+    lrbs_jump_line k pb j s t;
+    lrbs_jump_line k pb j t s;
+    lrbs_jump_rrbs k pb (j + 1)
   end
 
+and lrbs_jump_line k pb j s t =
+  let sat = sf_set_sat (add_gt_set pb.constr s t) in
+  if not (sf_is_empty sat) then begin
+    let pb = { pb with constr = sat } in
+    for i = 0 to Parray.length pb.eqs - 1 do
+      lrbs_jump_index_i k pb s t j i
+    done
+  end
+
+and lrbs_jump_index_i k pb s t j i =
+  let l, r = Parray.get pb.eqs i in
+  let subs = subterms s in
+  lrbs_eq_pre k pb j s t l r subs;
+  lrbs_eq_pre k pb j s t r l subs
+
 and lrbs_index k pb j i =
-    let s, t = Parray.get pb.eqs j in
-    let l, r = Parray.get pb.eqs i in
-    lrbs_aux k pb j s t l r;
-    lrbs_aux k pb j t s l r
+  let s, t = Parray.get pb.eqs j in
+  let l, r = Parray.get pb.eqs i in
+  lrbs_aux k pb j s t l r;
+  lrbs_aux k pb j t s l r
 
 and lrbs_aux k pb j s t l r =
-  match sf_set_sat (add_gt_set pb.constr s t) with
-  | [] -> ()
-  | sat ->
+  let sat = sf_set_sat (add_gt_set pb.constr s t) in
+  if not (sf_is_empty sat) then begin
     let pb = { pb with constr = sat } in
     let subs = subterms s in
     lrbs_eq_pre k pb j s t l r subs;
     lrbs_eq_pre k pb j s t r l subs
+  end
 
 and lrbs_eq_pre k pb j s t l r subs =
-  match sf_set_sat (add_gt_set pb.constr l r) with
-  | [] -> ()
-  | sat -> lrbs_eq k { pb with constr = sat } j s t l r subs
+  let sat = sf_set_sat (add_gt_set pb.constr l r) in
+  if not (sf_is_empty sat) then
+    lrbs_eq k { pb with constr = sat } j s t l r subs
 
 and lrbs_eq k pb j s t l r = function
   | [] -> ()
   | { Expr.term = Expr.Meta _ } :: subs -> lrbs_eq k pb j s t l r subs
   | p :: subs ->
-    begin match sf_set_sat (add_eq_set pb.constr l p) with
-      | [] -> lrbs_eq k pb j s t l r subs
-      | sat ->
-        let s' = Expr.term_replace (p,r) s in
-        apply_er k { pb with last_rule = LRBS; lrbs_index = j;
-                               constr = sat; eqs = Parray.set pb.eqs j (s',t) };
-        lrbs_eq k pb j s t l r subs
+    let sat = sf_set_sat (add_eq_set pb.constr l p) in
+    if sf_is_empty sat then
+      lrbs_eq k pb j s t l r subs
+    else begin
+      let s' = Expr.term_replace (p,r) s in
+      apply_rrbs k { pb with last_rule = LRBS; lrbs_index = j;
+                           constr = sat; eqs = Parray.set pb.eqs j (s',t) };
+      lrbs_eq k pb j s t l r subs
     end
 
 let unify eqs f s t = apply_er f (mk_pb eqs s t)

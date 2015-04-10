@@ -154,7 +154,7 @@ let prenex = function
   | ({ Expr.formula = Expr.Not { Expr.formula = Expr.Equiv _ } } as f)
   | ({ Expr.formula = Expr.Equiv _ } as f) -> f
      *)
-  | f ->generalize (specialize empty_env f)
+  | f -> generalize (specialize empty_env f)
 
 let do_formula f =
   let f' = prenex f in

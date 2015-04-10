@@ -70,7 +70,8 @@ let empty_st () = {
 
 let debug_st n st =
   log n "Found : %d true preds, %d false preds, %d equalities, %d inequalities"
-    (List.length st.true_preds) (List.length st.false_preds) (List.length st.equalities) (List.length st.inequalities)
+    (List.length st.true_preds) (List.length st.false_preds) (List.length st.equalities) (List.length st.inequalities);
+  List.iter (fun (a, b) -> log n " |- %a == %a" Expr.debug_term a Expr.debug_term b) st.equalities
 
 let parse_slice iter =
   let res = empty_st () in
@@ -80,7 +81,8 @@ let parse_slice iter =
       | { Expr.formula = Expr.Not { Expr.formula = Expr.Pred p } } ->
         res.false_preds <- p :: res.false_preds
       | { Expr.formula = Expr.Equal (a, b) } ->
-        res.equalities <- (a, b) :: res.equalities
+        if not (Expr.Term.equal a b) then
+          res.equalities <- (a, b) :: res.equalities
       | { Expr.formula = Expr.Not { Expr.formula = Expr.Equal (a, b) } } ->
         res.inequalities <- (a, b) :: res.inequalities
       | _ -> ()
@@ -229,6 +231,7 @@ let find_all_insts iter =
     (* Analysing assummed formulas *)
     log 5 "Parsing input formulas";
     let st = parse_slice iter in
+    debug_st 30 st;
     (* Choosing unification function *)
     let unif = unif_f st !unif_setting in
     (* Iter unification through all possibilities. *)

@@ -11,7 +11,7 @@ type t = {
   t_map : (Expr.ty Expr.meta, Expr.term) Expr.Subst.t;
 }
 (** The type of unifiers. Used to represent subsitutions
-    on both types and terms. *)
+    from meta-variables to types or terms. *)
 
 val empty : t
 (** The empty substitution. *)
