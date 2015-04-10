@@ -86,7 +86,7 @@ let tau_assume (f, i) = tau i f
 let opts t =
   let docs = Options.ext_sect in
   let kind =
-    let doc = Util.sprintf
+    let doc = CCPrint.sprintf
         "Decide the strategy to use for existencially quantified variables.
          $(docv) may be %s" (Cmdliner.Arg.doc_alts_enum ~quoted:false kind_list) in
     Cmdliner.Arg.(value & opt kind_conv Skolem & info ["skolem.kind"] ~docv:"KIND" ~docs ~doc)

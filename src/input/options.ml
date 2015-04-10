@@ -213,7 +213,7 @@ let copts_t () =
     Arg.(value & opt int 0 & info ["v"; "verbose"] ~docs ~docv:"LVL" ~doc)
   in
   let debug =
-    let doc = Util.sprintf
+    let doc = CCPrint.sprintf
         "Set the debug level of the given section, as a pair : '$(b,section),$(b,level)'.
         $(b,section) might be %s." (Arg.doc_alts ~quoted:false (log_sections ())) in
     Arg.(value & opt_all (pair section int) [] & info ["debug"] ~docs:ext_sect ~docv:"NAME,LVL" ~doc)
@@ -223,13 +223,13 @@ let copts_t () =
     Arg.(required & pos 0 (some non_dir_file) None & info [] ~docv:"FILE" ~doc)
   in
   let input =
-    let doc = Util.sprintf
+    let doc = CCPrint.sprintf
         "Set the format for the input file to $(docv) (%s)."
         (Arg.doc_alts_enum ~quoted:false input_list) in
     Arg.(value & opt input Auto & info ["i"; "input"] ~docs ~docv:"INPUT" ~doc)
   in
   let output =
-    let doc = Util.sprintf
+    let doc = CCPrint.sprintf
         "Set the output for printing results to $(docv) (%s)."
         (Arg.doc_alts_enum ~quoted:false  output_list) in
     Arg.(value & opt output Standard & info ["o"; "output"] ~docs ~docv:"OUTPUT" ~doc)
@@ -256,7 +256,7 @@ let copts_t () =
     Arg.(value & opt (some string) None & info ["p"; "proof"] ~docs ~doc)
   in
   let print_model =
-    let doc = Util.sprintf
+    let doc = CCPrint.sprintf
         "Set the option for printing the model (if one is found) to $(docv) (%s)."
         (Arg.doc_alts_enum ~quoted:false model_list) in
     Arg.(value & opt model NoModel & info ["m"; "model"] ~docs ~docv:"MODEL" ~doc)

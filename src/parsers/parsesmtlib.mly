@@ -180,8 +180,8 @@ command:
   | OPEN DEFINE_SORT SYMBOL OPEN symbol_star CLOSE sort CLOSE           { [Ast.TypeAlias (Ast.sym $3, $5, $7)] }
   | OPEN DECLARE_FUN SYMBOL OPEN sort_star CLOSE sort CLOSE             { [Ast.TypeDef ($3, Ast.sym $3, Ast.mk_fun_ty $5 $7)] }
   | OPEN DEFINE_FUN SYMBOL OPEN sorted_var_star CLOSE sort term CLOSE   { [Ast.Alias (Ast.sym $3, $5, Ast.column $7 $8)] }
-  | OPEN PUSH NUMERAL CLOSE                                             { Util.times (int_of_string $3) (fun _ -> Ast.Push) }
-  | OPEN POP NUMERAL CLOSE                                              { Util.times (int_of_string $3) (fun _ -> Ast.Pop) }
+  | OPEN PUSH NUMERAL CLOSE                                             { CCList.replicate (int_of_string $3) Ast.Push }
+  | OPEN POP NUMERAL CLOSE                                              { CCList.replicate (int_of_string $3) Ast.Pop }
   | OPEN ASSERT term CLOSE                                              { [Ast.Assert (assert_name (), $3, false)] }
   | OPEN CHECK_SAT CLOSE                                                { [Ast.CheckSat] }
   | OPEN GET_ASSERTIONS CLOSE                                           { [] }

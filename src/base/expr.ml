@@ -123,17 +123,17 @@ let rec debug_ty b ty = match ty.ty with
   | TyApp (f, []) ->
     Printf.bprintf b "%a" debug_var f
   | TyApp (f, l) ->
-    Printf.bprintf b "%a(%a)" debug_var f (Util.pp_list ~sep:", " debug_ty) l
+    Printf.bprintf b "%a(%a)" debug_var f (CCPrint.list ~sep:", " debug_ty) l
 
 let debug_params b = function
   | [] -> ()
-  | l -> Printf.bprintf b "∀ %a. " (Util.pp_list ~sep:", " debug_var) l
+  | l -> Printf.bprintf b "∀ %a. " (CCPrint.list ~sep:", " debug_var) l
 
 let debug_sig print b f =
   match f.fun_args with
   | [] -> Printf.bprintf b "%a%a" debug_params f.fun_vars print f.fun_ret
   | l -> Printf.bprintf b "%a%a -> %a" debug_params f.fun_vars
-           (Util.pp_list ~sep:" -> " print) l print f.fun_ret
+           (CCPrint.list ~sep:" -> " print) l print f.fun_ret
 
 let debug_fun_ty = debug_sig debug_ty
 let debug_fun_ttype = debug_sig debug_ttype
@@ -152,11 +152,11 @@ let rec debug_term b t = match t.term with
     Printf.bprintf b "%a" debug_var f
   | App (f, [], args) ->
     Printf.bprintf b "%a(%a)" debug_var f
-      (Util.pp_list ~sep:", " debug_term) args
+      (CCPrint.list ~sep:", " debug_term) args
   | App (f, tys, args) ->
     Printf.bprintf b "%a(%a; %a)" debug_var f
-      (Util.pp_list ~sep:", " debug_ty) tys
-      (Util.pp_list ~sep:", " debug_term) args
+      (CCPrint.list ~sep:", " debug_ty) tys
+      (CCPrint.list ~sep:", " debug_term) args
 
 let rec debug_formula b f =
   let aux b f = match f.formula with
@@ -169,18 +169,18 @@ let rec debug_formula b f =
   | True -> Printf.bprintf b "⊤"
   | False -> Printf.bprintf b "⊥"
   | Not f -> Printf.bprintf b "¬ %a" aux f
-  | And l -> Printf.bprintf b "%a" (Util.pp_list ~sep:" ∧ " aux) l
-  | Or l -> Printf.bprintf b "%a" (Util.pp_list ~sep:" ∨ " aux) l
+  | And l -> Printf.bprintf b "%a" (CCPrint.list ~sep:" ∧ " aux) l
+  | Or l -> Printf.bprintf b "%a" (CCPrint.list ~sep:" ∨ " aux) l
   | Imply (p, q) -> Printf.bprintf b "%a ⇒ %a" aux p aux q
   | Equiv (p, q) -> Printf.bprintf b "%a ⇔ %a" aux p aux q
   | All (l, _, f) -> Printf.bprintf b "∀ %a. %a"
-                       (Util.pp_list ~sep:", " debug_var_ty) l debug_formula f
+                       (CCPrint.list ~sep:", " debug_var_ty) l debug_formula f
   | AllTy (l, _, f) -> Printf.bprintf b "∀ %a. %a"
-                         (Util.pp_list ~sep:", " debug_var_ttype) l debug_formula f
+                         (CCPrint.list ~sep:", " debug_var_ttype) l debug_formula f
   | Ex (l, _, f) -> Printf.bprintf b "∃ %a. %a"
-                      (Util.pp_list ~sep:", " debug_var_ty) l debug_formula f
+                      (CCPrint.list ~sep:", " debug_var_ty) l debug_formula f
   | ExTy (l, _, f) -> Printf.bprintf b "∃ %a. %a"
-                        (Util.pp_list ~sep:", " debug_var_ttype) l debug_formula f
+                        (CCPrint.list ~sep:", " debug_var_ttype) l debug_formula f
 
 (* Printing functions *)
 (* ************************************************************************ *)
@@ -539,14 +539,14 @@ type 't eval =
   | Interpreted of 't * int
   | Waiting of 't
 
-let var_eval = Vector.make 107 None
-let var_assign = Vector.make 107 None
+let var_eval = CCVector.make 107 None
+let var_assign = CCVector.make 107 None
 
 let is_interpreted f =
-  Vector.get var_eval f.var_id <> None
+  CCVector.get var_eval f.var_id <> None
 
 let interpreter v =
-  match Vector.get var_eval v.var_id with
+  match CCVector.get var_eval v.var_id with
   | None -> raise Exit
   | Some (_, f) -> f
 
@@ -558,10 +558,10 @@ let eval t =
   with Exit -> raise (Cannot_interpret t)
 
 let is_assignable f =
-  Vector.get var_assign f.var_id <> None
+  CCVector.get var_assign f.var_id <> None
 
 let assigner v =
-  match Vector.get var_assign v.var_id with
+  match CCVector.get var_assign v.var_id with
   | None -> raise Exit
   | Some (_, f) -> f
 
@@ -573,19 +573,19 @@ let assign t =
   with Exit -> raise (Cannot_assign t)
 
 let set_eval v prio f =
-  match Vector.get var_eval v.var_id with
+  match CCVector.get var_eval v.var_id with
   | None ->
-    Vector.set var_eval v.var_id (Some (prio, f))
+    CCVector.set var_eval v.var_id (Some (prio, f))
   | Some (i, _) when i < prio ->
-    Vector.set var_eval v.var_id (Some (prio, f))
+    CCVector.set var_eval v.var_id (Some (prio, f))
   | _ -> ()
 
 let set_assign v prio f =
-  match Vector.get var_assign v.var_id with
+  match CCVector.get var_assign v.var_id with
   | None ->
-    Vector.set var_assign v.var_id (Some (prio, f))
+    CCVector.set var_assign v.var_id (Some (prio, f))
   | Some (i, _) when i < prio ->
-    Vector.set var_assign v.var_id (Some (prio, f))
+    CCVector.set var_assign v.var_id (Some (prio, f))
   | _ -> ()
 
 (* Variables constructors *)
@@ -594,8 +594,8 @@ let set_assign v prio f =
 let n_var = ref ~-1
 let mk_var name ty =
   incr n_var;
-  Vector.push var_eval None;
-  Vector.push var_assign None;
+  CCVector.push var_eval None;
+  CCVector.push var_assign None;
   { var_name = name; var_id = !n_var; var_type = ty; }
 
 (*
@@ -655,7 +655,7 @@ let const name tys args ret = mk_var name {
     fun_args = args;
     fun_ret = ret;
   }
-let type_const name n = const name [] (Util.times n (fun () -> Type)) Type
+let type_const name n = const name [] (CCList.replicate n Type) Type
 let term_const = const
 
 (* Types & substitutions *)
@@ -750,15 +750,12 @@ let rec term_replace (t, t') t'' = match t''.term with
 let null_fv = [], []
 
 let merge_fv (ty1, t1) (ty2, t2) =
-  Util.list_merge compare_var ty1 ty2,
-  Util.list_merge compare_var t1 t2
-
-let clean_fv (ty, t) =
-  Util.list_uniq equal_var ty, Util.list_uniq equal_var t
+  CCList.sorted_merge_uniq ~cmp:compare_var ty1 ty2,
+  CCList.sorted_merge_uniq ~cmp:compare_var t1 t2
 
 let remove_fv (ty1, t1) (ty2, t2) =
-  List.filter (fun v -> not (Util.list_mem equal_var v ty2)) ty1,
-  List.filter (fun v -> not (Util.list_mem equal_var v t2)) t1
+  List.filter (fun v -> not (CCList.Set.mem ~eq:equal_var v ty2)) ty1,
+  List.filter (fun v -> not (CCList.Set.mem ~eq:equal_var v t2)) t1
 
 let rec ty_free_vars acc ty = match ty.ty with
   | TyVar v -> merge_fv acc ([v], [])
@@ -794,7 +791,7 @@ let rec formula_free_vars f = match f.formula with
 and formula_fv f = match f.f_vars with
   | Some res -> res
   | None ->
-    let res = clean_fv (formula_free_vars f) in
+    let res = formula_free_vars f in
     f.f_vars <- Some res;
     res
 
@@ -804,8 +801,8 @@ let to_free_vars (tys, ts) = List.map type_var tys, List.map term_var ts
 (* ************************************************************************ *)
 
 let merge_metas (ty1, t1) (ty2, t2) =
-  Util.list_merge compare_meta ty1 ty2,
-  Util.list_merge compare_meta t1 t2
+  CCList.sorted_merge_uniq ~cmp:compare_meta ty1 ty2,
+  CCList.sorted_merge_uniq ~cmp:compare_meta t1 t2
 
 let rec ty_free_metas acc ty = match ty.ty with
   | TyVar _ -> acc
@@ -1042,8 +1039,8 @@ let partial_inst ty_map t_map f = match f.formula with
 (* ************************************************************************ *)
 
 (* Metas refer to an index which stores the defining formula for the variable *)
-let meta_ty_index = Vector.make 37 (f_true, [])
-let meta_term_index = Vector.make 37 (f_true, [])
+let meta_ty_index = CCVector.make 37 (f_true, [])
+let meta_term_index = CCVector.make 37 (f_true, [])
 
 (* Metas *)
 let mk_meta v i = {
@@ -1051,23 +1048,23 @@ let mk_meta v i = {
   meta_index = i;
 }
 
-let get_meta_def i = fst (Vector.get meta_term_index i)
-let get_meta_ty_def i = fst (Vector.get meta_ty_index i)
+let get_meta_def i = fst (CCVector.get meta_term_index i)
+let get_meta_ty_def i = fst (CCVector.get meta_ty_index i)
 
 let mk_metas l f =
-  let i = Vector.size meta_term_index in
+  let i = CCVector.size meta_term_index in
   let metas = List.map (fun v -> mk_meta v i) l in
-  Vector.push meta_term_index (f, metas);
+  CCVector.push meta_term_index (f, metas);
   metas
 
 let mk_ty_metas l f =
-  let i = Vector.size meta_ty_index in
+  let i = CCVector.size meta_ty_index in
   let metas = List.map (fun v -> mk_meta v i) l in
-  Vector.push meta_ty_index (f, metas);
+  CCVector.push meta_ty_index (f, metas);
   metas
 
-let ty_metas_of_index i = snd (Vector.get meta_ty_index i)
-let term_metas_of_index i = snd (Vector.get meta_term_index i)
+let ty_metas_of_index i = snd (CCVector.get meta_ty_index i)
+let term_metas_of_index i = snd (CCVector.get meta_term_index i)
 
 let new_ty_metas f = match f.formula with
   | Not { formula = ExTy(l, _, _) } | AllTy (l, _, _) -> mk_ty_metas l f

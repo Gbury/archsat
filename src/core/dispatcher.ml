@@ -161,7 +161,9 @@ let set_ext s =
   | '+' -> activate (String.sub s 1 (String.length s - 1))
   | _ -> activate s
 
-let set_exts s = List.iter set_ext (Util.str_split ~by:"," s)
+let set_exts s =
+  List.iter set_ext
+    (List.map (fun (s, i, l) -> String.sub s i l) (CCString.Split.list_ ~by:"," s))
 
 (* Info about extensions *)
 let list_extensions () = List.map (fun r -> r.name) !extensions
@@ -260,7 +262,7 @@ let do_propagate propagate =
 let do_push f =
   while not (Stack.is_empty push_stack) do
     let (a, p) = Stack.pop push_stack in
-    log 2 "Pushing '%s' : %a" p.proof_name (Util.pp_list ~sep:" || " Expr.debug_formula) a;
+    log 2 "Pushing '%s' : %a" p.proof_name (CCPrint.list ~sep:" || " Expr.debug_formula) a;
     f a p
   done
 
@@ -345,8 +347,8 @@ let update_watch x j =
   with Not_found ->
     let ext = find_ext j.job_ext in
     log 0 "Error for job from %s, looking for %d, called by %a" ext.name j.job_n Expr.debug_term x;
-    log 0 "watched : %a" (Util.pp_list ~sep:" || " Expr.debug_term) j.watched;
-    log 0 "not_watched : %a" (Util.pp_list ~sep:" || " Expr.debug_term) j.not_watched;
+    log 0 "watched : %a" (CCPrint.list ~sep:" || " Expr.debug_term) j.watched;
+    log 0 "not_watched : %a" (CCPrint.list ~sep:" || " Expr.debug_term) j.not_watched;
     assert false
 
 let new_job id k watched not_watched f = {
@@ -366,7 +368,7 @@ let watch tag k args f =
       List.iter (add_job j) not_assigned
     | [] (* i > 0 *) ->
       let l = List.rev_append not_assigned assigned in
-      let to_watch, not_watched = Util.list_split_at k l in
+      let to_watch, not_watched = CCList.split k l in
       let j = new_job tag k to_watch not_watched f in
       List.iter (add_job j) to_watch;
       call_job j
@@ -379,7 +381,7 @@ let watch tag k args f =
   let t' = Builtin.tuple args in
   let l = try H.find watchers t' with Not_found -> [] in
   if not (List.mem tag l) then begin
-    log 10 "New watch from %s, %d among : %a" (find_ext tag).name k (Util.pp_list ~sep:" || " Expr.debug_term) args;
+    log 10 "New watch from %s, %d among : %a" (find_ext tag).name k (CCPrint.list ~sep:" || " Expr.debug_term) args;
     H.add watchers t' (tag :: l);
     split [] [] k (List.sort_uniq Expr.Term.compare args)
   end
@@ -493,7 +495,7 @@ let assign t =
     log 5 " -> %a" Expr.debug_term res;
     res
   with Expr.Cannot_assign _ ->
-    _fail (Util.sprintf
+    _fail (CCPrint.sprintf
              "Expected to be able to assign symbol %a\nYou may have forgotten to activate an extension" Expr.debug_term t)
 
 let rec iter_assign_aux f e = match Expr.(e.term) with

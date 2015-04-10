@@ -18,6 +18,8 @@ module U = Map.Make(Unif)
 module G = Graph.Persistent.Digraph.Concrete(Expr.Term)
 module T = Graph.Traverse.Dfs(G)
 
+module P = CCPersistentArray
+
 type term = Expr.Term.t
 
 type graph = {
@@ -42,7 +44,7 @@ type rule =
   | LRBS
 
 type problem = {
-  eqs : (term * term) Parray.t;
+  eqs : (term * term) P.t;
   last_rule : rule;
   goal : term * term;
   lrbs_index : int;
@@ -76,7 +78,7 @@ let compare_cl = Util.lexicograph compare_constr
 
 let sf_add_lt sf s t = (* Add s < t to sf *)
   { sf with
-    constraints = Util.list_merge compare_constr sf.constraints [(s, t)]
+    constraints = CCList.sorted_merge_uniq ~cmp:compare_constr sf.constraints [(s, t)]
   }
 
 (* Solved forms list as map from solved to contraints. *)
@@ -90,12 +92,12 @@ let get_cl l sf =
 
 let add_sf m sf =
   let cl = get_cl m sf in
-  U.add sf.solved (Util.list_merge compare_cl cl [sf.constraints]) m
+  U.add sf.solved (CCList.sorted_merge_uniq ~cmp:compare_cl cl [sf.constraints]) m
 
 let sf_merge m m' =
   U.merge (fun solved v v' -> match v, v' with
       | Some l, None | None, Some l -> Some l
-      | Some l, Some l' -> Some (Util.list_merge compare_cl l l')
+      | Some l, Some l' -> Some (CCList.sorted_merge_uniq ~cmp:compare_cl l l')
       | None, None -> assert false) m m'
 
 let sf_filter f m =
@@ -217,7 +219,7 @@ let incr_in g v = { g with incoming = M.add v (get_in g v + 1) g.incoming }
 let decr_in g v = { g with incoming = M.add v (get_in g v - 1) g.incoming }
 
 let rec subterms = function
-  | { Expr.term = Expr.App (f, _, l) } as t -> t :: Util.list_flatmap subterms l
+  | { Expr.term = Expr.App (f, _, l) } as t -> t :: CCList.flat_map subterms l
   | t -> [t]
 
 let add_edge g t t' = incr_in { g with graph = G.add_edge g.graph t t' } t'
@@ -227,7 +229,7 @@ let add_vertex g v = G.fold_vertex
     g.graph { g with graph = G.add_vertex g.graph v }
 
 let graph c =
-  let l = Util.list_flatmap (fun (t, t') -> List.rev_append (subterms t) (subterms t')) c in
+  let l = CCList.flat_map (fun (t, t') -> List.rev_append (subterms t) (subterms t')) c in
   let l = List.sort_uniq Expr.Term.compare l in
   let l = List.sort (fun t t' -> Comparison.to_total (Lpo.compare t t')) l in
   let g = List.fold_left add_vertex empty_graph l in
@@ -352,7 +354,7 @@ let sf_set_sat = sf_filter valid_sf
 (* ************************************************************************ *)
 
 let mk_pb l u v =
-  let a = Parray.of_list l in
+  let a = P.of_list l in
   {
     eqs = a;
     goal = (u, v);
@@ -380,15 +382,15 @@ and rrbs_aux k pb s t =
   if not (sf_is_empty sat) then begin
     let pb = { pb with constr = sat } in
     match pb.last_rule with
-    | LRBS -> rrbs_index k pb s t (Parray.make 1 (Parray.get pb.eqs pb.lrbs_index)) 0
+    | LRBS -> rrbs_index k pb s t (P.make 1 (P.get pb.eqs pb.lrbs_index)) 0
     | RRBS -> rrbs_index k pb s t pb.eqs 0
   end
 
 and rrbs_index k pb s t eqs i =
-  if i >= Parray.length eqs then
+  if i >= P.length eqs then
     apply_lrbs k pb
   else begin
-    let (l, r) = Parray.get eqs i in
+    let (l, r) = P.get eqs i in
     let subs = subterms s in
     rrbs_eq_pre k pb s t l r subs;
     rrbs_eq_pre k pb s t r l subs;
@@ -422,7 +424,7 @@ and apply_lrbs k pb =
   | LRBS -> lrbs_jump_lrbs k pb 0 pb.lrbs_index
 
 and lrbs_jump_lrbs k pb j i =
-  if j >= Parray.length pb.eqs then
+  if j >= P.length pb.eqs then
     lrbs_jump_rrbs k pb pb.lrbs_index
   else begin
     lrbs_index k pb j i;
@@ -430,9 +432,9 @@ and lrbs_jump_lrbs k pb j i =
   end
 
 and lrbs_jump_rrbs k pb j =
-  if j >= Parray.length pb.eqs then ()
+  if j >= P.length pb.eqs then ()
   else begin
-    let s, t = Parray.get pb.eqs j in
+    let s, t = P.get pb.eqs j in
     lrbs_jump_line k pb j s t;
     lrbs_jump_line k pb j t s;
     lrbs_jump_rrbs k pb (j + 1)
@@ -442,20 +444,20 @@ and lrbs_jump_line k pb j s t =
   let sat = sf_set_sat (add_gt_set pb.constr s t) in
   if not (sf_is_empty sat) then begin
     let pb = { pb with constr = sat } in
-    for i = 0 to Parray.length pb.eqs - 1 do
+    for i = 0 to P.length pb.eqs - 1 do
       lrbs_jump_index_i k pb s t j i
     done
   end
 
 and lrbs_jump_index_i k pb s t j i =
-  let l, r = Parray.get pb.eqs i in
+  let l, r = P.get pb.eqs i in
   let subs = subterms s in
   lrbs_eq_pre k pb j s t l r subs;
   lrbs_eq_pre k pb j s t r l subs
 
 and lrbs_index k pb j i =
-  let s, t = Parray.get pb.eqs j in
-  let l, r = Parray.get pb.eqs i in
+  let s, t = P.get pb.eqs j in
+  let l, r = P.get pb.eqs i in
   lrbs_aux k pb j s t l r;
   lrbs_aux k pb j t s l r
 
@@ -483,7 +485,7 @@ and lrbs_eq k pb j s t l r = function
     else begin
       let s' = Expr.term_replace (p,r) s in
       apply_rrbs k { pb with last_rule = LRBS; lrbs_index = j;
-                           constr = sat; eqs = Parray.set pb.eqs j (s',t) };
+                           constr = sat; eqs = P.set pb.eqs j (s',t) };
       lrbs_eq k pb j s t l r subs
     end
 

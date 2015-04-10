@@ -245,7 +245,7 @@ let find_all_insts iter =
 let opts t =
   let docs = Options.ext_sect in
   let inst =
-    let doc = Util.sprintf
+    let doc = CCPrint.sprintf
       "Select unification method to use in order to find instanciations
        $(docv) may be %s." (Cmdliner.Arg.doc_alts_enum ~quoted:false unif_list) in
     Cmdliner.Arg.(value & opt unif_conv Auto & info ["meta.find"] ~docv:"METHOD" ~docs ~doc)
@@ -259,7 +259,7 @@ let opts t =
     Cmdliner.Arg.(value & opt bool true & info ["meta.incr"] ~docs ~doc)
   in
   let heuristic =
-    let doc = Util.sprintf
+    let doc = CCPrint.sprintf
       "Select heuristic to use when assigning scores to possible unifiers/instanciations.
        $(docv) may be %s" (Cmdliner.Arg.doc_alts_enum ~quoted:true heur_list) in
     Cmdliner.Arg.(value & opt heur_conv No_heuristic & info ["meta.heur"] ~docv:"HEUR" ~docs ~doc)

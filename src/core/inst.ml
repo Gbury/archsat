@@ -172,7 +172,7 @@ module Inst = struct
     Expr.Subst.equal Expr.Term.equal t.term_subst t'.term_subst
 end
 
-module Q = Heap.Make(Inst)
+module Q = CCHeap.Make(Inst)
 module H = Hashtbl.Make(Inst)
 
 let heap = ref Q.empty
@@ -222,7 +222,7 @@ let rec decr_delay () =
   if !delayed = [] then
     ()
   else begin
-    delayed := Util.list_fmap (fun (u, d) ->
+    delayed := CCList.filter_map (fun (u, d) ->
         if d > 1 then
           Some (u, d - 1)
         else begin

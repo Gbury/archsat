@@ -68,7 +68,7 @@ let disjoint l l' =
 
 let fv_disjoint ((tys, ts), (tys', ts')) = disjoint tys tys' && disjoint ts ts'
 
-let fv_disjoint_list l = List.for_all fv_disjoint (Util.list_diagonal l)
+let fv_disjoint_list l = List.for_all fv_disjoint (CCList.diagonal l)
 
 (* Prenex form *)
 (* ************************************************************************ *)

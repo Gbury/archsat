@@ -20,8 +20,8 @@ let tuple_cstr n =
     H.find tuples n
   with Not_found ->
     let name = string_of_int n ^ "-tuple" in
-    let range = Util.list_range 1 (n + 1) in
-    let vars = List.map (fun i -> Expr.ttype_var ("tuple#" ^ string_of_int i)) range in
+    let range = CCList.range 1 n in
+    let vars = List.map (fun i -> Expr.ttype_var ("type#" ^ string_of_int i)) range in
     let ty_args = List.map Expr.type_var vars in
     let ret = Expr.type_app (tuple_ty_cstr n) ty_args in
     let res = Expr.term_const name vars ty_args ret in

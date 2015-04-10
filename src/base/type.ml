@@ -177,7 +177,7 @@ let parse_ty_var ~goalness env = function
     log 5 "Expected a (typed) variable, received : %a" Ast.debug_term t;
     raise Typing_error
 
-let default_cst_ty n ret = (Util.times n (fun () -> Builtin.type_i), ret)
+let default_cst_ty n ret = (CCList.replicate n Builtin.type_i, ret)
 
 let parse_let_var eval = function
   | { Ast.term = Ast.Column ({ Ast.term = Ast.Var s}, t) } -> (s, eval t)
@@ -198,7 +198,7 @@ let rec parse_term ~goalness ret env = function
     let n_t_args = List.length (Expr.(f.var_type.fun_args)) in
     if List.length l <> n_ty_args + n_t_args then
       raise (Bad_arity (s, n_ty_args + n_t_args, l));
-    let ty_args, t_args = Util.list_split_at n_ty_args l in
+    let ty_args, t_args = CCList.split n_ty_args l in
     Expr.term_app ~goalness f
       (List.map (parse_ty ~goalness env) ty_args)
       (List.map (parse_term ~goalness Builtin.type_i env) t_args)
@@ -282,7 +282,7 @@ let rec parse_formula ~goalness env = function
       | _ -> raise (Bad_arity ("=", 2, l))
     end
   | { Ast.term = Ast.App ({Ast.term = Ast.Const Ast.Distinct}, args) } ->
-    let l = Util.list_diagonal (List.map (parse_term ~goalness Builtin.type_i env) args) in
+    let l = CCList.diagonal (List.map (parse_term ~goalness Builtin.type_i env) args) in
     Expr.f_and (List.map (fun (a, b) -> Expr.f_not (Expr.f_equal a b)) l)
   (* Possibly bound variables *)
   | { Ast.term = Ast.App ({ Ast.term = Ast.Const Ast.String s }, []) }

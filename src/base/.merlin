@@ -1,7 +1,0 @@
-S ./
-S ../util
-
-B ../_build/base
-B ../_build/util
-
-PKG ocamlgraph
