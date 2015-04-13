@@ -44,6 +44,7 @@ type rule =
   | LRBS
 
 type problem = {
+  depth: int;
   eqs : (term * term) P.t;
   last_rule : rule;
   goal : term * term;
@@ -74,6 +75,7 @@ let compare_constr (a, b) (a', b') =
   match Expr.Term.compare a a' with
   | 0 -> Expr.Term.compare b b'
   | x -> x
+
 let compare_cl = Util.lexicograph compare_constr
 
 let sf_add_lt sf s t = (* Add s < t to sf *)
@@ -84,15 +86,6 @@ let sf_add_lt sf s t = (* Add s < t to sf *)
 (* Solved forms list as map from solved to contraints. *)
 let empty_sf_list = U.empty
 let sf_singleton sf = U.singleton sf.solved [sf.constraints]
-
-let get_cl l sf =
-  try
-    U.find sf.solved l
-  with Not_found -> []
-
-let add_sf m sf =
-  let cl = get_cl m sf in
-  U.add sf.solved (CCList.sorted_merge_uniq ~cmp:compare_cl cl [sf.constraints]) m
 
 let sf_merge m m' =
   U.merge (fun solved v v' -> match v, v' with
@@ -264,6 +257,8 @@ let valid_sf constrs =
   | Unsat_solved_form -> false
   | Sat_solved_form _ -> true
 
+let sf_set_sat = sf_filter valid_sf
+
 (* Computing solved forms *)
 (* ************************************************************************ *)
 
@@ -300,7 +295,8 @@ let rec add_eq sf s t =
   | _, { Expr.term = Expr.Var _ } ->
     assert false
 
-and add_eq_set l s t = sf_fold (fun sf acc -> sf_merge acc (add_eq sf s t)) empty_sf_list l
+and add_eq_set l s t =
+  sf_set_sat (sf_fold (fun sf acc -> sf_merge acc (add_eq sf s t)) empty_sf_list l)
 
 and add_subst sf m t =
   try
@@ -330,8 +326,8 @@ and add_gt sf s t =
       | n when n < 0 ->
         List.fold_left (fun acc si -> sf_merge (sf_merge acc (add_eq sf si t)) (add_gt sf si t)) empty_sf_list f_args
       | _ (* f = g *) ->
-        let res = List.fold_left (fun acc si -> sf_merge (sf_merge acc (add_eq sf si t)) (add_gt sf si t)) empty_sf_list f_args in
-        let eq = sf_singleton sf in
+        let base = List.fold_left (fun acc si -> sf_merge (sf_merge acc (add_eq sf si t)) (add_gt sf si t)) empty_sf_list f_args in
+        let ssf = sf_singleton sf in
         let rec aux (res, eq) = function
           | [], [] -> res
           | si :: r, ti :: r' ->
@@ -340,15 +336,14 @@ and add_gt sf s t =
             aux (sf_merge res h, add_eq_set eq si ti) (r, r')
           | _ -> assert false
         in
-        aux (res, eq) (f_args, g_args)
+        aux (base, ssf) (f_args, g_args)
     end
   | { Expr.term = Expr.Var _ }, _
   | _, { Expr.term = Expr.Var _ } ->
     assert false
 
-and add_gt_set l s t = sf_fold (fun sf acc -> sf_merge acc (add_gt sf s t)) empty_sf_list l
-
-let sf_set_sat = sf_filter valid_sf
+and add_gt_set l s t =
+  sf_set_sat (sf_fold (fun sf acc -> sf_merge acc (add_gt sf s t)) empty_sf_list l)
 
 (* BSE Calculus *)
 (* ************************************************************************ *)
@@ -356,6 +351,7 @@ let sf_set_sat = sf_filter valid_sf
 let mk_pb l u v =
   let a = P.of_list l in
   {
+    depth = 0;
     eqs = a;
     goal = (u, v);
     last_rule = RRBS;
@@ -363,42 +359,41 @@ let mk_pb l u v =
     constr = sf_singleton sf_empty;
   }
 
+(* ER rule, simply try and unify the oals*)
 let rec apply_er k pb =
   let (s, t) = pb.goal in
-  let res = sf_set_sat (add_eq_set pb.constr s t) in
+  let res = add_eq_set pb.constr s t in
   if sf_is_empty res then
     apply_rrbs k pb
   else
     U.iter (fun solved _ -> k (Unif.fixpoint solved)) res
 
+(* RRBS rule: use an equality from hypothesis to modify goal *)
 and apply_rrbs k pb =
-  let (a, b) = pb.goal in
-  rrbs_aux k pb a b;
-  rrbs_aux k pb b a;
+  let (s, t) = pb.goal in
+  rrbs_aux k pb s t;
+  rrbs_aux k pb t s;
   apply_lrbs k pb
 
 and rrbs_aux k pb s t =
-  let sat = sf_set_sat (add_gt_set pb.constr s t) in
+  let sat = add_gt_set pb.constr s t in
   if not (sf_is_empty sat) then begin
     let pb = { pb with constr = sat } in
     match pb.last_rule with
-    | LRBS -> rrbs_index k pb s t (P.make 1 (P.get pb.eqs pb.lrbs_index)) 0
-    | RRBS -> rrbs_index k pb s t pb.eqs 0
+    | LRBS -> rrbs_index k pb s t (P.make 1 (P.get pb.eqs pb.lrbs_index))
+    | RRBS -> rrbs_index k pb s t pb.eqs
   end
 
-and rrbs_index k pb s t eqs i =
-  if i >= P.length eqs then
-    apply_lrbs k pb
-  else begin
+and rrbs_index k pb s t eqs =
+  let subs = subterms s in
+  for i = 0 to P.length eqs - 1 do
     let (l, r) = P.get eqs i in
-    let subs = subterms s in
     rrbs_eq_pre k pb s t l r subs;
     rrbs_eq_pre k pb s t r l subs;
-    rrbs_index k pb s t eqs (i + 1)
-  end
+  done
 
 and rrbs_eq_pre k pb s t l r subs =
-  let sat = sf_set_sat (add_gt_set pb.constr l r) in
+  let sat = add_gt_set pb.constr l r in
   if not (sf_is_empty sat) then begin
     let pb = { pb with constr = sat } in
     rrbs_eq k pb s t l r subs
@@ -408,40 +403,35 @@ and rrbs_eq k pb s t l r = function
   | [] -> ()
   | { Expr.term = Expr.Meta _ } :: subs -> rrbs_eq k pb s t l r subs
   | p :: subs ->
-    let sat = sf_set_sat (add_eq_set pb.constr l p) in
-    if sf_is_empty sat then
-      rrbs_eq k pb s t l r subs
-    else begin
+    let sat = add_eq_set pb.constr l p in
+    if not (sf_is_empty sat) then begin
       let s' = Expr.term_replace (p,r) s in
-      apply_er k { pb with last_rule = RRBS; lrbs_index = -1;
-                           constr = sat; goal = (s', t) };
-      rrbs_eq k pb s t l r subs
-    end
+      apply_er k { pb with last_rule = RRBS; constr = sat; goal = (s', t); depth = pb.depth + 1 }
+    end;
+    rrbs_eq k pb s t l r subs
 
+(* Same as RRBS, but to modify another equality in hypothesis *)
 and apply_lrbs k pb =
-  match pb.last_rule with
-  | RRBS -> lrbs_jump_rrbs k pb 0
-  | LRBS -> lrbs_jump_lrbs k pb 0 pb.lrbs_index
+  if pb.lrbs_index < 0 then
+    lrbs_jump_all k pb 0
+  else
+    lrbs_jump_lrbs k pb
 
-and lrbs_jump_lrbs k pb j i =
-  if j >= P.length pb.eqs then
-    lrbs_jump_rrbs k pb pb.lrbs_index
-  else begin
-    lrbs_index k pb j i;
-    lrbs_jump_lrbs k pb (j + 1) i
-  end
+and lrbs_jump_lrbs k pb =
+  for j = 0 to P.length pb.eqs - 1 do
+    lrbs_index k pb j pb.lrbs_index
+  done;
+  lrbs_jump_all k pb pb.lrbs_index
 
-and lrbs_jump_rrbs k pb j =
-  if j >= P.length pb.eqs then ()
-  else begin
+and lrbs_jump_all k pb start =
+  for j = start to P.length pb.eqs - 1 do
     let s, t = P.get pb.eqs j in
     lrbs_jump_line k pb j s t;
-    lrbs_jump_line k pb j t s;
-    lrbs_jump_rrbs k pb (j + 1)
-  end
+    lrbs_jump_line k pb j t s
+  done
 
 and lrbs_jump_line k pb j s t =
-  let sat = sf_set_sat (add_gt_set pb.constr s t) in
+  let sat = add_gt_set pb.constr s t in
   if not (sf_is_empty sat) then begin
     let pb = { pb with constr = sat } in
     for i = 0 to P.length pb.eqs - 1 do
@@ -462,7 +452,7 @@ and lrbs_index k pb j i =
   lrbs_aux k pb j t s l r
 
 and lrbs_aux k pb j s t l r =
-  let sat = sf_set_sat (add_gt_set pb.constr s t) in
+  let sat = add_gt_set pb.constr s t in
   if not (sf_is_empty sat) then begin
     let pb = { pb with constr = sat } in
     let subs = subterms s in
@@ -471,7 +461,7 @@ and lrbs_aux k pb j s t l r =
   end
 
 and lrbs_eq_pre k pb j s t l r subs =
-  let sat = sf_set_sat (add_gt_set pb.constr l r) in
+  let sat = add_gt_set pb.constr l r in
   if not (sf_is_empty sat) then
     lrbs_eq k { pb with constr = sat } j s t l r subs
 
@@ -479,15 +469,13 @@ and lrbs_eq k pb j s t l r = function
   | [] -> ()
   | { Expr.term = Expr.Meta _ } :: subs -> lrbs_eq k pb j s t l r subs
   | p :: subs ->
-    let sat = sf_set_sat (add_eq_set pb.constr l p) in
-    if sf_is_empty sat then
-      lrbs_eq k pb j s t l r subs
-    else begin
+    let sat = add_eq_set pb.constr l p in
+    if not (sf_is_empty sat) then begin
       let s' = Expr.term_replace (p,r) s in
-      apply_rrbs k { pb with last_rule = LRBS; lrbs_index = j;
-                           constr = sat; eqs = P.set pb.eqs j (s',t) };
-      lrbs_eq k pb j s t l r subs
-    end
+      apply_rrbs k { pb with last_rule = LRBS; lrbs_index = j; depth = pb.depth + 1;
+                             constr = sat; eqs = P.set pb.eqs j (s',t) }
+    end;
+    lrbs_eq k pb j s t l r subs
 
 let unify eqs f s t = apply_er f (mk_pb eqs s t)
 

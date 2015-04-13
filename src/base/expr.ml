@@ -123,17 +123,17 @@ let rec debug_ty b ty = match ty.ty with
   | TyApp (f, []) ->
     Printf.bprintf b "%a" debug_var f
   | TyApp (f, l) ->
-    Printf.bprintf b "%a(%a)" debug_var f (CCPrint.list ~sep:", " debug_ty) l
+    Printf.bprintf b "%a(%a)" debug_var f (CCPrint.list ~start:"" ~stop:"" ~sep:", " debug_ty) l
 
 let debug_params b = function
   | [] -> ()
-  | l -> Printf.bprintf b "∀ %a. " (CCPrint.list ~sep:", " debug_var) l
+  | l -> Printf.bprintf b "∀ %a. " (CCPrint.list ~start:""~stop:"" ~sep:", " debug_var) l
 
 let debug_sig print b f =
   match f.fun_args with
   | [] -> Printf.bprintf b "%a%a" debug_params f.fun_vars print f.fun_ret
   | l -> Printf.bprintf b "%a%a -> %a" debug_params f.fun_vars
-           (CCPrint.list ~sep:" -> " print) l print f.fun_ret
+           (CCPrint.list ~start:"" ~stop:"" ~sep:" -> " print) l print f.fun_ret
 
 let debug_fun_ty = debug_sig debug_ty
 let debug_fun_ttype = debug_sig debug_ttype
@@ -152,11 +152,11 @@ let rec debug_term b t = match t.term with
     Printf.bprintf b "%a" debug_var f
   | App (f, [], args) ->
     Printf.bprintf b "%a(%a)" debug_var f
-      (CCPrint.list ~sep:", " debug_term) args
+      (CCPrint.list ~start:"" ~stop:"" ~sep:", " debug_term) args
   | App (f, tys, args) ->
     Printf.bprintf b "%a(%a; %a)" debug_var f
-      (CCPrint.list ~sep:", " debug_ty) tys
-      (CCPrint.list ~sep:", " debug_term) args
+      (CCPrint.list ~start:"" ~stop:"" ~sep:", " debug_ty) tys
+      (CCPrint.list ~start:"" ~stop:"" ~sep:", " debug_term) args
 
 let rec debug_formula b f =
   let aux b f = match f.formula with
@@ -169,18 +169,18 @@ let rec debug_formula b f =
   | True -> Printf.bprintf b "⊤"
   | False -> Printf.bprintf b "⊥"
   | Not f -> Printf.bprintf b "¬ %a" aux f
-  | And l -> Printf.bprintf b "%a" (CCPrint.list ~sep:" ∧ " aux) l
-  | Or l -> Printf.bprintf b "%a" (CCPrint.list ~sep:" ∨ " aux) l
+  | And l -> Printf.bprintf b "%a" (CCPrint.list ~start:"" ~stop:"" ~sep:" ∧ " aux) l
+  | Or l -> Printf.bprintf b "%a" (CCPrint.list ~start:"" ~stop:"" ~sep:" ∨ " aux) l
   | Imply (p, q) -> Printf.bprintf b "%a ⇒ %a" aux p aux q
   | Equiv (p, q) -> Printf.bprintf b "%a ⇔ %a" aux p aux q
   | All (l, _, f) -> Printf.bprintf b "∀ %a. %a"
-                       (CCPrint.list ~sep:", " debug_var_ty) l debug_formula f
+                       (CCPrint.list ~start:"" ~stop:"" ~sep:", " debug_var_ty) l debug_formula f
   | AllTy (l, _, f) -> Printf.bprintf b "∀ %a. %a"
-                         (CCPrint.list ~sep:", " debug_var_ttype) l debug_formula f
+                         (CCPrint.list ~start:"" ~stop:"" ~sep:", " debug_var_ttype) l debug_formula f
   | Ex (l, _, f) -> Printf.bprintf b "∃ %a. %a"
-                      (CCPrint.list ~sep:", " debug_var_ty) l debug_formula f
+                      (CCPrint.list ~start:"" ~stop:"" ~sep:", " debug_var_ty) l debug_formula f
   | ExTy (l, _, f) -> Printf.bprintf b "∃ %a. %a"
-                        (CCPrint.list ~sep:", " debug_var_ttype) l debug_formula f
+                        (CCPrint.list ~start:"" ~stop:"" ~sep:", " debug_var_ttype) l debug_formula f
 
 (* Printing functions *)
 (* ************************************************************************ *)
