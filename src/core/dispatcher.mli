@@ -121,8 +121,8 @@ val try_eval : term -> term option
 *)
 
 val watch : id -> int -> term list -> (unit -> unit) -> unit
-(** [watch tag k l f] sets up a k-watching among the terms in l, calling f once there is less
-    then k terms not assigned in l. The pair [(l, tag)] is used as a key to eliminate duplicates. *)
+(** [watch tag k l f] sets up a k-watching among the terms in l, calling f once there is fewer
+    than k terms not assigned in l. The pair [(l, tag)] is used as a key to eliminate duplicates. *)
 
 val model : unit -> (term * term) list
 (** Returns the full assignment in the current model. *)

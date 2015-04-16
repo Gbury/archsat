@@ -26,6 +26,8 @@ let state = {
 let () = init_round state 0 (* Initialization for round 0 *)
 
 (* Exported functions *)
+let current_round () = state.cur_round
+
 let inst_done () =
   let s = state.cur_round in
   let (i, r) = CCVector.get state.instanciations s in

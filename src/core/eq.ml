@@ -73,7 +73,6 @@ let eq_assign x =
         try fst (D.get_assign x) with D.Not_assigned _ -> x
     end
   with E.Unsat (a, b, l) ->
-    log 0 "WUUUT ?!!";
     raise (D.Absurd (mk_expl (a, b, l), mk_proof l))
 
 let eq_assume (f, _) = match f with

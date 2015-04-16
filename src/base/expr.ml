@@ -253,74 +253,79 @@ let print_formula fmt f = Format.fprintf fmt "⟦%a⟧" print_f f
 
 let hash h_skel l = Hashtbl.hash (h_skel, l)
 
-let hash_var v = v.var_id
-let hash_meta m = m.meta_var.var_id
+let hash_var v = CCHash.int_ v.var_id
+let hash_meta m = CCHash.int_ m.meta_var.var_id
 
-let rec hash_ty t =
-  let h = match t.ty with
-    | TyVar v -> hash_var v
-    | TyMeta m -> hash_meta m
-    | TyApp (f, args) ->
-      hash f.var_id (List.rev_map get_ty_hash args)
-  in
-  t.ty_hash <- h
+let rec hash_ty t h = match t.ty with
+  | TyVar v -> hash_var v h
+  | TyMeta m -> hash_meta m h
+  | TyApp (f, args) ->
+    h |> hash_var f |> CCHash.(list_ int_) (List.map get_ty_hash args)
 
 and get_ty_hash t =
-  if t.ty_hash = -1 then hash_ty t;
-  assert (t.ty_hash >= 0);
+  if t.ty_hash = -1 then
+    t.ty_hash <- CCHash.apply hash_ty t;
   t.ty_hash
 
-let rec hash_term t =
-  let h = match t.term with
-    | Var v -> hash_var v
-    | Meta m -> hash_meta m
-    | App (f, tys, args) ->
-      hash (hash_var f) (List.rev_append
-                       (List.rev_map get_ty_hash tys)
-                       (List.rev_map get_term_hash args))
-  in
-  t.t_hash <- h
+let rec hash_term t h = match t.term with
+  | Var v -> hash_var v h
+  | Meta m -> hash_meta m h
+  | App (f, tys, args) ->
+    h |> hash_var f
+    |> CCHash.(list_ int_) (List.map get_ty_hash tys)
+    |> CCHash.(list_ int_) (List.map get_term_hash args)
 
 and get_term_hash t =
-  if t.t_hash = -1 then hash_term t;
-  assert (t.t_hash >= 0);
+  if t.t_hash = -1 then
+    t.t_hash <- CCHash.apply hash_term t;
   t.t_hash
 
 (* TODO: FIXME *)
-let h_eq    = 1
-let h_pred  = 2
-let h_true  = 3
-let h_false = 4
-let h_not   = 5
-let h_and   = 6
-let h_or    = 7
-let h_imply = 8
-let h_equiv = 9
-let h_all   = 10
-let h_allty = 11
-let h_ex    = 12
-let h_exty  = 13
+let h_eq    = 2
+let h_pred  = 3
+let h_true  = 5
+let h_false = 7
+let h_not   = 11
+let h_and   = 13
+let h_or    = 17
+let h_imply = 19
+let h_equiv = 23
+let h_all   = 29
+let h_allty = 31
+let h_ex    = 37
+let h_exty  = 41
 
-let rec hash_formula f =
-  let h = match f.formula with
-    | Equal (t1, t2) -> hash h_eq [get_term_hash t1; get_term_hash t2]
-    | Pred t -> hash h_pred (get_term_hash t)
-    | True -> hash h_true []
-    | False -> hash h_false []
-    | Not f -> hash h_not (get_formula_hash f)
-    | And l -> hash h_and (List.map get_formula_hash l)
-    | Or l -> hash h_or (List.map get_formula_hash l)
-    | Imply (f1, f2) -> hash h_imply [get_formula_hash f1; get_formula_hash f2]
-    | Equiv (f1, f2) -> hash h_equiv [get_formula_hash f1; get_formula_hash f2]
-    | All (l, _, f) -> hash h_all (get_formula_hash f :: List.rev_map (fun v -> v.var_id) l)
-    | AllTy (l, _, f) -> hash h_allty (get_formula_hash f :: List.rev_map (fun v -> v.var_id) l)
-    | Ex (l, _, f) -> hash h_ex (get_formula_hash f :: List.rev_map (fun v -> v.var_id) l)
-    | ExTy (l, _, f) -> hash h_exty (get_formula_hash f :: List.rev_map (fun v -> v.var_id) l)
-  in
-  f.f_hash <- h
+let rec hash_formula f h = match f.formula with
+  | Equal (t1, t2) ->
+    h |> CCHash.int_ h_eq |> CCHash.int_ (get_term_hash t1) |> CCHash.int_ (get_term_hash t2)
+  | Pred t ->
+    h |> CCHash.int_ h_pred |> CCHash.int_ (get_term_hash t)
+  | True ->
+    h |> CCHash.int_ h_true
+  | False ->
+    h |> CCHash.int_ h_false
+  | Not f ->
+    h |> CCHash.int_ h_not |> CCHash.int_ (get_formula_hash f)
+  | And l ->
+    h |> CCHash.int_ h_and |> CCHash.(list_ int_) (List.map get_formula_hash l)
+  | Or l ->
+    h |> CCHash.int_ h_or |> CCHash.(list_ int_) (List.map get_formula_hash l)
+  | Imply (f1, f2) ->
+    h |> CCHash.int_ h_imply |> CCHash.int_ (get_formula_hash f1) |> CCHash.int_ (get_formula_hash f2)
+  | Equiv (f1, f2) ->
+    h |> CCHash.int_ h_equiv |> CCHash.int_ (get_formula_hash f1) |> CCHash.int_ (get_formula_hash f2)
+  | All (l, _, f) ->
+    h |> CCHash.int_ h_all |> CCHash.list_ hash_var l |> CCHash.int_ (get_formula_hash f)
+  | AllTy (l, _, f) ->
+    h |> CCHash.int_ h_allty |> CCHash.list_ hash_var l |> CCHash.int_ (get_formula_hash f)
+  | Ex (l, _, f) ->
+    h |> CCHash.int_ h_ex |> CCHash.list_ hash_var l |> CCHash.int_ (get_formula_hash f)
+  | ExTy (l, _, f) ->
+    h |> CCHash.int_ h_exty |> CCHash.list_ hash_var l |> CCHash.int_ (get_formula_hash f)
 
 and get_formula_hash f =
-  if f.f_hash = -1 then hash_formula f;
+  if f.f_hash = -1 then
+    f.f_hash <- CCHash.apply hash_formula f;
   assert (f.f_hash >= 0);
   f.f_hash
 
@@ -1079,7 +1084,7 @@ let new_term_metas f = match f.formula with
 
 module Var = struct
   type 'a t = 'a var
-  let hash = hash_var
+  let hash v = CCHash.apply hash_var v
   let compare = compare_var
   let equal = equal_var
   let print = print_var
@@ -1087,7 +1092,7 @@ module Var = struct
 end
 module Meta = struct
   type 'a t = 'a meta
-  let hash = hash_meta
+  let hash v = CCHash.apply hash_meta v
   let compare = compare_meta
   let equal = equal_meta
   let print = print_meta
