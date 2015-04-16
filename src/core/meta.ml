@@ -14,6 +14,8 @@ exception Found_unif
 let meta_start = ref 0
 let meta_incr = ref false
 let meta_max = ref 10
+let rigid_max_depth = ref 1
+let rigid_round_incr = ref 2
 
 (* Heuristics *)
 type heuristic =
@@ -50,6 +52,10 @@ let unif_list = [
 ]
 
 let unif_conv = Cmdliner.Arg.enum unif_list
+
+(* Unification parameters *)
+let rigid_depth () =
+  !rigid_max_depth + (Stats.current_round () / !rigid_round_incr)
 
 (* Assumed formula parsing *)
 (* ************************************************************************ *)
@@ -215,7 +221,7 @@ let rec unif_f st = function
     Unif.unify_term inst
   | ERigid ->
     Unif.clear_cache cache;
-    Rigid.unify st.equalities inst
+    Rigid.unify ~max_depth:(rigid_depth ()) st.equalities inst
   | Auto ->
     if st.equalities = [] then unif_f st Simple
     else unif_f st ERigid
@@ -264,14 +270,24 @@ let opts t =
        $(docv) may be %s" (Cmdliner.Arg.doc_alts_enum ~quoted:true heur_list) in
     Cmdliner.Arg.(value & opt heur_conv No_heuristic & info ["meta.heur"] ~docv:"HEUR" ~docs ~doc)
   in
-  let set_opts heur start inst incr t =
+  let rigid_depth =
+    let doc = "Base to compute maximum depth when doing rigid unification." in
+    Cmdliner.Arg.(value & opt int 2 & info ["meta.rigid.depth"] ~docv:"N" ~docs ~doc)
+  in
+  let rigid_incr =
+    let doc = "Number of round to wait before increasing the depth of rigid unification." in
+    Cmdliner.Arg.(value & opt int 3 & info ["meta.rigid.incr"] ~docv:"N" ~docs ~doc)
+  in
+  let set_opts heur start inst incr rigid_depth rigid_incr t =
     heuristic_setting := heur;
     unif_setting := inst;
     meta_start := start;
     meta_incr := incr;
+    rigid_max_depth := rigid_depth;
+    rigid_round_incr := rigid_incr;
     t
   in
-  Cmdliner.Term.(pure set_opts $ heuristic $ start $ inst $ incr $ t)
+  Cmdliner.Term.(pure set_opts $ heuristic $ start $ inst $ incr $ rigid_depth $ rigid_incr $ t)
 ;;
 
 Dispatcher.(register (

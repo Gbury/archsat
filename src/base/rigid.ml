@@ -45,6 +45,7 @@ type rule =
 
 type problem = {
   depth: int;
+  max_depth: int;
   eqs : (term * term) P.t;
   last_rule : rule;
   goal : term * term;
@@ -348,11 +349,10 @@ and add_gt_set l s t =
 (* BSE Calculus *)
 (* ************************************************************************ *)
 
-let mk_pb l u v =
-  let a = P.of_list l in
-  {
+let mk_pb n l u v = {
     depth = 0;
-    eqs = a;
+    max_depth = n;
+    eqs = P.of_list l;
     goal = (u, v);
     last_rule = RRBS;
     lrbs_index = -1;
@@ -365,15 +365,17 @@ let rec apply_er k pb =
   let res = add_eq_set pb.constr s t in
   if sf_is_empty res then
     apply_rrbs k pb
-  else
+  else if pb.depth < pb.max_depth then
     U.iter (fun solved _ -> k (Unif.fixpoint solved)) res
 
 (* RRBS rule: use an equality from hypothesis to modify goal *)
 and apply_rrbs k pb =
-  let (s, t) = pb.goal in
-  rrbs_aux k pb s t;
-  rrbs_aux k pb t s;
-  apply_lrbs k pb
+  if pb.depth < pb.max_depth then begin
+    let (s, t) = pb.goal in
+    rrbs_aux k pb s t;
+    rrbs_aux k pb t s;
+    apply_lrbs k pb
+  end
 
 and rrbs_aux k pb s t =
   let sat = add_gt_set pb.constr s t in
@@ -477,5 +479,6 @@ and lrbs_eq k pb j s t l r = function
     end;
     lrbs_eq k pb j s t l r subs
 
-let unify eqs f s t = apply_er f (mk_pb eqs s t)
+let unify ?(max_depth=100) eqs f s t =
+  apply_er f (mk_pb max_depth eqs s t)
 
