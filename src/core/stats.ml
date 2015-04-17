@@ -13,17 +13,15 @@ let print_state state =
   let (i, r) = CCVector.get state.instanciations s in
   log 0 "Round %d : instanciations %d (remaining : %d)" s i r
 
-let init_round state i =
-  state.cur_round <- i;
-  CCVector.set state.instanciations i (0, 0)
+let init_round state =
+  state.cur_round <- state.cur_round + 1;
+  CCVector.push state.instanciations (0, 0)
 
 (* State record *)
 let state = {
   cur_round = 0;
-  instanciations = CCVector.make 64 (0, 0);
+  instanciations = CCVector.make 1 (0, 0);
   }
-
-let () = init_round state 0 (* Initialization for round 0 *)
 
 (* Exported functions *)
 let current_round () = state.cur_round
@@ -41,8 +39,7 @@ let inst_remaining r =
 (* Print stats and prep for next round *)
 let clock _ =
   print_state state;
-  let i = state.cur_round + 1 in
-  init_round state i
+  init_round state
 
 ;;
 Dispatcher.(register (
