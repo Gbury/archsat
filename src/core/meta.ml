@@ -40,6 +40,7 @@ type unif =
   | No_unif
   | Simple
   | ERigid
+  | Super
   | Auto
 
 let unif_setting = ref No_unif
@@ -48,6 +49,7 @@ let unif_list = [
   "none", No_unif;
   "simple", Simple;
   "eunif", ERigid;
+  "super", Super;
   "auto", Auto;
 ]
 
@@ -222,9 +224,14 @@ let rec unif_f st = function
   | ERigid ->
     Unif.clear_cache cache;
     Rigid.unify ~max_depth:(rigid_depth ()) st.equalities inst
+  | Super ->
+    Unif.clear_cache cache;
+    Supperposition.mk_unifier st.equalities inst
   | Auto ->
-    if st.equalities = [] then unif_f st Simple
-    else unif_f st ERigid
+    if st.equalities = [] then
+      unif_f st Simple
+    else
+      unif_f st ERigid
 
 let find_all_insts iter =
   (* Create new metas *)

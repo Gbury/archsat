@@ -1,8 +1,8 @@
-
-(* E-Unification module *)
-
-(* Implementation follows from :
- * http://gbury.eu/public/rigid.pdf
+(*
+   This module implements rigid unification modulo
+   equality as described in :
+   'Implementing Rigid E-unification', by Michael Franssen
+   [http://gbury.eu/public/rigid.pdf]
 *)
 
 let log_section = Util.Section.make "rigid"

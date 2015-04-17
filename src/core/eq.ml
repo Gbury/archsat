@@ -3,7 +3,7 @@ let log_section = Util.Section.make "eq"
 let log i fmt = Util.debug ~section:log_section i fmt
 
 module D = Dispatcher
-module E = Ec.Make(Expr.Term)
+module E = Eclosure.Make(Expr.Term)
 
 let st = E.create D.stack
 

@@ -505,6 +505,7 @@ let rec iter_assign_aux f e = match Expr.(e.term) with
   | _ -> f e
 
 let iter_assignable f e =
+  log 5 "Iter_assign on %a" Expr.debug_formula e;
   peek_at e;
   match Expr.(e.formula) with
   | Expr.Equal (a, b) -> iter_assign_aux f a; iter_assign_aux f b

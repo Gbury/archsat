@@ -95,12 +95,15 @@ val occurs_check_term : t -> Expr.term -> Expr.term -> bool
 val robinson_ty : t -> Expr.ty -> Expr.ty -> t
 val robinson_term : t -> Expr.term -> Expr.term -> t
 (** Robinson unification with input substitution. Can be used to extend substitutions.
+    Fixpoint computation should be applied to substitutions returned by these functions.
     @raise Not_unifiable_ty _
     @raise Not_unifiable_term _ *)
+
+val find_unifier : Expr.term -> Expr.term -> t option
+(** Tries and find a unifier. *)
 
 val unify_ty : (t -> unit) -> Expr.ty -> Expr.ty -> unit
 val unify_term : (t -> unit) -> Expr.term -> Expr.term -> unit
 (** Unification on types and terms. Expects a function to deal with
-    the substitutionif if found. Currently uses robinson unification. *)
-
+    the substitution if one is found. Currently uses robinson unification. *)
 

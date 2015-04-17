@@ -249,7 +249,8 @@ let rec robinson_term subst s t =
           if occurs_check_term subst m u then
             raise (Not_unifiable_term (m, u))
           else
-            bind_term subst v u
+            let subst' = robinson_ty subst Expr.(m.t_type) Expr.(u.t_type) in
+            bind_term subst' v u
         | { Expr.term = Expr.App (f, f_ty_args, f_t_args) },
           { Expr.term = Expr.App (g, g_ty_args, g_t_args) } ->
           if Expr.Var.equal f g then
@@ -268,6 +269,10 @@ let unify_term f s t =
   try
     f (fixpoint (robinson_term empty s t))
   with Not_unifiable_ty _ | Not_unifiable_term _ -> ()
+
+let find_unifier s t =
+  try Some (fixpoint (robinson_term empty s t))
+  with Not_unifiable_ty _ | Not_unifiable_term _ -> None
 
 (* Caching (modulo meta switching) *)
 (* ************************************************************************ *)

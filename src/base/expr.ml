@@ -1,9 +1,6 @@
-
 (*
-let log_section = Util.Section.make "expr"
-let log i fmt = Util.debug ~section:log_section i fmt
+   Base modules that defines the terms used in the prover.
 *)
-
 (* Type definitions *)
 (* ************************************************************************ *)
 
