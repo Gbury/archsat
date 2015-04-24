@@ -37,7 +37,7 @@ type ty_descr = private
 
 and ty = private {
   ty : ty_descr;
-  ty_goalness : int;
+  ty_goalness : goalness;
   mutable ty_hash : int; (** Use Ty.hash instead *)
 }
 
@@ -51,7 +51,7 @@ type term_descr = private
 and term = private {
   term    : term_descr;
   t_type  : ty;
-  t_goalness : int;
+  t_goalness : goalness;
   mutable t_hash : int; (** Use Term.hash instead *)
 }
 

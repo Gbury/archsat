@@ -1,15 +1,19 @@
 # Compilation options
-<**/*>: for-pack(Tabsat), package(containers)
+<**/*>: package(containers)
 
-<base/*>: package(ocamlgraph)
+<base/*.cm*>: for-pack(Tabsat)
+<algos/*.cm*>: for-pack(Tabsat)
+<core/*.cm*>: for-pack(Tabsat)
+<parsers/*.cm*>: for-pack(Tabsat)
+<input/*.cm*>: for-pack(Tabsat)
+<util/*.cm*>: for-pack(Tabsat)
+
+<algos/*>: package(ocamlgraph)
 <core/*>: package(msat), package(cmdliner)
 <input/*>: package(cmdliner)
 
 <main.*>: package(msat), package(cmdliner), package(ocamlgraph), \
           package(containers), package(containers.data)
-
-# enable stronger inlining everywhere
-<util/vec.cmx>: inline(15)
 
 # more warnings
 <**/*.ml>: warn_K, warn_Y, warn_X
