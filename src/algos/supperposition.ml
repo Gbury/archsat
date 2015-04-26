@@ -160,17 +160,17 @@ let equality_resolution c =
   else []
 
 (* Supperposition rules, alias SN & SP *)
-let do_supp active inactive =
+let do_supp acc active inactive =
   assert (active.pos = Position.Term.root);
-  []
+  acc
 
 let add_neg_supp p_set c side acc pos p =
   let l = I.unify p p_set.active_index in
-  CCList.flat_map (fun (s, u, l) ->
-      CCList.flat_map (fun active ->
-          do_supp active { clause = c; side; pos }
-        ) l
-    ) l @ acc
+  List.fold_left (fun acc (s, u, l) ->
+      List.fold_left (fun acc active ->
+          do_supp acc active { clause = c; side; pos }
+        ) acc l
+    ) acc l
 
 let supp_lit c p_set =
   let a, b = match c.lit with Some(a, b) -> a, b | None -> assert false in
