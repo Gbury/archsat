@@ -5,6 +5,7 @@
 (* ************************************************************************ *)
 
 (* Private aliases *)
+type hash = int
 type var_id = int
 type goalness = int
 type 'a meta_index = int
@@ -41,7 +42,7 @@ type ty_descr =
 and ty = {
   ty : ty_descr;
   ty_goalness : goalness;
-  mutable ty_hash : int; (** lazy hash *)
+  mutable ty_hash : hash; (** lazy hash *)
 }
 
 (* Terms & formulas *)
@@ -54,7 +55,7 @@ and term = {
   term    : term_descr;
   t_type  : ty;
   t_goalness : goalness;
-  mutable t_hash : int; (* lazy hash *)
+  mutable t_hash : hash; (* lazy hash *)
 }
 
 type free_vars = ty list * term list
@@ -81,7 +82,7 @@ type formula_descr =
 
 and formula = {
   formula : formula_descr;
-  mutable f_hash  : int; (* lazy hash *)
+  mutable f_hash  : hash; (* lazy hash *)
   mutable f_vars : (ttype var list * ty var list) option;
 }
 

@@ -4,6 +4,7 @@
 (** {2 Type definitions} *)
 
 (** {3 Variables} *)
+type hash
 type var_id = private int
 type goalness = private int
 type 'a meta_index = private int
@@ -38,7 +39,7 @@ type ty_descr = private
 and ty = private {
   ty : ty_descr;
   ty_goalness : int;
-  mutable ty_hash : int; (** Use Ty.hash instead *)
+  mutable ty_hash : hash; (** Use Ty.hash instead *)
 }
 
 (** {3 Terms} *)
@@ -52,7 +53,7 @@ and term = private {
   term    : term_descr;
   t_type  : ty;
   t_goalness : int;
-  mutable t_hash : int; (** Use Term.hash instead *)
+  mutable t_hash : hash; (** Use Term.hash instead *)
 }
 
 (** {3 Formulas} *)
@@ -81,7 +82,7 @@ type formula_descr = private
 
 and formula = private {
   formula : formula_descr;
-  mutable f_hash : int; (** Use Formula.hash instead *)
+  mutable f_hash : hash; (** Use Formula.hash instead *)
   mutable f_vars : (ttype var list * ty var list) option;
 }
 
