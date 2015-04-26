@@ -11,11 +11,18 @@ exception Found_unif
 (* Extension parameters *)
 (* ************************************************************************ *)
 
+(* To see the actual default values, see the cmd line options *)
 let meta_start = ref 0
-let meta_incr = ref false
+let meta_incr= ref false
+let meta_delay = ref (0, 0)
 let meta_max = ref 10
 let rigid_max_depth = ref 1
 let rigid_round_incr = ref 2
+
+(* New meta delay *)
+let delay i =
+  let a, b = !meta_delay in
+  a * i * i + b
 
 (* Heuristics *)
 type heuristic =
@@ -161,28 +168,28 @@ let do_meta_inst = function
     if i <= !meta_max then begin
       let metas = Expr.new_term_metas f in
       let u = List.fold_left (fun s m -> Unif.bind_term s m (Expr.term_meta m)) Unif.empty metas in
-      ignore (Inst.add ~delay:(i*i + 1) u)
+      ignore (Inst.add ~delay:(delay i) u)
     end
   | { Expr.formula = Expr.Not { Expr.formula = Expr.Ex (l, _, p) } } as f ->
     let i = mark f in
     if i <= !meta_max then begin
       let metas = Expr.new_term_metas f in
       let u = List.fold_left (fun s m -> Unif.bind_term s m (Expr.term_meta m)) Unif.empty metas in
-      ignore (Inst.add ~delay:(i*i + 1) u)
+      ignore (Inst.add ~delay:(delay i) u)
     end
   | { Expr.formula = Expr.AllTy (l, _, p) } as f ->
     let i = mark f in
     if i <= !meta_max then begin
       let metas = Expr.new_ty_metas f in
       let u = List.fold_left (fun s m -> Unif.bind_ty s m (Expr.type_meta m)) Unif.empty metas in
-      ignore (Inst.add ~delay:(i*i + 1) u)
+      ignore (Inst.add ~delay:(delay i) u)
     end
   | { Expr.formula = Expr.Not { Expr.formula = Expr.ExTy (l, _, p) } } as f ->
     let i = mark f in
     if i <= !meta_max then begin
       let metas = Expr.new_ty_metas f in
       let u = List.fold_left (fun s m -> Unif.bind_ty s m (Expr.type_meta m)) Unif.empty metas in
-      ignore (Inst.add ~delay:(i*i + 1) u)
+      ignore (Inst.add ~delay:(delay i) u)
     end
   | _ -> assert false
 
@@ -222,10 +229,10 @@ let rec unif_f st = function
   | Simple ->
     Unif.unify_term inst
   | ERigid ->
-    Unif.clear_cache cache;
+    if List.length st.equalities > 0 then Unif.clear_cache cache;
     Rigid.unify ~max_depth:(rigid_depth ()) st.equalities inst
   | Super ->
-    Unif.clear_cache cache;
+    if List.length st.equalities > 0 then Unif.clear_cache cache;
     Supperposition.mk_unifier st.equalities inst
   | Auto ->
     if st.equalities = [] then
@@ -268,8 +275,12 @@ let opts t =
     Cmdliner.Arg.(value & opt int 1 & info ["meta.start"] ~docv:"N" ~docs ~doc)
   in
   let incr =
-    let doc = "Set the number of new metas to be generated at each pass." in
+    let doc = "Set wether to generate new metas at each round (with delay)" in
     Cmdliner.Arg.(value & opt bool true & info ["meta.incr"] ~docs ~doc)
+  in
+  let delay =
+    let doc = "Delay before introducing new metas" in
+    Cmdliner.Arg.(value & opt (pair int int) (1, 3) & info ["meta.delay"] ~docs ~doc)
   in
   let heuristic =
     let doc = CCPrint.sprintf
@@ -285,16 +296,17 @@ let opts t =
     let doc = "Number of round to wait before increasing the depth of rigid unification." in
     Cmdliner.Arg.(value & opt int 3 & info ["meta.rigid.incr"] ~docv:"N" ~docs ~doc)
   in
-  let set_opts heur start inst incr rigid_depth rigid_incr t =
+  let set_opts heur start inst incr delay rigid_depth rigid_incr t =
     heuristic_setting := heur;
     unif_setting := inst;
     meta_start := start;
     meta_incr := incr;
+    meta_delay := delay;
     rigid_max_depth := rigid_depth;
     rigid_round_incr := rigid_incr;
     t
   in
-  Cmdliner.Term.(pure set_opts $ heuristic $ start $ inst $ incr $ rigid_depth $ rigid_incr $ t)
+  Cmdliner.Term.(pure set_opts $ heuristic $ start $ inst $ incr $ delay $ rigid_depth $ rigid_incr $ t)
 ;;
 
 Dispatcher.(register (
