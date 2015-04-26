@@ -1,11 +1,13 @@
 S ./
 S ./base
+S ./algos
 S ./util
 S ./core
 S ./input
 
 B _build/
 B _build/base
+B _build/algos
 B _build/util
 B _build/core
 B _build/input

@@ -197,6 +197,7 @@ let add ?(delay=0) ?(score=0) u =
 
 let push inst =
   Stats.inst_done ();
+  assert (not (H.find inst_set inst));
   H.replace inst_set inst true;
   log 5 "Pushed inst : %a" Inst.debug inst;
   let open Inst in

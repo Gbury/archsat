@@ -1077,6 +1077,10 @@ let new_term_metas f = match f.formula with
   | Not { formula = Ex(l, _, _) } | All (l, _, _) -> mk_metas l f
   | _ -> invalid_arg "new_term_metas"
 
+(* Positions in terms & types *)
+(* ************************************************************************ *)
+
+
 (* Modules for simpler function names *)
 (* ************************************************************************ *)
 

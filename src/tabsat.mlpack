@@ -1,19 +1,42 @@
-# Useful modules
-Util
-Vector
-Backtrack
-Ec
-Heuristic
-Comparison
-Lpo
-Rigid
-Parray
+
+##### Usefull Modules #####
+###########################
 
 # Base modules
 Ast
+Lpo
 Expr
-Unif
+Index
+Position
 Builtin
+
+# Standard Algorithms
+Unif
+Eclosure
+Heuristic
+Rigid
+Supperposition
+
+# Core modules
+Dispatcher
+Solver
+
+# Extensions
+Inst
+Meta
+Skolem
+Tab
+Eq
+Functions
+Stats
+
+##### Misc modules #####
+########################
+
+# Utilities modules
+Util
+Backtrack
+Comparison
 
 # Input modules
 Io
@@ -34,15 +57,3 @@ Smtlib
 Parsesmtlib
 Lexsmtlib
 
-# Core modules
-Dispatcher
-Solver
-
-# Extensions
-Inst
-Meta
-Skolem
-Tab
-Eq
-Functions
-Stats

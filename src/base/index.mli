@@ -1,11 +1,14 @@
 
-type t
+module Make(T: Set.OrderedType) : sig
 
-val empty : t
+  type t
 
-val add : Expr.term -> t -> t
+  val empty : t
 
-val remove : Expr.term -> t -> t
+  val add : Expr.term -> T.t -> t -> t
 
-val get : Expr.term -> t -> Expr.term list
+  val remove : Expr.term -> T.t -> t -> t
 
+  val unify : Expr.term -> t -> (Expr.term * Unif.t * T.t list) list
+
+end

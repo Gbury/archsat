@@ -34,12 +34,12 @@ let rec term_size = function
 let goal_score_ty ty =
   goal_size_mult * ty_size ty
   + goal_meta_mult * nb_metas_in_ty ty
-  + goal_goal_mult * Expr.(ty.ty_goalness)
+  + goal_goal_mult * Expr.((ty.ty_goalness : goalness :> int))
 
 let goal_score_term t =
   goal_size_mult * term_size t
   + goal_meta_mult * nb_metas_in_term t
-  + goal_goal_mult * Expr.(t.t_goalness)
+  + goal_goal_mult * Expr.((t.t_goalness : goalness :> int))
 
 let goal_directed u =
   let tot, n = Expr.Subst.fold (fun _ t (h, k) -> (h + goal_score_term t, k + 1)) Unif.(u.t_map)
