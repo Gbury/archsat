@@ -22,40 +22,57 @@ module Make(T: Set.OrderedType) = struct
 
   module S = Set.Make(T)
 
-  type t = S.t Mt.t Mi.t
+  type t = {
+    map : S.t Mt.t Mi.t;
+    univ : S.t Mt.t;
+  }
+
   type elt = T.t
 
-  let empty = Mi.empty
+  let empty = {
+    map = Mi.empty;
+    univ = Mt.empty;
+  }
 
-  let find e t =
-    match head e with
-    | None -> Mt.empty
-    | Some v -> try Mi.find (var_id v) t with Not_found -> Mt.empty
-
-  let get e m = try Mt.find e m with Not_found -> S.empty
+  let findi i m = try Mi.find i m with Not_found -> Mt.empty
+  let findt e m = try Mt.find e m with Not_found -> S.empty
 
   let add e c t =
-    match head e with
-    | Some v ->
-      let m = find e t in
-      let s = get e m in
-      Mi.add (var_id v) (Mt.add e (S.add c s) m) t
-    | None -> t
+    match e with
+    | { Expr.term = Expr.App(f,_,_) } ->
+      let m = findi (var_id f) t.map in
+      let s = findt e m in
+      { t with map = Mi.add (var_id f) (Mt.add e (S.add c s) m) t.map }
+    | { Expr.term = Expr.Meta { Expr.meta_var = v; _ } } ->
+      let s = findt e t.univ in
+      { t with univ = Mt.add e (S.add c s) t.univ }
+    | { Expr.term = Expr.Var _ } -> assert false
 
   let remove e c t =
-    match head e with
-    | Some v ->
-      let m = find e t in
-      let s = get e m in
-      Mi.add (var_id v) (Mt.add e (S.remove c s) m) t
-    | None -> t
+    match e with
+    | { Expr.term = Expr.App(f,_,_) } ->
+      let m = findi (var_id f) t.map in
+      let s = findt e m in
+      { t with map = Mi.add (var_id f) (Mt.add e (S.remove c s) m) t.map }
+    | { Expr.term = Expr.Meta { Expr.meta_var = v; _ } } ->
+      let s = findt e t.univ in
+      { t with univ = Mt.add e (S.remove c s) t.univ }
+    | { Expr.term = Expr.Var _ } -> assert false
+
+  let unify_aux e map acc =
+    Mt.fold (fun e' s acc' ->
+        match Unif.find_unifier e e' with
+        | None -> acc'
+        | Some u -> (e', u, S.elements s) :: acc'
+      ) map acc
 
   let unify e t =
-    let m = find e t in
-    Mt.fold (fun e' s acc ->
-        match Unif.find_unifier e e' with
-        | None -> acc
-        | Some u -> (e', u, S.elements s) :: acc
-      ) m []
+    match e with
+    | { Expr.term = Expr.App(f,_,_) } ->
+      let m = findi (var_id f) t.map in
+      unify_aux e m (unify_aux e t.univ [])
+    | { Expr.term = Expr.Meta { Expr.meta_var = v; _ } } ->
+      Mi.fold (fun _ m acc -> unify_aux e m acc) t.map (unify_aux e t.univ [])
+    | { Expr.term = Expr.Var _ } -> assert false
 
 end

@@ -5,6 +5,9 @@
    'E, a brainiac theorem prover' by shulz.
 *)
 
+let log_section = Util.Section.make "supp"
+let log i fmt = Util.debug ~section:log_section i fmt
+
 (* Clauses *)
 (* ************************************************************************ *)
 
@@ -37,6 +40,14 @@ let compare_cl c c' =
         | x -> x
       end
 
+let debug_cl buf c =
+  match c.lit with
+  | None -> Printf.bprintf buf "[]"
+  | Some (a, b) -> Printf.bprintf buf "[%a %s %a]"
+                     Expr.debug_term a
+                     (if c.eq then "=" else "<>")
+                     Expr.debug_term b
+
 (* TODO: better heuristic for clause selection. *)
 let c_leq c c' =
   match c.lit with
@@ -44,23 +55,19 @@ let c_leq c c' =
   | Some _ -> false
 
 (* Clauses *)
-let mk_cl p a b = {
+let mk_cl p lit acc constr parents = {
   eq = p;
-  lit = Some (a, b);
-  acc = [];
-  constr = MS.empty;
-  parents = [];
+  lit;
+  acc = List.sort Unif.compare acc;
+  constr;
+  parents;
 }
 
 let ord a b = if Expr.Term.compare a b <= 0 then a, b else b, a
 
-let mk_eq a b =
-  let c, d = ord a b in
-  mk_cl true c d
+let mk_eq a b = mk_cl true (Some (ord a b)) [] MS.empty []
 
-let mk_neq a b =
-  let c, d = ord a b in
-  mk_cl false c d
+let mk_neq a b = mk_cl false (Some (ord a b)) [] MS.empty  []
 
 (* Indexes *)
 (* ************************************************************************ *)
@@ -98,7 +105,7 @@ type t = {
   clauses : S.t;
   active_index : I.t;
   inactive_index : I.t;
-  continuation : Unif.t -> unit;
+  continuation : Unif.t list -> unit;
 }
 
 let empty f = {
@@ -111,7 +118,9 @@ let empty f = {
 let mem_clause c t = S.mem c t.clauses
 
 let fold_subterms f e side clause i =
-  Position.Term.fold (fun i pos t -> f t { pos; side; clause } i) i e
+  Position.Term.fold (fun i pos t -> match t with
+      | { Expr.term = Expr.Meta _ } -> i
+      | _ -> f t { pos; side; clause } i) i e
 
 let change_state f_set f_index c t =
   let a, b = match c.lit with
@@ -121,7 +130,7 @@ let change_state f_set f_index c t =
   let l = match Lpo.compare a b with
     | Comparison.Lt -> [b, Right] | Comparison.Gt -> [a, Left]
     | Comparison.Incomparable -> [a, Left; b, Right]
-    | Comparison.Eq -> assert false
+    | Comparison.Eq -> []
   in
   let active_index =
     if c.eq then
@@ -160,30 +169,68 @@ let equality_resolution c =
   else []
 
 (* Supperposition rules, alias SN & SP *)
-let do_supp acc active inactive =
-  assert (active.pos = Position.Term.root);
-  acc
+let extract cl =
+  match cl.side, cl.clause.lit with
+  | Left, Some (a, b) | Right, Some (b, a) -> a, b
+  | _, None -> assert false
 
-let add_neg_supp p_set c side acc pos p =
-  let l = I.unify p p_set.active_index in
-  List.fold_left (fun acc (s, u, l) ->
-      List.fold_left (fun acc active ->
-          do_supp acc active { clause = c; side; pos }
+let do_supp acc sigma active inactive =
+  assert (active.pos = Position.Term.root);
+  let aux = Unif.term_subst sigma in
+  let s, t = extract active in
+  let u, v = extract inactive in
+  let v' = aux v in
+  if Lpo.compare (aux t) (aux s) = Comparison.Gt ||
+     Lpo.compare v' (aux u) = Comparison.Gt then
+    acc
+  else
+    let u' = aux (Position.Term.substitute inactive.pos t u) in
+    mk_cl inactive.clause.eq (Some (ord u' v'))
+      (sigma :: inactive.clause.acc @ active.clause.acc)
+      inactive.clause.constr [active.clause; inactive.clause] :: acc
+
+let add_passive_supp p_set clause side acc pos = function
+  | { Expr.term = Expr.Meta _ } -> acc
+  | p ->
+    let l = I.unify p p_set.active_index in
+    let inactive = { clause; side; pos } in
+    List.fold_left (fun acc (_, u, l) ->
+        List.fold_left (fun acc active ->
+            do_supp acc u active inactive
+          ) acc l
+      ) acc l
+
+let add_active_supp p_set clause side s acc =
+  let l = I.unify s p_set.inactive_index in
+  let active = { clause; side; pos = Position.Term.root } in
+  List.fold_left (fun acc (_, u, l) ->
+      List.fold_left (fun acc inactive ->
+          do_supp acc u active inactive
         ) acc l
     ) acc l
 
-let supp_lit c p_set =
+let supp_lit c p_set acc =
   let a, b = match c.lit with Some(a, b) -> a, b | None -> assert false in
   if c.eq then
-    []
+    match Lpo.compare a b with
+    | Comparison.Gt ->
+      add_active_supp p_set c Left a (Position.Term.fold (add_passive_supp p_set c Left) acc a)
+    | Comparison.Lt ->
+      add_active_supp p_set c Right b (Position.Term.fold (add_passive_supp p_set c Right) acc b)
+    | Comparison.Incomparable ->
+      add_active_supp p_set c Left a
+        (add_active_supp p_set c Right b
+           (Position.Term.fold (add_passive_supp p_set c Left)
+              (Position.Term.fold (add_passive_supp p_set c Right) acc b) a))
+    | Comparison.Eq -> assert false (* trivial cl should have been filtered *)
   else begin
     match Lpo.compare a b with
-    | Comparison.Gt -> Position.Term.fold (add_neg_supp p_set c Left) [] a
-    | Comparison.Lt -> Position.Term.fold (add_neg_supp p_set c Right) [] b
+    | Comparison.Gt -> Position.Term.fold (add_passive_supp p_set c Left) acc a
+    | Comparison.Lt -> Position.Term.fold (add_passive_supp p_set c Right) acc b
     | Comparison.Incomparable ->
-      Position.Term.fold (add_neg_supp p_set c Left)
-        (Position.Term.fold (add_neg_supp p_set c Right) [] b) a
-    | Comparison.Eq -> assert false
+      Position.Term.fold (add_passive_supp p_set c Left)
+        (Position.Term.fold (add_passive_supp p_set c Right) acc b) a
+    | Comparison.Eq -> acc (* not much to do... *)
   end
 
 (* Main functions *)
@@ -204,8 +251,7 @@ let cheap_simplify c p = c
 let redundant c p = false
 
 (* Applies: ER (OK), SP, SN *)
-let generate c p =
-  List.rev_append (equality_resolution c) (supp_lit c p)
+let generate c p = supp_lit c p (equality_resolution c)
 
 (* Applies: TD1 (OK) *)
 let trivial c p =
@@ -223,11 +269,13 @@ let rec discount_loop p_set u =
   | None -> p_set
   | Some (u, c) ->
     let c = simplify c p_set in
-    if redundant c p_set then
+    if redundant c p_set then begin
+      log 20 "Redondant clause : %a" debug_cl c;
       discount_loop p_set u
-    else begin
+    end else begin
+      log 15 "Adding clause : %a" debug_cl c;
       if c.lit = None then begin
-        List.iter p_set.continuation c.acc;
+        p_set.continuation c.acc;
         discount_loop p_set u
       end else begin
         let p_set = add_clause c p_set in
@@ -238,13 +286,16 @@ let rec discount_loop p_set u =
             | Some p' -> (p_aux, p :: t,
                           Q.filter (is_descendant p) u)
           ) p_set.clauses (p_set, [], u) in
-        let t = List.rev_append t (generate c p_set) in
+        let l = generate c p_set in
+        let t = List.rev_append t l in
         let u = List.fold_left (fun acc p ->
             let p = cheap_simplify p p_set in
             if trivial p p_set then
               acc
-            else
+            else begin
+              log 30 " |- %a" debug_cl p;
               Q.insert p acc
+            end
           ) u t in
         discount_loop p_set u
       end
@@ -253,9 +304,8 @@ let rec discount_loop p_set u =
 let add_eqs t l =
   let aux q (a,b) =
     let c = mk_eq a b in
-    if trivial c t then
-      Q.insert c q
-    else q
+    if trivial c t then q
+    else Q.insert c q
   in
   discount_loop t (List.fold_left aux Q.empty l)
 

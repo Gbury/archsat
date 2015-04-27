@@ -212,9 +212,13 @@ let print_inst l s =
 let do_inst u =
   Inst.add ~score:(score u) u
 
-let inst u =
-  if List.exists (fun b -> b) (List.map do_inst (Inst.split u)) then
+let insts l =
+  let l = CCList.flat_map Inst.split l in
+  let l = List.map do_inst l in
+  if List.exists (fun b -> b) l then
     raise Found_unif
+
+let inst u = insts [u]
 
 let cache = Unif.new_cache ()
 
@@ -233,7 +237,7 @@ let rec unif_f st = function
     Rigid.unify ~max_depth:(rigid_depth ()) st.equalities inst
   | Super ->
     if List.length st.equalities > 0 then Unif.clear_cache cache;
-    Supperposition.mk_unifier st.equalities inst
+    Supperposition.mk_unifier st.equalities insts
   | Auto ->
     if st.equalities = [] then
       unif_f st Simple
