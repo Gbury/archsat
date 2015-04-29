@@ -278,16 +278,16 @@ let rec robinson_term subst s t =
 
 let unify_ty f s t =
   try
-    f (fixpoint (robinson_ty empty s t))
+    f (robinson_ty empty s t)
   with Not_unifiable_ty _ -> ()
 
 let unify_term f s t =
   try
-    f (fixpoint (robinson_term empty s t))
+    f (robinson_term empty s t)
   with Not_unifiable_ty _ | Not_unifiable_term _ -> ()
 
 let find_unifier s t =
-  try Some (fixpoint (robinson_term empty s t))
+  try Some (robinson_term empty s t)
   with Not_unifiable_ty _ | Not_unifiable_term _ -> None
 
 (* Caching (modulo meta switching) *)

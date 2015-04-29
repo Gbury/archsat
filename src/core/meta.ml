@@ -213,6 +213,7 @@ let do_inst u =
   Inst.add ~score:(score u) u
 
 let insts l =
+  let l = List.map Unif.fixpoint l in
   let l = CCList.flat_map Inst.split l in
   let l = List.map do_inst l in
   if List.exists (fun b -> b) l then

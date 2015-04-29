@@ -63,7 +63,8 @@ val fixpoint : t -> t
     contains cylces. Consequently, occurs_check should return false on all bindings of the substitution. *)
 
 val saturate : t -> t
-(** Binds all metavariables occuring in terms but not bound, to a constant of the correct type. *)
+(** Binds all metavariables occuring in terms but not bound, to a constant of the correct type.
+    WARNING: This is unsafe,and, as it seems, uncomplete to use... *)
 
 (** {2 Unification caching} *)
 
