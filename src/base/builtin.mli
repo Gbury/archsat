@@ -21,4 +21,9 @@ val mk_prop : int -> Expr.formula
 (** Generates a formula based on the given integer.
     The generated formula is a constant of type Expr.type_prop *)
 
+(** {2 Absolute constants} *)
+
+val const : Expr.ty -> Expr.term
+(** Returns a constant with the given type. For equal types, equal constants
+    will be returned. *)
 

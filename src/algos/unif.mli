@@ -62,6 +62,9 @@ val fixpoint : t -> t
 (** Computes the fixpoint of the substitution. May not terminate if the substitution
     contains cylces. Consequently, occurs_check should return false on all bindings of the substitution. *)
 
+val saturate : t -> t
+(** Binds all metavariables occuring in terms but not bound, to a constant of the correct type. *)
+
 (** {2 Unification caching} *)
 
 type 'a cache

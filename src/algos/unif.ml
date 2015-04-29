@@ -103,6 +103,22 @@ let fixpoint u = {
     t_map = Expr.Subst.fold (fun m t acc -> Expr.Subst.Meta.bind m (term_subst u t) acc) u.t_map Expr.Subst.empty;
   }
 
+(* Assign dangling metas to constants *)
+let saturate_aux_term l u =
+  List.fold_left (fun acc m ->
+      if not (Expr.Subst.Meta.mem m acc) then
+        Expr.Subst.Meta.bind m (Builtin.const Expr.(m.meta_var.var_type)) acc
+      else
+        acc) u l
+
+let saturate u = {
+  ty_map = u.ty_map;
+  t_map = Expr.Subst.fold (fun m t acc ->
+      let _, l = Expr.metas_in_term t in
+      saturate_aux_term l acc
+    ) u.t_map u.t_map;
+}
+
 (* Meta-matching *)
 (* ************************************************************************ *)
 
