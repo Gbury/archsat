@@ -4,6 +4,8 @@ module type S = sig
   type expr
 
   val root : t
+  val arg : int -> t -> t
+
   val compare : t -> t -> int
 
   val apply : t -> expr -> expr

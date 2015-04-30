@@ -243,7 +243,7 @@ let rec unif_f st = function
     if st.equalities = [] then
       unif_f st Simple
     else
-      unif_f st ERigid
+      unif_f st Super
 
 let find_all_insts iter =
   (* Create new metas *)

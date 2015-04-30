@@ -8,10 +8,6 @@
 
 let var_id v = (Expr.(v.var_id) : Expr.var_id :> int)
 
-let head = function
-  | { Expr.term = Expr.App(f,_, _) } -> Some f
-  | _ -> None
-
 (* Simple index *)
 (* ************************************************************************ *)
 

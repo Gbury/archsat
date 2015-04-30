@@ -21,6 +21,8 @@ module type S = sig
   type expr
 
   val root : t
+  val arg : int -> t -> t
+
   val compare : t -> t -> int
 
   val apply : t -> expr -> expr
@@ -40,6 +42,9 @@ module Ty : S with type expr = Expr.ty = struct
   type expr = Expr.ty
 
   let root = Here
+
+  let arg i t = Arg (i, t)
+
   let compare = compare
 
   let rec apply p t = match p, t with
@@ -79,6 +84,9 @@ module Term : S with type expr = Expr.term = struct
   type expr = Expr.term
 
   let root = Here
+
+  let arg i t = Arg (i, t)
+
   let compare = compare
 
   let rec apply p t = match p, t with

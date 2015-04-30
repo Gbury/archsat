@@ -11,15 +11,11 @@ let log i fmt = Util.debug ~section:log_section i fmt
 (* Clauses *)
 (* ************************************************************************ *)
 
-module MS = CCMultiSet.Make(struct
-    type t = Expr.Ty.t Expr.Meta.t let compare = Expr.Meta.compare end)
-
 (* Type for unit clauses, i.e clauses with at most one equation *)
 type clause = {
   eq : bool; (* Is the clause/atom positive (it is an equality), or negative (a difference) ? *)
   lit : (Expr.Term.t * Expr.Term.t) option;
   acc : Unif.t list;
-  constr : MS.t;
   parents : clause list;
 }
 
@@ -54,20 +50,22 @@ let c_leq c c' =
   | None -> true
   | Some _ -> false
 
+let add_acc x l = CCList.sorted_merge_uniq ~cmp:Unif.compare l [x]
+let merge_acc = CCList.sorted_merge_uniq ~cmp:Unif.compare
+
 (* Clauses *)
-let mk_cl p lit acc constr parents = {
+let mk_cl p lit acc parents = {
   eq = p;
   lit;
   acc = List.sort Unif.compare acc;
-  constr;
   parents;
 }
 
 let ord a b = if Expr.Term.compare a b <= 0 then a, b else b, a
 
-let mk_eq a b = mk_cl true (Some (ord a b)) [] MS.empty []
+let mk_eq a b = mk_cl true (Some (ord a b)) [] []
 
-let mk_neq a b = mk_cl false (Some (ord a b)) [] MS.empty  []
+let mk_neq a b = mk_cl false (Some (ord a b)) [] []
 
 (* Indexes *)
 (* ************************************************************************ *)
@@ -153,6 +151,38 @@ let change_state f_set f_index c t =
 let add_clause = change_state S.add I.add
 let rm_clause = change_state S.remove I.remove
 
+(* Instanciations constraints *)
+(* ************************************************************************ *)
+
+module MS = CCMultiSet.Make(struct
+    type t = Expr.Ty.t Expr.Meta.t let compare = Expr.Meta.compare end)
+
+let count c =
+  List.fold_left (fun s u ->
+      Expr.Subst.fold (fun m t s' ->
+          MS.add s' m) u.Unif.t_map s)
+    MS.empty c.acc
+
+let rec no_split = function
+  | { Expr.formula = Expr.Pred _ }
+  | { Expr.formula = Expr.Equal _ } -> true
+  | { Expr.formula = Expr.Not { Expr.formula = Expr.Or l } }
+  | { Expr.formula = Expr.And l } -> List.for_all no_split l
+  | { Expr.formula = Expr.Not { Expr.formula = Expr.Imply (p, q) } } ->
+    no_split p && no_split q
+  | _ -> false
+
+let check_occ b n m =
+  match Expr.(get_meta_def m.meta_index) with
+  | { Expr.formula = Expr.Not { Expr.formula = Expr.Ex (_, _, f) } }
+  | { Expr.formula = Expr.All (_, _, f) }
+    when no_split f -> b
+  | _ -> b (* && n <= 3 ? *)
+
+let valid_cl c = MS.fold (count c) true check_occ
+
+let push_cl c acc = if valid_cl c then c :: acc else acc
+
 (* Inference rules *)
 (* ************************************************************************ *)
 
@@ -162,7 +192,7 @@ let equality_resolution c =
     match c.lit with
     | Some (a, b) ->
       begin match Unif.find_unifier a b with
-        | Some u -> [{ eq = true; lit = None; acc = u :: c.acc; constr = c.constr; parents = [c] }]
+        | Some u -> [mk_cl true None (u :: c.acc) [c]]
         | None -> []
       end
     | _ -> []
@@ -185,9 +215,11 @@ let do_supp acc sigma active inactive =
     acc
   else
     let u' = aux (Position.Term.substitute inactive.pos t u) in
-    mk_cl inactive.clause.eq (Some (ord u' v'))
-      (sigma :: inactive.clause.acc @ active.clause.acc)
-      inactive.clause.constr [active.clause; inactive.clause] :: acc
+    let c = mk_cl inactive.clause.eq (Some (ord u' v'))
+        (add_acc sigma (merge_acc inactive.clause.acc active.clause.acc))
+        [active.clause; inactive.clause]
+    in
+    push_cl c acc
 
 let add_passive_supp p_set clause side acc pos = function
   | { Expr.term = Expr.Meta _ } -> acc
@@ -233,11 +265,89 @@ let supp_lit c p_set acc =
     | Comparison.Eq -> acc (* not much to do... *)
   end
 
+(* equality_subsumption, alias ES *)
+let find_subst_eq v w p_set =
+  List.fold_left (fun acc (_, sigma, l) ->
+      if acc = None then
+        List.fold_left (fun acc pos_cl ->
+            if acc = None then
+              let s, t = extract pos_cl in
+              try Some (Unif.robinson_term sigma w t)
+              with Unif.Not_unifiable_ty _ | Unif.Not_unifiable_term _ -> None
+            else acc) acc l
+      else acc
+    ) None (I.unify v p_set.active_index)
+
+let rec make_eq p_set a b = match a, b with
+  | { Expr.term = Expr.App (f, _, f_args) }, { Expr.term = Expr.App (g, _, g_args) }
+    when Expr.Var.equal f g ->
+    make_eq_list p_set f_args g_args
+  | _ when Expr.Term.equal a b -> `Equal
+  | _ -> begin match find_subst_eq a b p_set with
+      | Some u -> `Unifiable u
+      | None -> `Impossible
+    end
+
+and make_eq_list p_set l l' = match l, l' with
+  | [], [] -> `Equal
+  | a :: r, b :: r' -> begin match make_eq p_set a b with
+      | `Equal -> make_eq_list p_set r r'
+      | `Impossible -> `Impossible
+      | `Unifiable u ->
+        if List.for_all2 Expr.Term.equal r r' then
+          `Unifiable u
+        else
+          `Impossible
+    end
+  | _ -> invalid_arg "make_eq"
+
+let equality_subsumption c p_set = (* is there a more generic equality in p_set ? *)
+  c.eq && match c.lit with
+  | None -> false
+  | Some (a, b) -> begin match make_eq p_set a b with
+      | `Equal -> assert false (* trivial equality *)
+      | `Impossible -> false
+      | `Unifiable _ -> true
+    end
+
+(* positive simplify reflect, alias PS *)
+let positive_simplify_reflect p_set c =
+  if not c.eq then
+    match c.lit with
+    | Some (a, b) ->
+      begin match make_eq p_set a b with
+      | `Equal -> Some (mk_cl true None c.acc c.parents)
+      | `Unifiable u -> Some (mk_cl true None (add_acc u c.acc) c.parents)
+      | `Impossible -> None
+      end
+    | None -> None
+  else
+    None
+
 (* Main functions *)
 (* ************************************************************************ *)
 
-(* Applies: RN, RP, PS, NS, ES *)
-let simplify_clause c p = None
+let rec chain l arg =
+  match l with
+  | [] -> None
+  | f :: r -> begin match f arg with
+      | Some res -> Some res
+      | None -> chain r arg
+    end
+
+let fix arg f =
+  let rec aux f arg last =
+    match f arg with
+    | None -> last
+    | Some res -> aux f res (Some res)
+  in
+  aux f arg None
+
+(* Applies: RN, RP, PS, NS *)
+let simplify_clause c p =
+  fix c (chain [
+      positive_simplify_reflect p;
+    ])
 
 let simplify c p =
   match simplify_clause c p with
@@ -248,16 +358,16 @@ let simplify c p =
 let cheap_simplify c p = c
 
 (* Applies: ES *)
-let redundant c p = false
+let redundant c p = equality_subsumption c p
 
-(* Applies: ER (OK), SP, SN *)
+(* Applies: ER,SP,SN (OK-ALL) *)
 let generate c p = supp_lit c p (equality_resolution c)
 
 (* Applies: TD1 (OK) *)
 let trivial c p =
   match c.eq, c.lit with
   | true, Some (a, b) when Expr.Term.equal a b -> true
-  | _ -> false
+  | _ -> mem_clause c p
 
 let is_descendant p c = List.memq p c.parents
 
@@ -270,7 +380,7 @@ let rec discount_loop p_set u =
   | Some (u, c) ->
     let c = simplify c p_set in
     if redundant c p_set then begin
-      log 20 "Redondant clause : %a" debug_cl c;
+      log 20 "Redundant clause : %a" debug_cl c;
       discount_loop p_set u
     end else begin
       log 15 "Adding clause : %a" debug_cl c;

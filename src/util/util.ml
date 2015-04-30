@@ -258,3 +258,13 @@ let rec lexicograph f l1 l2 =
   | [],_ -> (-1)
   | _,[] -> 1
 
+(** {2 List util} *)
+
+let list_iteri2 f l l' =
+  let rec aux i f l l' = match l, l' with
+    | x :: r, y :: r' ->
+      f i x y; aux (i + 1) f r r'
+    | [], [] -> ()
+    | _ -> invalid_arg "list_iteri2"
+  in
+  aux 0 f l l'
