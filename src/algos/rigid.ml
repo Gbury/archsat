@@ -59,9 +59,9 @@ type problem = {
 let rec debug_ss b = function
   | Empty -> Printf.bprintf b "."
   | Equal(t, Empty) | Greater (t, Empty) ->
-    Printf.bprintf b "%a" Expr.debug_term t
-  | Equal (t, s) -> Printf.bprintf b "%a = %a" Expr.debug_term t debug_ss s
-  | Greater (t, s) -> Printf.bprintf b "%a > %a" Expr.debug_term t debug_ss s
+    Printf.bprintf b "%a" Expr.Debug.term t
+  | Equal (t, s) -> Printf.bprintf b "%a = %a" Expr.Debug.term t debug_ss s
+  | Greater (t, s) -> Printf.bprintf b "%a > %a" Expr.Debug.term t debug_ss s
 
 (* Exceptions *)
 (* ************************************************************************ *)
@@ -407,7 +407,7 @@ and rrbs_eq k pb s t l r = function
   | p :: subs ->
     let sat = add_eq_set pb.constr l p in
     if not (sf_is_empty sat) then begin
-      let s' = Expr.term_replace (p,r) s in
+      let s' = Expr.Term.replace (p,r) s in
       apply_er k { pb with last_rule = RRBS; constr = sat; goal = (s', t); depth = pb.depth + 1 }
     end;
     rrbs_eq k pb s t l r subs
@@ -473,7 +473,7 @@ and lrbs_eq k pb j s t l r = function
   | p :: subs ->
     let sat = add_eq_set pb.constr l p in
     if not (sf_is_empty sat) then begin
-      let s' = Expr.term_replace (p,r) s in
+      let s' = Expr.Term.replace (p,r) s in
       apply_rrbs k { pb with last_rule = LRBS; lrbs_index = j; depth = pb.depth + 1;
                              constr = sat; eqs = P.set pb.eqs j (s',t) }
     end;

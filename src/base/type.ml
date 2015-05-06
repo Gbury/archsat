@@ -30,7 +30,7 @@ let constants = H.create stack
 ;;
 
 (* Builtin constants *)
-H.add types "$o" Expr.prop_cstr;;
+H.add types "$o" Expr.Var.prop;;
 H.add types "$i" Builtin.i_cstr;;
 
 (* Adding/finding elts *)
@@ -39,9 +39,9 @@ let add_type name c =
     let c' = H.find types name in
     if not (Expr.Var.equal c c') then
       log 0 "Incoherent type decl for '%s' : %a <> %a" name
-        Expr.debug_fun_ttype Expr.(c.var_type) Expr.debug_fun_ttype Expr.(c'.var_type)
+        Expr.Debug.fun_ttype Expr.(c.var_type) Expr.Debug.fun_ttype Expr.(c'.var_type)
   with Not_found ->
-    log 1 "New type constructor : %a" Expr.debug_const_ttype c;
+    log 1 "New type constructor : %a" Expr.Debug.const_ttype c;
     H.add types name c
 
 let add_cst name c =
@@ -49,9 +49,9 @@ let add_cst name c =
     let c' = H.find constants name in
     if not (Expr.Var.equal c c') then
       log 0 "Incoherent type decl for '%s' : %a <> %a" name
-        Expr.debug_fun_ty Expr.(c.var_type) Expr.debug_fun_ty Expr.(c'.var_type)
+        Expr.Debug.fun_ty Expr.(c.var_type) Expr.Debug.fun_ty Expr.(c'.var_type)
   with Not_found ->
-    log 1 "New constant : %a" Expr.debug_const_ty c;
+    log 1 "New constant : %a" Expr.Debug.const_ty c;
     H.add constants name c
 
 let find_ty_cstr name =
@@ -64,8 +64,8 @@ let find_cst (default_args, default_ret) name =
   try
     H.find constants name
   with Not_found ->
-    let res = Expr.term_const name [] default_args default_ret in
-    log 1 "Inferred constant : %a" Expr.debug_const_ty res;
+    let res = Expr.Var.term_fun name [] default_args default_ret in
+    log 1 "Inferred constant : %a" Expr.Debug.const_ty res;
     H.add constants name res;
     res
 
@@ -110,19 +110,19 @@ let new_name pre =
 let new_ty_name = new_name "ty#"
 let new_term_name = new_name "term#"
 
-let add_type_vars ~goalness env l =
-  let l', map = add_vars Expr.debug_var_ttype env.type_vars l
-      (fun Expr.Type -> Expr.ttype_var (new_ty_name ()))
-      (fun name v map -> M.add name (Expr.type_var ~goalness v) map)
+let add_type_vars ~status env l =
+  let l', map = add_vars Expr.Debug.var_ttype env.type_vars l
+      (fun Expr.Type -> Expr.Var.ttype (new_ty_name ()))
+      (fun name v map -> M.add name (Expr.Ty.of_var ~status v) map)
   in
   l', { env with type_vars = map }
 
-let add_type_var ~goalness env v = match add_type_vars ~goalness env [v] with | [v'], env' -> v', env' | _ -> assert false
+let add_type_var ~status env v = match add_type_vars ~status env [v] with | [v'], env' -> v', env' | _ -> assert false
 
-let add_term_vars ~goalness env l =
-  let l', map = add_vars Expr.debug_var_ty env.term_vars l
-      (fun ty -> Expr.ty_var (new_term_name ()) ty)
-      (fun name v map -> M.add name (Expr.term_var ~goalness v) map)
+let add_term_vars ~status env l =
+  let l', map = add_vars Expr.Debug.var_ty env.term_vars l
+      (fun ty -> Expr.Var.ty (new_term_name ()) ty)
+      (fun name v map -> M.add name (Expr.Term.of_var ~status v) map)
   in
   l', { env with term_vars = map }
 
@@ -145,34 +145,34 @@ let find_prop_var env s = find_var env.prop_vars s
 let parse_ttype_var = function
   | { Ast.term = Ast.Column (
       { Ast.term = Ast.Var s }, {Ast.term = Ast.Const Ast.Ttype}) } ->
-    Expr.ttype_var s
+    Expr.Var.ttype s
   | _ -> raise Typing_error
 
-let rec parse_ty ~goalness env = function
+let rec parse_ty ~status env = function
   | { Ast.term = Ast.Var s} -> find_type_var env s
-  | { Ast.term = Ast.Const (Ast.String c)} -> Expr.type_app ~goalness (find_ty_cstr c) []
+  | { Ast.term = Ast.Const (Ast.String c)} -> Expr.Ty.apply ~status (find_ty_cstr c) []
   | { Ast.term = Ast.App ({Ast.term = Ast.Const (Ast.String c) }, l) } ->
-    let l' = List.map (parse_ty ~goalness env) l in
-    Expr.type_app ~goalness (find_ty_cstr c) l'
+    let l' = List.map (parse_ty ~status env) l in
+    Expr.Ty.apply ~status (find_ty_cstr c) l'
   | t ->
     log 5 "Expected a type, but received : %a" Ast.debug_term t;
     raise Typing_error
 
-let rec parse_sig ~goalness env = function
+let rec parse_sig ~status env = function
   | { Ast.term = Ast.Binding (Ast.AllTy, vars, t) } ->
     let typed_vars = List.map parse_ttype_var vars in
-    let typed_vars, env' = add_type_vars ~goalness env typed_vars in
-    let params, args, ret = parse_sig ~goalness env' t in
+    let typed_vars, env' = add_type_vars ~status env typed_vars in
+    let params, args, ret = parse_sig ~status env' t in
     (typed_vars @ params, args, ret)
   | { Ast.term = Ast.App ({Ast.term = Ast.Const Ast.Arrow}, ret :: args) } ->
-    [], List.map (parse_ty ~goalness env) args, parse_ty ~goalness env ret
-  | t -> [], [], parse_ty ~goalness env t
+    [], List.map (parse_ty ~status env) args, parse_ty ~status env ret
+  | t -> [], [], parse_ty ~status env t
 
-let parse_ty_var ~goalness env = function
+let parse_ty_var ~status env = function
   | { Ast.term = Ast.Var s } ->
-    Expr.ty_var s Builtin.type_i
+    Expr.Var.ty s Builtin.type_i
   | { Ast.term = Ast.Column ({ Ast.term = Ast.Var s }, ty) } ->
-    Expr.ty_var s (parse_ty ~goalness env ty)
+    Expr.Var.ty s (parse_ty ~status env ty)
   | t ->
     log 5 "Expected a (typed) variable, received : %a" Ast.debug_term t;
     raise Typing_error
@@ -183,14 +183,14 @@ let parse_let_var eval = function
   | { Ast.term = Ast.Column ({ Ast.term = Ast.Var s}, t) } -> (s, eval t)
   | _ -> raise Typing_error
 
-let rec parse_term ~goalness ret env = function
+let rec parse_term ~status ret env = function
   | { Ast.term = Ast.Var s } -> find_term_var env s
   | { Ast.term = Ast.App ({ Ast.term = Ast.Const Ast.String s }, []) }
   | { Ast.term = Ast.Const Ast.String s } ->
     begin try
         find_term_var env s
       with Scoping_error _ ->
-        Expr.term_app ~goalness (find_cst (default_cst_ty 0 ret) s) [] []
+        Expr.Term.apply ~status (find_cst (default_cst_ty 0 ret) s) [] []
     end
   | { Ast.term = Ast.App ({ Ast.term = Ast.Const Ast.String s }, l) } ->
     let f = find_cst (default_cst_ty (List.length l) ret) s in
@@ -199,100 +199,100 @@ let rec parse_term ~goalness ret env = function
     if List.length l <> n_ty_args + n_t_args then
       raise (Bad_arity (s, n_ty_args + n_t_args, l));
     let ty_args, t_args = CCList.split n_ty_args l in
-    Expr.term_app ~goalness f
-      (List.map (parse_ty ~goalness env) ty_args)
-      (List.map (parse_term ~goalness Builtin.type_i env) t_args)
+    Expr.Term.apply ~status f
+      (List.map (parse_ty ~status env) ty_args)
+      (List.map (parse_term ~status Builtin.type_i env) t_args)
   | { Ast.term = Ast.Binding (Ast.Let, vars, f) } ->
     let env' = List.fold_left (fun acc var ->
-        let (s, t) = parse_let_var (parse_term ~goalness Builtin.type_i env) var in
+        let (s, t) = parse_let_var (parse_term ~status Builtin.type_i env) var in
         add_let_term acc s t) env vars
     in
-    parse_term ~goalness ret env' f
+    parse_term ~status ret env' f
   | t ->
     log 5 "Expected a term, received : %a" Ast.debug_term t;
     raise Typing_error
 
-let rec parse_quant_vars ~goalness env = function
+let rec parse_quant_vars ~status env = function
   | [] -> [], [], env
   | (v :: r) as l ->
     try
       let ttype_var = parse_ttype_var v in
-      let ttype_var, env' = add_type_var ~goalness env ttype_var in
-      let l, l', env'' = parse_quant_vars ~goalness env' r in
+      let ttype_var, env' = add_type_var ~status env ttype_var in
+      let l, l', env'' = parse_quant_vars ~status env' r in
       ttype_var :: l, l', env''
     with Typing_error ->
-      let l' = List.map (parse_ty_var ~goalness env) l in
-      let l'', env' = add_term_vars ~goalness env l' in
+      let l' = List.map (parse_ty_var ~status env) l in
+      let l'', env' = add_term_vars ~status env l' in
       [], l'', env'
 
-let rec parse_formula ~goalness env = function
+let rec parse_formula ~status env = function
   (* Formulas *)
   | { Ast.term = Ast.App ({ Ast.term = Ast.Const Ast.True }, []) }
-  | { Ast.term = Ast.Const Ast.True } -> Expr.f_true
+  | { Ast.term = Ast.Const Ast.True } -> Expr.Formula.f_true
   | { Ast.term = Ast.App ({ Ast.term = Ast.Const Ast.False }, []) }
-  | { Ast.term = Ast.Const Ast.False } -> Expr.f_false
+  | { Ast.term = Ast.Const Ast.False } -> Expr.Formula.f_false
   | { Ast.term = Ast.App ({Ast.term = Ast.Const Ast.And}, l) } ->
-    Expr.f_and (List.map (parse_formula ~goalness env) l)
+    Expr.Formula.f_and (List.map (parse_formula ~status env) l)
   | { Ast.term = Ast.App ({Ast.term = Ast.Const Ast.Or}, l) } ->
-    Expr.f_or (List.map (parse_formula ~goalness env) l)
+    Expr.Formula.f_or (List.map (parse_formula ~status env) l)
   | { Ast.term = Ast.App ({Ast.term = Ast.Const Ast.Xor}, l) } ->
     assert false
   | { Ast.term = Ast.App ({Ast.term = Ast.Const Ast.Imply}, l) } ->
     begin match l with
-      | [p; q] -> Expr.f_imply (parse_formula ~goalness env p) (parse_formula ~goalness env q)
+      | [p; q] -> Expr.Formula.imply (parse_formula ~status env p) (parse_formula ~status env q)
       | _ -> raise (Bad_arity ("=>", 2, l))
     end
   | { Ast.term = Ast.App ({Ast.term = Ast.Const Ast.Equiv}, l) } ->
     begin match l with
-      | [p; q] -> Expr.f_equiv (parse_formula ~goalness env p) (parse_formula ~goalness env q)
+      | [p; q] -> Expr.Formula.equiv (parse_formula ~status env p) (parse_formula ~status env q)
       | _ -> raise (Bad_arity ("<=>", 2, l))
     end
   | { Ast.term = Ast.App ({Ast.term = Ast.Const Ast.Not}, l) } ->
     begin match l with
-      | [p] -> Expr.f_not (parse_formula ~goalness env p)
+      | [p] -> Expr.Formula.neg (parse_formula ~status env p)
       | _ -> raise (Bad_arity ("not", 1, l))
     end
   (* Binders *)
   | { Ast.term = Ast.Binding (Ast.All, vars, f) } ->
-    let ttype_vars, ty_vars, env' = parse_quant_vars ~goalness env vars in
-    Expr.f_allty ttype_vars (Expr.f_all ty_vars (parse_formula ~goalness env' f))
+    let ttype_vars, ty_vars, env' = parse_quant_vars ~status env vars in
+    Expr.Formula.allty ttype_vars (Expr.Formula.all ty_vars (parse_formula ~status env' f))
   | { Ast.term = Ast.Binding (Ast.Ex, vars, f) } ->
-    let ttype_vars, ty_vars, env' = parse_quant_vars ~goalness env vars in
-    Expr.f_exty ttype_vars (Expr.f_ex ty_vars (parse_formula ~goalness env' f))
+    let ttype_vars, ty_vars, env' = parse_quant_vars ~status env vars in
+    Expr.Formula.exty ttype_vars (Expr.Formula.ex ty_vars (parse_formula ~status env' f))
   | { Ast.term = Ast.Binding (Ast.Let, vars, f) } ->
     let env' = List.fold_left (fun acc var ->
         try
-          let (s, t) = parse_let_var (parse_term ~goalness Builtin.type_i env) var in
-          log 2 "Let-binding : %s -> %a" s Expr.debug_term t;
+          let (s, t) = parse_let_var (parse_term ~status Builtin.type_i env) var in
+          log 2 "Let-binding : %s -> %a" s Expr.Debug.term t;
           add_let_term acc s t
         with Typing_error ->
           begin try
-              let (s, f) = parse_let_var (parse_formula ~goalness env) var in
-              log 2 "Let-binding : %s -> %a" s Expr.debug_formula f;
+              let (s, f) = parse_let_var (parse_formula ~status env) var in
+              log 2 "Let-binding : %s -> %a" s Expr.Debug.formula f;
               add_let_prop acc s f
             with Typing_error ->
               assert false
           end) env vars
     in
-    parse_formula ~goalness env' f
+    parse_formula ~status env' f
   (* (Dis)Equality *)
   | { Ast.term = Ast.App ({Ast.term = Ast.Const Ast.Eq}, l) } ->
     begin match l with
-      | [a; b] -> Expr.f_equal (parse_term ~goalness Builtin.type_i env a) (parse_term ~goalness Builtin.type_i env b)
+      | [a; b] -> Expr.Formula.eq (parse_term ~status Builtin.type_i env a) (parse_term ~status Builtin.type_i env b)
       | _ -> raise (Bad_arity ("=", 2, l))
     end
   | { Ast.term = Ast.App ({Ast.term = Ast.Const Ast.Distinct}, args) } ->
-    let l = CCList.diagonal (List.map (parse_term ~goalness Builtin.type_i env) args) in
-    Expr.f_and (List.map (fun (a, b) -> Expr.f_not (Expr.f_equal a b)) l)
+    let l = CCList.diagonal (List.map (parse_term ~status Builtin.type_i env) args) in
+    Expr.Formula.f_and (List.map (fun (a, b) -> Expr.Formula.neg (Expr.Formula.eq a b)) l)
   (* Possibly bound variables *)
   | { Ast.term = Ast.App ({ Ast.term = Ast.Const Ast.String s }, []) }
   | { Ast.term = Ast.Const Ast.String s } | { Ast.term = Ast.Var s } as t ->
     begin try find_prop_var env s
-      with Scoping_error _ -> Expr.f_pred (parse_term ~goalness Expr.type_prop env t) end
+      with Scoping_error _ -> Expr.Formula.pred (parse_term ~status Expr.Ty.prop env t) end
   (* Generic terms *)
   | { Ast.term = Ast.App _ }
   | { Ast.term = Ast.Const _ } as t ->
-    Expr.f_pred (parse_term ~goalness Expr.type_prop env t)
+    Expr.Formula.pred (parse_term ~status Expr.Ty.prop env t)
   (* Absurd case *)
   | t ->
     log 0 "Expected a formula, received : %a" Ast.debug_term t;
@@ -303,21 +303,21 @@ let rec parse_formula ~goalness env = function
 
 let new_type_def (sym, n) =
   match sym with
-  | Ast.String s -> add_type s (Expr.type_const s n)
+  | Ast.String s -> add_type s (Expr.Var.ty_fun s n)
   | _ ->
     log 0 "Illicit type declaration for symbol : %a" Ast.debug_symbol sym
 
 let new_const_def (sym, t) =
   match sym with
   | Ast.String s ->
-    let params, args, ret = parse_sig ~goalness:Expr.hypothesis empty_env t in
-    add_cst s (Expr.term_const s params args ret)
+    let params, args, ret = parse_sig ~status:Expr.Status.hypothesis empty_env t in
+    add_cst s (Expr.Var.term_fun s params args ret)
   | _ ->
     log 0 "Illicit type declaration for symbol : %a" Ast.debug_symbol sym
 
 let parse is_goal t =
-  let goalness = if is_goal then Expr.goal else Expr.hypothesis in
-  let f = parse_formula ~goalness empty_env t in
-  log 1 "New expr : %a" Expr.debug_formula f;
+  let status = if is_goal then Expr.Status.goal else Expr.Status.hypothesis in
+  let f = parse_formula ~status empty_env t in
+  log 1 "New expr : %a" Expr.Debug.formula f;
   f
 

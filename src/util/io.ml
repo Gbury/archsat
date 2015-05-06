@@ -65,7 +65,7 @@ let fprintf fmt format =
   res
 
 let print_model fmt l =
-  let aux (t, v) = fprintf fmt "%a -> %a" Expr.print_term t Expr.print_term v in
+  let aux (t, v) = fprintf fmt "%a -> %a" Expr.Print.term t Expr.Print.term v in
   List.iter aux l
 
 let print_proof fmt p =

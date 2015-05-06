@@ -11,28 +11,28 @@ let mk_proof l = Dispatcher.mk_proof ~term_args:l id "f-eq"
 
 let set_interpretation t () = match t with
   | { Expr.term = Expr.App (f, tys, l) } ->
-    let is_prop = Expr.(Ty.equal t.t_type type_prop) in
+    let is_prop = Expr.(Ty.equal t.t_type Ty.prop) in
     let t_v, _ = Dispatcher.get_assign t in
     let l' = List.map (fun x -> fst (Dispatcher.get_assign x)) l in
-    let u = Expr.term_app f tys l' in
+    let u = Expr.Term.apply f tys l' in
     begin try
         let t', u_v = H.find st u in
         if not (Expr.Term.equal t_v u_v) then begin
           match t' with
           | { Expr.term = Expr.App (_, _, r) } when is_prop ->
-            let eqs = List.map2 (fun a b -> Expr.f_not (Expr.f_equal a b)) l r in
+            let eqs = List.map2 (fun a b -> Expr.Formula.neg (Expr.Formula.eq a b)) l r in
             if Expr.(Term.equal u_v Builtin.p_true) then
               raise (Dispatcher.Absurd (
-                  Expr.f_pred t :: Expr.f_not (Expr.f_pred t') :: eqs,
+                  Expr.Formula.pred t :: Expr.Formula.neg (Expr.Formula.pred t') :: eqs,
                   mk_proof (t :: t' :: [])))
             else (* Expr.(Term.equal u_v Builtin.p_false) *)
               raise (Dispatcher.Absurd (
-                  Expr.f_pred t' :: Expr.f_not (Expr.f_pred t) :: eqs,
+                  Expr.Formula.pred t' :: Expr.Formula.neg (Expr.Formula.pred t) :: eqs,
                   mk_proof (t' :: t :: [])))
           | { Expr.term = Expr.App (_, _, r) } ->
-            let eqs = List.map2 (fun a b -> Expr.f_not (Expr.f_equal a b)) l r in
+            let eqs = List.map2 (fun a b -> Expr.Formula.neg (Expr.Formula.eq a b)) l r in
             raise (Dispatcher.Absurd (
-                (Expr.f_equal t t') :: eqs,
+                (Expr.Formula.eq t t') :: eqs,
                 mk_proof (t :: t' :: [])))
           | _ -> assert false
         end

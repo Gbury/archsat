@@ -42,13 +42,13 @@ let rec sat_eval = function
 let f_eval f () =
   match sat_eval f with
   | Some(true, lvl) -> D.propagate f lvl
-  | Some(false, lvl) -> D.propagate (Expr.f_not f) lvl
+  | Some(false, lvl) -> D.propagate (Expr.Formula.neg f) lvl
   | None -> ()
 
 let rec sat_preprocess = function
   | { Expr.formula = Expr.Pred ({Expr.term = Expr.App (p, _, _)} as t)} as f
-    when Expr.(Ty.equal t.t_type type_prop) ->
-    Expr.set_assign p 5 sat_assign;
+    when Expr.(Ty.equal t.t_type Ty.prop) ->
+    Expr.Var.set_assign p 5 sat_assign;
     D.watch id 1 [t] (f_eval f)
   | { Expr.formula = Expr.Not f } ->
     sat_preprocess f

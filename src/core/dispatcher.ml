@@ -194,8 +194,8 @@ let add_opts t =
 (* ************************************************************************ *)
 
 let check_var v =
-  if not (Expr.is_interpreted v) && not (Expr.is_assignable v) then
-    log 0 "WARNING: Variable %a is neither interpreted nor assignable" Expr.debug_var v
+  if not (Expr.Var.is_interpreted v) && not (Expr.Var.is_assignable v) then
+    log 0 "WARNING: Variable %a is neither interpreted nor assignable" Expr.Debug.var v
 
 let rec check_term = function
   | { Expr.term = Expr.Var v } -> check_var v
@@ -236,8 +236,8 @@ let pre_process f =
   in
   let f' = ext_fold aux f in
   log 5 "Pre-processing :";
-  log 5 "  %a" Expr.debug_formula f;
-  log 5 "  %a" Expr.debug_formula f';
+  log 5 "  %a" Expr.Debug.formula f;
+  log 5 "  %a" Expr.Debug.formula f';
   f'
 
 (* Delayed propagation *)
@@ -255,14 +255,14 @@ let propagate f lvl =
 let do_propagate propagate =
   while not (Stack.is_empty propagate_stack) do
     let (t, lvl) = Stack.pop propagate_stack in
-    log 10 "Propagating : %a" Expr.debug_formula t;
+    log 10 "Propagating : %a" Expr.Debug.formula t;
     propagate t lvl
   done
 
 let do_push f =
   while not (Stack.is_empty push_stack) do
     let (a, p) = Stack.pop push_stack in
-    log 2 "Pushing '%s' : %a" p.proof_name (CCPrint.list ~sep:" || " Expr.debug_formula) a;
+    log 2 "Pushing '%s' : %a" p.proof_name (CCPrint.list ~sep:" || " Expr.Debug.formula) a;
     f a p
   done
 
@@ -336,7 +336,7 @@ let update_watch x j =
     let _, old_watched = find (Expr.Term.equal x) [] j.watched in
     try
       let y, old_not_watched = find (fun y -> not (is_assigned y)) [] j.not_watched in
-      log 10 "New watcher (%a) for job from %s" Expr.debug_term y (find_ext j.job_ext).name;
+      log 10 "New watcher (%a) for job from %s" Expr.Debug.term y (find_ext j.job_ext).name;
       j.not_watched <- x :: old_not_watched;
       j.watched <- y :: old_watched;
       add_job j y
@@ -346,9 +346,9 @@ let update_watch x j =
       call_job j
   with Not_found ->
     let ext = find_ext j.job_ext in
-    log 0 "Error for job from %s, looking for %d, called by %a" ext.name j.job_n Expr.debug_term x;
-    log 0 "watched : %a" (CCPrint.list ~sep:" || " Expr.debug_term) j.watched;
-    log 0 "not_watched : %a" (CCPrint.list ~sep:" || " Expr.debug_term) j.not_watched;
+    log 0 "Error for job from %s, looking for %d, called by %a" ext.name j.job_n Expr.Debug.term x;
+    log 0 "watched : %a" (CCPrint.list ~sep:" || " Expr.Debug.term) j.watched;
+    log 0 "not_watched : %a" (CCPrint.list ~sep:" || " Expr.Debug.term) j.not_watched;
     assert false
 
 let new_job id k watched not_watched f = {
@@ -381,7 +381,7 @@ let watch tag k args f =
   let t' = Builtin.tuple args in
   let l = try H.find watchers t' with Not_found -> [] in
   if not (List.mem tag l) then begin
-    log 10 "New watch from %s, %d among : %a" (find_ext tag).name k (CCPrint.list ~sep:" || " Expr.debug_term) args;
+    log 10 "New watch from %s, %d among : %a" (find_ext tag).name k (CCPrint.list ~sep:" || " Expr.Debug.term) args;
     H.add watchers t' (tag :: l);
     split [] [] k (List.sort_uniq Expr.Term.compare args)
   end
@@ -389,7 +389,7 @@ let watch tag k args f =
 (*
 let rec try_eval t =
   assert (not (is_assigned t));
-  log 7 "Try-Eval of %a" Expr.debug_term t;
+  log 7 "Try-Eval of %a" Expr.Debug.term t;
   match Expr.(t.term) with
   | Expr.App (f, _, l) ->
     begin try
@@ -429,11 +429,11 @@ let rec assign_watch t = function
 and set_assign t v lvl =
   try
     let v', lvl' = M.find eval_map t in
-    log 5 "Assigned (%d) : %a -> %a / %a" lvl' Expr.debug_term t Expr.debug_term v' Expr.debug_term v;
+    log 5 "Assigned (%d) : %a -> %a / %a" lvl' Expr.Debug.term t Expr.Debug.term v' Expr.Debug.term v;
     if not (Expr.Term.equal v v') then
       _fail "Incoherent assignments"
   with Not_found ->
-    log 5 "Assign (%d) : %a -> %a" lvl Expr.debug_term t Expr.debug_term v;
+    log 5 "Assign (%d) : %a -> %a" lvl Expr.Debug.term t Expr.Debug.term v;
     M.add eval_map t (v, lvl);
     let l = try hpop watch_map t with Not_found -> [] in
     log 10 " Found %d watchers" (List.length l);
@@ -441,8 +441,8 @@ and set_assign t v lvl =
     (*
     begin try
         let l = pop wait_eval t in
-        log 10 " Waiting for %a :" Expr.debug_term t;
-        List.iter (fun t' -> log 10 "  -> %a" Expr.debug_term t') l;
+        log 10 " Waiting for %a :" Expr.Debug.term t;
+        List.iter (fun t' -> log 10 "  -> %a" Expr.Debug.term t') l;
         List.iter (fun t' -> ignore (try_eval t')) l
       with Not_found -> () end
       *)
@@ -458,10 +458,10 @@ let assume s =
     for i = s.start to s.start + s.length - 1 do
       match s.get i with
       | Lit f, lvl ->
-        log 1 " Assuming (%d) %a" lvl Expr.debug_formula f;
+        log 1 " Assuming (%d) %a" lvl Expr.Debug.formula f;
         ext_iter (fun ext -> ext.assume (f, lvl))
       | Assign (t, v), lvl ->
-        log 1 " Assuming (%d) %a -> %a" lvl Expr.debug_term t Expr.debug_term v;
+        log 1 " Assuming (%d) %a -> %a" lvl Expr.Debug.term t Expr.Debug.term v;
         set_assign t v lvl
     done;
     log 8 "Propagating (%d)" (Stack.length propagate_stack);
@@ -470,7 +470,7 @@ let assume s =
     Sat
   with Absurd (l, p) ->
     log 3 "Conflict '%s'" p.proof_name;
-    List.iter (fun f -> log 1 " |- %a" Expr.debug_formula f) l;
+    List.iter (fun f -> log 1 " |- %a" Expr.Debug.formula f) l;
     Unsat (l, p)
 
 let if_sat s =
@@ -489,23 +489,23 @@ let if_sat s =
   do_push s.push
 
 let assign t =
-  log 5 "Finding assignment for %a" Expr.debug_term t;
+  log 5 "Finding assignment for %a" Expr.Debug.term t;
   try
-    let res = Expr.assign t in
-    log 5 " -> %a" Expr.debug_term res;
+    let res = Expr.Term.assign t in
+    log 5 " -> %a" Expr.Debug.term res;
     res
   with Expr.Cannot_assign _ ->
     _fail (CCPrint.sprintf
-             "Expected to be able to assign symbol %a\nYou may have forgotten to activate an extension" Expr.debug_term t)
+             "Expected to be able to assign symbol %a\nYou may have forgotten to activate an extension" Expr.Debug.term t)
 
 let rec iter_assign_aux f e = match Expr.(e.term) with
   | Expr.App (p, _, l) ->
-    if not (Expr.is_interpreted p) then f e;
+    if not (Expr.Var.is_interpreted p) then f e;
     List.iter (iter_assign_aux f) l
   | _ -> f e
 
 let iter_assignable f e =
-  log 5 "Iter_assign on %a" Expr.debug_formula e;
+  log 5 "Iter_assign on %a" Expr.Debug.formula e;
   peek_at e;
   match Expr.(e.formula) with
   | Expr.Equal (a, b) -> iter_assign_aux f a; iter_assign_aux f b
@@ -524,7 +524,7 @@ let eval_aux f =
     Valued (b, lvl)
 
 let eval formula =
-  log 5 "Evaluating formula : %a" Expr.debug_formula formula;
+  log 5 "Evaluating formula : %a" Expr.Debug.formula formula;
   eval_aux formula
 
 

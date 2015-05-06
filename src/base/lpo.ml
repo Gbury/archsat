@@ -32,8 +32,8 @@ let rec rpo6 ~prec s t =
   if Expr.Term.equal s t then Comparison.Eq else  (* equality test is cheap *)
     match s, t with
     | { Expr.term = Expr.Meta _ }, { Expr.term = Expr.Meta _ } -> Comparison.Incomparable
-    | _, { Expr.term = Expr.Meta m } -> if Expr.var_occurs Expr.(m.meta_var) s then Comparison.Gt else Comparison.Incomparable
-    | { Expr.term = Expr.Meta m} , _ -> if Expr.var_occurs Expr.(m.meta_var) t then Comparison.Lt else Comparison.Incomparable
+    | _, { Expr.term = Expr.Meta m } -> if Expr.Var.occurs_term Expr.(m.meta_var) s then Comparison.Gt else Comparison.Incomparable
+    | { Expr.term = Expr.Meta m} , _ -> if Expr.Var.occurs_term Expr.(m.meta_var) t then Comparison.Lt else Comparison.Incomparable
     (* Application *)
     | { Expr.term = Expr.App (f, _, ss) }, { Expr.term= Expr.App (g, _, ts)} -> rpo6_composite ~prec s t f g ss ts
     | { Expr.term = Expr.Var v}, { Expr.term = Expr.Var v'} -> if Expr.Var.equal v v' then Comparison.Eq else Comparison.Incomparable

@@ -3,10 +3,14 @@
 
 (** {2 Type definitions} *)
 
+type 't eval =
+  | Interpreted of 't * int
+  | Waiting of 't
+
 (** {3 Variables} *)
 type hash
 type var_id = private int
-type goalness = private int
+type status = private int
 type 'a meta_index = private int
 
 type 'ty var = private {
@@ -38,7 +42,7 @@ type ty_descr = private
 
 and ty = private {
   ty : ty_descr;
-  ty_goalness : goalness;
+  ty_status : status;
   mutable ty_hash : hash; (** Use Ty.hash instead *)
 }
 
@@ -52,13 +56,13 @@ type term_descr = private
 and term = private {
   term    : term_descr;
   t_type  : ty;
-  t_goalness : goalness;
+  t_status : status;
   mutable t_hash : hash; (** Use Term.hash instead *)
 }
 
 (** {3 Formulas} *)
 
-type free_vars = ty list * term list
+type free_args = ty list * term list
 
 type formula_descr = private
   (** Atoms *)
@@ -75,10 +79,10 @@ type formula_descr = private
   | Equiv of formula * formula
 
   (** Quantifiers *)
-  | All of ty var list * free_vars * formula
-  | AllTy of ttype var list * free_vars * formula
-  | Ex of ty var list * free_vars * formula
-  | ExTy of ttype var list * free_vars * formula
+  | All of ty var list * free_args * formula
+  | AllTy of ttype var list * free_args * formula
+  | Ex of ty var list * free_args * formula
+  | ExTy of ttype var list * free_args * formula
 
 and formula = private {
   formula : formula_descr;
@@ -101,185 +105,143 @@ exception Subst_error_term_scope of ty var
 
 (** {2 Printing} *)
 
-val debug_var : Buffer.t -> 'a var -> unit
-val debug_var_ty : Buffer.t -> ty var -> unit
-val debug_var_ttype : Buffer.t -> ttype var -> unit
+module Debug : sig
+  (** Verbose printing functions for debug pruposes *)
 
-val debug_const_ty : Buffer.t -> ty function_descr var -> unit
-val debug_const_ttype : Buffer.t -> ttype function_descr var -> unit
+  val var : Buffer.t -> 'a var -> unit
+  val var_ty : Buffer.t -> ty var -> unit
+  val var_ttype : Buffer.t -> ttype var -> unit
 
-val debug_meta : Buffer.t -> 'a meta -> unit
+  val const_ty : Buffer.t -> ty function_descr var -> unit
+  val const_ttype : Buffer.t -> ttype function_descr var -> unit
 
-val debug_ty : Buffer.t -> ty -> unit
-val debug_fun_ty : Buffer.t -> ty function_descr -> unit
-val debug_ttype : Buffer.t -> ttype -> unit
-val debug_fun_ttype : Buffer.t -> ttype function_descr -> unit
+  val meta : Buffer.t -> 'a meta -> unit
 
-val debug_term : Buffer.t -> term -> unit
-val debug_formula : Buffer.t -> formula -> unit
-(** Verbose printing functions for debug pruposes *)
+  val ty : Buffer.t -> ty -> unit
+  val fun_ty : Buffer.t -> ty function_descr -> unit
 
-val print_var : Format.formatter -> 'a var -> unit
-val print_var_ty : Format.formatter -> ty var -> unit
-val print_var_ttype : Format.formatter -> ttype var -> unit
+  val ttype : Buffer.t -> ttype -> unit
+  val fun_ttype : Buffer.t -> ttype function_descr -> unit
 
-val print_meta : Format.formatter -> 'a meta -> unit
+  val term : Buffer.t -> term -> unit
+  val formula : Buffer.t -> formula -> unit
+end
 
-val print_ty : Format.formatter -> ty -> unit
-val print_ttype : Format.formatter -> ttype -> unit
+module Print : sig
+  (** Pretty printing functions *)
 
-val print_term : Format.formatter -> term -> unit
-val print_formula : Format.formatter -> formula -> unit
-(** Pretty printing functions *)
+  val var : Format.formatter -> 'a var -> unit
+  val var_ty : Format.formatter -> ty var -> unit
+  val var_ttype : Format.formatter -> ttype var -> unit
 
+  val meta : Format.formatter -> 'a meta -> unit
 
-(** {2 Hashs & Comparisons} *)
+  val ty : Format.formatter -> ty -> unit
+  val ttype : Format.formatter -> ttype -> unit
+
+  val term : Format.formatter -> term -> unit
+  val formula : Format.formatter -> formula -> unit
+end
+
+(** {5 status} *)
+
+module Status : sig
+  val goal : status
+  val hypothesis : status
+  (** Standard status for goals (theorem/lemmas to prove), and hypothesis (assumptions) repectly.
+      Unless otherwise specified, types and terms have hypothesis status. *)
+end
+
+(** {2 Variables & Metas} *)
 
 module Var : sig
   type 'a t = 'a var
+  (* Type alias *)
+
   val hash : 'a t -> int
   val equal : 'a t -> 'a t -> bool
   val compare : 'a t -> 'a t -> int
+  (** Usual functions for hash/comparison *)
+
   val print : Format.formatter -> 'a t -> unit
   val debug : Buffer.t -> 'a t -> unit
+  (** Printing for variables *)
+
+  val prop : ttype function_descr var
+  (** Constant representing the type for propositions *)
+
+  val ttype : string -> ttype var
+  (** Create a fresh type variable with the given name. *)
+
+  val ty : string -> ty -> ty var
+  (** Create a fresh variable with given name and type *)
+
+  val ty_fun : string -> int -> ttype function_descr var
+  (** Create a fresh type constructor with given name and arity *)
+
+  val term_fun : string -> ttype var list -> ty list -> ty -> ty function_descr var
+  (** [ty_fun name type_vars arg_types return_type] returns a new constant symbol,
+      possibly polymorphic with respect to the variables in [type_vars] (which may appear in the
+      types in [arg_types] and in [return_type]). *)
+
+  val ty_skolem : ttype var -> ttype function_descr var
+  val term_skolem : ty var -> ty function_descr var
+  (** Returns the skolem symbols associated with the given variables. The skolems
+      symbols take as arguments the free_variables of their defining formula.
+      For simplicity, just apply the skolem to the free_args of the quantified expression. *)
+
+  val occurs_term : ty var -> term -> bool
+  (** Returns [true] if the given variable occurs in the term.
+      WARNING: since meta-variables are wrapped variables, it can yield unexpected results. *)
+
+  val set_eval : 'a var -> int -> (term -> term eval) -> unit
+  val set_assign : 'a var -> int -> (term -> term) -> unit
+  (** [set_eval v n f] sets f as the handler to call in order to
+      eval or assign the given variable, with priority [n] (only the handler with
+      highest priority is called. *)
+
+  val is_interpreted : 'a var -> bool
+  val is_assignable : 'a var -> bool
+  (** Returns [true] if a handler has been set up for the given variable. *)
+
 end
+
 module Meta : sig
   type 'a t = 'a meta
+  (** Type alias *)
+
   val hash : 'a t -> int
   val equal : 'a t -> 'a t -> bool
   val compare : 'a t -> 'a t -> int
+  (** Usual functions for hash/comparison *)
+
   val print : Format.formatter -> 'a t -> unit
   val debug : Buffer.t -> 'a t -> unit
+  (** Printing for metavariables *)
+
+  val of_all_ty : formula -> ttype meta list
+  (** Given a formula [f] which is either a universal quantification over types,
+      or the negation of an existencial quantification over types,
+      returns a list of meta-variables associated with [f]. *)
+
+  val of_all : formula -> ty meta list
+  (** Given a formula [f] which is either a universal quantification over terms,
+      or the negation of an existencial quantification over terms,
+      returns a list of meta-variables associated with [f]. *)
+
+  val ty_def : ty meta_index -> formula
+  val ttype_def : ttype meta_index -> formula
+  (** Returns the formula associated with a given meta index. *)
+
+  val of_ty_index : ty meta_index -> ty meta list
+  val of_ttype_index : ttype meta_index -> ttype meta list
+  (** Returns the list of all metas sharing the given index. *)
+
+  val in_ty : ty -> ttype meta list * ty meta list
+  val in_term : term -> ttype meta list * ty meta list
+  (** Returns the list of meta-variable occuring in the argument *)
+
 end
-module Ty : sig
-  type t = ty
-  val hash : t -> int
-  val equal : t -> t -> bool
-  val compare : t -> t -> int
-  val debug : Buffer.t -> t -> unit
-  val print : Format.formatter -> t -> unit
-end
-module Term : sig
-  type t = term
-  val hash : t -> int
-  val equal : t -> t -> bool
-  val compare : t -> t -> int
-  val debug : Buffer.t -> t -> unit
-  val print : Format.formatter -> t -> unit
-end
-module Formula : sig
-  type t = formula
-  val hash : t -> int
-  val equal : t -> t -> bool
-  val compare : t -> t -> int
-  val debug : Buffer.t -> t -> unit
-  val print : Format.formatter -> t -> unit
-end
-
-(** {2 Constructors} *)
-
-(** {5 Goalness} *)
-
-val goal : goalness
-val hypothesis : goalness
-(** Standard goalness for goals (theorem/lemmas to prove), and hypothesis (assumptions) repectly.
-    Unless otherwise specified, types and terms have hypothesis goalness. *)
-
-(** {5 Variables & Constants} *)
-
-val ttype_var : string -> ttype var
-val ty_var : string -> ty -> ty var
-
-val type_const : string -> int -> ttype function_descr var
-val term_const : string -> ttype var list -> ty list -> ty -> ty function_descr var
-
-(** {5 Metas} *)
-
-val get_meta_def : ty meta_index -> formula
-val get_meta_ty_def : ttype meta_index -> formula
-
-val new_ty_metas : formula -> ttype meta list
-val ty_metas_of_index : ttype meta_index -> ttype meta list
-
-val new_term_metas : formula -> ty meta list
-val term_metas_of_index : ty meta_index -> ty meta list
-(** [other_term_metas m] returns the list [l] of term metas that was generated together with [m]
-    i.e [m] is a meta in [l] and [l] was returned by [new_term_metas] previously. *)
-
-(** {5 Skolems symbols} *)
-
-val get_ty_skolem : ttype var -> ttype function_descr var
-val get_term_skolem : ty var -> ty function_descr var
-(** Returns the skolem symbols associated with the given functions. Should be
-    applied to the [free_vars] arguments of the quantifier binding. *)
-
-(** {5 Types} *)
-
-val type_prop : ty
-val prop_cstr : ttype function_descr var
-
-val type_var : ?goalness:goalness -> ttype var -> ty
-val type_meta : ?goalness:goalness -> ttype meta -> ty
-val type_app : ?goalness:goalness -> ttype function_descr var -> ty list -> ty
-
-(** {5 Terms} *)
-
-val term_var : ?goalness:goalness -> ty var -> term
-val term_meta : ?goalness:goalness -> ty meta -> term
-val term_app : ?goalness:goalness -> ty function_descr var -> ty list -> term list -> term
-
-(** {5 Formulas} *)
-
-val f_true : formula
-val f_false : formula
-
-val f_equal : term -> term -> formula
-val f_pred : term -> formula
-val f_not : formula -> formula
-val f_and : formula list -> formula
-val f_or : formula list -> formula
-val f_imply : formula -> formula -> formula
-val f_equiv : formula -> formula -> formula
-val f_all : ty var list -> formula -> formula
-val f_allty : ttype var list -> formula -> formula
-val f_ex : ty var list -> formula -> formula
-val f_exty : ttype var list -> formula -> formula
-
-(** {2 Interpretation and Assignations} *)
-
-type 't eval =
-  | Interpreted of 't * int
-  | Waiting of 't
-
-val set_eval : 'a var -> int -> (term -> term eval) -> unit
-val set_assign : 'a var -> int -> (term -> term) -> unit
-(** [set_eval v n f] sets f as the handler to call in order to
-    eval or assign the given variable, with priority [n] (only the handler with
-    highest priority is called. *)
-
-val is_interpreted : 'a var -> bool
-val is_assignable : 'a var -> bool
-(** Returns [true] if a handler has been set up for the given variable. *)
-
-val eval : term -> term eval
-val assign : term -> term
-(** Evaluate or assigns the given term using the handler of the
-    head symbol of the expression. *)
-
-(** {2 Inspection} *)
-
-val var_occurs : ty var -> term -> bool
-(** Returns wether the given variable occurs in the term (including inside metas aud taus). *)
-
-val ty_fv : ty -> ttype var list * ty var list
-val term_fv : term -> ttype var list * ty var list
-val formula_fv : formula -> ttype var list * ty var list
-(** Returns the free variables of a given expression, that is the variables that
-    are not bound by a quantifier. *)
-
-val metas_in_ty : ty -> ttype meta list * ty meta list
-val metas_in_term : term -> ttype meta list * ty meta list
-(** Returns the list of metavariables occuring in a term. *)
 
 (** {2 Substitutions} *)
 
@@ -349,21 +311,143 @@ module Subst : sig
   module Meta : S with type 'a key = 'a meta
 end
 
-type ty_subst = (ttype var, ty) Subst.t
-type term_subst = (ty var, term) Subst.t
-(** Abreviations for the substitution of types and terms respectively. *)
+(** {2 Types} *)
 
-val debug_ty_subst : Buffer.t -> ty_subst -> unit
-val debug_term_subst : Buffer.t -> term_subst -> unit
-(** Debug printing functions for substitutions. *)
+module Ty : sig
+  type t = ty
+  (** Type alias *)
 
-val term_replace : term * term -> term -> term
-(** [term_replace (t, t') t''] returns the term [t''] where every occurence of [t]
-    has been replace by [t']. *)
+  type subst = (ttype var, ty) Subst.t
+  (** The type of substitutions over types. *)
 
-val type_subst : ty_subst -> ty -> ty
-val term_subst : ty_subst -> term_subst -> term -> term
-val formula_subst : ty_subst -> term_subst -> formula -> formula
-val partial_inst : ty_subst -> term_subst -> formula -> formula
-(** Substitution functions for types, terms and formulas. *)
+  val hash : t -> int
+  val equal : t -> t -> bool
+  val compare : t -> t -> int
+  (** Usual hash/compare functions *)
+
+  val debug : Buffer.t -> t -> unit
+  val print : Format.formatter -> t -> unit
+  val debug_subst : Buffer.t -> subst -> unit
+  (** Printing functions *)
+
+  val prop : ty
+  (** The type of propositions *)
+
+  val of_var : ?status:status -> ttype var -> ty
+  (** Creates a type from a variable *)
+
+  val of_meta : ?status:status -> ttype meta -> ty
+  (** Create a type from a meta-variable *)
+
+  val apply : ?status:status -> ttype function_descr var -> ty list -> ty
+  (** Applies a constant to a list of types *)
+
+  val subst : subst -> ty -> ty
+  (** Substitution over types. *)
+
+  val fv : ty -> ttype var list * ty var list
+  (** Return the list of free variables in the given type.
+      Here, the [ty var list] is guaranteed to be empty. *)
+
+end
+
+module Term : sig
+  type t = term
+  (** Type alias *)
+
+  type subst = (ty var, term) Subst.t
+  (** The type of substitutions in types. *)
+
+  val hash : t -> int
+  val equal : t -> t -> bool
+  val compare : t -> t -> int
+  (**  Usual hash/compare functions *)
+
+  val debug : Buffer.t -> t -> unit
+  val print : Format.formatter -> t -> unit
+  val debug_subst : Buffer.t -> subst -> unit
+  (** Printing functions *)
+
+  val of_var : ?status:status -> ty var -> term
+  (** Create a term from a variable *)
+
+  val of_meta : ?status:status -> ty meta -> term
+  (** Create a term from a meta-variable *)
+
+  val apply : ?status:status -> ty function_descr var -> ty list -> term list -> term
+  (** Applies a constant function to type arguments, then term arguments *)
+
+  val subst : Ty.subst -> subst -> term -> term
+  (** Substitution over types. *)
+
+  val replace : term * term -> term -> term
+  (** [replace (t, t') t''] returns the term [t''] where every occurence of [t]
+      has been replace by [t']. *)
+
+  val fv : term -> ttype var list * ty var list
+  (** Return the list of free variables in the given term. *)
+
+  val eval : term -> term eval
+  val assign : term -> term
+  (** Evaluate or assigns the given term using the handler of the
+      head symbol of the expression, see the Var module. *)
+
+end
+
+module Formula : sig
+  type t = formula
+  (** Type alias *)
+
+  val hash : t -> int
+  val equal : t -> t -> bool
+  val compare : t -> t -> int
+  (** Usual hash/compare functions *)
+
+  val debug : Buffer.t -> t -> unit
+  val print : Format.formatter -> t -> unit
+  (** Printing functions *)
+
+  val f_true : formula
+  val f_false : formula
+  (** Formula for the true and false constants *)
+
+  val eq : term -> term -> formula
+  (** Create an equality over two terms. The two given terms
+      must have the same type [t], which must be different from {!Ty.prop} *)
+
+  val pred : term -> formula
+  (** Create a formula from a term. The given term must have type {!Ty.prop} *)
+
+  val neg : formula -> formula
+  (** Returns the negation of the given formula *)
+
+  val f_and : formula list -> formula
+  (** Returns the conjunction of the given formulas *)
+
+  val f_or : formula list -> formula
+  (** Returns the disjunction of the given formulas *)
+
+  val imply : formula -> formula -> formula
+  (** [imply p q] returns a formula representing [p] implies [q]. *)
+
+  val equiv : formula -> formula -> formula
+  (** [equi p q] returns a formula representing [p] equivalent to [q] *)
+
+  val all : ty var list -> formula -> formula
+  val allty : ttype var list -> formula -> formula
+  (** Universally quantify the given formula over the given variables *)
+
+  val ex : ty var list -> formula -> formula
+  val exty : ttype var list -> formula -> formula
+  (** Existentially quantify the given formula over the given variables *)
+
+  val subst : Ty.subst -> Term.subst -> formula -> formula
+  (** Substitution over formulas *)
+
+  val partial_inst : Ty.subst -> Term.subst -> formula -> formula
+  (** Make a partial instanciation of the given formula with the substitutions. *)
+
+  val fv : formula -> ttype var list * ty var list
+  (** Return the list of free variables in the given formula. *)
+end
 

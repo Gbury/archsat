@@ -58,16 +58,16 @@ let equal s u =
 let inverse s =
   Expr.Subst.fold (fun m t s ->
       match t with
-      | { Expr.term = Expr.Meta m' } -> bind_term s m' (Expr.term_meta m)
+      | { Expr.term = Expr.Meta m' } -> bind_term s m' (Expr.Term.of_meta m)
       | _ -> bind_term s m t
     ) s.t_map (Expr.Subst.fold (fun m ty s ->
       match ty with
-      | { Expr.ty = Expr.TyMeta m' } -> bind_ty s m' (Expr.type_meta m)
+      | { Expr.ty = Expr.TyMeta m' } -> bind_ty s m' (Expr.Ty.of_meta m)
       | _ -> bind_ty s m ty
     ) s.ty_map empty)
 
 let print_inst l s =
-  Expr.Subst.iter (fun k v -> log l " |- %a -> %a" Expr.debug_meta k Expr.debug_term v) s.t_map
+  Expr.Subst.iter (fun k v -> log l " |- %a -> %a" Expr.Debug.meta k Expr.Debug.term v) s.t_map
 
 (* Manipulation over meta substitutions *)
 (* ************************************************************************ *)
@@ -80,7 +80,7 @@ let rec type_subst_aux u = function
   | { Expr.ty = Expr.TyApp (f, args) } as ty ->
     let new_args = List.map (type_subst_aux u) args in
     if List.for_all2 (==) args new_args then ty
-    else Expr.type_app f new_args
+    else Expr.Ty.apply f new_args
 
 let type_subst u t = if Expr.Subst.is_empty u.ty_map then t else type_subst_aux u t
 
@@ -92,7 +92,7 @@ let rec term_subst_aux u = function
     let new_tys = List.map (type_subst u) tys in
     let new_args = List.map (term_subst_aux u) args in
     if List.for_all2 (==) tys new_tys && List.for_all2 (==) args new_args then t
-    else Expr.term_app f new_tys new_args
+    else Expr.Term.apply f new_tys new_args
 
 let term_subst u t =
   if is_empty u then t else term_subst_aux u t
@@ -114,7 +114,7 @@ let saturate_aux_term l u =
 let saturate u = {
   ty_map = u.ty_map;
   t_map = Expr.Subst.fold (fun m t acc ->
-      let _, l = Expr.metas_in_term t in
+      let _, l = Expr.Meta.in_term t in
       saturate_aux_term l acc
     ) u.t_map u.t_map;
 }
@@ -126,27 +126,27 @@ let saturate u = {
 let inv_map_ty u m1 m2 =
   try
     let t1 = get_ty u m1 in
-    let t2 = Expr.type_meta m2 in
+    let t2 = Expr.Ty.of_meta m2 in
     if not (Expr.Ty.equal t1 t2) then
       raise (Not_unifiable_ty (t1, t2))
     else
       u
   with Not_found ->
-    bind_ty (bind_ty u m1 (Expr.type_meta m2)) m2 (Expr.type_meta m1)
+    bind_ty (bind_ty u m1 (Expr.Ty.of_meta m2)) m2 (Expr.Ty.of_meta m1)
 
 let inv_map_term u m1 m2 =
   try
     let t1 = get_term u m1 in
-    let t2 = Expr.term_meta m2 in
+    let t2 = Expr.Term.of_meta m2 in
     if not (Expr.Term.equal t1 t2) then
       raise (Not_unifiable_term (t1, t2))
     else
       u
   with Not_found ->
-    bind_term (bind_term u m1 (Expr.term_meta m2)) m2 (Expr.term_meta m1)
+    bind_term (bind_term u m1 (Expr.Term.of_meta m2)) m2 (Expr.Term.of_meta m1)
 
-let meta_def m = Expr.(get_meta_def m.meta_index)
-let meta_ty_def m = Expr.(get_meta_ty_def m.meta_index)
+let meta_def m = Expr.Meta.ty_def m.Expr.meta_index
+let meta_ty_def m = Expr.Meta.ttype_def m.Expr.meta_index
 
 (* Finding meta-stable involutions *)
 let rec meta_match_ty subst s t =
@@ -168,7 +168,7 @@ let rec meta_match_ty subst s t =
   end
 
 let rec meta_match_term subst s t =
-  log 90 "trying %a <-> %a" Expr.debug_term s Expr.debug_term t;
+  log 90 "trying %a <-> %a" Expr.Debug.term s Expr.Debug.term t;
   begin match s, t with
     | _, { Expr.term = Expr.Var _ } | { Expr.term = Expr.Var _}, _ -> assert false
     | { Expr.term = Expr.Meta ({ Expr.meta_var = v1 } as m1) },
@@ -187,20 +187,6 @@ let rec meta_match_term subst s t =
         raise (Not_unifiable_term (s, t))
     | _ -> raise (Not_unifiable_term (s, t))
   end
-
-(*
-let match_ty_meta s t = meta_match_ty empty s t
-let match_term_meta s t = meta_match_term empty s t
-
-let equal_up_to_metas u u' =
-    try
-        let _ = Expr.Subst.fold (fun m t acc -> meta_match_term acc (get_term u' m) t) u.t_map
-               (Expr.Subst.fold (fun m ty acc -> meta_match_ty acc (get_ty u' m) ty) u.ty_map empty)
-        in
-        true
-    with Not_found | Not_unifiable_ty _ | Not_unifiable_term _ ->
-        false
-*)
 
 (* Robinson unification *)
 (* ************************************************************************ *)

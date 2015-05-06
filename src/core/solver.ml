@@ -11,14 +11,14 @@ module SatExpr = struct
   module Term = Expr.Term
   module Formula = Expr.Formula
 
-  let dummy = Expr.f_true
+  let dummy = Expr.Formula.f_true
 
   let fresh () = assert false
 
-  let neg f = Expr.f_not f
+  let neg f = Expr.Formula.neg f
 
   let norm = function
-    | { Expr.formula = Expr.False } -> Expr.f_true, true
+    | { Expr.formula = Expr.False } -> Expr.Formula.f_true, true
     | { Expr.formula = Expr.Not f } -> f, true
     | f -> f, false
 end
@@ -47,7 +47,7 @@ let solve () =
 let assume l =
   let l = List.map (List.map Dispatcher.pre_process) l in
   List.iter (fun cl -> log 1 "Assuming : %a"
-                (CCPrint.list ~sep:"; " Expr.debug_formula) cl) l;
+                (CCPrint.list ~sep:"; " Expr.Debug.formula) cl) l;
   try
     Smt.assume l
   with Smt.Unsat -> ()

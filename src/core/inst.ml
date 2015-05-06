@@ -61,18 +61,18 @@ let quant_comparable p q = match quant_compare p q with
  * unifiers such that all formula generating the metas in
  * a unifier are comparable according to compare_quant. *)
 let belong_ty m s =
-  let f = Expr.get_meta_ty_def (index m) in
+  let f = Expr.Meta.ttype_def (index m) in
   let aux m' _ =
-    let f' = Expr.get_meta_ty_def (index m') in
+    let f' = Expr.Meta.ttype_def (index m') in
     if Expr.Formula.equal f f' then index m = index m'
     else quant_comparable f f'
   in
   Expr.Subst.exists aux Unif.(s.ty_map)
 
 let belong_term m s =
-  let f = Expr.get_meta_def (index m) in
+  let f = Expr.Meta.ty_def (index m) in
   let aux m' _ =
-    let f' = Expr.get_meta_def (index m') in
+    let f' = Expr.Meta.ty_def (index m') in
     if Expr.Formula.equal f f' then index m = index m'
     else quant_comparable f f'
   in
@@ -106,25 +106,25 @@ let partition s =
         Some (min_index, acc)
   in
   match Expr.Subst.fold (aux Unif.bind_ty) Unif.(s.ty_map) None with
-  | Some (i, u) -> Expr.get_meta_ty_def i, u
+  | Some (i, u) -> Expr.Meta.ttype_def i, u
   | None ->
     match Expr.Subst.fold (aux Unif.bind_term) Unif.(s.t_map) None with
-    | Some (i, u) -> Expr.get_meta_def i, u
+    | Some (i, u) -> Expr.Meta.ty_def i, u
     | None -> assert false
 
 let simplify s = snd (partition s)
 
 (* Produces a proof for the instanciation of the given formulas and unifiers *)
 let mk_proof f p ty_map t_map = Dispatcher.mk_proof
-    ~ty_args:(Expr.Subst.fold (fun v t l -> Expr.type_var v :: t :: l) ty_map [])
-    ~term_args:(Expr.Subst.fold (fun v t l -> Expr.term_var v :: t :: l) t_map [])
+    ~ty_args:(Expr.Subst.fold (fun v t l -> Expr.Ty.of_var v :: t :: l) ty_map [])
+    ~term_args:(Expr.Subst.fold (fun v t l -> Expr.Term.of_var v :: t :: l) t_map [])
     ~formula_args:[f; p] id "inst"
 
 let to_var s = Expr.Subst.fold (fun {Expr.meta_var = v} t acc -> Expr.Subst.Var.bind v t acc) s Expr.Subst.empty
 
 let soft_subst f ty_subst term_subst =
-  let q = Expr.partial_inst ty_subst term_subst f in
-  [ Expr.f_not f; q], mk_proof f q ty_subst term_subst
+  let q = Expr.Formula.partial_inst ty_subst term_subst f in
+  [ Expr.Formula.neg f; q], mk_proof f q ty_subst term_subst
 
 (* Heap for prioritizing instanciations *)
 (* ************************************************************************ *)
@@ -134,8 +134,8 @@ module Inst = struct
     age : int;
     score : int;
     formula : Expr.formula;
-    ty_subst : Expr.ty_subst;
-    term_subst : Expr.term_subst;
+    ty_subst : Expr.Ty.subst;
+    term_subst : Expr.Term.subst;
   }
 
   (* Age counter *)
@@ -155,7 +155,7 @@ module Inst = struct
 
   (* debug printing *)
   let debug b t =
-    Printf.bprintf b "%a%a" Expr.debug_ty_subst t.ty_subst Expr.debug_term_subst t.term_subst
+    Printf.bprintf b "%a%a" Expr.Ty.debug_subst t.ty_subst Expr.Term.debug_subst t.term_subst
 
   (* Comparison for the Heap *)
   let leq t1 t2 = t1.score + t1.age <= t2.score + t2.age

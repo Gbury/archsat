@@ -16,6 +16,10 @@ let meta_start = ref 0
 let meta_incr= ref false
 let meta_delay = ref (0, 0)
 let meta_max = ref 10
+
+let supp_max_coef = ref 1
+let supp_max_const = ref 0
+
 let rigid_max_depth = ref 1
 let rigid_round_incr = ref 2
 
@@ -86,7 +90,7 @@ let empty_st () = {
 let debug_st n st =
   log n "Found : %d true preds, %d false preds, %d equalities, %d inequalities"
     (List.length st.true_preds) (List.length st.false_preds) (List.length st.equalities) (List.length st.inequalities);
-  List.iter (fun (a, b) -> log n " |- %a == %a" Expr.debug_term a Expr.debug_term b) st.equalities
+  List.iter (fun (a, b) -> log n " |- %a == %a" Expr.Debug.term a Expr.Debug.term b) st.equalities
 
 let parse_slice iter =
   let res = empty_st () in
@@ -138,57 +142,57 @@ let mk_proof_term f metas = Dispatcher.mk_proof
 let do_formula = function
   | { Expr.formula = Expr.All (l, _, p) } as f ->
     let _ = mark f in
-    let metas = List.map Expr.term_meta (Expr.new_term_metas f) in
+    let metas = List.map Expr.Term.of_meta (Expr.Meta.of_all f) in
     let subst = List.fold_left2 (fun s v t -> Expr.Subst.Var.bind v t s) Expr.Subst.empty l metas in
-    let q = Expr.formula_subst Expr.Subst.empty subst p in
-    Dispatcher.push [Expr.f_not f; q] (mk_proof_term f metas)
+    let q = Expr.Formula.subst Expr.Subst.empty subst p in
+    Dispatcher.push [Expr.Formula.neg f; q] (mk_proof_term f metas)
   | { Expr.formula = Expr.Not { Expr.formula = Expr.Ex (l, _, p) } } as f ->
     let _ = mark f in
-    let metas = List.map Expr.term_meta (Expr.new_term_metas f) in
+    let metas = List.map Expr.Term.of_meta (Expr.Meta.of_all f) in
     let subst = List.fold_left2 (fun s v t -> Expr.Subst.Var.bind v t s) Expr.Subst.empty l metas in
-    let q = Expr.formula_subst Expr.Subst.empty subst p in
-    Dispatcher.push [Expr.f_not f; Expr.f_not q] (mk_proof_term f metas)
+    let q = Expr.Formula.subst Expr.Subst.empty subst p in
+    Dispatcher.push [Expr.Formula.neg f; Expr.Formula.neg q] (mk_proof_term f metas)
   | { Expr.formula = Expr.AllTy (l, _, p) } as f ->
     let _ = mark f in
-    let metas = List.map Expr.type_meta (Expr.new_ty_metas f) in
+    let metas = List.map Expr.Ty.of_meta (Expr.Meta.of_all_ty f) in
     let subst = List.fold_left2 (fun s v t -> Expr.Subst.Var.bind v t s) Expr.Subst.empty l metas in
-    let q = Expr.formula_subst subst Expr.Subst.empty p in
-    Dispatcher.push [Expr.f_not f; q] (mk_proof_ty f metas)
+    let q = Expr.Formula.subst subst Expr.Subst.empty p in
+    Dispatcher.push [Expr.Formula.neg f; q] (mk_proof_ty f metas)
   | { Expr.formula = Expr.Not { Expr.formula = Expr.ExTy (l, _, p) } } as f ->
     let _ = mark f in
-    let metas = List.map Expr.type_meta (Expr.new_ty_metas f) in
+    let metas = List.map Expr.Ty.of_meta (Expr.Meta.of_all_ty f) in
     let subst = List.fold_left2 (fun s v t -> Expr.Subst.Var.bind v t s) Expr.Subst.empty l metas in
-    let q = Expr.formula_subst subst Expr.Subst.empty p in
-    Dispatcher.push [Expr.f_not f; Expr.f_not q] (mk_proof_ty f metas)
+    let q = Expr.Formula.subst subst Expr.Subst.empty p in
+    Dispatcher.push [Expr.Formula.neg f; Expr.Formula.neg q] (mk_proof_ty f metas)
   | _ -> assert false
 
 let do_meta_inst = function
   | { Expr.formula = Expr.All (l, _, p) } as f ->
     let i = mark f in
     if i <= !meta_max then begin
-      let metas = Expr.new_term_metas f in
-      let u = List.fold_left (fun s m -> Unif.bind_term s m (Expr.term_meta m)) Unif.empty metas in
+      let metas = Expr.Meta.of_all f in
+      let u = List.fold_left (fun s m -> Unif.bind_term s m (Expr.Term.of_meta m)) Unif.empty metas in
       ignore (Inst.add ~delay:(delay i) u)
     end
   | { Expr.formula = Expr.Not { Expr.formula = Expr.Ex (l, _, p) } } as f ->
     let i = mark f in
     if i <= !meta_max then begin
-      let metas = Expr.new_term_metas f in
-      let u = List.fold_left (fun s m -> Unif.bind_term s m (Expr.term_meta m)) Unif.empty metas in
+      let metas = Expr.Meta.of_all f in
+      let u = List.fold_left (fun s m -> Unif.bind_term s m (Expr.Term.of_meta m)) Unif.empty metas in
       ignore (Inst.add ~delay:(delay i) u)
     end
   | { Expr.formula = Expr.AllTy (l, _, p) } as f ->
     let i = mark f in
     if i <= !meta_max then begin
-      let metas = Expr.new_ty_metas f in
-      let u = List.fold_left (fun s m -> Unif.bind_ty s m (Expr.type_meta m)) Unif.empty metas in
+      let metas = Expr.Meta.of_all_ty f in
+      let u = List.fold_left (fun s m -> Unif.bind_ty s m (Expr.Ty.of_meta m)) Unif.empty metas in
       ignore (Inst.add ~delay:(delay i) u)
     end
   | { Expr.formula = Expr.Not { Expr.formula = Expr.ExTy (l, _, p) } } as f ->
     let i = mark f in
     if i <= !meta_max then begin
-      let metas = Expr.new_ty_metas f in
-      let u = List.fold_left (fun s m -> Unif.bind_ty s m (Expr.type_meta m)) Unif.empty metas in
+      let metas = Expr.Meta.of_all_ty f in
+      let u = List.fold_left (fun s m -> Unif.bind_ty s m (Expr.Ty.of_meta m)) Unif.empty metas in
       ignore (Inst.add ~delay:(delay i) u)
     end
   | _ -> assert false
@@ -205,40 +209,58 @@ let meta_assume lvl = function
 (* Finding instanciations *)
 (* ************************************************************************ *)
 
-let print_inst l s =
-  Expr.Subst.iter (fun k v -> log l " |- %a -> %a" Expr.debug_meta k Expr.debug_term v) Unif.(s.t_map)
+(* Folding over terms to unify *)
+let fold_diff f start st =
+  let acc = List.fold_left (fun acc p ->
+      List.fold_left (fun acc notp  ->
+          f acc p notp) acc st.false_preds) start st.true_preds
+  in
+  List.fold_left (fun acc (a, b) -> f acc a b) acc st.inequalities
+
+(* Supperposition limit *)
+let supp_limit st =
+  let n = fold_diff (fun n _ _ -> n + 1) 0 st in
+  n * !supp_max_coef + !supp_max_const
 
 (* Unification of predicates *)
-let do_inst u =
-  Inst.add ~score:(score u) u
+let do_inst u = Inst.add ~score:(score u) u
 
-let insts l =
+let insts r l =
   let l = List.map Unif.fixpoint l in
   let l = CCList.flat_map Inst.split l in
   let l = List.map do_inst l in
-  if List.exists (fun b -> b) l then
-    raise Found_unif
+  if List.exists (fun b -> b) l then begin
+    decr r;
+    log 10 "%d remaining" !r;
+    if !r <= 0 then raise Found_unif
+  end
 
-let inst u = insts [u]
+let single_inst u = insts (ref 1) [u]
 
 let cache = Unif.new_cache ()
 
 let find_inst unif p notp =
   try
-    log 50 "Matching : %a ~~ %a" Expr.debug_term p Expr.debug_term notp;
+    log 50 "Matching : %a ~~ %a" Expr.Debug.term p Expr.Debug.term notp;
     Unif.with_cache cache unif p notp
   with Found_unif ->()
 
 let rec unif_f st = function
-  | No_unif -> (fun _ _ -> ())
+  | No_unif -> assert false
   | Simple ->
-    Unif.unify_term inst
+    fold_diff (fun () -> find_inst (Unif.unify_term single_inst)) () st
   | ERigid ->
     if List.length st.equalities > 0 then Unif.clear_cache cache;
-    Rigid.unify ~max_depth:(rigid_depth ()) st.equalities inst
+    fold_diff (fun () -> find_inst (Rigid.unify ~max_depth:(rigid_depth ()) st.equalities single_inst)) () st
   | Super ->
     if List.length st.equalities > 0 then Unif.clear_cache cache;
-    Supperposition.mk_unifier st.equalities insts
+    let t = Supperposition.empty (insts (ref (supp_limit st))) in
+    let t = List.fold_left (fun acc (a, b) -> Supperposition.add_eq acc a b) t st.equalities in
+    let t = fold_diff (fun acc a b -> Supperposition.add_neq acc a b) t st in
+    begin try
+        let _ = Supperposition.solve t in ()
+      with Found_unif -> ()
+    end
   | Auto ->
     if st.equalities = [] then
       unif_f st Simple
@@ -257,12 +279,9 @@ let find_all_insts iter =
     log 5 "Parsing input formulas";
     let st = parse_slice iter in
     debug_st 30 st;
-    (* Choosing unification function *)
-    let unif = unif_f st !unif_setting in
-    (* Iter unification through all possibilities. *)
-    List.iter (fun p -> List.iter (fun notp  ->
-        find_inst unif p notp) st.false_preds) st.true_preds;
-    List.iter (fun (a, b) -> find_inst unif a b) st.inequalities
+    (* Search for instanciations *)
+    log 5 "Applying unification";
+    unif_f st !unif_setting
 
 (* Extension registering *)
 (* ************************************************************************ *)
@@ -293,6 +312,14 @@ let opts t =
        $(docv) may be %s" (Cmdliner.Arg.doc_alts_enum ~quoted:true heur_list) in
     Cmdliner.Arg.(value & opt heur_conv No_heuristic & info ["meta.heur"] ~docv:"HEUR" ~docs ~doc)
   in
+  let supp_coef =
+    let doc = "Affine coefficient for the supperposition limit" in
+    Cmdliner.Arg.(value & opt int 1 & info ["meta.supp.coef"] ~docs ~doc)
+  in
+  let supp_const =
+    let doc = "Affine constant for the supperposition limit" in
+    Cmdliner.Arg.(value & opt int 0 & info ["meta.supp.const"] ~docs ~doc)
+  in
   let rigid_depth =
     let doc = "Base to compute maximum depth when doing rigid unification." in
     Cmdliner.Arg.(value & opt int 2 & info ["meta.rigid.depth"] ~docv:"N" ~docs ~doc)
@@ -301,17 +328,19 @@ let opts t =
     let doc = "Number of round to wait before increasing the depth of rigid unification." in
     Cmdliner.Arg.(value & opt int 3 & info ["meta.rigid.incr"] ~docv:"N" ~docs ~doc)
   in
-  let set_opts heur start inst incr delay rigid_depth rigid_incr t =
+  let set_opts heur start inst incr delay s_coef s_const rigid_depth rigid_incr t =
     heuristic_setting := heur;
     unif_setting := inst;
     meta_start := start;
     meta_incr := incr;
     meta_delay := delay;
+    supp_max_coef := s_coef;
+    supp_max_const := s_const;
     rigid_max_depth := rigid_depth;
     rigid_round_incr := rigid_incr;
     t
   in
-  Cmdliner.Term.(pure set_opts $ heuristic $ start $ inst $ incr $ delay $ rigid_depth $ rigid_incr $ t)
+  Cmdliner.Term.(pure set_opts $ heuristic $ start $ inst $ incr $ delay $ supp_coef $ supp_const $ rigid_depth $ rigid_incr $ t)
 ;;
 
 Dispatcher.(register (

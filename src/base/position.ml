@@ -57,7 +57,7 @@ module Ty : S with type expr = Expr.ty = struct
     match p, t with
     | Here, _ -> u
     | Arg (k, p'), { Expr.ty = Expr.TyApp(f, l) } ->
-      Expr.type_app ~goalness:t.Expr.ty_goalness f
+      Expr.Ty.apply ~status:t.Expr.ty_status f
         (List.mapi (fun i v -> if i = k then substitute p' u v else v) l)
     | _ -> raise Invalid
 
@@ -99,7 +99,7 @@ module Term : S with type expr = Expr.term = struct
     match p, t with
     | Here, _ -> u
     | Arg (k, p'), { Expr.term = Expr.App(f, ty_args, l) } ->
-      Expr.term_app ~goalness:t.Expr.t_goalness f ty_args
+      Expr.Term.apply ~status:t.Expr.t_status f ty_args
         (List.mapi (fun i v -> if i = k then substitute p' u v else v) l)
     | _ -> raise Invalid
 

@@ -23,8 +23,6 @@ module Make(T: Set.OrderedType) = struct
     univ : S.t Mt.t;
   }
 
-  type elt = T.t
-
   let empty = {
     map = Mi.empty;
     univ = Mt.empty;

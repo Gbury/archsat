@@ -143,7 +143,7 @@ with
   exit 3
 | Expr.Type_error_mismatch (ty1, ty2) ->
   Format.fprintf Format.std_formatter "The following types are NOT compatible :@\n%a ~~ %a@."
-    Expr.print_ty ty1 Expr.print_ty ty2;
+    Expr.Print.ty ty1 Expr.Print.ty ty2;
   exit 4
 
 

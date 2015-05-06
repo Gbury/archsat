@@ -13,7 +13,8 @@ let log i fmt = Util.debug ~section:log_section i fmt
 
 (* Type for unit clauses, i.e clauses with at most one equation *)
 type clause = {
-  eq : bool; (* Is the clause/atom positive (it is an equality), or negative (a difference) ? *)
+  eq : bool; (* is it an equality clause ? *)
+  size : int;
   lit : (Expr.Term.t * Expr.Term.t) option;
   acc : Unif.t list;
   parents : clause list;
@@ -40,32 +41,42 @@ let debug_cl buf c =
   match c.lit with
   | None -> Printf.bprintf buf "[]"
   | Some (a, b) -> Printf.bprintf buf "[%a %s %a]"
-                     Expr.debug_term a
+                     Expr.Debug.term a
                      (if c.eq then "=" else "<>")
-                     Expr.debug_term b
+                     Expr.Debug.term b
+
+let rec term_size = function
+  | { Expr.term = Expr.App (_, _, l) } ->
+    1 + List.fold_left (fun acc t -> max acc (term_size t)) 0 l
+  | _ -> 1
+
+let tsize a b = term_size a + term_size b
 
 (* TODO: better heuristic for clause selection. *)
 let c_leq c c' =
-  match c.lit with
-  | None -> true
-  | Some _ -> false
+  match c.lit, c'.lit with
+  | None, _ -> true
+  | _ -> c.size <= c'.size
 
 let add_acc x l = CCList.sorted_merge_uniq ~cmp:Unif.compare l [x]
 let merge_acc = CCList.sorted_merge_uniq ~cmp:Unif.compare
 
 (* Clauses *)
-let mk_cl p lit acc parents = {
+let mk_cl p lit size acc parents = {
   eq = p;
   lit;
+  size;
   acc = List.sort Unif.compare acc;
   parents;
 }
 
 let ord a b = if Expr.Term.compare a b <= 0 then a, b else b, a
 
-let mk_eq a b = mk_cl true (Some (ord a b)) [] []
+let mk_eq a b = mk_cl true (Some (ord a b)) (tsize a b)
 
-let mk_neq a b = mk_cl false (Some (ord a b)) [] []
+let mk_neq a b = mk_cl false (Some (ord a b)) (tsize a b)
+
+let mk_none = mk_cl true None 0
 
 (* Indexes *)
 (* ************************************************************************ *)
@@ -100,6 +111,7 @@ module Q = CCHeap.Make(struct type t = clause let leq = c_leq end)
 module S = Set.Make(struct type t = clause let compare = compare_cl end)
 
 type t = {
+  queue : Q.t;
   clauses : S.t;
   active_index : I.t;
   inactive_index : I.t;
@@ -107,6 +119,7 @@ type t = {
 }
 
 let empty f = {
+  queue = Q.empty;
   clauses = S.empty;
   active_index = I.empty;
   inactive_index = I.empty;
@@ -142,6 +155,7 @@ let change_state f_set f_index c t =
       fold_subterms f_index t side c i) t.inactive_index l
   in
   {
+    queue = t.queue;
     clauses = f_set c t.clauses;
     active_index;
     inactive_index;
@@ -173,7 +187,7 @@ let rec no_split = function
   | _ -> false
 
 let check_occ b n m =
-  match Expr.(get_meta_def m.meta_index) with
+  match Expr.Meta.ty_def m.Expr.meta_index with
   | { Expr.formula = Expr.Not { Expr.formula = Expr.Ex (_, _, f) } }
   | { Expr.formula = Expr.All (_, _, f) }
     when no_split f -> b
@@ -192,7 +206,7 @@ let equality_resolution c =
     match c.lit with
     | Some (a, b) ->
       begin match Unif.find_unifier a b with
-        | Some u -> [mk_cl true None (u :: c.acc) [c]]
+        | Some u -> [mk_none (u :: c.acc) [c]]
         | None -> []
       end
     | _ -> []
@@ -215,7 +229,7 @@ let do_supp acc sigma active inactive =
     acc
   else
     let u' = aux (Position.Term.substitute inactive.pos t u) in
-    let c = mk_cl inactive.clause.eq (Some (ord u' v'))
+    let c = mk_cl inactive.clause.eq (Some (ord u' v')) (tsize u' v')
         (add_acc sigma (merge_acc inactive.clause.acc active.clause.acc))
         [active.clause; inactive.clause]
     in
@@ -316,8 +330,8 @@ let positive_simplify_reflect p_set c =
     match c.lit with
     | Some (a, b) ->
       begin match make_eq p_set a b with
-      | `Equal -> Some (mk_cl true None c.acc c.parents)
-      | `Unifiable u -> Some (mk_cl true None (add_acc u c.acc) c.parents)
+      | `Equal -> Some (mk_none c.acc c.parents)
+      | `Unifiable u -> Some (mk_none (add_acc u c.acc) c.parents)
       | `Impossible -> None
       end
     | None -> None
@@ -374,19 +388,19 @@ let is_descendant p c = List.memq p c.parents
 (* Main loop *)
 (* ************************************************************************ *)
 
-let rec discount_loop p_set u =
-  match Q.take u with
+let rec discount_loop p_set =
+  match Q.take p_set.queue with
   | None -> p_set
   | Some (u, c) ->
     let c = simplify c p_set in
     if redundant c p_set then begin
       log 20 "Redundant clause : %a" debug_cl c;
-      discount_loop p_set u
+      discount_loop { p_set with queue = u }
     end else begin
       log 15 "Adding clause : %a" debug_cl c;
       if c.lit = None then begin
         p_set.continuation c.acc;
-        discount_loop p_set u
+        discount_loop { p_set with queue = u }
       end else begin
         let p_set = add_clause c p_set in
         let p_set, t, u = S.fold (fun p (p_set, t, u) ->
@@ -407,25 +421,19 @@ let rec discount_loop p_set u =
               Q.insert p acc
             end
           ) u t in
-        discount_loop p_set u
+        discount_loop { p_set with queue = u }
       end
     end
-
-let add_eqs t l =
-  let aux q (a,b) =
-    let c = mk_eq a b in
-    if trivial c t then q
-    else Q.insert c q
-  in
-  discount_loop t (List.fold_left aux Q.empty l)
-
-let add_neq t p q =
-  discount_loop t (Q.insert (mk_neq p q) Q.empty)
 
 (* Wrappers/Helpers for unification *)
 (* ************************************************************************ *)
 
-let mk_unifier l f =
-  let t = add_eqs (empty f) l in
-  (fun p q -> let _ = add_neq t p q in ())
+let add_eq t a b =
+  let c = mk_eq a b [] [] in
+  if trivial c t then t
+  else { t with queue = Q.insert c t.queue }
+
+let add_neq t a b = { t with queue = Q.insert (mk_neq a b [] []) t.queue }
+
+let solve t = discount_loop t
 
