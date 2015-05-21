@@ -383,7 +383,7 @@ let trivial c p =
   | true, Some (a, b) when Expr.Term.equal a b -> true
   | _ -> mem_clause c p
 
-let is_descendant p c = List.memq p c.parents
+let not_is_descendant p c = not (List.memq p c.parents)
 
 (* Main loop *)
 (* ************************************************************************ *)
@@ -403,12 +403,12 @@ let rec discount_loop p_set =
         discount_loop { p_set with queue = u }
       end else begin
         let p_set = add_clause c p_set in
-        let p_set, t, u = S.fold (fun p (p_set, t, u) ->
+        let p_set, t, u = S.fold (fun p (p_set, t, queue) ->
             let p_aux = rm_clause p p_set in
             match simplify_clause p p_aux with
-            | None -> (p_set, t, u)
-            | Some p' -> (p_aux, p :: t,
-                          Q.filter (is_descendant p) u)
+            | None -> (p_set, t, queue)
+            | Some p' ->
+              (p_aux, p' :: t, Q.filter (not_is_descendant p) queue)
           ) p_set.clauses (p_set, [], u) in
         let l = generate c p_set in
         let t = List.rev_append t l in
