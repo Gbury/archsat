@@ -239,21 +239,17 @@ let single_inst u = insts (ref 1) [u]
 
 let cache = Unif.new_cache ()
 
-let find_inst unif p notp =
-  try
-    log 50 "Matching : %a ~~ %a" Expr.Debug.term p Expr.Debug.term notp;
-    Unif.with_cache cache unif p notp
-  with Found_unif ->()
+let wrap_unif unif p notp =
+  try unif p notp
+  with Found_unif -> ()
 
 let rec unif_f st = function
   | No_unif -> assert false
   | Simple ->
-    fold_diff (fun () -> find_inst (Unif.unify_term single_inst)) () st
+    fold_diff (fun () -> wrap_unif (Unif.with_cache cache (Unif.unify_term single_inst))) () st
   | ERigid ->
-    if List.length st.equalities > 0 then Unif.clear_cache cache;
-    fold_diff (fun () -> find_inst (Rigid.unify ~max_depth:(rigid_depth ()) st.equalities single_inst)) () st
+    fold_diff (fun () -> wrap_unif (Rigid.unify ~max_depth:(rigid_depth ()) st.equalities single_inst)) () st
   | Super ->
-    if List.length st.equalities > 0 then Unif.clear_cache cache;
     let t = Supperposition.empty (insts (ref (supp_limit st))) in
     let t = List.fold_left (fun acc (a, b) -> Supperposition.add_eq acc a b) t st.equalities in
     let t = fold_diff (fun acc a b -> Supperposition.add_neq acc a b) t st in

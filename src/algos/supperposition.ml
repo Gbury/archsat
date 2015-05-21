@@ -47,16 +47,13 @@ let debug_cl buf c =
 
 let rec term_size = function
   | { Expr.term = Expr.App (_, _, l) } ->
-    1 + List.fold_left (fun acc t -> max acc (term_size t)) 0 l
+    1 + List.fold_left (fun acc t -> acc + (term_size t)) 0 l
   | _ -> 1
 
 let tsize a b = term_size a + term_size b
 
 (* TODO: better heuristic for clause selection. *)
-let c_leq c c' =
-  match c.lit, c'.lit with
-  | None, _ -> true
-  | _ -> c.size <= c'.size
+let c_leq c c' = c.size <= c'.size
 
 let add_acc x l = CCList.sorted_merge_uniq ~cmp:Unif.compare l [x]
 let merge_acc = CCList.sorted_merge_uniq ~cmp:Unif.compare
@@ -143,22 +140,19 @@ let change_state f_set f_index c t =
     | Comparison.Incomparable -> [a, Left; b, Right]
     | Comparison.Eq -> []
   in
-  let active_index =
-    if c.eq then
-      List.fold_left (fun i (t, side) ->
-          f_index t { pos = Position.Term.root; side; clause = c } i)
-        t.active_index l
-    else
-      t.active_index
-  in
-  let inactive_index = List.fold_left (fun i (t, side) ->
-      fold_subterms f_index t side c i) t.inactive_index l
-  in
   {
     queue = t.queue;
     clauses = f_set c t.clauses;
-    active_index;
-    inactive_index;
+    active_index =
+      if c.eq then
+        List.fold_left (fun i (t, side) ->
+            f_index t { pos = Position.Term.root; side; clause = c } i)
+          t.active_index l
+      else
+        t.active_index;
+    inactive_index =
+        List.fold_left (fun i (t, side) ->
+            fold_subterms f_index t side c i) t.inactive_index l;
     continuation = t.continuation;
   }
 
