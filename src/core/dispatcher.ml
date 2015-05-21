@@ -71,7 +71,7 @@ let proof_debug p =
   in
   p.proof_name, p.proof_formula_args, p.proof_term_args, color
 
-(* Extensions registering *)
+(* Exceptions *)
 (* ************************************************************************ *)
 
 exception Absurd of formula list * proof
@@ -80,9 +80,34 @@ exception Extension_not_found of string
 
 let _fail s = raise (Bad_assertion s)
 
-let new_id =
-  let i = ref 0 in
-  (fun () -> incr i; !i)
+(* Delayed propagation *)
+(* ************************************************************************ *)
+
+let push_stack = Stack.create ()
+let propagate_stack = Stack.create ()
+
+let push clause ext_name =
+  Stack.push (clause, ext_name) push_stack
+
+let propagate f lvl =
+  Stack.push (f, lvl) propagate_stack
+
+let do_propagate propagate =
+  while not (Stack.is_empty propagate_stack) do
+    let (t, lvl) = Stack.pop propagate_stack in
+    log 10 "Propagating : %a" Expr.Debug.formula t;
+    propagate t lvl
+  done
+
+let do_push f =
+  while not (Stack.is_empty push_stack) do
+    let (a, p) = Stack.pop push_stack in
+    log 2 "Pushing '%s' : %a" p.proof_name (CCPrint.list ~sep:" || " Expr.Debug.formula) a;
+    f a p
+  done
+
+(* Extensions *)
+(* ************************************************************************ *)
 
 type extension = {
   (* Extension description *)
@@ -92,51 +117,96 @@ type extension = {
   descr : string;
 
   (* Called once on each new formula *)
-  peek : formula -> unit;
+  peek : (formula -> unit) option;
 
   (* Called at the end of each round of solving *)
-  if_sat : ((formula -> unit) -> unit) -> unit;
+  if_sat : (((formula -> unit) -> unit) -> unit) option;
 
   (* Called on each formula that the solver assigns to true *)
-  assume : formula * int -> unit;
+  assume : (formula * int -> unit) option;
 
   (* Evaluate a formula with the current assignments *)
-  eval_pred : formula -> (bool * int) option;
+  eval_pred : (formula -> (bool * int) option) option;
 
   (* Pre-process input formulas *)
-  preprocess : formula -> (formula * proof) option;
+  preprocess : (formula -> (formula * proof) option) option;
 
   (* Add options to the command line utility *)
   options : Options.copts Cmdliner.Term.t -> Options.copts Cmdliner.Term.t;
 }
 
-let mk_ext
-    ?(descr="")
-    ?(prio=0)
-    ?(peek=(fun _ -> ()))
-    ?(if_sat=(fun _ -> ()))
-    ?(assume=(fun _ -> ()))
-    ?(eval_pred=(fun _ -> None))
-    ?(preprocess=(fun _ -> None))
+let mk_ext ?(descr="") ?(prio=0)
+    ?peek ?if_sat ?assume
+    ?eval_pred ?preprocess
     ?(options=(fun t -> t))
     id name =
       { id; prio; name; descr; peek; if_sat; assume; eval_pred; preprocess; options; }
 
-let extensions = ref []
+let actual = ref (mk_ext ~-1 "actual")
 
+let extensions = CCVector.create ()
 let active = ref []
 
+let merge_opt merge o1 o2 = match o1, o2 with
+  | None, res | res, None -> res
+  | Some a, Some b -> Some (merge a b)
+
+(* merge: iter on functions *)
+let merge_iter a b = merge_opt (fun f f' -> (function arg -> f arg; f' arg)) a b
+
+(* merge: eval functions and stop on the first non-None result *)
+let merge_first a b =
+  merge_opt (fun f f' ->
+      (function arg ->
+        match f arg with
+        | (Some _) as res -> res
+        | None -> f' arg
+      )) a b
+
+(* merge: fold *)
+
+let set_actual () =
+  let peek = List.fold_left (fun f r -> merge_iter f r.peek) None !active in
+  let if_sat = List.fold_left (fun f r -> merge_iter f r.if_sat) None !active in
+  let assume = List.fold_left (fun f r -> merge_iter f r.assume) None !active in
+  let eval_pred = List.fold_left (fun f r -> merge_first f r.eval_pred) None !active in
+  let options = List.fold_left (fun f r -> (fun arg -> r.options @@ f arg)) (fun t -> t) !active in
+  actual := mk_ext ?peek ?if_sat ?assume ?eval_pred ~options ~-1 "actual"
+
+(* Info about extensions *)
+let list_extensions () = CCVector.fold (fun acc r -> r.name :: acc) [] extensions
+
+let doc_of_ext r = `I ("$(b," ^ r.name ^ ")", r.descr)
+
+let ext_doc () =
+  List.map doc_of_ext @@
+  List.sort (fun r r' -> compare r.name r'.name) @@
+  CCVector.to_list extensions
+
+let find_ext id = CCVector.get extensions id
+
+let add_opts t = CCVector.fold (fun t r -> r.options t) t extensions
+
+(* Adding new extensions *)
+(* ************************************************************************ *)
+
+let new_id () =
+  let i = CCVector.length extensions in
+  CCVector.push extensions (mk_ext i "dummy");
+  i
+
 let register r =
-  assert (not (List.exists (fun r' -> r'.name = r.name) !extensions));
-  extensions := r :: !extensions
+  assert (not (CCVector.exists (fun r' -> r'.name = r.name) extensions));
+  CCVector.set extensions r.id r
 
 let activate ext =
   let aux r = r.name = ext in
   try
-    let r = List.find aux !extensions in
-    if not (List.exists aux !active) then
-      active := List.merge (fun r r' -> compare r'.prio r.prio) [r] !active
-    else
+    let r = CCVector.find_exn aux extensions in
+    if not (List.exists aux !active) then begin
+      active := List.merge (fun r r' -> compare r'.prio r.prio) [r] !active;
+      set_actual ()
+    end else
       log 0 "WARNING: Extension %s already activated" ext
   with Not_found ->
     raise (Extension_not_found ext)
@@ -144,12 +214,14 @@ let activate ext =
 let deactivate ext =
   let aux r = r.name = ext in
   try
-    if not (List.exists aux !extensions) then
+    if not (CCVector.exists aux extensions) then
       raise (Extension_not_found ext);
     let l1, l2 = List.partition aux !active in
     begin match l1 with
       | [] -> log 0 "WARNING: Extension %s already deactivated" ext
-      | [r] -> active := l2
+      | [r] ->
+        active := l2;
+        set_actual ()
       | _ -> assert false
     end
   with Not_found ->
@@ -164,31 +236,6 @@ let set_ext s =
 let set_exts s =
   List.iter set_ext
     (List.map (fun (s, i, l) -> String.sub s i l) (CCString.Split.list_ ~by:"," s))
-
-(* Info about extensions *)
-let list_extensions () = List.map (fun r -> r.name) !extensions
-
-let doc_of_ext r = `I ("$(b," ^ r.name ^ ")", r.descr)
-
-let ext_doc () = List.map doc_of_ext
-    (List.sort (fun r r' -> compare r.name r'.name) !extensions)
-
-let find_ext id =
-  List.find (fun ext -> ext.id = id) !extensions
-
-let ext_iter f = List.iter f !active
-
-let ext_fold f x = List.fold_left f x !active
-
-(* Additional command line options *)
-(* ************************************************************************ *)
-
-let add_opts t =
-  let res = ref t in
-  List.iter (fun r ->
-      res := r.options !res
-    ) !extensions;
-  !res
 
 (* Pre-processing *)
 (* ************************************************************************ *)
@@ -227,9 +274,12 @@ let rec check = function
   | { Expr.formula = Expr.ExTy (_, _, f) } ->
     check f
 
-let peek_at f = ext_iter (fun r -> r.peek f); check f
+let peek_at f = match !actual.peek with
+  | Some peek -> peek f
+  | None -> ()
 
-let pre_process f =
+let pre_process f = f
+  (*
   let aux f r = match r.preprocess f with
     | None -> f
     | Some (f', _) -> f' (* TODO: register the proof *)
@@ -239,32 +289,7 @@ let pre_process f =
   log 5 "  %a" Expr.Debug.formula f;
   log 5 "  %a" Expr.Debug.formula f';
   f'
-
-(* Delayed propagation *)
-(* ************************************************************************ *)
-
-let push_stack = Stack.create ()
-let propagate_stack = Stack.create ()
-
-let push clause ext_name =
-  Stack.push (clause, ext_name) push_stack
-
-let propagate f lvl =
-  Stack.push (f, lvl) propagate_stack
-
-let do_propagate propagate =
-  while not (Stack.is_empty propagate_stack) do
-    let (t, lvl) = Stack.pop propagate_stack in
-    log 10 "Propagating : %a" Expr.Debug.formula t;
-    propagate t lvl
-  done
-
-let do_push f =
-  while not (Stack.is_empty push_stack) do
-    let (a, p) = Stack.pop push_stack in
-    log 2 "Pushing '%s' : %a" p.proof_name (CCPrint.list ~sep:" || " Expr.Debug.formula) a;
-    f a p
-  done
+     *)
 
 (* Backtracking *)
 (* ************************************************************************ *)
@@ -459,7 +484,10 @@ let assume s =
       match s.get i with
       | Lit f, lvl ->
         log 1 " Assuming (%d) %a" lvl Expr.Debug.formula f;
-        ext_iter (fun ext -> ext.assume (f, lvl))
+        begin match !actual.assume with
+        | Some assume -> assume (f, lvl)
+        | None -> ()
+        end
       | Assign (t, v), lvl ->
         log 1 " Assuming (%d) %a -> %a" lvl Expr.Debug.term t Expr.Debug.term v;
         set_assign t v lvl
@@ -483,7 +511,9 @@ let if_sat s =
     done
   in
   begin try
-      ext_iter (fun ext -> ext.if_sat iter)
+      match !actual.if_sat with
+      | Some if_sat -> if_sat iter
+      | None -> ()
     with Absurd _ -> assert false
   end;
   do_push s.push
@@ -514,14 +544,12 @@ let iter_assignable f e =
 
 exception Found_eval of bool * int
 let eval_aux f =
-  try
-    ext_iter (fun ext ->
-        match ext.eval_pred f with
-        | Some (b, lvl) -> raise (Found_eval (b, lvl))
-        | _ -> ());
-    Unknown
-  with Found_eval (b, lvl) ->
-    Valued (b, lvl)
+  match !actual.eval_pred with
+  | None -> Unknown
+  | Some eval_pred -> begin match eval_pred f with
+      | None -> Unknown
+      | Some (b, lvl) -> Valued (b, lvl)
+    end
 
 let eval formula =
   log 5 "Evaluating formula : %a" Expr.Debug.formula formula;
