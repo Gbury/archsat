@@ -110,7 +110,8 @@ module S = Set.Make(struct type t = clause let compare = compare_cl end)
 type t = {
   queue : Q.t;
   clauses : S.t;
-  active_index : I.t;
+  root_pos_index : I.t;
+  root_neg_index : I.t;
   inactive_index : I.t;
   continuation : Unif.t list -> unit;
 }
@@ -118,7 +119,8 @@ type t = {
 let empty f = {
   queue = Q.empty;
   clauses = S.empty;
-  active_index = I.empty;
+  root_pos_index = I.empty;
+  root_neg_index = I.empty;
   inactive_index = I.empty;
   continuation = f;
 }
@@ -143,16 +145,23 @@ let change_state f_set f_index c t =
   {
     queue = t.queue;
     clauses = f_set c t.clauses;
-    active_index =
+    root_pos_index =
       if c.eq then
         List.fold_left (fun i (t, side) ->
             f_index t { pos = Position.Term.root; side; clause = c } i)
-          t.active_index l
+          t.root_pos_index l
       else
-        t.active_index;
-    inactive_index =
+        t.root_pos_index;
+    root_neg_index =
+      if not c.eq then
         List.fold_left (fun i (t, side) ->
-            fold_subterms f_index t side c i) t.inactive_index l;
+            f_index t { pos = Position.Term.root; side; clause = c } i)
+          t.root_neg_index l
+      else
+        t.root_neg_index;
+    inactive_index =
+      List.fold_left (fun i (t, side) ->
+          fold_subterms f_index t side c i) t.inactive_index l;
     continuation = t.continuation;
   }
 
@@ -191,6 +200,73 @@ let valid_cl c = MS.fold (count c) true check_occ
 
 let push_cl c acc = if valid_cl c then c :: acc else acc
 
+let valid_subst s = (* Check that only meta-var of infinite multiplicity are instantiated *)
+  false
+
+(* Help functions *)
+(* ************************************************************************ *)
+
+let extract cl =
+  match cl.side, cl.clause.lit with
+  | Left, Some (a, b) | Right, Some (b, a) -> a, b
+  | _, None -> assert false
+
+let do_supp acc sigma active inactive =
+  assert (active.clause.eq && active.pos = Position.Term.root);
+  let aux = Unif.term_subst sigma in
+  let s, t = extract active in
+  let u, v = extract inactive in
+  let v' = aux v in
+  if Lpo.compare (aux t) (aux s) = Comparison.Gt ||
+     Lpo.compare v' (aux u) = Comparison.Gt then
+    acc
+  else
+    let u' = aux (Position.Term.substitute inactive.pos t u) in
+    let c = mk_cl inactive.clause.eq (Some (ord u' v')) (tsize u' v')
+        (add_acc sigma (merge_acc inactive.clause.acc active.clause.acc))
+        [active.clause; inactive.clause]
+    in
+    push_cl c acc
+
+let find_subst_eq index v w =
+  List.fold_left (fun acc (_, sigma, l) ->
+      if acc = None then
+        List.fold_left (fun acc pos_cl ->
+            if acc = None && pos_cl.clause.eq then
+              let s, t = extract pos_cl in
+              try Some (Unif.robinson_term sigma w t)
+              with Unif.Not_unifiable_ty _ | Unif.Not_unifiable_term _ -> None
+            else acc) acc l
+      else acc
+    ) None (I.unify v index)
+
+let rec make_eq p_set a b =
+  if Expr.Term.equal a b then
+    `Equal
+  else
+    match find_subst_eq p_set.root_pos_index a b with
+    | Some u -> `Unifiable u
+    | None ->
+      begin match a, b with
+        | { Expr.term = Expr.App (f, _, f_args) }, { Expr.term = Expr.App (g, _, g_args) }
+          when Expr.Var.equal f g ->
+          make_eq_list p_set f_args g_args
+        | _ -> `Impossible
+      end
+
+and make_eq_list p_set l l' = match l, l' with
+  | [], [] -> `Equal
+  | a :: r, b :: r' -> begin match make_eq p_set a b with
+      | `Equal -> make_eq_list p_set r r'
+      | `Impossible -> `Impossible
+      | `Unifiable u ->
+        if List.for_all2 Expr.Term.equal r r' then
+          `Unifiable u
+        else
+          `Impossible
+    end
+  | _ -> invalid_arg "make_eq"
+
 (* Inference rules *)
 (* ************************************************************************ *)
 
@@ -207,32 +283,10 @@ let equality_resolution c =
   else []
 
 (* Supperposition rules, alias SN & SP *)
-let extract cl =
-  match cl.side, cl.clause.lit with
-  | Left, Some (a, b) | Right, Some (b, a) -> a, b
-  | _, None -> assert false
-
-let do_supp acc sigma active inactive =
-  assert (active.pos = Position.Term.root);
-  let aux = Unif.term_subst sigma in
-  let s, t = extract active in
-  let u, v = extract inactive in
-  let v' = aux v in
-  if Lpo.compare (aux t) (aux s) = Comparison.Gt ||
-     Lpo.compare v' (aux u) = Comparison.Gt then
-    acc
-  else
-    let u' = aux (Position.Term.substitute inactive.pos t u) in
-    let c = mk_cl inactive.clause.eq (Some (ord u' v')) (tsize u' v')
-        (add_acc sigma (merge_acc inactive.clause.acc active.clause.acc))
-        [active.clause; inactive.clause]
-    in
-    push_cl c acc
-
 let add_passive_supp p_set clause side acc pos = function
   | { Expr.term = Expr.Meta _ } -> acc
   | p ->
-    let l = I.unify p p_set.active_index in
+    let l = I.unify p p_set.root_pos_index in
     let inactive = { clause; side; pos } in
     List.fold_left (fun acc (_, u, l) ->
         List.fold_left (fun acc active ->
@@ -273,49 +327,23 @@ let supp_lit c p_set acc =
     | Comparison.Eq -> acc (* not much to do... *)
   end
 
+(* rewriting of negative litterals, alis RN *)
+let rewrite_neg_lit p_set c =
+  if not c.eq then
+    match c.lit with
+    | None -> None
+    | Some (a, b) ->
+      Position.Term.fold (fun acc pos p -> acc) None a
+  else
+    None
+
 (* equality_subsumption, alias ES *)
-let find_subst_eq v w p_set =
-  List.fold_left (fun acc (_, sigma, l) ->
-      if acc = None then
-        List.fold_left (fun acc pos_cl ->
-            if acc = None then
-              let s, t = extract pos_cl in
-              try Some (Unif.robinson_term sigma w t)
-              with Unif.Not_unifiable_ty _ | Unif.Not_unifiable_term _ -> None
-            else acc) acc l
-      else acc
-    ) None (I.unify v p_set.active_index)
-
-let rec make_eq p_set a b = match a, b with
-  | { Expr.term = Expr.App (f, _, f_args) }, { Expr.term = Expr.App (g, _, g_args) }
-    when Expr.Var.equal f g ->
-    make_eq_list p_set f_args g_args
-  | _ when Expr.Term.equal a b -> `Equal
-  | _ -> begin match find_subst_eq a b p_set with
-      | Some u -> `Unifiable u
-      | None -> `Impossible
-    end
-
-and make_eq_list p_set l l' = match l, l' with
-  | [], [] -> `Equal
-  | a :: r, b :: r' -> begin match make_eq p_set a b with
-      | `Equal -> make_eq_list p_set r r'
-      | `Impossible -> `Impossible
-      | `Unifiable u ->
-        if List.for_all2 Expr.Term.equal r r' then
-          `Unifiable u
-        else
-          `Impossible
-    end
-  | _ -> invalid_arg "make_eq"
-
 let equality_subsumption c p_set = (* is there a more generic equality in p_set ? *)
   c.eq && match c.lit with
   | None -> false
   | Some (a, b) -> begin match make_eq p_set a b with
-      | `Equal -> assert false (* trivial equality *)
+      | `Equal | `Unifiable _ -> true
       | `Impossible -> false
-      | `Unifiable _ -> true
     end
 
 (* positive simplify reflect, alias PS *)
@@ -327,6 +355,19 @@ let positive_simplify_reflect p_set c =
       | `Equal -> Some (mk_none c.acc c.parents)
       | `Unifiable u -> Some (mk_none (add_acc u c.acc) c.parents)
       | `Impossible -> None
+      end
+    | None -> None
+  else
+    None
+
+(* negative simplify reflect, alias NS *)
+let negative_simplify_reflect p_set c =
+  if c.eq then
+    match c.lit with
+    | Some (a, b) ->
+      begin match find_subst_eq p_set.root_neg_index a b with
+        | Some u -> Some (mk_none (add_acc u c.acc) c.parents)
+        | None -> None
       end
     | None -> None
   else
@@ -351,10 +392,12 @@ let fix arg f =
   in
   aux f arg None
 
-(* Applies: RN, RP, PS, NS *)
+(* Applies: RN, RP, PS (OK), NS (OK) *)
 let simplify_clause c p =
   fix c (chain [
+      rewrite_neg_lit p;
       positive_simplify_reflect p;
+      negative_simplify_reflect p;
     ])
 
 let simplify c p =
@@ -363,9 +406,17 @@ let simplify c p =
   | None -> c
 
 (* Applies: RN, RP *)
-let cheap_simplify c p = c
+let cheap_simplify_aux c p =
+  fix c (chain [
+      rewrite_neg_lit p;
+    ])
 
-(* Applies: ES *)
+let cheap_simplify c p =
+  match cheap_simplify_aux c p with
+  | Some c' -> c'
+  | None -> c
+
+(* Applies: ES (OK) *)
 let redundant c p = equality_subsumption c p
 
 (* Applies: ER,SP,SN (OK-ALL) *)
@@ -393,6 +444,7 @@ let rec discount_loop p_set =
     end else begin
       log 15 "Adding clause : %a" debug_cl c;
       if c.lit = None then begin
+        log 10 "Inst reached, %d clauses in state" (S.cardinal p_set.clauses);
         p_set.continuation c.acc;
         discount_loop { p_set with queue = u }
       end else begin
@@ -402,11 +454,11 @@ let rec discount_loop p_set =
             match simplify_clause p p_aux with
             | None -> (p_set, t, queue)
             | Some p' ->
-              (p_aux, p' :: t, Q.filter (not_is_descendant p) queue)
-          ) p_set.clauses (p_set, [], u) in
+              (p_aux, S.add p' t, Q.filter (not_is_descendant p) queue)
+          ) p_set.clauses (p_set, S.empty, u) in
         let l = generate c p_set in
-        let t = List.rev_append t l in
-        let u = List.fold_left (fun acc p ->
+        let t = List.fold_left (fun s p -> S.add p s) t l in
+        let u = S.fold (fun p acc ->
             let p = cheap_simplify p p_set in
             if trivial p p_set then
               acc
@@ -414,7 +466,7 @@ let rec discount_loop p_set =
               log 30 " |- %a" debug_cl p;
               Q.insert p acc
             end
-          ) u t in
+          ) t u in
         discount_loop { p_set with queue = u }
       end
     end
