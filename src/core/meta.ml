@@ -51,7 +51,8 @@ type unif =
   | No_unif
   | Simple
   | ERigid
-  | Super
+  | SuperAll
+  | SuperEach
   | Auto
 
 let unif_setting = ref No_unif
@@ -60,7 +61,8 @@ let unif_list = [
   "none", No_unif;
   "simple", Simple;
   "eunif", ERigid;
-  "super", Super;
+  "super_all", SuperAll;
+  "super_each", SuperEach;
   "auto", Auto;
 ]
 
@@ -252,7 +254,16 @@ let rec unif_f st = function
   | ERigid ->
     if List.length st.equalities > 0 then Unif.clear_cache cache;
     fold_diff (fun () -> find_inst (Rigid.unify ~max_depth:(rigid_depth ()) st.equalities single_inst)) () st
-  | Super ->
+  | SuperEach ->
+    if List.length st.equalities > 0 then Unif.clear_cache cache;
+    let t = Supperposition.empty (insts (ref 1)) in
+    let t = List.fold_left (fun acc (a, b) -> Supperposition.add_eq acc a b) t st.equalities in
+    let t = Supperposition.solve t in
+    fold_diff (fun () a b ->
+        try let _ = Supperposition.solve (Supperposition.add_neq t a b) in ()
+        with Found_unif -> ()
+      ) () st
+  | SuperAll ->
     if List.length st.equalities > 0 then Unif.clear_cache cache;
     let t = Supperposition.empty (insts (ref (supp_limit st))) in
     let t = List.fold_left (fun acc (a, b) -> Supperposition.add_eq acc a b) t st.equalities in
@@ -265,7 +276,7 @@ let rec unif_f st = function
     if st.equalities = [] then
       unif_f st Simple
     else
-      unif_f st Super
+      unif_f st SuperEach
 
 let find_all_insts iter =
   (* Create new metas *)
