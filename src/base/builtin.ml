@@ -2,6 +2,7 @@
 (* Typing *)
 (* ************************************************************************ *)
 
+(* Type $i *)
 let i_cstr = Expr.Var.ty_fun "$i" 0
 let type_i = Expr.Ty.apply i_cstr []
 

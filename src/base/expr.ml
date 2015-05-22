@@ -1,8 +1,14 @@
 (*
    Base modules that defines the terms used in the prover.
 *)
+
 (* Type definitions *)
 (* ************************************************************************ *)
+
+(* Type for meta-variable multiplicity *)
+type multiplicity =
+  | Linear (* var should only be instantied once *)
+  | Infinite (* you can do what you want *)
 
 (* Type for evaluation result (not yet used) *)
 type 't eval =
@@ -13,6 +19,9 @@ type 't eval =
 type hash = int
 type var_id = int
 type status = int
+type tag_map = Tag.map
+
+type 'a tag = 'a Tag.t
 type 'a meta_index = int
 
 (* Variables, parametrized by the kind of the type of the variable *)
@@ -25,6 +34,7 @@ type 'ty var = {
 (* Metavariables, basically, wrapped variables *)
 type 'ty meta = {
   meta_var : 'ty var;
+  meta_mult : multiplicity;
   meta_index : 'ty meta_index;
 }
 
@@ -46,6 +56,7 @@ type ty_descr =
 
 and ty = {
   ty : ty_descr;
+  ty_tags : tag_map;
   ty_status : status;
   mutable ty_hash : hash; (** lazy hash *)
 }
@@ -59,6 +70,7 @@ type term_descr =
 and term = {
   term    : term_descr;
   t_type  : ty;
+  t_tags : tag_map;
   t_status : status;
   mutable t_hash : hash; (* lazy hash *)
 }
@@ -86,6 +98,7 @@ type formula_descr =
   | ExTy of ttype var list * free_args * formula
 
 and formula = {
+  f_tags : tag_map;
   formula : formula_descr;
   mutable f_hash  : hash; (* lazy hash *)
   mutable f_vars : (ttype var list * ty var list) option;
@@ -501,13 +514,30 @@ module Meta = struct
   let in_term = term_free_metas ([], [])
 
   (* Metas refer to an index which stores the defining formula for the variable *)
-  let dummy_formula = { formula = True; f_hash = -1; f_vars = None; }
+  let dummy_formula = { formula = True; f_hash = -1; f_vars = None; f_tags = Tag.empty; }
   let meta_ty_index = CCVector.make 37 (dummy_formula, [])
   let meta_term_index = CCVector.make 37 (dummy_formula, [])
 
+  let rec mult_of_f f = match f.formula with
+    | Pred _ | Equal _ -> Infinite
+    | Not { formula = Ex (_, _, f') } | All (_, _, f')
+    | Not { formula = ExTy (_, _, f') } | AllTy (_, _, f') ->
+      mult_of_f f'
+    | Not { formula = Imply (p, q) } ->
+      if mult_of_f p = Infinite && mult_of_f q = Infinite then
+        Infinite
+      else Linear
+    | Not { formula = Or l } | And l ->
+      if List.for_all (fun f' -> mult_of_f f'  = Infinite) l then
+        Infinite
+      else
+        Linear
+    | _ -> Linear
+
   (* Metas *)
-  let mk_meta v i = {
+  let mk_meta v i m = {
     meta_var = v;
+    meta_mult = m;
     meta_index = i;
   }
 
@@ -516,13 +546,13 @@ module Meta = struct
 
   let mk_metas l f =
     let i = CCVector.size meta_term_index in
-    let metas = List.map (fun v -> mk_meta v i) l in
+    let metas = List.map (fun v -> mk_meta v i (mult_of_f f)) l in
     CCVector.push meta_term_index (f, metas);
     metas
 
   let mk_ty_metas l f =
     let i = CCVector.size meta_ty_index in
-    let metas = List.map (fun v -> mk_meta v i) l in
+    let metas = List.map (fun v -> mk_meta v i (mult_of_f f)) l in
     CCVector.push meta_ty_index (f, metas);
     metas
 
@@ -585,7 +615,8 @@ module Ty = struct
   let debug_subst = Subst.debug Debug.var Debug.ty
 
   (* Constructors *)
-  let mk_ty ?(status=Status.hypothesis) ty = { ty; ty_status = status; ty_hash = -1 }
+  let mk_ty ?(status=Status.hypothesis) ty =
+    { ty; ty_status = status; ty_hash = -1; ty_tags = Tag.empty; }
 
   let of_var ?status v = mk_ty ?status (TyVar v)
 
@@ -597,6 +628,10 @@ module Ty = struct
       raise (Type_error_ty_app (f, args))
     else
       mk_ty ?status (TyApp (f, args))
+
+  (* Tags *)
+  let get_tag ty k = Tag.get ty.ty_tags k
+  let tag ty k v = { ty with ty_tags = Tag.add ty.ty_tags k v }
 
   (* Builtin Prop Type *)
   let prop = apply Var.prop []
@@ -688,7 +723,7 @@ module Term = struct
 
   (* Constructors *)
   let mk_term ?(status=Status.hypothesis) term t_type =
-    { term; t_type; t_status = status; t_hash = -1; }
+    { term; t_type; t_status = status; t_hash = -1; t_tags = Tag.empty }
 
   let of_var ?status v =
     mk_term ?status (Var v) v.var_type
@@ -699,6 +734,11 @@ module Term = struct
   let apply ?status f ty_args t_args =
     mk_term ?status (App (f, ty_args, t_args)) (Ty.instantiate f ty_args t_args)
 
+  (* Tags *)
+  let get_tag t k = Tag.get t.t_tags k
+  let tag t k v = { t with t_tags = Tag.add t.t_tags k v }
+
+  (* Substitutions *)
   let rec subst_aux ty_map t_map t = match t.term with
     | Var v -> begin try Subst.Var.get v t_map with Not_found -> t end
     | Meta m -> begin try Subst.Var.get m.meta_var t_map with Not_found -> t end
@@ -857,6 +897,10 @@ module Formula = struct
   let print = Print.formula
   let debug = Debug.formula
 
+  (* Tags *)
+  let get_tag f k = Tag.get f.f_tags k
+  let tag f k v = { f with f_tags = Tag.add f.f_tags k v }
+
   (* Free variables *)
   let rec free_vars f = match f.formula with
     | Pred t -> Term.fv t
@@ -886,6 +930,7 @@ module Formula = struct
   let mk_formula f = {
     formula = f;
     f_hash = -1;
+    f_tags = Tag.empty;
     f_vars = None;
   }
 

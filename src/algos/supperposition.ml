@@ -98,7 +98,6 @@ let compare_pos_cl pc pc' =
     end
   | x -> x
 
-module I = Index.Make(struct type t = pos_cl let compare = compare_pos_cl end)
 
 (* Supperposition state *)
 (* ************************************************************************ *)
@@ -106,6 +105,7 @@ module I = Index.Make(struct type t = pos_cl let compare = compare_pos_cl end)
 module M = Map.Make(Expr.Term)
 module Q = CCHeap.Make(struct type t = clause let leq = c_leq end)
 module S = Set.Make(struct type t = clause let compare = compare_cl end)
+module I = Index.Make(struct type t = pos_cl let compare = compare_pos_cl end)
 
 type t = {
   queue : Q.t;
@@ -180,28 +180,18 @@ let count c =
           MS.add s' m) u.Unif.t_map s)
     MS.empty c.acc
 
-let rec no_split = function
-  | { Expr.formula = Expr.Pred _ }
-  | { Expr.formula = Expr.Equal _ } -> true
-  | { Expr.formula = Expr.Not { Expr.formula = Expr.Or l } }
-  | { Expr.formula = Expr.And l } -> List.for_all no_split l
-  | { Expr.formula = Expr.Not { Expr.formula = Expr.Imply (p, q) } } ->
-    no_split p && no_split q
-  | _ -> false
-
 let check_occ b n m =
-  match Expr.Meta.ty_def m.Expr.meta_index with
-  | { Expr.formula = Expr.Not { Expr.formula = Expr.Ex (_, _, f) } }
-  | { Expr.formula = Expr.All (_, _, f) }
-    when no_split f -> b
-  | _ -> b (* && n <= 3 ? *)
+  match m.Expr.meta_mult with
+  | Expr.Linear -> b && n <= 1
+  | Expr.Infinite -> b
 
 let valid_cl c = MS.fold (count c) true check_occ
 
 let push_cl c acc = if valid_cl c then c :: acc else acc
 
-let valid_subst s = (* Check that only meta-var of infinite multiplicity are instantiated *)
-  false
+let valid_subst u = (* Check that only meta-var of infinite multiplicity are instantiated *)
+  Expr.Subst.for_all (fun m _ -> match m.Expr.meta_mult with
+      | Expr.Linear -> false | Expr.Infinite -> true) u.Unif.t_map
 
 (* Help functions *)
 (* ************************************************************************ *)
@@ -245,8 +235,8 @@ let rec make_eq p_set a b =
     `Equal
   else
     match find_subst_eq p_set.root_pos_index a b with
-    | Some u -> `Unifiable u
-    | None ->
+    | Some u when valid_subst u -> `Unifiable u
+    | _ ->
       begin match a, b with
         | { Expr.term = Expr.App (f, _, f_args) }, { Expr.term = Expr.App (g, _, g_args) }
           when Expr.Var.equal f g ->

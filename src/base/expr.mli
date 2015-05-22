@@ -2,6 +2,9 @@
 (** Expressions for TabSat *)
 
 (** {2 Type definitions} *)
+type multiplicity =
+  | Linear
+  | Infinite
 
 type 't eval =
   | Interpreted of 't * int
@@ -11,6 +14,9 @@ type 't eval =
 type hash
 type var_id = private int
 type status = private int
+type tag_map = private Tag.map
+
+type 'a tag = 'a Tag.t
 type 'a meta_index = private int
 
 type 'ty var = private {
@@ -21,6 +27,7 @@ type 'ty var = private {
 
 type 'ty meta = private {
   meta_var : 'ty var;
+  meta_mult : multiplicity;
   meta_index : 'ty meta_index;
 }
 
@@ -42,6 +49,7 @@ type ty_descr = private
 
 and ty = private {
   ty : ty_descr;
+  ty_tags : tag_map;
   ty_status : status;
   mutable ty_hash : hash; (** Use Ty.hash instead *)
 }
@@ -56,6 +64,7 @@ type term_descr = private
 and term = private {
   term    : term_descr;
   t_type  : ty;
+  t_tags : tag_map;
   t_status : status;
   mutable t_hash : hash; (** Use Term.hash instead *)
 }
@@ -85,6 +94,7 @@ type formula_descr = private
   | ExTy of ttype var list * free_args * formula
 
 and formula = private {
+  f_tags : tag_map;
   formula : formula_descr;
   mutable f_hash : hash; (** Use Formula.hash instead *)
   mutable f_vars : (ttype var list * ty var list) option;
@@ -349,6 +359,14 @@ module Ty : sig
   (** Return the list of free variables in the given type.
       Here, the [ty var list] is guaranteed to be empty. *)
 
+  val tag : ty -> 'a tag -> 'a -> ty
+  (** Insert a local type in the given type. Does not change the semantic
+      value of the type. Can be used to store some additional user-defined
+      information. *)
+
+  val get_tag : ty -> 'a tag -> 'a option
+  (** Returns the local data associated with the given tag, if if exists *)
+
 end
 
 module Term : sig
@@ -391,6 +409,14 @@ module Term : sig
   val assign : term -> term
   (** Evaluate or assigns the given term using the handler of the
       head symbol of the expression, see the Var module. *)
+
+  val tag : term -> 'a tag -> 'a -> term
+  (** Insert a local type in the given type. Does not change the semantic
+      value of the type. Can be used to store some additional user-defined
+      information. *)
+
+  val get_tag : term -> 'a tag -> 'a option
+  (** Returns the local data associated with the given tag, if if exists *)
 
 end
 
@@ -449,5 +475,14 @@ module Formula : sig
 
   val fv : formula -> ttype var list * ty var list
   (** Return the list of free variables in the given formula. *)
+
+  val tag : formula -> 'a tag -> 'a -> formula
+  (** Insert a local type in the given type. Does not change the semantic
+      value of the type. Can be used to store some additional user-defined
+      information. *)
+
+  val get_tag : formula -> 'a tag -> 'a option
+  (** Returns the local data associated with the given tag, if if exists *)
+
 end
 
