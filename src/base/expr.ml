@@ -620,7 +620,7 @@ module Ty = struct
   let mk_ty ?(status=Status.hypothesis) ty =
     { ty; ty_status = status; ty_hash = -1; ty_tags = Tag.empty; }
 
-  let of_var ?status v = mk_ty ?status (TyVar v)
+  let of_id ?status v = mk_ty ?status (TyVar v)
 
   let of_meta ?status m = mk_ty ?status (TyMeta m)
 
@@ -727,7 +727,7 @@ module Term = struct
   let mk_term ?(status=Status.hypothesis) term t_type =
     { term; t_type; t_status = status; t_hash = -1; t_tags = Tag.empty }
 
-  let of_var ?status v =
+  let of_id ?status v =
     mk_term ?status (Var v) v.id_type
 
   let of_meta ?status m =
@@ -926,7 +926,7 @@ module Formula = struct
       f.f_vars <- Some res;
       res
 
-  let to_free_args (tys, ts) = List.map Ty.of_var tys, List.map Term.of_var ts
+  let to_free_args (tys, ts) = List.map Ty.of_id tys, List.map Term.of_id ts
 
   (* Constructors *)
   let mk_formula f = {
@@ -1034,7 +1034,7 @@ module Formula = struct
       let ty = Ty.subst ty_map v.id_type in
       if not (Ty.equal ty v.id_type) then
         let nv = Id.ty v.id_name ty in
-        new_binder_subst ty_map (Subst.Id.bind v (Term.of_var nv) subst) (nv :: acc) r
+        new_binder_subst ty_map (Subst.Id.bind v (Term.of_id nv) subst) (nv :: acc) r
       else
         new_binder_subst ty_map (Subst.Id.remove v subst) (v :: acc) r
 

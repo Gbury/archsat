@@ -31,16 +31,16 @@ let name env s =
 
 let add_ty_var env v =
   let ty =
-    if env.num <= 0 then Expr.Ty.of_var v
-    else Expr.(Ty.of_var (Id.ttype (name env v.id_name)))
+    if env.num <= 0 then Expr.Ty.of_id v
+    else Expr.(Ty.of_id (Id.ttype (name env v.id_name)))
   in
   log 10 "%a -> %a" Expr.Debug.id_ttype v Expr.Debug.ty ty;
   { env with type_vars = Expr.Subst.Id.bind v ty env.type_vars }
 
 let add_term_var env v =
   let t =
-    if env.num <= 0 then Expr.Term.of_var v
-    else Expr.(Term.of_var (Id.ty (name env v.id_name) v.id_type))
+    if env.num <= 0 then Expr.Term.of_id v
+    else Expr.(Term.of_id (Id.ty (name env v.id_name) v.id_type))
   in
   log 10 "%a -> %a" Expr.Debug.id_ty v Expr.Debug.term t;
   { env with term_vars = Expr.Subst.Id.bind v t env.term_vars }

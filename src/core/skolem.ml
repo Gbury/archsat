@@ -27,11 +27,11 @@ let mark f lvl = H.add seen f lvl
 
 (* Proof generation *)
 let mk_proof_ty f p l taus = Dispatcher.mk_proof
-    ~ty_args:(List.fold_left2 (fun acc a b -> Expr.Ty.of_var a :: b :: acc) [] l taus)
+    ~ty_args:(List.fold_left2 (fun acc a b -> Expr.Ty.of_id a :: b :: acc) [] l taus)
     ~formula_args:[f; p] id "skolem"
 
 let mk_proof_term f p l taus = Dispatcher.mk_proof
-    ~term_args:(List.fold_left2 (fun acc a b -> Expr.Term.of_var a :: b :: acc) [] l taus)
+    ~term_args:(List.fold_left2 (fun acc a b -> Expr.Term.of_id a :: b :: acc) [] l taus)
     ~formula_args:[f; p] id "skolem"
 
 let get_ty_taus ty_args t_args l =

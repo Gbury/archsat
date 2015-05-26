@@ -19,7 +19,7 @@ let tuple_cstr =
       let name = string_of_int n ^ "-tuple" in
       let range = CCList.range 1 n in
       let vars = List.map (fun i -> Expr.Id.ttype ("type#" ^ string_of_int i)) range in
-      let ty_args = List.map Expr.Ty.of_var vars in
+      let ty_args = List.map Expr.Ty.of_id vars in
       let ret = Expr.Ty.apply (tuple_ty_cstr n) ty_args in
       Expr.Id.term_fun name vars ty_args ret
     )
@@ -52,6 +52,6 @@ let mk_prop i =
 
 let const =
   let v = Expr.Id.ttype "a" in
-  let c = Expr.Id.term_fun "#const" [v] [] (Expr.Ty.of_var v) in
+  let c = Expr.Id.term_fun "#const" [v] [] (Expr.Ty.of_id v) in
   (fun ty -> Expr.Term.apply c [ty] [])
 

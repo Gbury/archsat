@@ -116,8 +116,8 @@ let simplify s = snd (partition s)
 
 (* Produces a proof for the instanciation of the given formulas and unifiers *)
 let mk_proof f p ty_map t_map = Dispatcher.mk_proof
-    ~ty_args:(Expr.Subst.fold (fun v t l -> Expr.Ty.of_var v :: t :: l) ty_map [])
-    ~term_args:(Expr.Subst.fold (fun v t l -> Expr.Term.of_var v :: t :: l) t_map [])
+    ~ty_args:(Expr.Subst.fold (fun v t l -> Expr.Ty.of_id v :: t :: l) ty_map [])
+    ~term_args:(Expr.Subst.fold (fun v t l -> Expr.Term.of_id v :: t :: l) t_map [])
     ~formula_args:[f; p] id "inst"
 
 let to_var s = Expr.Subst.fold (fun {Expr.meta_id = v} t acc -> Expr.Subst.Id.bind v t acc) s Expr.Subst.empty

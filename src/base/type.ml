@@ -113,7 +113,7 @@ let new_term_name = new_name "term#"
 let add_type_vars ~status env l =
   let l', map = add_vars Expr.Debug.id_ttype env.type_vars l
       (fun Expr.Type -> Expr.Id.ttype (new_ty_name ()))
-      (fun name v map -> M.add name (Expr.Ty.of_var ~status v) map)
+      (fun name v map -> M.add name (Expr.Ty.of_id ~status v) map)
   in
   l', { env with type_vars = map }
 
@@ -122,7 +122,7 @@ let add_type_var ~status env v = match add_type_vars ~status env [v] with | [v']
 let add_term_vars ~status env l =
   let l', map = add_vars Expr.Debug.id_ty env.term_vars l
       (fun ty -> Expr.Id.ty (new_term_name ()) ty)
-      (fun name v map -> M.add name (Expr.Term.of_var ~status v) map)
+      (fun name v map -> M.add name (Expr.Term.of_id ~status v) map)
   in
   l', { env with term_vars = map }
 

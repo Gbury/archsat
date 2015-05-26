@@ -51,9 +51,9 @@ type 'ty id = private {
   builtin : builtin;
 }
 
-(** The type of variables. An ['a var] is a variable whose solver-type
+(** The type of identifiers. An ['a id] is an identifier whose solver-type
     is represented by an inhabitant of type ['a].
-    All variables have an unique [var_id] which is used for comparison,
+    All identifier have an unique [index] which is used for comparison,
     so that the name of a variable is only there for tracability
     and/or pretty-printing. *)
 
@@ -220,7 +220,7 @@ module Status : sig
       Unless otherwise specified, types and terms have hypothesis status. *)
 end
 
-(** {2 Variables & Metas} *)
+(** {2 Identifiers & Metas} *)
 
 module Id : sig
   type 'a t = 'a id
@@ -401,7 +401,7 @@ module Ty : sig
   val prop : ty
   (** The type of propositions *)
 
-  val of_var : ?status:status -> ttype id -> ty
+  val of_id : ?status:status -> ttype id -> ty
   (** Creates a type from a variable *)
 
   val of_meta : ?status:status -> ttype meta -> ty
@@ -427,6 +427,8 @@ module Ty : sig
 
 end
 
+(** {2 Terms} *)
+
 module Term : sig
   type t = term
   (** Type alias *)
@@ -444,7 +446,7 @@ module Term : sig
   val debug_subst : Buffer.t -> subst -> unit
   (** Printing functions *)
 
-  val of_var : ?status:status -> ty id -> term
+  val of_id : ?status:status -> ty id -> term
   (** Create a term from a variable *)
 
   val of_meta : ?status:status -> ty meta -> term
@@ -477,6 +479,8 @@ module Term : sig
   (** Returns the local data associated with the given tag, if if exists *)
 
 end
+
+(** {2 Formulas} *)
 
 module Formula : sig
   type t = formula
