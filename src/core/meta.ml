@@ -145,25 +145,25 @@ let do_formula = function
   | { Expr.formula = Expr.All (l, _, p) } as f ->
     let _ = mark f in
     let metas = List.map Expr.Term.of_meta (Expr.Meta.of_all f) in
-    let subst = List.fold_left2 (fun s v t -> Expr.Subst.Var.bind v t s) Expr.Subst.empty l metas in
+    let subst = List.fold_left2 (fun s v t -> Expr.Subst.Id.bind v t s) Expr.Subst.empty l metas in
     let q = Expr.Formula.subst Expr.Subst.empty subst p in
     Dispatcher.push [Expr.Formula.neg f; q] (mk_proof_term f metas)
   | { Expr.formula = Expr.Not { Expr.formula = Expr.Ex (l, _, p) } } as f ->
     let _ = mark f in
     let metas = List.map Expr.Term.of_meta (Expr.Meta.of_all f) in
-    let subst = List.fold_left2 (fun s v t -> Expr.Subst.Var.bind v t s) Expr.Subst.empty l metas in
+    let subst = List.fold_left2 (fun s v t -> Expr.Subst.Id.bind v t s) Expr.Subst.empty l metas in
     let q = Expr.Formula.subst Expr.Subst.empty subst p in
     Dispatcher.push [Expr.Formula.neg f; Expr.Formula.neg q] (mk_proof_term f metas)
   | { Expr.formula = Expr.AllTy (l, _, p) } as f ->
     let _ = mark f in
     let metas = List.map Expr.Ty.of_meta (Expr.Meta.of_all_ty f) in
-    let subst = List.fold_left2 (fun s v t -> Expr.Subst.Var.bind v t s) Expr.Subst.empty l metas in
+    let subst = List.fold_left2 (fun s v t -> Expr.Subst.Id.bind v t s) Expr.Subst.empty l metas in
     let q = Expr.Formula.subst subst Expr.Subst.empty p in
     Dispatcher.push [Expr.Formula.neg f; q] (mk_proof_ty f metas)
   | { Expr.formula = Expr.Not { Expr.formula = Expr.ExTy (l, _, p) } } as f ->
     let _ = mark f in
     let metas = List.map Expr.Ty.of_meta (Expr.Meta.of_all_ty f) in
-    let subst = List.fold_left2 (fun s v t -> Expr.Subst.Var.bind v t s) Expr.Subst.empty l metas in
+    let subst = List.fold_left2 (fun s v t -> Expr.Subst.Id.bind v t s) Expr.Subst.empty l metas in
     let q = Expr.Formula.subst subst Expr.Subst.empty p in
     Dispatcher.push [Expr.Formula.neg f; Expr.Formula.neg q] (mk_proof_ty f metas)
   | _ -> assert false

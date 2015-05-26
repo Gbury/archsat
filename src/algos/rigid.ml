@@ -173,7 +173,7 @@ let rec ss_greater_lexico s l l' = match l, l' with
 (* Check coherence of a simple system *)
 let check_greater_aux s t t' = match t, t' with
   | { Expr.term = Expr.App (f, _, f_args) }, { Expr.term = Expr.App (g, _, g_args) } ->
-    if Expr.Var.compare f g < 0 then
+    if Expr.Id.compare f g < 0 then
       List.exists (fun arg -> ss_greatereq s arg t') f_args
     else
       ss_greater_lexico s f_args g_args = Comparison.Gt
@@ -186,7 +186,7 @@ let rec check_greater t = function
 
 let check_equal_aux s t t' = match t, t' with
   | { Expr.term = Expr.App (f, _, f_args) }, { Expr.term = Expr.App (g, _, g_args) } ->
-    if not (Expr.Var.equal f g) then false
+    if not (Expr.Id.equal f g) then false
     else List.for_all2 (ss_equal s) f_args g_args
   | _ -> true
 
@@ -283,7 +283,7 @@ let rec add_eq sf s t =
     else add_subst sf m w
   | { Expr.term = Expr.App (f, f_ty_args, f_args) },
     { Expr.term = Expr.App(g, g_ty_args, g_args) } ->
-    if Expr.Var.compare f g = 0 then begin
+    if Expr.Id.compare f g = 0 then begin
       try
         let u = List.fold_left2 Unif.robinson_ty
             sf.solved f_ty_args g_ty_args in
@@ -301,7 +301,7 @@ and add_eq_set l s t =
 
 and add_subst sf m t =
   try
-    let u = Unif.robinson_ty sf.solved Expr.(m.meta_var.var_type) Expr.(t.t_type) in
+    let u = Unif.robinson_ty sf.solved Expr.(m.meta_id.id_type) Expr.(t.t_type) in
     List.fold_left (fun acc (s, t) -> add_gt_set acc t s)
       (sf_singleton {solved = Unif.bind_term u m t; constraints = []}) sf.constraints
   with Unif.Not_unifiable_ty (ty, ty') ->
@@ -321,7 +321,7 @@ and add_gt sf s t =
     sf_singleton (sf_add_lt sf t s)
   | { Expr.term = Expr.App (f, _, f_args) },
     { Expr.term = Expr.App (g, _, g_args) } ->
-    begin match Expr.Var.compare f g with
+    begin match Expr.Id.compare f g with
       | n when n > 0 ->
         List.fold_left (fun acc ti -> add_gt_set acc s ti) (sf_singleton sf) g_args
       | n when n < 0 ->

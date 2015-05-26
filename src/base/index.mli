@@ -1,4 +1,11 @@
 
+(** Index on terms for fast unification.
+    This module implements indexing on terms in order
+    to have fast access to unifiable terms stored in the index.
+    Currently mainly used in *)
+
+(** {2 Basic Index} *)
+
 module Make(T: Set.OrderedType) : sig
 
   type t

@@ -88,6 +88,7 @@ val ext_doc : unit -> Cmdliner.Manpage.block list
 (** Returns a documentation on available options. *)
 
 (** {2 Solver functions} *)
+
 val pre_process : formula -> formula
 (** Give the formula to extensions for pre-processing. *)
 

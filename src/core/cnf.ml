@@ -32,18 +32,18 @@ let name env s =
 let add_ty_var env v =
   let ty =
     if env.num <= 0 then Expr.Ty.of_var v
-    else Expr.(Ty.of_var (Var.ttype (name env v.var_name)))
+    else Expr.(Ty.of_var (Id.ttype (name env v.id_name)))
   in
-  log 10 "%a -> %a" Expr.Debug.var_ttype v Expr.Debug.ty ty;
-  { env with type_vars = Expr.Subst.Var.bind v ty env.type_vars }
+  log 10 "%a -> %a" Expr.Debug.id_ttype v Expr.Debug.ty ty;
+  { env with type_vars = Expr.Subst.Id.bind v ty env.type_vars }
 
 let add_term_var env v =
   let t =
     if env.num <= 0 then Expr.Term.of_var v
-    else Expr.(Term.of_var (Var.ty (name env v.var_name) v.var_type))
+    else Expr.(Term.of_var (Id.ty (name env v.id_name) v.id_type))
   in
-  log 10 "%a -> %a" Expr.Debug.var_ty v Expr.Debug.term t;
-  { env with term_vars = Expr.Subst.Var.bind v t env.term_vars }
+  log 10 "%a -> %a" Expr.Debug.id_ty v Expr.Debug.term t;
+  { env with term_vars = Expr.Subst.Id.bind v t env.term_vars }
 
 let add_ty_vars = List.fold_left add_ty_var
 let add_term_vars = List.fold_left add_term_var
@@ -52,19 +52,19 @@ let add_ty_sk env vars (ty_args, t_args) =
   assert (t_args = []);
   let ty_args = List.map (Expr.Ty.subst env.type_vars) ty_args in
   { env with type_vars = List.fold_left (fun s v ->
-        Expr.Subst.Var.bind v (Expr.Ty.apply (Expr.Var.ty_skolem v) ty_args) s) env.type_vars vars }
+        Expr.Subst.Id.bind v (Expr.Ty.apply (Expr.Id.ty_skolem v) ty_args) s) env.type_vars vars }
 
 let add_term_sk env vars (ty_args, t_args) =
   let ty_args = List.map (Expr.Ty.subst env.type_vars) ty_args in
   let t_args = List.map (apply env) t_args in
   { env with term_vars = List.fold_left (fun s v ->
-        Expr.Subst.Var.bind v (Expr.Term.apply (Expr.Var.term_skolem v) ty_args t_args) s) env.term_vars vars }
+        Expr.Subst.Id.bind v (Expr.Term.apply (Expr.Id.term_skolem v) ty_args t_args) s) env.term_vars vars }
 
 (* Free variables disjonction *)
 (* ************************************************************************ *)
 
 let disjoint l l' =
-  not (List.exists (fun v -> List.exists (Expr.Var.equal v) l') l)
+  not (List.exists (fun v -> List.exists (Expr.Id.equal v) l') l)
 
 let fv_disjoint ((tys, ts), (tys', ts')) = disjoint tys tys' && disjoint ts ts'
 
@@ -145,8 +145,8 @@ let rec generalize = function
     let ty_vars, t_vars = Expr.Formula.fv f in
     log 15 "generalizing : %a" Expr.Debug.formula f;
     log 15 "Free_vars :";
-    List.iter (fun v -> log 15 " |- %a" Expr.Debug.var_ttype v) ty_vars;
-    List.iter (fun v -> log 15 " |- %a" Expr.Debug.var_ty v) t_vars;
+    List.iter (fun v -> log 15 " |- %a" Expr.Debug.id_ttype v) ty_vars;
+    List.iter (fun v -> log 15 " |- %a" Expr.Debug.id_ty v) t_vars;
     Expr.Formula.allty ty_vars (Expr.Formula.all t_vars f)
 
 let prenex = function

@@ -29,8 +29,8 @@ let sub_quant p q = match p with
   | { Expr.formula = Expr.Not { Expr.formula = Expr.Ex (l, _, _) } } ->
     let _, tl = free_args q in
     List.exists (fun v -> List.exists (function
-        | { Expr.term = Expr.Var v' } | { Expr.term = Expr.Meta { Expr.meta_var = v' } } ->
-          Expr.Var.equal v v'
+        | { Expr.term = Expr.Var v' } | { Expr.term = Expr.Meta { Expr.meta_id = v' } } ->
+          Expr.Id.equal v v'
         | _ -> false) tl) l
   | { Expr.formula = Expr.AllTy (l, _, _) }
   | { Expr.formula = Expr.ExTy (l, _, _) }
@@ -38,8 +38,8 @@ let sub_quant p q = match p with
   | { Expr.formula = Expr.Not { Expr.formula = Expr.ExTy (l, _, _) } } ->
     let tyl, _ = free_args q in
     List.exists (fun v -> List.exists (function
-        | { Expr.ty = Expr.TyVar v' } | { Expr.ty = Expr.TyMeta { Expr.meta_var = v' } } ->
-          Expr.Var.equal v v'
+        | { Expr.ty = Expr.TyVar v' } | { Expr.ty = Expr.TyMeta { Expr.meta_id = v' } } ->
+          Expr.Id.equal v v'
         | _ -> false) tyl) l
   | _ -> assert false
 
@@ -120,7 +120,7 @@ let mk_proof f p ty_map t_map = Dispatcher.mk_proof
     ~term_args:(Expr.Subst.fold (fun v t l -> Expr.Term.of_var v :: t :: l) t_map [])
     ~formula_args:[f; p] id "inst"
 
-let to_var s = Expr.Subst.fold (fun {Expr.meta_var = v} t acc -> Expr.Subst.Var.bind v t acc) s Expr.Subst.empty
+let to_var s = Expr.Subst.fold (fun {Expr.meta_id = v} t acc -> Expr.Subst.Id.bind v t acc) s Expr.Subst.empty
 
 let soft_subst f ty_subst term_subst =
   let q = Expr.Formula.partial_inst ty_subst term_subst f in

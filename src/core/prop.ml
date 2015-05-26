@@ -48,7 +48,7 @@ let f_eval f () =
 let rec sat_preprocess = function
   | { Expr.formula = Expr.Pred ({Expr.term = Expr.App (p, _, _)} as t)} as f
     when Expr.(Ty.equal t.t_type Ty.prop) ->
-    Expr.Var.set_assign p 5 sat_assign;
+    Expr.Id.set_assign p 5 sat_assign;
     D.watch id 1 [t] (f_eval f)
   | { Expr.formula = Expr.Not f } ->
     sat_preprocess f

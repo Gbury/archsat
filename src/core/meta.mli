@@ -1,3 +1,3 @@
 
-(* Extension to generate epsilon-variables *)
+(** Extension to generate meta-variables *)
 

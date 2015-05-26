@@ -4,7 +4,7 @@
 (** {2 Typing} *)
 
 val type_i : Expr.ty
-val i_cstr : Expr.ttype Expr.function_descr Expr.var
+val i_cstr : Expr.ttype Expr.function_descr Expr.id
 (** Equivalent of Tptp's '$i' *)
 
 (** {2 Tuples} *)

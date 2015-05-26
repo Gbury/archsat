@@ -94,6 +94,7 @@ val lexicograph : ('a -> 'b -> int) -> 'a list -> 'b list -> int
 (** lexicographic order on lists l1,l2 which elements are ordered by f *)
 
 (** {2 List misc} *)
+
 val list_iteri2 : (int -> 'a -> 'b -> unit) -> 'a list -> 'b list -> unit
 (** Same as List.iteri but on 2 lists at the same time.
     @raise Invalid_argument "list_iteri2" if lists have different lengths *)

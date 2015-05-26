@@ -30,16 +30,16 @@ let constants = H.create stack
 ;;
 
 (* Builtin constants *)
-H.add types "$o" Expr.Var.prop;;
+H.add types "$o" Expr.Id.prop;;
 H.add types "$i" Builtin.i_cstr;;
 
 (* Adding/finding elts *)
 let add_type name c =
   try
     let c' = H.find types name in
-    if not (Expr.Var.equal c c') then
+    if not (Expr.Id.equal c c') then
       log 0 "Incoherent type decl for '%s' : %a <> %a" name
-        Expr.Debug.fun_ttype Expr.(c.var_type) Expr.Debug.fun_ttype Expr.(c'.var_type)
+        Expr.Debug.fun_ttype Expr.(c.id_type) Expr.Debug.fun_ttype Expr.(c'.id_type)
   with Not_found ->
     log 1 "New type constructor : %a" Expr.Debug.const_ttype c;
     H.add types name c
@@ -47,9 +47,9 @@ let add_type name c =
 let add_cst name c =
   try
     let c' = H.find constants name in
-    if not (Expr.Var.equal c c') then
+    if not (Expr.Id.equal c c') then
       log 0 "Incoherent type decl for '%s' : %a <> %a" name
-        Expr.Debug.fun_ty Expr.(c.var_type) Expr.Debug.fun_ty Expr.(c'.var_type)
+        Expr.Debug.fun_ty Expr.(c.id_type) Expr.Debug.fun_ty Expr.(c'.id_type)
   with Not_found ->
     log 1 "New constant : %a" Expr.Debug.const_ty c;
     H.add constants name c
@@ -64,7 +64,7 @@ let find_cst (default_args, default_ret) name =
   try
     H.find constants name
   with Not_found ->
-    let res = Expr.Var.term_fun name [] default_args default_ret in
+    let res = Expr.Id.term_fun name [] default_args default_ret in
     log 1 "Inferred constant : %a" Expr.Debug.const_ty res;
     H.add constants name res;
     res
@@ -88,17 +88,17 @@ let add_vars print map l new_var add =
   let q = Queue.create () in
   let add_var map v =
     try
-      if M.mem Expr.(v.var_name) map then begin
-        let v' = new_var Expr.(v.var_type) in
+      if M.mem Expr.(v.id_name) map then begin
+        let v' = new_var Expr.(v.id_type) in
         Queue.add v' q;
-        log 3 "Adding binding : %s -> %a" Expr.(v.var_name) print v';
-        add Expr.(v.var_name) v' map
+        log 3 "Adding binding : %s -> %a" Expr.(v.id_name) print v';
+        add Expr.(v.id_name) v' map
       end else
         raise Not_found
     with Not_found ->
       Queue.add v q;
-      log 3 "Adding binding : %s -> %a" Expr.(v.var_name) print v;
-      add Expr.(v.var_name) v map
+      log 3 "Adding binding : %s -> %a" Expr.(v.id_name) print v;
+      add Expr.(v.id_name) v map
   in
   let map' = List.fold_left add_var map l in
   List.rev (Queue.fold (fun acc x -> x :: acc) [] q), map'
@@ -111,8 +111,8 @@ let new_ty_name = new_name "ty#"
 let new_term_name = new_name "term#"
 
 let add_type_vars ~status env l =
-  let l', map = add_vars Expr.Debug.var_ttype env.type_vars l
-      (fun Expr.Type -> Expr.Var.ttype (new_ty_name ()))
+  let l', map = add_vars Expr.Debug.id_ttype env.type_vars l
+      (fun Expr.Type -> Expr.Id.ttype (new_ty_name ()))
       (fun name v map -> M.add name (Expr.Ty.of_var ~status v) map)
   in
   l', { env with type_vars = map }
@@ -120,8 +120,8 @@ let add_type_vars ~status env l =
 let add_type_var ~status env v = match add_type_vars ~status env [v] with | [v'], env' -> v', env' | _ -> assert false
 
 let add_term_vars ~status env l =
-  let l', map = add_vars Expr.Debug.var_ty env.term_vars l
-      (fun ty -> Expr.Var.ty (new_term_name ()) ty)
+  let l', map = add_vars Expr.Debug.id_ty env.term_vars l
+      (fun ty -> Expr.Id.ty (new_term_name ()) ty)
       (fun name v map -> M.add name (Expr.Term.of_var ~status v) map)
   in
   l', { env with term_vars = map }
@@ -145,7 +145,7 @@ let find_prop_var env s = find_var env.prop_vars s
 let parse_ttype_var = function
   | { Ast.term = Ast.Column (
       { Ast.term = Ast.Var s }, {Ast.term = Ast.Const Ast.Ttype}) } ->
-    Expr.Var.ttype s
+    Expr.Id.ttype s
   | _ -> raise Typing_error
 
 let rec parse_ty ~status env = function
@@ -170,9 +170,9 @@ let rec parse_sig ~status env = function
 
 let parse_ty_var ~status env = function
   | { Ast.term = Ast.Var s } ->
-    Expr.Var.ty s Builtin.type_i
+    Expr.Id.ty s Builtin.type_i
   | { Ast.term = Ast.Column ({ Ast.term = Ast.Var s }, ty) } ->
-    Expr.Var.ty s (parse_ty ~status env ty)
+    Expr.Id.ty s (parse_ty ~status env ty)
   | t ->
     log 5 "Expected a (typed) variable, received : %a" Ast.debug_term t;
     raise Typing_error
@@ -194,8 +194,8 @@ let rec parse_term ~status ret env = function
     end
   | { Ast.term = Ast.App ({ Ast.term = Ast.Const Ast.String s }, l) } ->
     let f = find_cst (default_cst_ty (List.length l) ret) s in
-    let n_ty_args = List.length (Expr.(f.var_type.fun_vars)) in
-    let n_t_args = List.length (Expr.(f.var_type.fun_args)) in
+    let n_ty_args = List.length (Expr.(f.id_type.fun_vars)) in
+    let n_t_args = List.length (Expr.(f.id_type.fun_args)) in
     if List.length l <> n_ty_args + n_t_args then
       raise (Bad_arity (s, n_ty_args + n_t_args, l));
     let ty_args, t_args = CCList.split n_ty_args l in
@@ -303,7 +303,7 @@ let rec parse_formula ~status env = function
 
 let new_type_def (sym, n) =
   match sym with
-  | Ast.String s -> add_type s (Expr.Var.ty_fun s n)
+  | Ast.String s -> add_type s (Expr.Id.ty_fun s n)
   | _ ->
     log 0 "Illicit type declaration for symbol : %a" Ast.debug_symbol sym
 
@@ -311,7 +311,7 @@ let new_const_def (sym, t) =
   match sym with
   | Ast.String s ->
     let params, args, ret = parse_sig ~status:Expr.Status.hypothesis empty_env t in
-    add_cst s (Expr.Var.term_fun s params args ret)
+    add_cst s (Expr.Id.term_fun s params args ret)
   | _ ->
     log 0 "Illicit type declaration for symbol : %a" Ast.debug_symbol sym
 

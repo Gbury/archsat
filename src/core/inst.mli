@@ -1,4 +1,6 @@
 
+(** Provide instantiation helpers. *)
+
 val split : Unif.t -> Unif.t list
 (** Splits an arbitray unifier into a list. Each unifiers u in the list
     is such that in the set of formulas that generated the metas in u, all formula

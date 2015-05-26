@@ -2,50 +2,94 @@
 (** Expressions for TabSat *)
 
 (** {2 Type definitions} *)
+
+(** These are custom types used in functions later. *)
+
 type multiplicity =
   | Linear
   | Infinite
+
+(** The type for the multiplicity of a variable. Currently used mainly
+    in the supperposition module to restrain the search for instanciation.
+    It is automatically generated when creating meta-variables, but is
+    only there to provide information to the user, i.e no functions in this module
+    will discriminate meta-variables based on their multiplicity. *)
 
 type 't eval =
   | Interpreted of 't * int
   | Waiting of 't
 
-(** {3 Variables} *)
+(** TODO. Not used yet. *)
+
+(** {3 Identifiers} *)
+
+(** Identifiers are the basic building blocks used to build types terms and expressions
+    in tabsat. *)
+
 type hash
-type var_id = private int
+type index = private int
 type status = private int
 type tag_map = private Tag.map
-
-type 'a tag = 'a Tag.t
 type 'a meta_index = private int
 
-type 'ty var = private {
-  var_name : string;
-  var_id : var_id; (** unique *)
-  var_type : 'ty;
+(** Private aliases to provide access. You should not have any need
+    to use these, instead use the functions provided by this module. *)
+
+type 'a tag = 'a Tag.t
+
+(** Alias to shorten type definition. *)
+
+type builtin = ..
+type builtin += Base
+
+(** Builtin tags, TODO. *)
+
+type 'ty id = private {
+  id_type : 'ty;
+  id_name : string;
+  index   : index; (** unique *)
+  builtin : builtin;
 }
 
+(** The type of variables. An ['a var] is a variable whose solver-type
+    is represented by an inhabitant of type ['a].
+    All variables have an unique [var_id] which is used for comparison,
+    so that the name of a variable is only there for tracability
+    and/or pretty-printing. *)
+
 type 'ty meta = private {
-  meta_var : 'ty var;
+  meta_id : 'ty id;
   meta_mult : multiplicity;
   meta_index : 'ty meta_index;
 }
 
+(** A meta-variable is a wrapped variable. They are used as "free variables"
+    as is sometimes said in tableau-related litterature. Intuitively they are
+    variables that can be unified with terms or types. *)
+
 (** {3 Types} *)
 
 type ttype = Type
-(** The type of types in the AST *)
 
-and 'ty function_descr = private {
-  fun_vars : ttype var list; (** prenex forall *)
+(** The caml type of solver-types. *)
+
+type 'ty function_descr = private {
+  fun_vars : ttype id list; (** prenex forall *)
   fun_args : 'ty list;
   fun_ret : 'ty;
 }
 
+(** This represents the solver-type of a function.
+    Functions can be polymorphic in the variables described in the
+    [fun_vars] field. *)
+
 type ty_descr = private
-  | TyVar of ttype var
+  | TyVar of ttype id
+  (** bound variables (i.e should only appear under a quantifier) *)
   | TyMeta of ttype meta
-  | TyApp of ttype function_descr var * ty list
+  (** meta-variables *)
+  | TyApp of ttype function_descr id * ty list
+  (** application of a constant to some arguments *)
 
 and ty = private {
   ty : ty_descr;
@@ -54,20 +98,31 @@ and ty = private {
   mutable ty_hash : hash; (** Use Ty.hash instead *)
 }
 
+(** These types defines solver-types, i.e the representation of the types
+    of terms in the solver. Record definition for [type ty] is shown in order
+    to be able to use the [ty.ty] field in patter matches. Other fields shoud not
+    be accessed directly, but throught the functions provided by the [Ty] module. *)
+
 (** {3 Terms} *)
 
 type term_descr = private
-  | Var of ty var
+  | Var of ty id
   | Meta of ty meta
-  | App of ty function_descr var * ty list * term list
+  | App of ty function_descr id * ty list * term list
 
 and term = private {
-  term    : term_descr;
-  t_type  : ty;
-  t_tags : tag_map;
+  term     : term_descr;
+  t_type   : ty;
+  t_tags   : tag_map;
   t_status : status;
   mutable t_hash : hash; (** Use Term.hash instead *)
 }
+
+(** Types defining terms in the solver. The definition is vary similar to that
+    of solver-types, except for type arguments of polymorphic functions which
+    are explicit. This has the advantage that there is a clear and typed distinction
+    between solver-types and terms, but may lead to some duplication of code
+    in some places. *)
 
 (** {3 Formulas} *)
 
@@ -88,42 +143,45 @@ type formula_descr = private
   | Equiv of formula * formula
 
   (** Quantifiers *)
-  | All of ty var list * free_args * formula
-  | AllTy of ttype var list * free_args * formula
-  | Ex of ty var list * free_args * formula
-  | ExTy of ttype var list * free_args * formula
+  | All of ty id list * free_args * formula
+  | AllTy of ttype id list * free_args * formula
+  | Ex of ty id list * free_args * formula
+  | ExTy of ttype id list * free_args * formula
 
 and formula = private {
   f_tags : tag_map;
   formula : formula_descr;
   mutable f_hash : hash; (** Use Formula.hash instead *)
-  mutable f_vars : (ttype var list * ty var list) option;
+  mutable f_vars : (ttype id list * ty id list) option;
 }
+
+(** The type of formulas in the solver. The list of free arguments in quantifiers
+    is a bit tricky, so you should not touch it (see full doc for further
+    explanations). *)
 
 (** {3 Exceptions} *)
 
 exception Type_error_doublon of string * int
-exception Type_error_app of ty function_descr var * ty list * term list
-exception Type_error_ty_app of ttype function_descr var * ty list
+exception Type_error_app of ty function_descr id * ty list * term list
+exception Type_error_ty_app of ttype function_descr id * ty list
 exception Type_error_mismatch of ty * ty
+(** Errors raised when trying to buld a term that does not typecheck. *)
 
 exception Cannot_assign of term
 exception Cannot_interpret of term
-
-exception Subst_error_ty_scope of ttype var
-exception Subst_error_term_scope of ty var
+(** Raised when requesting an assigner/interpreter for a variable, but none has been set. *)
 
 (** {2 Printing} *)
 
 module Debug : sig
   (** Verbose printing functions for debug pruposes *)
 
-  val var : Buffer.t -> 'a var -> unit
-  val var_ty : Buffer.t -> ty var -> unit
-  val var_ttype : Buffer.t -> ttype var -> unit
+  val id : Buffer.t -> 'a id -> unit
+  val id_ty : Buffer.t -> ty id -> unit
+  val id_ttype : Buffer.t -> ttype id -> unit
 
-  val const_ty : Buffer.t -> ty function_descr var -> unit
-  val const_ttype : Buffer.t -> ttype function_descr var -> unit
+  val const_ty : Buffer.t -> ty function_descr id -> unit
+  val const_ttype : Buffer.t -> ttype function_descr id -> unit
 
   val meta : Buffer.t -> 'a meta -> unit
 
@@ -140,9 +198,9 @@ end
 module Print : sig
   (** Pretty printing functions *)
 
-  val var : Format.formatter -> 'a var -> unit
-  val var_ty : Format.formatter -> ty var -> unit
-  val var_ttype : Format.formatter -> ttype var -> unit
+  val id : Format.formatter -> 'a id -> unit
+  val id_ty : Format.formatter -> ty id -> unit
+  val id_ttype : Format.formatter -> ttype id -> unit
 
   val meta : Format.formatter -> 'a meta -> unit
 
@@ -153,7 +211,7 @@ module Print : sig
   val formula : Format.formatter -> formula -> unit
 end
 
-(** {5 status} *)
+(** {2 Status} *)
 
 module Status : sig
   val goal : status
@@ -164,8 +222,8 @@ end
 
 (** {2 Variables & Metas} *)
 
-module Var : sig
-  type 'a t = 'a var
+module Id : sig
+  type 'a t = 'a id
   (* Type alias *)
 
   val hash : 'a t -> int
@@ -177,41 +235,41 @@ module Var : sig
   val debug : Buffer.t -> 'a t -> unit
   (** Printing for variables *)
 
-  val prop : ttype function_descr var
+  val prop : ttype function_descr id
   (** Constant representing the type for propositions *)
 
-  val ttype : string -> ttype var
+  val ttype : string -> ttype id
   (** Create a fresh type variable with the given name. *)
 
-  val ty : string -> ty -> ty var
+  val ty : string -> ty -> ty id
   (** Create a fresh variable with given name and type *)
 
-  val ty_fun : string -> int -> ttype function_descr var
+  val ty_fun : string -> int -> ttype function_descr id
   (** Create a fresh type constructor with given name and arity *)
 
-  val term_fun : string -> ttype var list -> ty list -> ty -> ty function_descr var
+  val term_fun : string -> ttype id list -> ty list -> ty -> ty function_descr id
   (** [ty_fun name type_vars arg_types return_type] returns a new constant symbol,
       possibly polymorphic with respect to the variables in [type_vars] (which may appear in the
       types in [arg_types] and in [return_type]). *)
 
-  val ty_skolem : ttype var -> ttype function_descr var
-  val term_skolem : ty var -> ty function_descr var
+  val ty_skolem : ttype id -> ttype function_descr id
+  val term_skolem : ty id -> ty function_descr id
   (** Returns the skolem symbols associated with the given variables. The skolems
       symbols take as arguments the free_variables of their defining formula.
       For simplicity, just apply the skolem to the free_args of the quantified expression. *)
 
-  val occurs_term : ty var -> term -> bool
+  val occurs_in_term : ty id -> term -> bool
   (** Returns [true] if the given variable occurs in the term.
       WARNING: since meta-variables are wrapped variables, it can yield unexpected results. *)
 
-  val set_eval : 'a var -> int -> (term -> term eval) -> unit
-  val set_assign : 'a var -> int -> (term -> term) -> unit
+  val set_eval : 'a id -> int -> (term -> term eval) -> unit
+  val set_assign : 'a id -> int -> (term -> term) -> unit
   (** [set_eval v n f] sets f as the handler to call in order to
       eval or assign the given variable, with priority [n] (only the handler with
       highest priority is called. *)
 
-  val is_interpreted : 'a var -> bool
-  val is_assignable : 'a var -> bool
+  val is_assignable : 'a id -> bool
+  val is_interpreted : 'a id -> bool
   (** Returns [true] if a handler has been set up for the given variable. *)
 
 end
@@ -317,7 +375,7 @@ module Subst : sig
     (** [remove v subst] returns the same substitution as [subst] except for [v] which is unbound in the returned substitution. *)
   end
 
-  module Var : S with type 'a key = 'a var
+  module Id : S with type 'a key = 'a id
   module Meta : S with type 'a key = 'a meta
 end
 
@@ -327,7 +385,7 @@ module Ty : sig
   type t = ty
   (** Type alias *)
 
-  type subst = (ttype var, ty) Subst.t
+  type subst = (ttype id, ty) Subst.t
   (** The type of substitutions over types. *)
 
   val hash : t -> int
@@ -343,21 +401,21 @@ module Ty : sig
   val prop : ty
   (** The type of propositions *)
 
-  val of_var : ?status:status -> ttype var -> ty
+  val of_var : ?status:status -> ttype id -> ty
   (** Creates a type from a variable *)
 
   val of_meta : ?status:status -> ttype meta -> ty
   (** Create a type from a meta-variable *)
 
-  val apply : ?status:status -> ttype function_descr var -> ty list -> ty
+  val apply : ?status:status -> ttype function_descr id -> ty list -> ty
   (** Applies a constant to a list of types *)
 
   val subst : subst -> ty -> ty
   (** Substitution over types. *)
 
-  val fv : ty -> ttype var list * ty var list
+  val fv : ty -> ttype id list * ty id list
   (** Return the list of free variables in the given type.
-      Here, the [ty var list] is guaranteed to be empty. *)
+      Here, the [ty id list] is guaranteed to be empty. *)
 
   val tag : ty -> 'a tag -> 'a -> ty
   (** Insert a local type in the given type. Does not change the semantic
@@ -373,7 +431,7 @@ module Term : sig
   type t = term
   (** Type alias *)
 
-  type subst = (ty var, term) Subst.t
+  type subst = (ty id, term) Subst.t
   (** The type of substitutions in types. *)
 
   val hash : t -> int
@@ -386,13 +444,13 @@ module Term : sig
   val debug_subst : Buffer.t -> subst -> unit
   (** Printing functions *)
 
-  val of_var : ?status:status -> ty var -> term
+  val of_var : ?status:status -> ty id -> term
   (** Create a term from a variable *)
 
   val of_meta : ?status:status -> ty meta -> term
   (** Create a term from a meta-variable *)
 
-  val apply : ?status:status -> ty function_descr var -> ty list -> term list -> term
+  val apply : ?status:status -> ty function_descr id -> ty list -> term list -> term
   (** Applies a constant function to type arguments, then term arguments *)
 
   val subst : Ty.subst -> subst -> term -> term
@@ -402,7 +460,7 @@ module Term : sig
   (** [replace (t, t') t''] returns the term [t''] where every occurence of [t]
       has been replace by [t']. *)
 
-  val fv : term -> ttype var list * ty var list
+  val fv : term -> ttype id list * ty id list
   (** Return the list of free variables in the given term. *)
 
   val eval : term -> term eval
@@ -459,12 +517,12 @@ module Formula : sig
   val equiv : formula -> formula -> formula
   (** [equi p q] returns a formula representing [p] equivalent to [q] *)
 
-  val all : ty var list -> formula -> formula
-  val allty : ttype var list -> formula -> formula
+  val all : ty id list -> formula -> formula
+  val allty : ttype id list -> formula -> formula
   (** Universally quantify the given formula over the given variables *)
 
-  val ex : ty var list -> formula -> formula
-  val exty : ttype var list -> formula -> formula
+  val ex : ty id list -> formula -> formula
+  val exty : ttype id list -> formula -> formula
   (** Existentially quantify the given formula over the given variables *)
 
   val subst : Ty.subst -> Term.subst -> formula -> formula
@@ -473,7 +531,7 @@ module Formula : sig
   val partial_inst : Ty.subst -> Term.subst -> formula -> formula
   (** Make a partial instanciation of the given formula with the substitutions. *)
 
-  val fv : formula -> ttype var list * ty var list
+  val fv : formula -> ttype id list * ty id list
   (** Return the list of free variables in the given formula. *)
 
   val tag : formula -> 'a tag -> 'a -> formula

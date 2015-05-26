@@ -239,7 +239,7 @@ let rec make_eq p_set a b =
     | _ ->
       begin match a, b with
         | { Expr.term = Expr.App (f, _, f_args) }, { Expr.term = Expr.App (g, _, g_args) }
-          when Expr.Var.equal f g ->
+          when Expr.Id.equal f g ->
           make_eq_list p_set f_args g_args
         | _ -> `Impossible
       end

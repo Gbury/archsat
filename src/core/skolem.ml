@@ -37,19 +37,19 @@ let mk_proof_term f p l taus = Dispatcher.mk_proof
 let get_ty_taus ty_args t_args l =
   assert (t_args = []);
   match !inst with
-  | Tau -> List.map Expr.(fun v -> Ty.apply (Var.ty_fun ("t_" ^ v.var_name) 0) []) l
-  | Skolem -> List.map (fun v -> Expr.Ty.apply (Expr.Var.ty_skolem v) ty_args) l
+  | Tau -> List.map Expr.(fun v -> Ty.apply (Id.ty_fun ("t_" ^ v.id_name) 0) []) l
+  | Skolem -> List.map (fun v -> Expr.Ty.apply (Expr.Id.ty_skolem v) ty_args) l
 
 let get_term_taus ty_args t_args l = match !inst with
-  | Tau -> List.map Expr.(fun v -> Term.apply (Var.term_fun ("t_" ^ v.var_name) [] [] v.var_type) [] []) l
-  | Skolem -> List.map (fun v -> Expr.Term.apply (Expr.Var.term_skolem v) ty_args t_args) l
+  | Tau -> List.map Expr.(fun v -> Term.apply (Id.term_fun ("t_" ^ v.id_name) [] [] v.id_type) [] []) l
+  | Skolem -> List.map (fun v -> Expr.Term.apply (Expr.Id.term_skolem v) ty_args t_args) l
 
 let tau lvl = function
   | { Expr.formula = Expr.Ex (l, (ty_args, t_args), p) } as f ->
     if not (has_been_seen f) then begin
       mark f lvl;
       let taus = get_term_taus ty_args t_args l in
-      let subst = List.fold_left2 (fun s v t -> Expr.Subst.Var.bind v t s) Expr.Subst.empty l taus in
+      let subst = List.fold_left2 (fun s v t -> Expr.Subst.Id.bind v t s) Expr.Subst.empty l taus in
       let q = Expr.Formula.subst Expr.Subst.empty subst p in
       Dispatcher.push [Expr.Formula.neg f; q] (mk_proof_term f q l taus)
     end
@@ -57,7 +57,7 @@ let tau lvl = function
     if not (has_been_seen f) then begin
       mark f lvl;
       let taus = get_term_taus ty_args t_args l in
-      let subst = List.fold_left2 (fun s v t -> Expr.Subst.Var.bind v t s) Expr.Subst.empty l taus in
+      let subst = List.fold_left2 (fun s v t -> Expr.Subst.Id.bind v t s) Expr.Subst.empty l taus in
       let q = Expr.Formula.subst Expr.Subst.empty subst p in
       Dispatcher.push [Expr.Formula.neg f; Expr.Formula.neg q] (mk_proof_term f (Expr.Formula.neg q) l taus)
     end
@@ -65,7 +65,7 @@ let tau lvl = function
     if not (has_been_seen f) then begin
       mark f lvl;
       let taus = get_ty_taus ty_args t_args l in
-      let subst = List.fold_left2 (fun s v t -> Expr.Subst.Var.bind v t s) Expr.Subst.empty l taus in
+      let subst = List.fold_left2 (fun s v t -> Expr.Subst.Id.bind v t s) Expr.Subst.empty l taus in
       let q = Expr.Formula.subst subst Expr.Subst.empty p in
       Dispatcher.push [Expr.Formula.neg f; q] (mk_proof_ty f q l taus)
     end
@@ -74,7 +74,7 @@ let tau lvl = function
     if not (has_been_seen f) then begin
       mark f lvl;
       let taus = get_ty_taus ty_args t_args l in
-      let subst = List.fold_left2 (fun s v t -> Expr.Subst.Var.bind v t s) Expr.Subst.empty l taus in
+      let subst = List.fold_left2 (fun s v t -> Expr.Subst.Id.bind v t s) Expr.Subst.empty l taus in
       let q = Expr.Formula.subst subst Expr.Subst.empty p in
       Dispatcher.push [Expr.Formula.neg f; Expr.Formula.neg q] (mk_proof_ty f (Expr.Formula.neg q) l taus)
     end

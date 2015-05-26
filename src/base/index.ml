@@ -6,7 +6,7 @@
 (* Helpers *)
 (* ************************************************************************ *)
 
-let var_id v = (Expr.(v.var_id) : Expr.var_id :> int)
+let var_id v = (Expr.(v.index) : Expr.index :> int)
 
 (* Simple index *)
 (* ************************************************************************ *)
@@ -37,7 +37,7 @@ module Make(T: Set.OrderedType) = struct
       let m = findi (var_id f) t.map in
       let s = findt e m in
       { t with map = Mi.add (var_id f) (Mt.add e (S.add c s) m) t.map }
-    | { Expr.term = Expr.Meta { Expr.meta_var = v; _ } } ->
+    | { Expr.term = Expr.Meta { Expr.meta_id = v; _ } } ->
       let s = findt e t.univ in
       { t with univ = Mt.add e (S.add c s) t.univ }
     | { Expr.term = Expr.Var _ } -> assert false
@@ -48,7 +48,7 @@ module Make(T: Set.OrderedType) = struct
       let m = findi (var_id f) t.map in
       let s = findt e m in
       { t with map = Mi.add (var_id f) (Mt.add e (S.remove c s) m) t.map }
-    | { Expr.term = Expr.Meta { Expr.meta_var = v; _ } } ->
+    | { Expr.term = Expr.Meta { Expr.meta_id = v; _ } } ->
       let s = findt e t.univ in
       { t with univ = Mt.add e (S.remove c s) t.univ }
     | { Expr.term = Expr.Var _ } -> assert false
@@ -65,7 +65,7 @@ module Make(T: Set.OrderedType) = struct
     | { Expr.term = Expr.App(f,_,_) } ->
       let m = findi (var_id f) t.map in
       unify_aux e m (unify_aux e t.univ [])
-    | { Expr.term = Expr.Meta { Expr.meta_var = v; _ } } ->
+    | { Expr.term = Expr.Meta { Expr.meta_id = v; _ } } ->
       Mi.fold (fun _ m acc -> unify_aux e m acc) t.map (unify_aux e t.univ [])
     | { Expr.term = Expr.Var _ } -> assert false
 

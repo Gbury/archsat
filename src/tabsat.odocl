@@ -1,12 +1,57 @@
 
-util/Vector
-util/Backtrack
+##### Usefull Modules #####
+###########################
 
+# Base modules
 base/Ast
+base/Lpo
 base/Expr
-base/Unif
+base/Index
+base/Position
 base/Builtin
 
+# Standard Algorithms
+algos/Unif
+algos/Eclosure
+algos/Heuristic
+algos/Rigid
+algos/Supperposition
+
+# Core modules
 core/Dispatcher
 core/Solver
+
+# Extensions
+core/Inst
+#core/Meta
+#core/Skolem
+#core/Tab
+core/Eq
+#core/Functions
+core/Stats
+
+##### Misc modules #####
+########################
+
+# Utilities modules
+util/Util
+util/Backtrack
+util/Comparison
+
+# Input modules
+util/Io
+input/Options
+
+# Dimacs parsing
+input/Dimacs
+parsers/Parsedimacs
+
+# Tptp parsing
+input/Tptp
+parsers/Ast_tptp
+parsers/Parsetptp
+
+# Smtlib parsing
+input/Smtlib
+parsers/Parsesmtlib
 

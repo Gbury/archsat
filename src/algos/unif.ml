@@ -107,7 +107,7 @@ let fixpoint u = {
 let saturate_aux_term l u =
   List.fold_left (fun acc m ->
       if not (Expr.Subst.Meta.mem m acc) then
-        Expr.Subst.Meta.bind m (Builtin.const Expr.(m.meta_var.var_type)) acc
+        Expr.Subst.Meta.bind m (Builtin.const Expr.(m.meta_id.id_type)) acc
       else
         acc) u l
 
@@ -152,15 +152,15 @@ let meta_ty_def m = Expr.Meta.ttype_def m.Expr.meta_index
 let rec meta_match_ty subst s t =
   begin match s, t with
     | _, { Expr.ty = Expr.TyVar _ } | { Expr.ty = Expr.TyVar _}, _ -> assert false
-    | { Expr.ty = Expr.TyMeta ({ Expr.meta_var = v1 } as m1)},
-      { Expr.ty = Expr.TyMeta ({ Expr.meta_var = v2 } as m2)} ->
-      if Expr.Var.equal v1 v2 && Expr.Formula.equal (meta_ty_def m1) (meta_ty_def m2) then
+    | { Expr.ty = Expr.TyMeta ({ Expr.meta_id = v1 } as m1)},
+      { Expr.ty = Expr.TyMeta ({ Expr.meta_id = v2 } as m2)} ->
+      if Expr.Id.equal v1 v2 && Expr.Formula.equal (meta_ty_def m1) (meta_ty_def m2) then
         inv_map_ty subst m1 m2
       else
         raise (Not_unifiable_ty (s, t))
     | { Expr.ty = Expr.TyApp (f, f_args) },
       { Expr.ty = Expr.TyApp (g, g_args) } ->
-      if Expr.Var.equal f g then
+      if Expr.Id.equal f g then
         List.fold_left2 meta_match_ty subst f_args g_args
       else
         raise (Not_unifiable_ty (s, t))
@@ -171,15 +171,15 @@ let rec meta_match_term subst s t =
   log 90 "trying %a <-> %a" Expr.Debug.term s Expr.Debug.term t;
   begin match s, t with
     | _, { Expr.term = Expr.Var _ } | { Expr.term = Expr.Var _}, _ -> assert false
-    | { Expr.term = Expr.Meta ({ Expr.meta_var = v1 } as m1) },
-      { Expr.term = Expr.Meta ({ Expr.meta_var = v2 } as m2)} ->
-      if Expr.Var.equal v1 v2 && Expr.Formula.equal (meta_def m1) (meta_def m2) then
+    | { Expr.term = Expr.Meta ({ Expr.meta_id = v1 } as m1) },
+      { Expr.term = Expr.Meta ({ Expr.meta_id = v2 } as m2)} ->
+      if Expr.Id.equal v1 v2 && Expr.Formula.equal (meta_def m1) (meta_def m2) then
         inv_map_term subst m1 m2
       else
         raise (Not_unifiable_term (s, t))
     | { Expr.term = Expr.App (f, f_ty_args, f_t_args) },
       { Expr.term = Expr.App (g, g_ty_args, g_t_args) } ->
-      if Expr.Var.equal f g then
+      if Expr.Id.equal f g then
         List.fold_left2 meta_match_term
           (List.fold_left2 meta_match_ty subst f_ty_args g_ty_args)
           f_t_args g_t_args
@@ -235,7 +235,7 @@ let rec robinson_ty subst s t =
             bind_ty subst v u
         | { Expr.ty = Expr.TyApp (f, f_args) },
           { Expr.ty = Expr.TyApp (g, g_args) } ->
-          if Expr.Var.equal f g then
+          if Expr.Id.equal f g then
             List.fold_left2 robinson_ty subst f_args g_args
           else
             raise (Not_unifiable_ty (s, t))
@@ -255,7 +255,7 @@ let rec robinson_term subst s t =
             bind_term subst' v u
         | { Expr.term = Expr.App (f, f_ty_args, f_t_args) },
           { Expr.term = Expr.App (g, g_ty_args, g_t_args) } ->
-          if Expr.Var.equal f g then
+          if Expr.Id.equal f g then
             List.fold_left2 robinson_term
               (List.fold_left2 robinson_ty subst f_ty_args g_ty_args)
               f_t_args g_t_args

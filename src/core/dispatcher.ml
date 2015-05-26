@@ -241,12 +241,12 @@ let set_exts s =
 (* ************************************************************************ *)
 
 let check_var v =
-  if not (Expr.Var.is_interpreted v) && not (Expr.Var.is_assignable v) then
-    log 0 "WARNING: Variable %a is neither interpreted nor assignable" Expr.Debug.var v
+  if not (Expr.Id.is_interpreted v) && not (Expr.Id.is_assignable v) then
+    log 0 "WARNING: Variable %a is neither interpreted nor assignable" Expr.Debug.id v
 
 let rec check_term = function
   | { Expr.term = Expr.Var v } -> check_var v
-  | { Expr.term = Expr.Meta m } -> check_var Expr.(m.meta_var)
+  | { Expr.term = Expr.Meta m } -> check_var Expr.(m.meta_id)
   | { Expr.term = Expr.App (p, _, l)} ->
     check_var p;
     List.iter check_term l
@@ -530,7 +530,7 @@ let assign t =
 
 let rec iter_assign_aux f e = match Expr.(e.term) with
   | Expr.App (p, _, l) ->
-    if not (Expr.Var.is_interpreted p) then f e;
+    if not (Expr.Id.is_interpreted p) then f e;
     List.iter (iter_assign_aux f) l
   | _ -> f e
 

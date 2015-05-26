@@ -1,5 +1,10 @@
 
+(** Temporary AST between parsing and solving *)
+
 (** {2 Untyped expressions} *)
+
+(** This defines an untyped AST, which is used as output type of the
+    parsers, and is later translated into the typed AST in Expr. *)
 
 type location = ParseLocation.t
 
@@ -31,6 +36,8 @@ and term = {
 
 (** {2 Commands} *)
 
+(** The commands used in the main loop of the solver. *)
+
 type command =
   | Sat of Expr.Formula.t list list         (** Special case for dimacs input *)
   | Push                                    (** Push *)
@@ -51,6 +58,9 @@ val debug_term : Buffer.t -> term -> unit
 val print_command_name : Format.formatter -> command -> unit
 
 (** {2 Symbols} *)
+
+(* Constructors for the symbols *)
+
 val wildcard : symbol
 val distinct : symbol
 val sym : string -> symbol
@@ -62,6 +72,9 @@ val hexa : string -> symbol
 val binary : string -> symbol
 
 (** {2 Terms} *)
+
+(** Constructors for the terms *)
+
 val tType : term
 val true_ : term
 val false_ : term

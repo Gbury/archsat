@@ -19,11 +19,13 @@ module type S = sig
   val create : Backtrack.Stack.t -> t
 
   val find : t -> var -> var
-  val find_tag : t -> var -> var * (var * var) option
 
   val add_eq : t -> var -> var -> unit
   val add_neq : t -> var -> var -> unit
   val add_tag : t -> var -> var -> unit
+
+  val find_tag : t -> var -> var * (var * var) option
+
 end
 
 module Make(T : Key) = struct

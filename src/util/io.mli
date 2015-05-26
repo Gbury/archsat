@@ -13,7 +13,7 @@ val set_output : Options.output -> unit
 
 val parse_input : string -> Ast.command Queue.t
 (** Parse the given input file according to the current input options.
-    @raise Syntax_error if there is a syntax error in the given file. *)
+    @raise Parsing_error if there is there is an error while parsing the given file. *)
 
 (** {2 Printing wrappers} *)
 

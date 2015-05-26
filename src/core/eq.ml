@@ -84,16 +84,16 @@ let eq_assume (f, _) = match f with
 
 let rec set_handler t =
   let aux v =
-    if not Expr.(Ty.equal v.var_type Ty.prop) then
-      Expr.Var.set_assign v 0 eq_assign
+    if not Expr.(Ty.equal v.id_type Ty.prop) then
+      Expr.Id.set_assign v 0 eq_assign
   in
   watch 1 [t] (tag t);
   match t with
   | { Expr.term = Expr.Var v } -> aux v
-  | { Expr.term = Expr.Meta m } -> aux Expr.(m.meta_var)
+  | { Expr.term = Expr.Meta m } -> aux Expr.(m.meta_id)
   | { Expr.term = Expr.App (f, _, l) } ->
-    if not Expr.(Ty.equal f.var_type.fun_ret Ty.prop) then
-      Expr.Var.set_assign f 0 eq_assign;
+    if not Expr.(Ty.equal f.id_type.fun_ret Ty.prop) then
+      Expr.Id.set_assign f 0 eq_assign;
     List.iter set_handler l
 
 let rec eq_pre = function

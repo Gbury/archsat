@@ -23,7 +23,13 @@ OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *)
 
-(** {1 Term LogtkOrderings} *)
+(** Lexicographic Path Ordering on terms.
+    This defines a lpo (i.e lexicographic path ordering) over the terms used in the solver.
+    Implementation comes from the {{: https://github.com/c-cube/logtk/} logtk} library. *)
+
+(** {2 Term odering} *)
 
 val compare : Expr.Term.t -> Expr.Term.t -> Comparison.t
+(** Compare two terms according to the lpo. Since the ordering is not complete,
+    we return a custom type instead of an int. *)
 
