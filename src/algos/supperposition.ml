@@ -218,6 +218,27 @@ let do_supp acc sigma active inactive =
     in
     push_cl c acc
 
+let do_rewrite sigma active inactive =
+  assert (active.clause.eq && active.pos = Position.Term.root);
+  if not (valid_subst sigma) || inactive.clause.eq then
+    None
+  else begin
+    let aux = Unif.term_subst sigma in
+    let s, t = extract active in
+    let u, v = extract inactive in
+    let s' = aux s in
+    let t' = aux t in
+    match Lpo.compare s' t' with
+    | Comparison.Gt when (not inactive.clause.eq) || Lpo.compare u v <> Comparison.Gt ->
+      let u' = Position.Term.substitute inactive.pos t' u in
+      let c = mk_cl inactive.clause.eq (Some (ord u' v)) (tsize u' v)
+          (add_acc sigma (merge_acc inactive.clause.acc active.clause.acc))
+          (active.clause :: inactive.clause.parents)
+      in
+      if valid_cl c then Some c else None
+    | _ -> None
+  end
+
 let find_subst_eq index v w =
   List.fold_left (fun acc (_, sigma, l) ->
       if acc = None then
@@ -318,14 +339,54 @@ let supp_lit c p_set acc =
   end
 
 (* rewriting of negative litterals, alis RN *)
-let rewrite_neg_lit p_set c =
-  if not c.eq then
-    match c.lit with
-    | None -> None
-    | Some (a, b) ->
-      Position.Term.fold (fun acc pos p -> acc) None a
-  else
-    None
+let add_active_rewrite p_set clause side s =
+  let l = I.unify s p_set.inactive_index in
+  let active = { clause; side; pos = Position.Term.root } in
+  CCList.find_map (fun (_, sigma, l') ->
+      if valid_subst sigma then
+        CCList.find_map (fun inactive ->
+            do_rewrite sigma active inactive) l'
+      else None) l
+
+let add_inactive_rewrite p_set clause side pos u =
+  let l = I.unify u p_set.root_pos_index in
+  let inactive = { clause; side; pos } in
+  CCList.find_map (fun (_, sigma, l') ->
+      if valid_subst sigma then
+        CCList.find_map (fun active ->
+            do_rewrite sigma active inactive) l'
+      else None) l
+
+exception Found of clause
+
+let exn_wrap = function
+  | Some c -> raise (Found c)
+  | None -> ()
+
+let rewrite_lit p_set c =
+  match c.lit with
+  | None -> None
+  | Some (s, t) ->
+    begin try
+        Position.Term.fold (fun () pos p ->
+            exn_wrap @@ add_inactive_rewrite p_set c Left pos p) () s;
+        Position.Term.fold (fun () pos p ->
+            exn_wrap @@ add_inactive_rewrite p_set c Right pos p) () t;
+        begin if c.eq then
+            match Lpo.compare s t with
+            | Comparison.Gt ->
+              exn_wrap @@ add_active_rewrite p_set c Left s
+            | Comparison.Lt ->
+              exn_wrap @@ add_active_rewrite p_set c Right t
+            | Comparison.Incomparable ->
+              exn_wrap @@ add_active_rewrite p_set c Left s;
+              exn_wrap @@ add_active_rewrite p_set c Right t
+            | Comparison.Eq -> ()
+        end;
+        None
+      with Found c ->
+        Some c
+    end
 
 (* equality_subsumption, alias ES *)
 let equality_subsumption c p_set = (* is there a more generic equality in p_set ? *)
@@ -342,9 +403,9 @@ let positive_simplify_reflect p_set c =
     match c.lit with
     | Some (a, b) ->
       begin match make_eq p_set a b with
-      | `Equal -> Some (mk_none c.acc c.parents)
-      | `Unifiable u -> Some (mk_none (add_acc u c.acc) c.parents)
-      | `Impossible -> None
+        | `Equal -> Some (mk_none c.acc c.parents)
+        | `Unifiable u -> Some (mk_none (add_acc u c.acc) c.parents)
+        | `Impossible -> None
       end
     | None -> None
   else
@@ -366,13 +427,7 @@ let negative_simplify_reflect p_set c =
 (* Main functions *)
 (* ************************************************************************ *)
 
-let rec chain l arg =
-  match l with
-  | [] -> None
-  | f :: r -> begin match f arg with
-      | Some res -> Some res
-      | None -> chain r arg
-    end
+let chain l arg = CCList.find_map (CCFun.(|>) arg) l
 
 let fix arg f =
   let rec aux f arg last =
@@ -382,10 +437,10 @@ let fix arg f =
   in
   aux f arg None
 
-(* Applies: RN, RP, PS (OK), NS (OK) *)
+(* Applies: RP, RN (OK), PS (OK), NS (OK) *)
 let simplify_clause c p =
   fix c (chain [
-      rewrite_neg_lit p;
+      rewrite_lit p;
       positive_simplify_reflect p;
       negative_simplify_reflect p;
     ])
@@ -395,10 +450,10 @@ let simplify c p =
   | Some c' -> c'
   | None -> c
 
-(* Applies: RN, RP *)
+(* Applies: RP, RN (OK) *)
 let cheap_simplify_aux c p =
   fix c (chain [
-      rewrite_neg_lit p;
+      rewrite_lit p;
     ])
 
 let cheap_simplify c p =
