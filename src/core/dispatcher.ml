@@ -177,11 +177,12 @@ let set_actual () =
 let list_extensions () = CCVector.fold (fun acc r -> r.name :: acc) [] extensions
 
 let doc_of_ext r =
-  `I (Printf.sprintf "$(b,%s - %d)" r.name r.prio, r.descr)
+  `I (Printf.sprintf "$(b,%.2d - %s)" r.prio r.name, r.descr)
 
 let ext_doc () =
   List.map doc_of_ext @@
-  List.sort (fun r r' -> compare r.name r'.name) @@
+  List.sort (fun r r' -> match compare r'.prio r.prio with
+      | 0 -> compare r.name r'.name | x -> x) @@
   CCVector.to_list extensions
 
 let find_ext id = CCVector.get extensions id
@@ -198,6 +199,7 @@ let new_id () =
 
 let register r =
   assert (not (CCVector.exists (fun r' -> r'.name = r.name) extensions));
+  if r.prio < 0 then log 0 "WARNING: %s - extensions should have positive priority" r.name;
   CCVector.set extensions r.id r
 
 let activate ext =
