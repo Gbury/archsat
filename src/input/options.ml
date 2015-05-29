@@ -213,8 +213,9 @@ let help_secs ext_doc sext_doc = [
   `S copts_sect; `P "Common options for the prover";
   `S "SEMANTIC"; `P "Semantic extensions extend typing to include builtins of languages such as arithmetic";
 ] @ sext_doc @ [
-  `S "EXTENSIONS"; `P "Available extensions are listed in this section. Each paragraph starts with the extension's name,
- and a description of what the extension does.";
+    `S "EXTENSIONS"; `P "Available extensions are listed in this section. Each paragraph starts with the extension's name
+      and its priority, and then a short description of what the extension does. Extensions with higher priorities
+      are called earlier than those with lower priorities.";
 ] @ ext_doc @ [
     `S ext_sect; `P "Options primarily used by the extensions (use only if you know what you're doing !).";
     `S "BUGS"; `P "TODO";

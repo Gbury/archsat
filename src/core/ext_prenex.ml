@@ -172,5 +172,5 @@ Dispatcher.(register (
     mk_ext
       ~descr:"Pre-process formulas to put them in cnf and/or prenex normal form"
       ~preprocess:do_formula
-      id "cnf"
+      id "prenex"
   ))

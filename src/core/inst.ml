@@ -262,7 +262,7 @@ let opts t =
 ;;
 Dispatcher.(register (
     mk_ext
-      ~prio:~-1 ~if_sat:inst_sat ~options:opts
+      ~prio:5 ~if_sat:inst_sat ~options:opts
       ~descr:"Handles the pushing of clauses corresponding to instanciations. This plugin does not
               do anything by itself, but rather is called by other plugins when doing instanciations.
               Activating it is not required for other plugins to use it."

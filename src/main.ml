@@ -4,14 +4,13 @@
 open Options
 
 (* Dummy module renaming for extensions *)
-module Eq = Eq
-module Tab = Tab
-module Prop = Prop
-module Functions = Functions
-module Skolem = Skolem
-module Meta = Meta
-module Stats = Stats
-module Cnf = Cnf
+include Ext_eq
+include Ext_meta
+include Ext_prop
+include Ext_logic
+include Ext_prenex
+include Ext_skolem
+include Ext_functions
 
 module Arith = Arith
 
@@ -47,31 +46,32 @@ let get_model p_model =
      | Full -> Solver.full_model ())
 
 (* Logging *)
-let start_section s =
-  Util.debug 0 "=== %s %s" s (String.make (64 - String.length s) '=')
+let start_section l s =
+  Util.debug l "=== %s %s" s (String.make (64 - String.length s) '=')
 
 let end_section () = ()
 (* Util.debug 1 "%s" (String.make 69 '=') *)
 
-let wrap s f x =
-  start_section s;
+let wrap l s f x =
+  start_section l s;
   let res = f x in
   end_section ();
   res
 
 (* Execute given command *)
 let do_command opt = function
-  | Ast.Sat cnf -> if opt.solve then wrap "assume" Solver.assume cnf
+  | Ast.Sat cnf ->
+    if opt.solve then wrap 0 "assume" Solver.assume cnf
   | Ast.NewType (name, s, n) ->
-    wrap ("typing " ^ name) Type.new_type_def (s, n)
+    wrap 1 ("typing " ^ name) Type.new_type_def (s, n)
   | Ast.TypeDef (name, s, t) ->
-    wrap ("typing " ^ name) Type.new_const_def (Io.input_env ()) (s, t)
+    wrap 1 ("typing " ^ name) Type.new_const_def (Io.input_env ()) (s, t)
   | Ast.Assert (name, t, goal) ->
-    let f = wrap ("typing " ^ name) (Type.parse ~goal) (Io.input_env ()) t in
-    if opt.solve then wrap "assume" Solver.assume [[f]]
+    let f = wrap 1 ("typing " ^ name) (Type.parse ~goal) (Io.input_env ()) t in
+    if opt.solve then wrap 1 "assume" Solver.assume [[f]]
   | Ast.CheckSat ->
     if opt.solve then
-      let res = wrap "solve" Solver.solve () in
+      let res = wrap 0 "solve" Solver.solve () in
       begin match res with
         (* Model found *)
         | Solver.Sat ->
@@ -119,17 +119,17 @@ let main () =
   List.iter Semantics.set_ext opt.s_exts;
 
   (* Extensions options *)
-  Dispatcher.set_exts "+eq,+uf,+tab,+prop,+skolem,+meta,+inst,+stats";
+  Dispatcher.set_exts "+eq,+uf,+logic,+prop,+skolem,+meta,+inst,+stats";
   List.iter Dispatcher.set_ext opt.extensions;
 
   (* Print options *)
-  wrap "Options" (fun () ->
+  wrap 0 "Options" (fun () ->
       Options.log_opts opt;
       Semantics.log_active ();
       Dispatcher.log_active ()) ();
 
   (* Input file parsing *)
-  let commands = wrap "parsing" Io.parse_input opt.input_file in
+  let commands = wrap 1 "parsing" Io.parse_input opt.input_file in
 
   (* Commands execution *)
   Queue.iter (do_command opt) commands;

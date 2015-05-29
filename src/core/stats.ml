@@ -45,7 +45,7 @@ let clock _ =
 Dispatcher.(register (
   mk_ext
     ~descr:"Handles delayed printing of statistics for each round of solving"
-    ~prio:~-10 ~if_sat:clock
+    ~prio:0 ~if_sat:clock
     (new_id ()) "stats"
 ))
 

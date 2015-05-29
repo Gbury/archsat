@@ -135,7 +135,7 @@ type extension = {
   options : Options.copts Cmdliner.Term.t -> Options.copts Cmdliner.Term.t;
 }
 
-let mk_ext ?(descr="") ?(prio=0)
+let mk_ext ?(descr="") ?(prio=10)
     ?peek ?if_sat ?assume
     ?eval_pred ?preprocess
     ?(options=(fun t -> t))
@@ -176,7 +176,8 @@ let set_actual () =
 (* Info about extensions *)
 let list_extensions () = CCVector.fold (fun acc r -> r.name :: acc) [] extensions
 
-let doc_of_ext r = `I ("$(b," ^ r.name ^ ")", r.descr)
+let doc_of_ext r =
+  `I (Printf.sprintf "$(b,%s - %d)" r.name r.prio, r.descr)
 
 let ext_doc () =
   List.map doc_of_ext @@
