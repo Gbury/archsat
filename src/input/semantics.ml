@@ -65,7 +65,14 @@ let set_exts s =
     (List.map (fun (s, i, l) -> String.sub s i l) (CCString.Split.list_ ~by:"," s))
 
 let log_active () =
-  log 0 "loaded extensions: %a" CCPrint.(list string) (List.map (fun r -> r.name) !active)
+  log 0 "active: %a" CCPrint.(list string) (List.map (fun r -> r.name) !active)
+
+let doc_of_ext r = `I ("$(b," ^ r.name ^ ")", r.descr)
+
+let ext_doc () =
+  List.map doc_of_ext @@
+  List.sort (fun r r' -> compare r.name r'.name) @@
+  !exts
 
 let type_env input_format =
   (fun s l l' ->

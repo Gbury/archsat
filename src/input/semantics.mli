@@ -10,6 +10,8 @@ val register :
 val set_ext : string -> unit
 val set_exts : string -> unit
 
+val ext_doc : unit -> Cmdliner.Manpage.block list
+
 val log_active : unit -> unit
 
 val type_env : Options.input -> Type.builtin_symbols

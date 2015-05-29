@@ -209,8 +209,10 @@ let model = Arg.enum model_list
 
 let copts_sect = "COMMON OPTIONS"
 let ext_sect = "ADVANCED OPTIONS"
-let help_secs ext_doc = [
+let help_secs ext_doc sext_doc = [
   `S copts_sect; `P "Common options for the prover";
+  `S "SEMANTIC"; `P "Semantic extensions extend typing to include builtins of languages such as arithmetic";
+] @ sext_doc @ [
   `S "EXTENSIONS"; `P "Available extensions are listed in this section. Each paragraph starts with the extension's name,
  and a description of what the extension does.";
 ] @ ext_doc @ [

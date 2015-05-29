@@ -6,8 +6,8 @@
 exception Typing_error of string * Ast.term
 
 type builtin_symbols = string -> Expr.ty list -> Expr.term list ->
-  [ `Ty of Expr.ttype Expr.function_descr Expr.id |
-    `Term of Expr.ty Expr.function_descr Expr.id ] option
+  [ `Ty of Expr.ttype Expr.function_descr Expr.id  * Expr.ty list |
+    `Term of Expr.ty Expr.function_descr Expr.id * Expr.ty list * Expr.term list ] option
 (** The type of builtin symbols parser. Takes the name of the symbol and the number
     of arguments applied to it, and can return a type constructor or a term constant. *)
 

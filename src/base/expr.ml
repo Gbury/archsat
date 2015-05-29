@@ -132,7 +132,7 @@ end
 (* ************************************************************************ *)
 
 module Debug = struct
-  let id b v = Printf.bprintf b "%s/%d" v.id_name v.index
+  let id b v = Printf.bprintf b "%s#%d" v.id_name v.index
   let meta b m = Printf.bprintf b "m%d_%a" m.meta_index id m.meta_id
   let ttype b Type = Printf.bprintf b "$tType"
 

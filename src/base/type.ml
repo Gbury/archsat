@@ -73,8 +73,8 @@ let find_cst (default_args, default_ret) name =
 (* ************************************************************************ *)
 
 type builtin_symbols = string -> Expr.ty list -> Expr.term list ->
-  [ `Ty of Expr.ttype Expr.function_descr Expr.id |
-    `Term of Expr.ty Expr.function_descr Expr.id ] option
+  [ `Ty of Expr.ttype Expr.function_descr Expr.id * Expr.ty list |
+    `Term of Expr.ty Expr.function_descr Expr.id * Expr.ty list * Expr.term list] option
 
 type env = {
   type_vars : Expr.Ty.t M.t;
@@ -154,17 +154,20 @@ let parse_ttype_var = function
     Expr.Id.ttype s
   | t -> raise (Typing_error ("Expected a type variable", t))
 
-let parse_ty_cstr env ty_args t_args s =
-  match env.builtins s ty_args t_args with
-  | Some `Ty f -> f
-  | _ -> find_ty_cstr s
+let parse_ty_cstr env ty_args s =
+  match env.builtins s ty_args [] with
+  | Some `Ty res -> res
+  | _ -> (find_ty_cstr s), ty_args
 
 let rec parse_ty ~status env = function
   | { Ast.term = Ast.Var s} -> find_type_var env s
-  | { Ast.term = Ast.Const (Ast.String c)} -> Expr.Ty.apply ~status (find_ty_cstr c) []
+  | { Ast.term = Ast.Const (Ast.String c)} ->
+    let f, args = parse_ty_cstr env [] c in
+    Expr.Ty.apply ~status f args
   | { Ast.term = Ast.App ({Ast.term = Ast.Const (Ast.String c) }, l) } ->
     let l' = List.map (parse_ty ~status env) l in
-    Expr.Ty.apply ~status (parse_ty_cstr env l' [] c) l'
+    let f, args = parse_ty_cstr env l' c in
+    Expr.Ty.apply ~status f args
   | t -> raise (Typing_error ("Expected a type", t))
 
 let rec parse_sig ~status env = function
@@ -188,10 +191,10 @@ let default_cst_ty n ret = (CCList.replicate n Builtin.type_i, ret)
 
 let parse_cst env ty_args t_args ret s =
   match env.builtins s ty_args t_args with
-  | Some `Term f -> f
+  | Some `Term res -> res
   | _ ->
     let nargs = List.length t_args in
-    find_cst (default_cst_ty nargs ret) s
+    (find_cst (default_cst_ty nargs ret) s), ty_args, t_args
 
 let parse_let_var eval = function
   | { Ast.term = Ast.Column ({ Ast.term = Ast.Var s}, t) } -> (s, eval t)
@@ -215,12 +218,13 @@ and parse_term ~status ret env = function
     begin try
         find_term_var env s
       with Scoping_error _ ->
-        Expr.Term.apply ~status (parse_cst env [] [] ret s) [] []
+        let f, ty_args, t_args = parse_cst env [] [] ret s in
+        Expr.Term.apply ~status f ty_args t_args
     end
   | { Ast.term = Ast.App ({ Ast.term = Ast.Const Ast.String s }, l) } ->
     let ty_args, t_args = parse_args ~status env l in
-    let f = parse_cst env ty_args t_args ret s in
-    Expr.Term.apply ~status f ty_args t_args
+    let f, l, l' = parse_cst env ty_args t_args ret s in
+    Expr.Term.apply ~status f l l'
   | { Ast.term = Ast.Binding (Ast.Let, vars, f) } ->
     let env' = List.fold_left (fun acc var ->
         let (s, t) = parse_let_var (parse_term ~status Builtin.type_i env) var in

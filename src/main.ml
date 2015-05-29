@@ -101,7 +101,7 @@ let do_command opt = function
 (* Main function *)
 let main () =
   (* Argument parsing *)
-  let man = Options.help_secs (Dispatcher.ext_doc ()) in
+  let man = Options.help_secs (Dispatcher.ext_doc ()) (Semantics.ext_doc ()) in
   let info = Cmdliner.Term.(info ~sdocs:Options.copts_sect ~man ~version:"0.1" "tabsat") in
   let opt = match Cmdliner.Term.eval (Dispatcher.add_opts (Options.copts_t ()), info) with
     | `Version | `Help | `Error `Parse | `Error `Term | `Error `Exn -> raise Exit

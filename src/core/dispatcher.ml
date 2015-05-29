@@ -238,7 +238,7 @@ let set_exts s =
     (List.map (fun (s, i, l) -> String.sub s i l) (CCString.Split.list_ ~by:"," s))
 
 let log_active () =
-  log 0 "loaded extensions: %a" CCPrint.(list string) (List.map (fun r -> r.name) !active)
+  log 0 "active: %a" CCPrint.(list string) (List.map (fun r -> r.name) !active)
 
 (* Pre-processing *)
 (* ************************************************************************ *)

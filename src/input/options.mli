@@ -56,7 +56,7 @@ val ext_sect : string
 val copts_sect : string
 (** Section names for options in cmdliner. *)
 
-val help_secs : Cmdliner.Manpage.block list -> Cmdliner.Manpage.block list
+val help_secs : Cmdliner.Manpage.block list -> Cmdliner.Manpage.block list -> Cmdliner.Manpage.block list
 (** Given documentation for extensions, returns a documentation for the tool. *)
 
 val copts_t : unit -> copts Cmdliner.Term.t
