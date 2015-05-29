@@ -13,6 +13,8 @@ module Meta = Meta
 module Stats = Stats
 module Cnf = Cnf
 
+module Arith = Arith
+
 (* Types and exceptions *)
 exception Out_of_time
 exception Out_of_space
@@ -63,9 +65,9 @@ let do_command opt = function
   | Ast.NewType (name, s, n) ->
     wrap ("typing " ^ name) Type.new_type_def (s, n)
   | Ast.TypeDef (name, s, t) ->
-    wrap ("typing " ^ name) Type.new_const_def (s, t)
-  | Ast.Assert (name, t, is_goal) ->
-    let f = wrap ("typing " ^ name) (Type.parse is_goal) t in
+    wrap ("typing " ^ name) Type.new_const_def (Io.input_env ()) (s, t)
+  | Ast.Assert (name, t, goal) ->
+    let f = wrap ("typing " ^ name) (Type.parse ~goal) (Io.input_env ()) t in
     if opt.solve then wrap "assume" Solver.assume [[f]]
   | Ast.CheckSat ->
     if opt.solve then
@@ -107,16 +109,31 @@ let main () =
   in
   (* Gc alarm for limits *)
   setup_alarm opt.time_limit opt.size_limit;
+
   (* Io options *)
   Io.set_input opt.input_format;
   Io.set_output opt.output_format;
+
+  (* Syntax extensions *)
+  Semantics.set_exts "+arith";
+  List.iter Semantics.set_ext opt.s_exts;
+
   (* Extensions options *)
   Dispatcher.set_exts "+eq,+uf,+tab,+prop,+skolem,+meta,+inst,+stats";
   List.iter Dispatcher.set_ext opt.extensions;
+
+  (* Print options *)
+  wrap "Options" (fun () ->
+      Options.log_opts opt;
+      Semantics.log_active ();
+      Dispatcher.log_active ()) ();
+
   (* Input file parsing *)
-  let commands = wrap "parse" Io.parse_input opt.input_file in
+  let commands = wrap "parsing" Io.parse_input opt.input_file in
+
   (* Commands execution *)
   Queue.iter (do_command opt) commands;
+
   (* Clean up *)
   Options.clean opt
 ;;
@@ -125,22 +142,32 @@ try
   main ()
 with
 | Exit -> ()
+(* Limits management *)
 | Out_of_time ->
   delete_alarm ();
   Io.print_res Format.std_formatter "Timeout"
 | Out_of_space ->
   delete_alarm ();
   Io.print_res Format.std_formatter "Out of space"
+
+(* Parsing/Typing errors *)
 | Io.Parsing_error (l, msg) ->
   Format.fprintf Format.std_formatter "%a:@\n%s@." ParseLocation.fmt l msg;
   exit 2
+| Type.Typing_error (msg, t) ->
+  Format.fprintf Format.std_formatter "Typing error: '%s' while typing:@\n%s@." msg (Ast.s_term t);
+  exit 2
+
+(* Extension error *)
 | Dispatcher.Extension_not_found s ->
   Format.fprintf Format.std_formatter "Extension '%s' not found. Available extensions are :@\n%a@." s
     (fun fmt -> List.iter (fun s -> Format.fprintf fmt "%s " s)) (Dispatcher.list_extensions ());
-  exit 2
+  exit 3
+
+
 | Dispatcher.Bad_assertion s ->
   Format.fprintf Format.std_formatter "%s@." s;
-  exit 3
+  exit 4
 | Expr.Type_error_mismatch (ty1, ty2) ->
   Format.fprintf Format.std_formatter "The following types are NOT compatible :@\n%a ~~ %a@."
     Expr.Print.ty ty1 Expr.Print.ty ty2;

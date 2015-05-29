@@ -1,10 +1,27 @@
 
+(* Builtin symbols *)
+(* ************************************************************************ *)
+
+type Expr.builtin += Cast
+
 (* Typing *)
 (* ************************************************************************ *)
 
 (* Type $i *)
 let i_cstr = Expr.Id.ty_fun "$i" 0
 let type_i = Expr.Ty.apply i_cstr []
+
+(* Casting *)
+let cast_cstr =
+  let a = Expr.Id.ttype "a" in
+  let ta = Expr.Ty.of_id a in
+  let b = Expr.Id.ttype "b" in
+  let tb = Expr.Ty.of_id b in
+  Expr.Id.term_fun ~builtin:Cast "#cast" [a; b] [ta] tb
+
+let cast e t =
+  let ty = Expr.(e.t_type) in
+  Expr.Term.apply cast_cstr [ty; t] [e]
 
 (* Tuples *)
 (* ************************************************************************ *)

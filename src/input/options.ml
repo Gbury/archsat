@@ -1,7 +1,12 @@
 
+let log_section = Util.Section.make "options"
+let log i fmt = Util.debug ~section:log_section i fmt
+
 open Cmdliner
 
 (* Type definitions for common options *)
+(* ************************************************************************ *)
+
 type input =
   | Auto
   | Dimacs
@@ -28,6 +33,7 @@ type copts = {
   proof : bool;
   solve : bool;
   extensions : string list;
+  s_exts : string list;
 
   (* Printing options *)
   print_proof : out_channel option;
@@ -38,10 +44,43 @@ type copts = {
   size_limit : float;
 }
 
+(* Printing function *)
+(* ************************************************************************ *)
+
+let input_string = function
+  | Auto -> "auto"
+  | Dimacs -> "dimacs"
+  | Tptp -> "tptp"
+  | Smtlib -> "smtlib"
+
+let output_string = function
+  | Standard -> "standard"
+  | Dot -> "dot"
+
+let model_string = function
+  | NoModel -> "none"
+  | Simple -> "simple"
+  | Full -> "full"
+
+let stringify f l = List.map (fun x -> (f x, x)) l
+
+let input_list = stringify input_string [Auto; Dimacs; Tptp; Smtlib]
+let output_list = stringify output_string [Standard; Dot]
+let model_list = stringify model_string [NoModel; Simple; Full]
+
+let bool_opt s bool = if bool then Printf.sprintf "[%s]" s else ""
+
+let log_opts opt =
+  log 0 "Limits : %g s / %g o" opt.time_limit opt.size_limit;
+  log 0 "Options : %s%s[in: %s][out: %s]"
+    (bool_opt "solve" opt.solve) (bool_opt "check_proof" opt.proof)
+    (input_string opt.input_format) (output_string opt.output_format);
+  log 0 "Input file : %s" opt.input_file
+
 (* Option values *)
-let mk_opts () file input output proof type_only exts p_proof p_model time size =
-  (* Global options record *)
-  {
+(* ************************************************************************ *)
+
+let mk_opts () file input output proof type_only exts sexts p_proof p_model time size = {
     formatter = Format.std_formatter;
     input_file = file;
     input_format = input;
@@ -50,6 +89,7 @@ let mk_opts () file input output proof type_only exts p_proof p_model time size 
     proof = proof || (p_proof <> None);
     solve = not type_only;
     extensions = List.concat exts;
+    s_exts = List.concat sexts;
 
     print_model = p_model;
     print_proof = (match p_proof with | Some s -> Some (open_out s) | None -> None);
@@ -77,6 +117,8 @@ let clean opt =
   match opt.print_proof with Some out -> close_out out | None -> ()
 
 (* Argument converter for integer with multiplier suffix *)
+(* ************************************************************************ *)
+
 let nb_sec_minute = 60
 let nb_sec_hour = 60 * nb_sec_minute
 let nb_sec_day = 24 * nb_sec_hour
@@ -148,7 +190,9 @@ let parse_size arg =
 let c_time = parse_time, print_time
 let c_size = parse_size, print_size
 
-(* Argument converter for log sections *)
+(* Other Argument converters *)
+(* ************************************************************************ *)
+
 let print_section fmt s = Format.fprintf fmt "%s" (Util.Section.full_name s)
 let parse_section arg =
   try `Ok (Util.Section.find arg)
@@ -156,28 +200,13 @@ let parse_section arg =
 
 let section = parse_section, print_section
 
-(* Argument converters for input/output *)
-let input_list = [
-  "auto", Auto;
-  "dimacs", Dimacs;
-  "tptp", Tptp;
-  "smtlib", Smtlib;
-]
-let output_list = [
-  "standard", Standard;
-  "dot", Dot;
-]
-let model_list = [
-  "none", NoModel;
-  "simple", Simple;
-  "full", Full;
-]
-
 let input = Arg.enum input_list
 let output = Arg.enum output_list
 let model = Arg.enum model_list
 
 (* Argument parsing *)
+(* ************************************************************************ *)
+
 let copts_sect = "COMMON OPTIONS"
 let ext_sect = "ADVANCED OPTIONS"
 let help_secs ext_doc = [
@@ -251,6 +280,11 @@ let copts_t () =
                  option multiple times." in
     Arg.(value & opt_all (list string) [] & info ["x"; "ext"] ~docs ~docv:"EXTS" ~doc)
   in
+  let semantics_exts =
+    let doc = "Activate/deactivate syntax extensions. See the extension options
+               for more documentation." in
+    Arg.(value & opt_all (list string) [] & info ["semantics"] ~docs ~doc)
+  in
   let print_proof =
     let doc = "Print proof for unsat results (implies proof generation)." in
     Arg.(value & opt (some string) None & info ["p"; "proof"] ~docs ~doc)
@@ -274,5 +308,5 @@ let copts_t () =
     Arg.(value & opt c_size 1_000_000_000. & info ["s"; "size"] ~docs ~docv:"SIZE" ~doc)
   in
   Term.(pure mk_opts $ (pure set_opts $ gc $ bt $ quiet $ log $ debug) $
-  file $ input $ output $ proof $ type_only $ exts $ print_proof $ print_model $ time $ size)
+  file $ input $ output $ proof $ type_only $ exts $ semantics_exts $ print_proof $ print_model $ time $ size)
 

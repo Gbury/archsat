@@ -84,6 +84,9 @@ val set_exts : string -> unit
 val list_extensions : unit -> string list
 (** Returns the current list of extensions known to the dispatcher. *)
 
+val log_active : unit -> unit
+(** Log the current active extensions *)
+
 val ext_doc : unit -> Cmdliner.Manpage.block list
 (** Returns a documentation on available options. *)
 

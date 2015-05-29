@@ -238,16 +238,16 @@ module Id : sig
   val prop : ttype function_descr id
   (** Constant representing the type for propositions *)
 
-  val ttype : string -> ttype id
+  val ttype : ?builtin:builtin -> string -> ttype id
   (** Create a fresh type variable with the given name. *)
 
-  val ty : string -> ty -> ty id
+  val ty : ?builtin:builtin -> string -> ty -> ty id
   (** Create a fresh variable with given name and type *)
 
-  val ty_fun : string -> int -> ttype function_descr id
+  val ty_fun : ?builtin:builtin -> string -> int -> ttype function_descr id
   (** Create a fresh type constructor with given name and arity *)
 
-  val term_fun : string -> ttype id list -> ty list -> ty -> ty function_descr id
+  val term_fun : ?builtin:builtin -> string -> ttype id list -> ty list -> ty -> ty function_descr id
   (** [ty_fun name type_vars arg_types return_type] returns a new constant symbol,
       possibly polymorphic with respect to the variables in [type_vars] (which may appear in the
       types in [arg_types] and in [return_type]). *)

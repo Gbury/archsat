@@ -15,6 +15,9 @@ val parse_input : string -> Ast.command Queue.t
 (** Parse the given input file according to the current input options.
     @raise Parsing_error if there is there is an error while parsing the given file. *)
 
+val input_env : unit -> Type.builtin_symbols
+(** Return the builtin symbols for the current input format. *)
+
 (** {2 Printing wrappers} *)
 
 val fprintf : Format.formatter -> ('a, Format.formatter, unit) format -> 'a

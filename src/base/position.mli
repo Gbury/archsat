@@ -26,12 +26,16 @@ module type S = sig
   val apply : t -> expr -> expr
   (** Returns the expression at a given position. *)
 
-  val substitute : t -> expr -> expr -> expr
+  val substitute : t -> by:expr -> expr -> expr
   (** [substitute p v t] returns [t] where the expression at posisiton [p]
       has been substituted with [v]. *)
 
   val fold : ('a -> t -> expr -> 'a) -> 'a -> expr -> 'a
   (** Fold on all sub-expressions of an expression. *)
+
+  val find_map : (t -> expr -> 'a option) -> expr -> 'a option
+  (** Fold on al subterms but stop on the first time a not [None] result is returned. *)
+
 end
 
 module Ty : sig

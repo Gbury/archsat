@@ -26,8 +26,9 @@ module type S = sig
   val compare : t -> t -> int
 
   val apply : t -> expr -> expr
-  val substitute : t -> expr -> expr -> expr
+  val substitute : t -> by:expr -> expr -> expr
   val fold : ('a -> t -> expr -> 'a) -> 'a -> expr -> 'a
+  val find_map : (t -> expr -> 'a option) -> expr -> 'a option
 end
 
 (* Positions for Types *)
@@ -53,12 +54,12 @@ module Ty : S with type expr = Expr.ty = struct
       apply p' (nth k l)
     | _ -> raise Invalid
 
-  let rec substitute p u t =
+  let rec substitute p ~by:u t =
     match p, t with
     | Here, _ -> u
     | Arg (k, p'), { Expr.ty = Expr.TyApp(f, l) } ->
       Expr.Ty.apply ~status:t.Expr.ty_status f
-        (List.mapi (fun i v -> if i = k then substitute p' u v else v) l)
+        (List.mapi (fun i v -> if i = k then substitute p' ~by:u v else v) l)
     | _ -> raise Invalid
 
   let rec fold_aux f acc cur_pos t =
@@ -70,6 +71,19 @@ module Ty : S with type expr = Expr.ty = struct
     | _ -> acc'
 
   let fold f acc t = fold_aux f acc (fun x -> x) t
+
+  let rec find_map_aux f cur_pos t =
+    match f (cur_pos Here) t with
+    | Some res -> Some res
+    | None ->
+      begin match t with
+        | { Expr.ty = Expr.TyApp (_, l) } ->
+          CCList.find_mapi (fun i t -> find_map_aux f (fun p -> cur_pos (Arg(i, p))) t) l
+        | _ -> None
+      end
+
+  let find_map f t = find_map_aux f (fun x -> x) t
+
 end
 
 (* Positions for Terms *)
@@ -95,12 +109,12 @@ module Term : S with type expr = Expr.term = struct
       apply p' (nth k l)
     | _ -> raise Invalid
 
-  let rec substitute p u t =
+  let rec substitute p ~by:u t =
     match p, t with
     | Here, _ -> u
     | Arg (k, p'), { Expr.term = Expr.App(f, ty_args, l) } ->
       Expr.Term.apply ~status:t.Expr.t_status f ty_args
-        (List.mapi (fun i v -> if i = k then substitute p' u v else v) l)
+        (List.mapi (fun i v -> if i = k then substitute p' ~by:u v else v) l)
     | _ -> raise Invalid
 
   let rec fold_aux f acc cur_pos t =
@@ -112,5 +126,17 @@ module Term : S with type expr = Expr.term = struct
     | _ -> acc'
 
   let fold f acc t = fold_aux f acc (fun x -> x) t
+
+  let rec find_map_aux f cur_pos t =
+    match f (cur_pos Here) t with
+    | Some res -> Some res
+    | None ->
+      begin match t with
+        | { Expr.term = Expr.App (_, _, l) } ->
+          CCList.find_mapi (fun i t -> find_map_aux f (fun p -> cur_pos (Arg(i, p))) t) l
+        | _ -> None
+      end
+
+  let find_map f t = find_map_aux f (fun x -> x) t
 end
 

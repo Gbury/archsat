@@ -5,11 +5,6 @@
 type location = ParseLocation.t
 
 type symbol =
-  | Int of string
-  | Rat of string
-  | Real of string
-  | Hexa of string
-  | Binary of string
   | String of string
   | Ttype | Wildcard
   | True | False
@@ -47,11 +42,6 @@ type command =
 (* ************************************************************************ *)
 
 let debug_symbol b = function
-  | Int s -> Printf.bprintf b "Int(%s)" s
-  | Rat s -> Printf.bprintf b "Rat(%s)" s
-  | Real s -> Printf.bprintf b "Real(%s)" s
-  | Hexa s -> Printf.bprintf b "Hexa(%s)" s
-  | Binary s -> Printf.bprintf b "Bin(%s)" s
   | String s -> Printf.bprintf b "%s" s
   | Ttype -> Printf.bprintf b "tType"
   | Wildcard -> Printf.bprintf b "_"
@@ -88,6 +78,8 @@ let rec debug_term b t = match t.term with
     Printf.bprintf b "%a:%a.%a" debug_symbol sym
       (print_list_pre debug_term " ") l debug_term p
 
+let s_term t = CCPrint.to_string debug_term t
+
 let print_command_name fmt = function
   | Sat _ -> Format.fprintf fmt "Cnf-assume (dimacs)"
   | Push -> Format.fprintf fmt "Push"
@@ -106,12 +98,12 @@ let print_command_name fmt = function
 let wildcard = Wildcard
 let distinct = Distinct
 
-let int s = Int s
-let rat s = Rat s
-let real s = Real s
+let int s = String s
+let rat s = String s
+let real s = String s
 let sym s = String s
-let hexa s = Hexa s
-let binary s = Binary s
+let hexa s = String s
+let binary s = String s
 
 (* Term making *)
 (* ************************************************************************ *)

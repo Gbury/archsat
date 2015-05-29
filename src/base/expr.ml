@@ -384,18 +384,19 @@ module Id = struct
   let term_skolems = Hashtbl.create 107
 
   (* Constructors *)
-  let mk_var name ty =
+  let mk_new ?(builtin=Base) name ty =
     incr id_index;
     CCVector.push eval_vec None;
     CCVector.push assign_vec None;
-    { id_name = name; index = !id_index; id_type = ty; builtin = Base }
+    { id_name = name; index = !id_index; id_type = ty; builtin }
 
-  let ttype name = mk_var name Type
-  let ty name ty = mk_var name ty
+  let ttype ?builtin name = mk_new ?builtin name Type
+  let ty ?builtin name ty = mk_new ?builtin name ty
 
-  let const name fun_vars fun_args fun_ret = mk_var name { fun_vars; fun_args; fun_ret; }
+  let const ?builtin name fun_vars fun_args fun_ret =
+    mk_new ?builtin name { fun_vars; fun_args; fun_ret; }
 
-  let ty_fun name n = const name [] (CCList.replicate n Type) Type
+  let ty_fun ?builtin name n = const ?builtin name [] (CCList.replicate n Type) Type
   let term_fun = const
 
   (* Builtin Prop Type *)

@@ -1,11 +1,18 @@
 
 (** Builtins Expr-related functions *)
 
+(** {2 Builtin symbols} *)
+
+type Expr.builtin += Cast
+
 (** {2 Typing} *)
 
 val type_i : Expr.ty
 val i_cstr : Expr.ttype Expr.function_descr Expr.id
 (** Equivalent of Tptp's '$i' *)
+
+val cast : Expr.term -> Expr.ty -> Expr.term
+(** Returns a 'casted' expression with the given type. *)
 
 (** {2 Tuples} *)
 

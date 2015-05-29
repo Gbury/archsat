@@ -190,8 +190,10 @@ let valid_cl c = MS.fold (count c) true check_occ
 let push_cl c acc = if valid_cl c then c :: acc else acc
 
 let valid_subst u = (* Check that only meta-var of infinite multiplicity are instantiated *)
-  Expr.Subst.for_all (fun m _ -> match m.Expr.meta_mult with
-      | Expr.Linear -> false | Expr.Infinite -> true) u.Unif.t_map
+  Expr.Subst.for_all (fun m e -> match m.Expr.meta_mult with
+      | Expr.Linear -> false
+      | Expr.Infinite -> true
+    ) u.Unif.t_map
 
 (* Help functions *)
 (* ************************************************************************ *)
@@ -211,7 +213,7 @@ let do_supp acc sigma active inactive =
      Lpo.compare v' (aux u) = Comparison.Gt then
     acc
   else
-    let u' = aux (Position.Term.substitute inactive.pos t u) in
+    let u' = aux (Position.Term.substitute inactive.pos ~by:t u) in
     let c = mk_cl inactive.clause.eq (Some (ord u' v')) (tsize u' v')
         (add_acc sigma (merge_acc inactive.clause.acc active.clause.acc))
         [active.clause; inactive.clause]
@@ -220,7 +222,7 @@ let do_supp acc sigma active inactive =
 
 let do_rewrite sigma active inactive =
   assert (active.clause.eq && active.pos = Position.Term.root);
-  if not (valid_subst sigma) || inactive.clause.eq then
+  if inactive.clause.eq || not (List.for_all valid_subst (sigma :: active.clause.acc)) then
     None
   else begin
     let aux = Unif.term_subst sigma in
@@ -230,12 +232,12 @@ let do_rewrite sigma active inactive =
     let t' = aux t in
     match Lpo.compare s' t' with
     | Comparison.Gt when (not inactive.clause.eq) || Lpo.compare u v <> Comparison.Gt ->
-      let u' = Position.Term.substitute inactive.pos t' u in
+      let u' = Position.Term.substitute inactive.pos ~by:t' u in
       let c = mk_cl inactive.clause.eq (Some (ord u' v)) (tsize u' v)
           (add_acc sigma (merge_acc inactive.clause.acc active.clause.acc))
           (active.clause :: inactive.clause.parents)
       in
-      if valid_cl c then Some c else None
+      Some c
     | _ -> None
   end
 
@@ -339,15 +341,6 @@ let supp_lit c p_set acc =
   end
 
 (* rewriting of negative litterals, alis RN *)
-let add_active_rewrite p_set clause side s =
-  let l = I.unify s p_set.inactive_index in
-  let active = { clause; side; pos = Position.Term.root } in
-  CCList.find_map (fun (_, sigma, l') ->
-      if valid_subst sigma then
-        CCList.find_map (fun inactive ->
-            do_rewrite sigma active inactive) l'
-      else None) l
-
 let add_inactive_rewrite p_set clause side pos u =
   let l = I.unify u p_set.root_pos_index in
   let inactive = { clause; side; pos } in
@@ -357,35 +350,15 @@ let add_inactive_rewrite p_set clause side pos u =
             do_rewrite sigma active inactive) l'
       else None) l
 
-exception Found of clause
-
-let exn_wrap = function
-  | Some c -> raise (Found c)
-  | None -> ()
-
 let rewrite_lit p_set c =
   match c.lit with
   | None -> None
   | Some (s, t) ->
-    begin try
-        Position.Term.fold (fun () pos p ->
-            exn_wrap @@ add_inactive_rewrite p_set c Left pos p) () s;
-        Position.Term.fold (fun () pos p ->
-            exn_wrap @@ add_inactive_rewrite p_set c Right pos p) () t;
-        begin if c.eq then
-            match Lpo.compare s t with
-            | Comparison.Gt ->
-              exn_wrap @@ add_active_rewrite p_set c Left s
-            | Comparison.Lt ->
-              exn_wrap @@ add_active_rewrite p_set c Right t
-            | Comparison.Incomparable ->
-              exn_wrap @@ add_active_rewrite p_set c Left s;
-              exn_wrap @@ add_active_rewrite p_set c Right t
-            | Comparison.Eq -> ()
-        end;
-        None
-      with Found c ->
-        Some c
+    let res = Position.Term.find_map (add_inactive_rewrite p_set c Left) s in
+    begin match res with
+    | Some _ -> res
+    | None ->
+      Position.Term.find_map (add_inactive_rewrite p_set c Right) t
     end
 
 (* equality_subsumption, alias ES *)

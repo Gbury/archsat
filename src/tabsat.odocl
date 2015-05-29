@@ -6,6 +6,7 @@
 base/Ast
 base/Lpo
 base/Expr
+base/Type
 base/Index
 base/Position
 base/Builtin

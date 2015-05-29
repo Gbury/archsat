@@ -20,7 +20,7 @@ type model =
   | Simple
   | Full
 
-(** Type for choosing *)
+(** Type for choosing model output *)
 
 type copts = {
     (** Input/Output option *)
@@ -33,6 +33,7 @@ type copts = {
     proof : bool;
     solve : bool;
     extensions : string list;
+    s_exts : string list;
 
     (** Printing options *)
     print_proof : out_channel option;
@@ -44,6 +45,9 @@ type copts = {
 }
 
 (** Common options for theorem proving. *)
+
+val log_opts : copts -> unit
+(** Prints a summary of options *)
 
 val clean : copts -> unit
 (** Closes open file descriptors (namely the out_channel of print_proof). *)

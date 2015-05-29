@@ -1,4 +1,7 @@
 
+let log_section = Util.Section.make "IO"
+let log i fmt = Util.debug ~section:log_section i fmt
+
 (* Type definitions *)
 (* ************************************************************************ *)
 
@@ -14,6 +17,12 @@ let output = ref Standard
 
 let set_input i = input := i
 let set_output o = output := o
+
+let pp_input b = function
+  | Auto -> Printf.bprintf b "auto"
+  | Dimacs -> Printf.bprintf b "dimacs"
+  | Tptp -> Printf.bprintf b "tptp"
+  | Smtlib -> Printf.bprintf b "smtlib"
 
 (* Input functions *)
 (* ************************************************************************ *)
@@ -33,7 +42,10 @@ let format_of_filename s =
     Dimacs
 
 let rec parse_input file = match !input with
-  | Auto -> input := format_of_filename file; parse_input file
+  | Auto ->
+    input := format_of_filename file;
+    log 1 "Detected input format : %a" pp_input !input;
+    parse_input file
   | Dimacs ->
     begin try
         Dimacs.parse_file file
@@ -47,6 +59,8 @@ let rec parse_input file = match !input with
         raise (Parsing_error (loc, msg))
     end
   | Smtlib -> Smtlib.parse_file file
+
+let input_env () = Semantics.type_env !input
 
 (* Output functions *)
 (* ************************************************************************ *)

@@ -228,14 +228,17 @@ let deactivate ext =
     raise (Extension_not_found ext)
 
 let set_ext s =
-  match s.[0] with
-  | '-' -> deactivate (String.sub s 1 (String.length s - 1))
-  | '+' -> activate (String.sub s 1 (String.length s - 1))
-  | _ -> activate s
+  if s <> "" then match s.[0] with
+    | '-' -> deactivate (String.sub s 1 (String.length s - 1))
+    | '+' -> activate (String.sub s 1 (String.length s - 1))
+    | _ -> activate s
 
 let set_exts s =
   List.iter set_ext
     (List.map (fun (s, i, l) -> String.sub s i l) (CCString.Split.list_ ~by:"," s))
+
+let log_active () =
+  log 0 "loaded extensions: %a" CCPrint.(list string) (List.map (fun r -> r.name) !active)
 
 (* Pre-processing *)
 (* ************************************************************************ *)
@@ -485,8 +488,8 @@ let assume s =
       | Lit f, lvl ->
         log 1 " Assuming (%d) %a" lvl Expr.Debug.formula f;
         begin match !actual.assume with
-        | Some assume -> assume (f, lvl)
-        | None -> ()
+          | Some assume -> assume (f, lvl)
+          | None -> ()
         end
       | Assign (t, v), lvl ->
         log 1 " Assuming (%d) %a -> %a" lvl Expr.Debug.term t Expr.Debug.term v;

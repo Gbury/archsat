@@ -9,11 +9,6 @@
 type location = ParseLocation.t
 
 type symbol =
-  | Int of string
-  | Rat of string
-  | Real of string
-  | Hexa of string
-  | Binary of string
   | String of string
   | Ttype | Wildcard
   | True | False
@@ -54,6 +49,8 @@ type command =
 
 val debug_symbol : Buffer.t -> symbol -> unit
 val debug_term : Buffer.t -> term -> unit
+
+val s_term : term -> string
 
 val print_command_name : Format.formatter -> command -> unit
 
