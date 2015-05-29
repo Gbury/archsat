@@ -44,39 +44,6 @@ type copts = {
   size_limit : float;
 }
 
-(* Printing function *)
-(* ************************************************************************ *)
-
-let input_string = function
-  | Auto -> "auto"
-  | Dimacs -> "dimacs"
-  | Tptp -> "tptp"
-  | Smtlib -> "smtlib"
-
-let output_string = function
-  | Standard -> "standard"
-  | Dot -> "dot"
-
-let model_string = function
-  | NoModel -> "none"
-  | Simple -> "simple"
-  | Full -> "full"
-
-let stringify f l = List.map (fun x -> (f x, x)) l
-
-let input_list = stringify input_string [Auto; Dimacs; Tptp; Smtlib]
-let output_list = stringify output_string [Standard; Dot]
-let model_list = stringify model_string [NoModel; Simple; Full]
-
-let bool_opt s bool = if bool then Printf.sprintf "[%s]" s else ""
-
-let log_opts opt =
-  log 0 "Limits : %g s / %g o" opt.time_limit opt.size_limit;
-  log 0 "Options : %s%s[in: %s][out: %s]"
-    (bool_opt "solve" opt.solve) (bool_opt "check_proof" opt.proof)
-    (input_string opt.input_format) (output_string opt.output_format);
-  log 0 "Input file : %s" opt.input_file
-
 (* Option values *)
 (* ************************************************************************ *)
 
@@ -162,10 +129,10 @@ let size_string f =
   let n_mega, n = aux n 1_000_000 in
   let n_kilo, n = aux n 1_000 in
   let print_aux s n = if n <> 0 then (string_of_int n) ^ s else "" in
-  (print_aux "T" n_tera) ^
-  (print_aux "G" n_giga) ^
-  (print_aux "M" n_mega) ^
-  (print_aux "k" n_kilo) ^
+  (print_aux "To" n_tera) ^
+  (print_aux "Go" n_giga) ^
+  (print_aux "Mo" n_mega) ^
+  (print_aux "ko" n_kilo) ^
   (print_aux "" n)
 
 let print_size fmt f = Format.fprintf fmt "%s" (size_string f)
@@ -189,6 +156,39 @@ let parse_size arg =
 
 let c_time = parse_time, print_time
 let c_size = parse_size, print_size
+
+(* Printing function *)
+(* ************************************************************************ *)
+
+let input_string = function
+  | Auto -> "auto"
+  | Dimacs -> "dimacs"
+  | Tptp -> "tptp"
+  | Smtlib -> "smtlib"
+
+let output_string = function
+  | Standard -> "standard"
+  | Dot -> "dot"
+
+let model_string = function
+  | NoModel -> "none"
+  | Simple -> "simple"
+  | Full -> "full"
+
+let stringify f l = List.map (fun x -> (f x, x)) l
+
+let input_list = stringify input_string [Auto; Dimacs; Tptp; Smtlib]
+let output_list = stringify output_string [Standard; Dot]
+let model_list = stringify model_string [NoModel; Simple; Full]
+
+let bool_opt s bool = if bool then Printf.sprintf "[%s]" s else ""
+
+let log_opts opt =
+  log 0 "Limits : %s / %s" (time_string opt.time_limit) (size_string opt.size_limit);
+  log 0 "Options : %s%s[in: %s][out: %s]"
+    (bool_opt "solve" opt.solve) (bool_opt "check_proof" opt.proof)
+    (input_string opt.input_format) (output_string opt.output_format);
+  log 0 "Input file : %s" opt.input_file
 
 (* Other Argument converters *)
 (* ************************************************************************ *)
