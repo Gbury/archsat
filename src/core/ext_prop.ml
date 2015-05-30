@@ -1,8 +1,6 @@
 
 module D = Dispatcher
 
-let id = D.new_id ()
-
 let sat_assume = function
   | { Expr.formula = Expr.Pred ({Expr.term = Expr.App (p, _, _)} as t)}, lvl ->
     D.set_assign t Builtin.p_true lvl
@@ -49,7 +47,7 @@ let rec sat_preprocess = function
   | { Expr.formula = Expr.Pred ({Expr.term = Expr.App (p, _, _)} as t)} as f
     when Expr.(Ty.equal t.t_type Ty.prop) ->
     Expr.Id.set_assign p 5 sat_assign;
-    D.watch id 1 [t] (f_eval f)
+    D.watch "prop" 1 [t] (f_eval f)
   | { Expr.formula = Expr.Not f } ->
     sat_preprocess f
   | { Expr.formula = Expr.And l }
@@ -66,11 +64,10 @@ let rec sat_preprocess = function
   | _ -> ()
 
 ;;
-D.(register (
-    mk_ext
-      ~descr:"Handles consitency of assignments with regards to predicates (i.e functions which returns a Prop)."
-      ~assume:sat_assume
-      ~eval_pred:sat_eval
-      ~peek:sat_preprocess
-      id "prop"
-  ))
+D.Plugin.register "prop"
+  ~descr:"Handles consitency of assignments with regards to predicates (i.e functions which returns a Prop)."
+  (D.mk_ext
+     ~assume:sat_assume
+     ~eval_pred:sat_eval
+     ~peek:sat_preprocess
+     ())

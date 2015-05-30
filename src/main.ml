@@ -101,9 +101,10 @@ let do_command opt = function
 (* Main function *)
 let main () =
   (* Argument parsing *)
-  let man = Options.help_secs (Dispatcher.ext_doc ()) (Semantics.ext_doc ()) in
+  let man = Options.help_secs (Dispatcher.Plugin.ext_doc ()) (Semantics.Addon.ext_doc ()) in
   let info = Cmdliner.Term.(info ~sdocs:Options.copts_sect ~man ~version:"0.1" "tabsat") in
-  let opt = match Cmdliner.Term.eval (Dispatcher.add_opts (Options.copts_t ()), info) with
+  let opts = Semantics.Addon.add_opts (Dispatcher.Plugin.add_opts (Options.copts_t ())) in
+  let opt = match Cmdliner.Term.eval (opts, info) with
     | `Version | `Help | `Error `Parse | `Error `Term | `Error `Exn -> raise Exit
     | `Ok opt -> opt
   in
@@ -115,18 +116,18 @@ let main () =
   Io.set_output opt.output_format;
 
   (* Syntax extensions *)
-  Semantics.set_exts "+arith";
-  List.iter Semantics.set_ext opt.s_exts;
+  Semantics.Addon.set_exts "+arith";
+  List.iter Semantics.Addon.set_ext opt.s_exts;
 
   (* Extensions options *)
-  Dispatcher.set_exts "+eq,+uf,+logic,+prop,+skolem,+meta,+inst,+stats";
-  List.iter Dispatcher.set_ext opt.extensions;
+  Dispatcher.Plugin.set_exts "+eq,+uf,+logic,+prop,+skolem,+meta,+inst,+stats";
+  List.iter Dispatcher.Plugin.set_ext opt.extensions;
 
   (* Print options *)
   wrap 0 "Options" (fun () ->
       Options.log_opts opt;
-      Semantics.log_active ();
-      Dispatcher.log_active ()) ();
+      Semantics.Addon.log_active 0;
+      Dispatcher.Plugin.log_active 0) ();
 
   (* Input file parsing *)
   let commands = wrap 1 "parsing" Io.parse_input opt.input_file in
@@ -159,9 +160,9 @@ with
   exit 2
 
 (* Extension error *)
-| Dispatcher.Extension_not_found s ->
-  Format.fprintf Format.std_formatter "Extension '%s' not found. Available extensions are :@\n%a@." s
-    (fun fmt -> List.iter (fun s -> Format.fprintf fmt "%s " s)) (Dispatcher.list_extensions ());
+| Extension.Extension_not_found (sect, ext, l) ->
+  Format.fprintf Format.std_formatter "Extension '%s/%s' not found. Available extensions are :@\n%a@."
+    sect ext (fun fmt -> List.iter (fun s -> Format.fprintf fmt "%s " s)) l;
   exit 3
 
 

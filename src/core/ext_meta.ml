@@ -2,8 +2,6 @@
 let log_section = Util.Section.make "meta"
 let log i fmt = Util.debug ~section:log_section i fmt
 
-let id = Dispatcher.new_id ()
-
 module H = Hashtbl.Make(Expr.Formula)
 
 exception Found_unif
@@ -132,13 +130,11 @@ let mark f =
   j
 
 (* Proofs *)
-let mk_proof_ty f metas = Dispatcher.mk_proof
-    ~ty_args:([])
-    id "meta"
+let mk_proof_ty f metas =
+  Dispatcher.mk_proof "meta" ~ty_args:([]) "ty"
 
-let mk_proof_term f metas = Dispatcher.mk_proof
-    ~term_args:([])
-    id "meta"
+let mk_proof_term f metas =
+  Dispatcher.mk_proof "meta" ~term_args:([]) "term"
 
 (* Meta generation & predicates storing *)
 let do_formula = function
@@ -349,12 +345,8 @@ let opts t =
   Cmdliner.Term.(pure set_opts $ heuristic $ start $ inst $ incr $ delay $ supp_coef $ supp_const $ rigid_depth $ rigid_incr $ t)
 ;;
 
-Dispatcher.(register (
-    mk_ext
+Dispatcher.Plugin.register "meta" ~options:opts
       ~descr:"Generate meta variables for universally quantified formulas, and use unification to push
               possible instanciations to the 'inst' module."
-      ~assume:(fun (f, lvl) -> meta_assume lvl f)
-      ~if_sat:find_all_insts
-      ~options:opts id "meta"
-  ))
+  (Dispatcher.mk_ext ~assume:(fun (f, lvl) -> meta_assume lvl f) ~if_sat:find_all_insts ())
 

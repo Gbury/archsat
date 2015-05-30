@@ -1,10 +1,9 @@
 
 module H = Hashtbl.Make(Expr.Formula)
 
-let id = Dispatcher.new_id ()
 let st = H.create 1024
 
-let push name l = Dispatcher.push l (Dispatcher.mk_proof ~formula_args:l id ("tab-" ^ name))
+let push name l = Dispatcher.push l (Dispatcher.mk_proof "logic" ~formula_args:l name)
 
 let push_and r l =
   if List.exists (Expr.Formula.equal Expr.Formula.f_false) l then
@@ -19,7 +18,7 @@ let push_or r l =
 let tab = function
   (* 'True/False' traduction *)
   | { Expr.formula = Expr.False } ->
-    raise (Dispatcher.Absurd ([Expr.Formula.f_true], (Dispatcher.mk_proof id "true")))
+    raise (Dispatcher.Absurd ([Expr.Formula.f_true], (Dispatcher.mk_proof "logic" "true")))
 
   (* 'And' traduction *)
   | { Expr.formula = Expr.And l } as r ->
@@ -64,11 +63,8 @@ let tab_assume (f, i) =
     H.add st f i
 
 ;;
-Dispatcher.(register (
-    mk_ext
-      ~descr:"Does lazy cnf conversion on input formulas whose topconstructor is a logical connective
-              (i.e quantified formulas are $(b,not) handled by this plugin)."
-      ~assume:tab_assume
-      id "logic"
-  ))
+Dispatcher.Plugin.register "logic"
+  ~descr:"Does lazy cnf conversion on input formulas whose topconstructor is a logical connective
+          (i.e quantified formulas are $(b,not) handled by this plugin)."
+  (Dispatcher.mk_ext ~assume:tab_assume ())
 

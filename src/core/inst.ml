@@ -1,6 +1,4 @@
 
-let id = Dispatcher.new_id ()
-
 let log_section = Util.Section.make "inst"
 let log i fmt = Util.debug ~section:log_section i fmt
 
@@ -115,10 +113,10 @@ let partition s =
 let simplify s = snd (partition s)
 
 (* Produces a proof for the instanciation of the given formulas and unifiers *)
-let mk_proof f p ty_map t_map = Dispatcher.mk_proof
+let mk_proof f p ty_map t_map = Dispatcher.mk_proof "inst"
     ~ty_args:(Expr.Subst.fold (fun v t l -> Expr.Ty.of_id v :: t :: l) ty_map [])
     ~term_args:(Expr.Subst.fold (fun v t l -> Expr.Term.of_id v :: t :: l) t_map [])
-    ~formula_args:[f; p] id "inst"
+    ~formula_args:[f; p] "inst"
 
 let to_var s = Expr.Subst.fold (fun {Expr.meta_id = v} t acc -> Expr.Subst.Id.bind v t acc) s Expr.Subst.empty
 
@@ -260,12 +258,8 @@ let opts t =
   Cmdliner.Term.(pure set_opts $ n_of_inst $ t)
 
 ;;
-Dispatcher.(register (
-    mk_ext
-      ~prio:5 ~if_sat:inst_sat ~options:opts
-      ~descr:"Handles the pushing of clauses corresponding to instanciations. This plugin does not
-              do anything by itself, but rather is called by other plugins when doing instanciations.
-              Activating it is not required for other plugins to use it."
-      id "inst"
-  ))
+Dispatcher.Plugin.register "inst" ~prio:5 ~options:opts
+  ~descr:"Handles the pushing of clauses corresponding to instanciations. This plugin does not
+          do anything by itself, but rather is called by other plugins when doing instanciations."
+  (Dispatcher.mk_ext ~if_sat:inst_sat ())
 

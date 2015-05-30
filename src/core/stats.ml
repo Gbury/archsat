@@ -42,10 +42,9 @@ let clock _ =
   init_round state
 
 ;;
-Dispatcher.(register (
-  mk_ext
-    ~descr:"Handles delayed printing of statistics for each round of solving"
-    ~prio:0 ~if_sat:clock
-    (new_id ()) "stats"
-))
+Dispatcher.Plugin.register "stats" ~prio:0
+  ~descr:"Handles delayed printing of statistics for each round of solving"
+  (Dispatcher.mk_ext
+     ~if_sat:clock ()
+  )
 

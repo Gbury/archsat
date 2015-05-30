@@ -1,8 +1,6 @@
 
 module H = Hashtbl.Make(Expr.Formula)
 
-let id = Dispatcher.new_id ()
-
 type kind =
   | Tau
   | Skolem
@@ -26,13 +24,13 @@ let has_been_seen f =
 let mark f lvl = H.add seen f lvl
 
 (* Proof generation *)
-let mk_proof_ty f p l taus = Dispatcher.mk_proof
+let mk_proof_ty f p l taus = Dispatcher.mk_proof "skolem"
     ~ty_args:(List.fold_left2 (fun acc a b -> Expr.Ty.of_id a :: b :: acc) [] l taus)
-    ~formula_args:[f; p] id "skolem"
+    ~formula_args:[f; p] "skolem-ty"
 
-let mk_proof_term f p l taus = Dispatcher.mk_proof
+let mk_proof_term f p l taus = Dispatcher.mk_proof "skolem"
     ~term_args:(List.fold_left2 (fun acc a b -> Expr.Term.of_id a :: b :: acc) [] l taus)
-    ~formula_args:[f; p] id "skolem"
+    ~formula_args:[f; p] "skolem-term"
 
 let get_ty_taus ty_args t_args l =
   assert (t_args = []);
@@ -97,10 +95,7 @@ let opts t =
   in
   Cmdliner.Term.(pure set_opts $ kind $ t)
 ;;
-Dispatcher.(register (
-    mk_ext
-      ~descr:"Generate skolem or tau for existencially quantified formulas (see options)."
-      ~assume:tau_assume
-      ~options:opts id "skolem"
-  ))
+Dispatcher.Plugin.register "skolem" ~options:opts
+  ~descr:"Generate skolem or tau for existencially quantified formulas (see options)."
+  (Dispatcher.mk_ext ~assume:tau_assume ())
 

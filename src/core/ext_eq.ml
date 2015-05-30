@@ -7,8 +7,8 @@ module E = Eclosure.Make(Expr.Term)
 
 let st = E.create D.stack
 
-let id = D.new_id ()
-let watch = D.watch id
+let name = "eq"
+let watch = D.watch name
 
 let eq_eval f = match f with
   | { Expr.formula = Expr.Equal (a, b) } ->
@@ -47,7 +47,7 @@ let mk_expl (a, b, l) =
 
 let mk_proof l =
   assert (l <> []);
-  Dispatcher.mk_proof ~term_args:l id "eq-trans"
+  Dispatcher.mk_proof name ~term_args:l "eq-trans"
 
 let wrap f x y =
   try
@@ -120,11 +120,11 @@ let rec eq_pre = function
   | _ -> ()
 
 ;;
-D.(register (
-    mk_ext
-      ~descr:"Ensures consistency of assignment with regards to the equality predicates."
-      ~assume:eq_assume
-      ~eval_pred:eq_eval
-      ~peek:eq_pre
-      id "eq"
-  ))
+D.Plugin.register name
+  ~descr:"Ensures consistency of assignment with regards to the equality predicates."
+  (D.mk_ext
+     ~assume:eq_assume
+     ~eval_pred:eq_eval
+     ~peek:eq_pre
+     ()
+  )

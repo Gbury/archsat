@@ -1,13 +1,9 @@
 
-let log_section = Util.Section.make "functions"
-let log i fmt = Util.debug ~section:log_section i fmt
-
 module H = Backtrack.HashtblBack(Expr.Term)
 
-let id = Dispatcher.new_id ()
 let st = H.create Dispatcher.stack
 
-let mk_proof l = Dispatcher.mk_proof ~term_args:l id "f-eq"
+let mk_proof l = Dispatcher.mk_proof ~term_args:l "uf" "f-eq"
 
 let set_interpretation t () = match t with
   | { Expr.term = Expr.App (f, tys, l) } ->
@@ -46,7 +42,7 @@ let rec set_handler = function
   | { Expr.term = Expr.Meta _ } -> ()
   | { Expr.term = Expr.App (f, _, l) } as t ->
     List.iter set_handler l;
-    if l <> [] then Dispatcher.watch id 1 (t :: l) (set_interpretation t)
+    if l <> [] then Dispatcher.watch "uf" 1 (t :: l) (set_interpretation t)
 
 let rec uf_pre = function
   | { Expr.formula = Expr.Equal (a, b) } ->
@@ -71,8 +67,6 @@ let rec uf_pre = function
   | _ -> ()
 
 ;;
-Dispatcher.(register (
-    mk_ext
-      ~descr:"Ensures consistency of assignments for function applications."
-      ~peek:uf_pre id "uf"
-  ))
+Dispatcher.Plugin.register "uf"
+  ~descr:"Ensures consistency of assignments for function applications."
+  (Dispatcher.mk_ext ~peek:uf_pre ())

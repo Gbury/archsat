@@ -1,5 +1,4 @@
 
-let id = Dispatcher.new_id ()
 let log_section = Util.Section.make "cnf"
 let log i fmt = Util.debug ~section:log_section i fmt
 
@@ -164,13 +163,13 @@ let do_formula f =
     None
   end else begin
     log 5 "to   : %a" Expr.Debug.formula f';
-    Some (f', Dispatcher.mk_proof id "todo")
+    Some (f', Dispatcher.mk_proof "prenex" "todo")
   end
 
 ;;
-Dispatcher.(register (
-    mk_ext
-      ~descr:"Pre-process formulas to put them in cnf and/or prenex normal form"
-      ~preprocess:do_formula
-      id "prenex"
-  ))
+Dispatcher.Plugin.register "prenex"
+  ~descr:"Pre-process formulas to put them in cnf and/or prenex normal form" (
+  Dispatcher.mk_ext
+    ~preprocess:do_formula
+    ()
+)

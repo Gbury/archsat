@@ -12,6 +12,7 @@
 <algos/*>: package(ocamlgraph)
 <core/*>: package(msat), package(cmdliner)
 <input/*>: package(cmdliner)
+<util/*>: package(cmdliner)
 
 <main.*>: package(msat), package(cmdliner), package(ocamlgraph), \
           package(containers), package(containers.data), package(zarith)

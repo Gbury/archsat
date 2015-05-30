@@ -207,8 +207,7 @@ let parse_tptp s ty_args t_args =
 (* Register semantic typing *)
 (* ************************************************************************ *)
 ;;
-Semantics.register
+Semantics.Addon.register "arith"
   ~descr:"Builtin symbols for arithmetic, and arithmetic constants of arbitrary precision"
-  ~tptp_builtins:parse_tptp
-  "arith"
+  (Semantics.mk_ext ~tptp:parse_tptp ())
 

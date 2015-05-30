@@ -1,18 +1,11 @@
 
-val register :
-  ?descr:string ->
-  ?priority:int ->
-  ?tptp_builtins:Type.builtin_symbols ->
-  ?smtlib_builtins:Type.builtin_symbols ->
-  ?propagate_assert:(string -> Expr.formula -> bool) ->
-  string -> unit
+type ext
 
-val set_ext : string -> unit
-val set_exts : string -> unit
+module Addon : Extension.S with type ext = ext
 
-val ext_doc : unit -> Cmdliner.Manpage.block list
-
-val log_active : unit -> unit
+val mk_ext :
+  ?tptp:Type.builtin_symbols ->
+  ?smtlib:Type.builtin_symbols -> unit -> ext
 
 val type_env : Options.input -> Type.builtin_symbols
 
