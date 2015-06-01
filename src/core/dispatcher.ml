@@ -93,12 +93,21 @@ let merge_first a b =
         | None -> f' arg
       )) a b
 
+let merge_preprocess f p =
+  match f, p with
+  | None, res | res, None -> res
+  | Some f', Some p' ->
+    Some (function formula -> match f' formula with
+        | None -> p' formula
+        | Some (formula', _) -> p' formula')
+
 let merge_exts l =
   let peek = List.fold_left (fun f r -> merge_iter f r.peek) None l in
   let if_sat = List.fold_left (fun f r -> merge_iter f r.if_sat) None l in
   let assume = List.fold_left (fun f r -> merge_iter f r.assume) None l in
   let eval_pred = List.fold_left (fun f r -> merge_first f r.eval_pred) None l in
-  mk_ext ?peek ?if_sat ?assume ?eval_pred ()
+  let preprocess = List.fold_left (fun f r -> merge_preprocess f r.preprocess) None l in
+  mk_ext ?peek ?if_sat ?assume ?eval_pred ?preprocess ()
 
 module Plugin = Extension.Make(struct
     type t = ext
@@ -201,18 +210,18 @@ let peek_at f = match (Plugin.get_res ()).peek with
   | Some peek -> peek f; check f
   | None -> ()
 
-let pre_process f = f
-  (*
-  let aux f r = match r.preprocess f with
-    | None -> f
-    | Some (f', _) -> f' (* TODO: register the proof *)
-  in
-  let f' = ext_fold aux f in
-  log 5 "Pre-processing :";
+let pre_process f =
   log 5 "  %a" Expr.Debug.formula f;
+  log 5 "Pre-processing :";
+  let f' = match (Plugin.get_res ()).preprocess with
+    | None -> f
+    | Some processor -> begin match processor f with
+        | None -> f
+        | Some (f', _) -> f'
+      end
+  in
   log 5 "  %a" Expr.Debug.formula f';
   f'
-     *)
 
 (* Backtracking *)
 (* ************************************************************************ *)

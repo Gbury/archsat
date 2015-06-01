@@ -1,5 +1,5 @@
 
-let log_section = Util.Section.make "cnf"
+let log_section = Util.Section.make "prenex"
 let log i fmt = Util.debug ~section:log_section i fmt
 
 (* Local environments *)
@@ -148,12 +148,7 @@ let rec generalize = function
     List.iter (fun v -> log 15 " |- %a" Expr.Debug.id_ty v) t_vars;
     Expr.Formula.allty ty_vars (Expr.Formula.all t_vars f)
 
-let prenex = function
-  (*
-  | ({ Expr.formula = Expr.Not { Expr.formula = Expr.Equiv _ } } as f)
-  | ({ Expr.formula = Expr.Equiv _ } as f) -> f
-     *)
-  | f -> generalize (specialize empty_env f)
+let prenex = function f -> generalize (specialize empty_env f)
 
 let do_formula f =
   let f' = prenex f in
@@ -168,7 +163,7 @@ let do_formula f =
 
 ;;
 Dispatcher.Plugin.register "prenex"
-  ~descr:"Pre-process formulas to put them in cnf and/or prenex normal form" (
+  ~descr:"Pre-process formulas to put them in prenex normal form" (
   Dispatcher.mk_ext
     ~preprocess:do_formula
     ()

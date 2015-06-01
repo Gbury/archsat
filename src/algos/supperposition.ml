@@ -357,8 +357,7 @@ let rewrite_lit p_set c =
     let res = Position.Term.find_map (add_inactive_rewrite p_set c Left) s in
     begin match res with
     | Some _ -> res
-    | None ->
-      Position.Term.find_map (add_inactive_rewrite p_set c Right) t
+    | None -> Position.Term.find_map (add_inactive_rewrite p_set c Right) t
     end
 
 (* equality_subsumption, alias ES *)
@@ -410,7 +409,7 @@ let fix arg f =
   in
   aux f arg None
 
-(* Applies: RP, RN (OK), PS (OK), NS (OK) *)
+(* Applies: RP, RN, PS, NS *)
 let simplify_clause c p =
   fix c (chain [
       rewrite_lit p;
@@ -423,7 +422,7 @@ let simplify c p =
   | Some c' -> c'
   | None -> c
 
-(* Applies: RP, RN (OK) *)
+(* Applies: RP, RN *)
 let cheap_simplify_aux c p =
   fix c (chain [
       rewrite_lit p;
@@ -434,13 +433,13 @@ let cheap_simplify c p =
   | Some c' -> c'
   | None -> c
 
-(* Applies: ES (OK) *)
+(* Applies: ES *)
 let redundant c p = equality_subsumption c p
 
-(* Applies: ER,SP,SN (OK-ALL) *)
+(* Applies: ER, SP, SN *)
 let generate c p = supp_lit c p (equality_resolution c)
 
-(* Applies: TD1 (OK) *)
+(* Applies: TD1 *)
 let trivial c p =
   match c.eq, c.lit with
   | true, Some (a, b) when Expr.Term.equal a b -> true
