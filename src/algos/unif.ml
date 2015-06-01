@@ -66,8 +66,10 @@ let inverse s =
       | _ -> bind_ty s m ty
     ) s.ty_map empty)
 
+(*
 let print_inst l s =
   Expr.Subst.iter (fun k v -> log l " |- %a -> %a" Expr.Debug.meta k Expr.Debug.term v) s.t_map
+   *)
 
 (* Manipulation over meta substitutions *)
 (* ************************************************************************ *)
@@ -107,7 +109,7 @@ let fixpoint u = {
 let saturate_aux_term l u =
   List.fold_left (fun acc m ->
       if not (Expr.Subst.Meta.mem m acc) then
-        Expr.Subst.Meta.bind m (Builtin.const Expr.(m.meta_id.id_type)) acc
+        Expr.Subst.Meta.bind m (Builtin.Misc.const Expr.(m.meta_id.id_type)) acc
       else
         acc) u l
 

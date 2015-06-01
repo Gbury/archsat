@@ -17,11 +17,11 @@ let set_interpretation t () = match t with
           match t' with
           | { Expr.term = Expr.App (_, _, r) } when is_prop ->
             let eqs = List.map2 (fun a b -> Expr.Formula.neg (Expr.Formula.eq a b)) l r in
-            if Expr.(Term.equal u_v Builtin.p_true) then
+            if Expr.(Term.equal u_v Builtin.Misc.p_true) then
               raise (Dispatcher.Absurd (
                   Expr.Formula.pred t :: Expr.Formula.neg (Expr.Formula.pred t') :: eqs,
                   mk_proof (t :: t' :: [])))
-            else (* Expr.(Term.equal u_v Builtin.p_false) *)
+            else (* Expr.(Term.equal u_v Builtin.Misc.p_false) *)
               raise (Dispatcher.Absurd (
                   Expr.Formula.pred t' :: Expr.Formula.neg (Expr.Formula.pred t) :: eqs,
                   mk_proof (t' :: t :: [])))

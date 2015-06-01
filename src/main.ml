@@ -8,6 +8,7 @@ include Ext_eq
 include Ext_meta
 include Ext_prop
 include Ext_logic
+include Ext_arith
 include Ext_prenex
 include Ext_skolem
 include Ext_functions
@@ -116,7 +117,7 @@ let main () =
   Io.set_output opt.output_format;
 
   (* Syntax extensions *)
-  Semantics.Addon.set_exts "+arith";
+  Semantics.Addon.set_exts "+base,+arith";
   List.iter Semantics.Addon.set_ext opt.s_exts;
 
   (* Extensions options *)

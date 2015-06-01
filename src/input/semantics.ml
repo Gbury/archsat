@@ -1,7 +1,4 @@
 
-let log_section = Util.Section.make "syntax"
-let log i fmt = Util.debug ~section:log_section i fmt
-
 type ext = {
   builtins : Options.input -> Type.builtin_symbols;
 }

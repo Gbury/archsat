@@ -211,12 +211,13 @@ let copts_sect = "COMMON OPTIONS"
 let ext_sect = "ADVANCED OPTIONS"
 let help_secs ext_doc sext_doc = [
   `S copts_sect; `P "Common options for the prover";
-  `S "SEMANTIC"; `P "Semantic extensions extend typing to include builtins of languages such as arithmetic";
+  `S "ADDONS"; `P "Addons are typing/semantic extensions that extend typing
+  to include builtins of languages.";
 ] @ sext_doc @ [
-    `S "EXTENSIONS"; `P "Available extensions are listed in this section. Each paragraph starts with the extension's priority
+    `S "PLUGINS"; `P "Available extensions are listed in this section. Each paragraph starts with the extension's priority
       and name, and then a short description of what the extension does. Extensions with higher priorities
       are called earlier than those with lower priorities.";
-] @ ext_doc @ [
+  ] @ ext_doc @ [
     `S ext_sect; `P "Options primarily used by the extensions (use only if you know what you're doing !).";
     `S "BUGS"; `P "TODO";
   ]
@@ -233,8 +234,8 @@ let copts_t () =
     Arg.(value & flag & info ["g"; "gc"] ~docs:ext_sect ~doc)
   in
   let bt =
-      let doc = "Enables printing of backtraces." in
-      Arg.(value & flag & info ["b"; "backtrace"] ~docs:ext_sect ~doc)
+    let doc = "Enables printing of backtraces." in
+    Arg.(value & flag & info ["b"; "backtrace"] ~docs:ext_sect ~doc)
   in
   let quiet =
     let doc = "Supress all output but the result status of the problem" in
@@ -311,5 +312,5 @@ let copts_t () =
     Arg.(value & opt c_size 1_000_000_000. & info ["s"; "size"] ~docs ~docv:"SIZE" ~doc)
   in
   Term.(pure mk_opts $ (pure set_opts $ gc $ bt $ quiet $ log $ debug) $
-  file $ input $ output $ proof $ type_only $ exts $ semantics_exts $ print_proof $ print_model $ time $ size)
+        file $ input $ output $ proof $ type_only $ exts $ semantics_exts $ print_proof $ print_model $ time $ size)
 

@@ -29,10 +29,6 @@ let types = H.create stack
 let constants = H.create stack
 ;;
 
-(* Builtin constants *)
-H.add types "$o" Expr.Id.prop;;
-H.add types "$i" Builtin.i_cstr;;
-
 (* Adding/finding elts *)
 let add_type name c =
   try
@@ -182,12 +178,12 @@ let rec parse_sig ~status env = function
 
 let parse_ty_var ~status env = function
   | { Ast.term = Ast.Var s } ->
-    Expr.Id.ty s Builtin.type_i
+    Expr.Id.ty s Expr.Ty.base
   | { Ast.term = Ast.Column ({ Ast.term = Ast.Var s }, ty) } ->
     Expr.Id.ty s (parse_ty ~status env ty)
   | t -> raise (Typing_error ("Expected a (typed) variable", t))
 
-let default_cst_ty n ret = (CCList.replicate n Builtin.type_i, ret)
+let default_cst_ty n ret = (CCList.replicate n Expr.Ty.base, ret)
 
 let parse_cst env ty_args t_args ret s =
   match env.builtins s ty_args t_args with
@@ -208,7 +204,7 @@ let rec parse_args ~status env = function
       let ty_args, t_args = parse_args ~status env r in
       ty_arg :: ty_args, t_args
     with Typing_error _ | Scoping_error _ ->
-      let t_args = List.map (parse_term ~status Builtin.type_i env) l in
+      let t_args = List.map (parse_term ~status Expr.Ty.base env) l in
       [], t_args
 
 and parse_term ~status ret env = function
@@ -227,7 +223,7 @@ and parse_term ~status ret env = function
     Expr.Term.apply ~status f l l'
   | { Ast.term = Ast.Binding (Ast.Let, vars, f) } ->
     let env' = List.fold_left (fun acc var ->
-        let (s, t) = parse_let_var (parse_term ~status Builtin.type_i env) var in
+        let (s, t) = parse_let_var (parse_term ~status Expr.Ty.base env) var in
         add_let_term acc s t) env vars
     in
     parse_term ~status ret env' f
@@ -285,7 +281,7 @@ let rec parse_formula ~status env = function
   | { Ast.term = Ast.Binding (Ast.Let, vars, f) } ->
     let env' = List.fold_left (fun acc var ->
         try
-          let (s, t) = parse_let_var (parse_term ~status Builtin.type_i env) var in
+          let (s, t) = parse_let_var (parse_term ~status Expr.Ty.base env) var in
           log 2 "Let-binding : %s -> %a" s Expr.Debug.term t;
           add_let_term acc s t
         with Typing_error _ ->
@@ -299,11 +295,11 @@ let rec parse_formula ~status env = function
   (* (Dis)Equality *)
   | { Ast.term = Ast.App ({Ast.term = Ast.Const Ast.Eq}, l) } ->
     begin match l with
-      | [a; b] -> Expr.Formula.eq (parse_term ~status Builtin.type_i env a) (parse_term ~status Builtin.type_i env b)
+      | [a; b] -> Expr.Formula.eq (parse_term ~status Expr.Ty.base env a) (parse_term ~status Expr.Ty.base env b)
       | _ -> raise (Bad_arity ("=", 2, l))
     end
   | { Ast.term = Ast.App ({Ast.term = Ast.Const Ast.Distinct}, args) } ->
-    let l = CCList.diagonal (List.map (parse_term ~status Builtin.type_i env) args) in
+    let l = CCList.diagonal (List.map (parse_term ~status Expr.Ty.base env) args) in
     Expr.Formula.f_and (List.map (fun (a, b) -> Expr.Formula.neg (Expr.Formula.eq a b)) l)
 
   (* Possibly bound variables *)

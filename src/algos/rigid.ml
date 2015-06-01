@@ -5,8 +5,10 @@
    [http://gbury.eu/public/rigid.pdf]
 *)
 
+(*
 let log_section = Util.Section.make "rigid"
 let log i fmt = Util.debug ~section:log_section i fmt
+*)
 
 (* Type definitions *)
 (* ************************************************************************ *)
@@ -55,14 +57,14 @@ type problem = {
 
 (* Printing *)
 (* ************************************************************************ *)
-
+(*
 let rec debug_ss b = function
   | Empty -> Printf.bprintf b "."
   | Equal(t, Empty) | Greater (t, Empty) ->
     Printf.bprintf b "%a" Expr.Debug.term t
   | Equal (t, s) -> Printf.bprintf b "%a = %a" Expr.Debug.term t debug_ss s
   | Greater (t, s) -> Printf.bprintf b "%a > %a" Expr.Debug.term t debug_ss s
-
+*)
 (* Exceptions *)
 (* ************************************************************************ *)
 

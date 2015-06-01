@@ -15,12 +15,6 @@ type multiplicity =
     only there to provide information to the user, i.e no functions in this module
     will discriminate meta-variables based on their multiplicity. *)
 
-type 't eval =
-  | Interpreted of 't * int
-  | Waiting of 't
-
-(** TODO. Not used yet. *)
-
 (** {3 Identifiers} *)
 
 (** Identifiers are the basic building blocks used to build types terms and expressions
@@ -236,7 +230,8 @@ module Id : sig
   (** Printing for variables *)
 
   val prop : ttype function_descr id
-  (** Constant representing the type for propositions *)
+  val base : ttype function_descr id
+  (** Constants representing the type for propositions and individuals *)
 
   val ttype : ?builtin:builtin -> string -> ttype id
   (** Create a fresh type variable with the given name. *)
@@ -262,7 +257,7 @@ module Id : sig
   (** Returns [true] if the given variable occurs in the term.
       WARNING: since meta-variables are wrapped variables, it can yield unexpected results. *)
 
-  val set_eval : 'a id -> int -> (term -> term eval) -> unit
+  val set_eval : 'a id -> int -> (term -> unit) -> unit
   val set_assign : 'a id -> int -> (term -> term) -> unit
   (** [set_eval v n f] sets f as the handler to call in order to
       eval or assign the given variable, with priority [n] (only the handler with
@@ -399,7 +394,8 @@ module Ty : sig
   (** Printing functions *)
 
   val prop : ty
-  (** The type of propositions *)
+  val base : ty
+  (** The type of propositions and individuals *)
 
   val of_id : ?status:status -> ttype id -> ty
   (** Creates a type from a variable *)
@@ -465,9 +461,13 @@ module Term : sig
   val fv : term -> ttype id list * ty id list
   (** Return the list of free variables in the given term. *)
 
-  val eval : term -> term eval
+  val eval : term -> unit
+  (** Makes sure the given expr will eventually be assigned. In casethe head
+      symbol is assignable, does nothing.If the head symbol is not assignable,
+      then its evaluation functionis called. *)
+
   val assign : term -> term
-  (** Evaluate or assigns the given term using the handler of the
+  (** Return a valid assignment for the given term using the handler of the
       head symbol of the expression, see the Var module. *)
 
   val tag : term -> 'a tag -> 'a -> term

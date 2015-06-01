@@ -7,7 +7,7 @@ let log i fmt = Util.debug ~section:log_section i fmt
 
 module H = Hashtbl.Make(Expr.Term)
 module M = Backtrack.HashtblBack(Expr.Term)
-module I = Backtrack.HashtblBack(struct type t = int let equal i j = i=j let hash i = i land max_int end)
+module F = Backtrack.HashtblBack(Expr.Formula)
 
 type term = Expr.term
 type formula = Expr.formula
@@ -45,10 +45,11 @@ type eval_res =
   | Unknown
 
 type 'a job = {
-  job_ext : 'a; (* 'a will always be equal to Pugin.id defined a bit later *)
+  job_ext : 'a;
   job_n : int;
-  mutable job_done : int;
   job_callback : unit -> unit;
+  job_formula : formula option;
+  mutable job_done : int;
   mutable watched : term list;
   mutable not_watched : term list;
 }
@@ -197,7 +198,7 @@ let rec check = function
     check f
 
 let peek_at f = match (Plugin.get_res ()).peek with
-  | Some peek -> peek f
+  | Some peek -> peek f; check f
   | None -> ()
 
 let pre_process f = f
@@ -230,13 +231,21 @@ let backtrack lvl =
   Stack.clear propagate_stack;
   Backtrack.Stack.backtrack stack lvl
 
+(* Current asusmptions *)
+(* ************************************************************************ *)
+
+(* The map of formula that are currently true *)
+let f_map = F.create stack
+
+let is_true f = F.mem f_map f
+
+let add_assumption = F.add f_map
+
 (* Evaluation/Watching functions *)
 (* ************************************************************************ *)
 
 (* The current assignment map, term -> value *)
 let eval_map = M.create stack
-(* Map of terms watching other terms, term -> list of terms to evaluate when arg has value *)
-let wait_eval = M.create stack
 (* Map of terms watched by extensions *)
 let watchers = H.create 4096
 let watch_map = H.create 4096
@@ -256,19 +265,13 @@ let is_assigned t =
 let get_assign t =
   try M.find eval_map t with Not_found -> raise (Not_assigned t)
 
-(*
-let add_wait_eval t t' =
-  assert (not (is_assigned t));
-  let l = try M.find wait_eval t' with Not_found -> [] in
-  M.add wait_eval t' (List.sort_uniq Expr.Term.compare (t :: l))
-*)
-
 let add_job job t =
   let l = try H.find watch_map t with Not_found -> [] in
   H.replace watch_map t (job :: l)
 
 let call_job j =
-  if j.job_done < !last_backtrack then begin
+  if CCOpt.(get true (map is_true j.job_formula))
+     && j.job_done < !last_backtrack then begin
     j.job_done <- !last_backtrack;
     j.job_callback ()
   end
@@ -299,26 +302,28 @@ let update_watch x j =
     log 0 "not_watched : %a" (CCPrint.list ~sep:" || " Expr.Debug.term) j.not_watched;
     assert false
 
-let new_job id k watched not_watched f = {
+let new_job ?formula id k watched not_watched f = {
   job_ext = id;
   job_n = k;
   watched = watched;
+  job_formula = formula;
   not_watched = not_watched;
   job_callback = f;
   job_done = - 1;
 }
 
-let watch ext k args f =
+let watch ?formula ext k args f =
   let tag = Plugin.((find ext).id) in
+  List.iter Expr.Term.eval args;
   assert (k > 0);
   let rec split assigned not_assigned i = function
     | l when i <= 0 ->
-      let j = new_job tag k not_assigned (List.rev_append l assigned) f in
+      let j = new_job ?formula tag k not_assigned (List.rev_append l assigned) f in
       List.iter (add_job j) not_assigned
     | [] (* i > 0 *) ->
       let l = List.rev_append not_assigned assigned in
       let to_watch, not_watched = CCList.split k l in
-      let j = new_job tag k to_watch not_watched f in
+      let j = new_job ?formula tag k to_watch not_watched f in
       List.iter (add_job j) to_watch;
       call_job j
     | y :: r ->
@@ -327,41 +332,13 @@ let watch ext k args f =
       else
         split assigned (y :: not_assigned) (i - 1) r
   in
-  let t' = Builtin.tuple args in
+  let t' = Builtin.Misc.tuple args in
   let l = try H.find watchers t' with Not_found -> [] in
   if not (List.mem tag l) then begin
     log 10 "New watch from %s, %d among : %a" Plugin.((get tag).name) k (CCPrint.list ~sep:" || " Expr.Debug.term) args;
     H.add watchers t' (tag :: l);
     split [] [] k (List.sort_uniq Expr.Term.compare args)
   end
-
-(*
-let rec try_eval t =
-  assert (not (is_assigned t));
-  log 7 "Try-Eval of %a" Expr.Debug.term t;
-  match Expr.(t.term) with
-  | Expr.App (f, _, l) ->
-    begin try
-        begin match Expr.eval t with
-          | Expr.Interpreted (v, lvl) ->
-            set_assign t v lvl;
-            Some v
-          | Expr.Waiting t' ->
-            begin match try_eval t' with
-              | None -> add_wait_eval t t'; None
-              | Some _ -> try_eval t
-            end
-        end
-      with
-      | Expr.Cannot_interpret _ -> None
-    end
-  | _ ->
-    begin try
-        Some (fst (get_assign t))
-      with Not_assigned _ ->
-        None
-    end
-*)
 
 let rec assign_watch t = function
   | [] -> ()
@@ -387,14 +364,6 @@ and set_assign t v lvl =
     let l = try hpop watch_map t with Not_found -> [] in
     log 10 " Found %d watchers" (List.length l);
     assign_watch t l
-    (*
-    begin try
-        let l = pop wait_eval t in
-        log 10 " Waiting for %a :" Expr.Debug.term t;
-        List.iter (fun t' -> log 10 "  -> %a" Expr.Debug.term t') l;
-        List.iter (fun t' -> ignore (try_eval t')) l
-      with Not_found -> () end
-      *)
 
 let model () = M.fold eval_map (fun t (v, _) acc -> (t, v) :: acc) []
 
@@ -408,6 +377,7 @@ let assume s =
       match s.get i with
       | Lit f, lvl ->
         log 1 " Assuming (%d) %a" lvl Expr.Debug.formula f;
+        add_assumption f lvl;
         begin match (Plugin.get_res ()).assume with
           | Some assume -> assume (f, lvl)
           | None -> ()
@@ -466,7 +436,6 @@ let iter_assignable f e =
   | Expr.Pred p -> iter_assign_aux f p
   | _ -> ()
 
-exception Found_eval of bool * int
 let eval_aux f =
   match (Plugin.get_res ()).eval_pred with
   | None -> Unknown

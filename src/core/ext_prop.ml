@@ -3,9 +3,9 @@ module D = Dispatcher
 
 let sat_assume = function
   | { Expr.formula = Expr.Pred ({Expr.term = Expr.App (p, _, _)} as t)}, lvl ->
-    D.set_assign t Builtin.p_true lvl
+    D.set_assign t Builtin.Misc.p_true lvl
   | { Expr.formula = Expr.Not {Expr.formula = Expr.Pred ({Expr.term = Expr.App (p, _, _)} as t)}}, lvl ->
-    D.set_assign t Builtin.p_false lvl
+    D.set_assign t Builtin.Misc.p_false lvl
   | _ -> ()
 
 let sat_assign = function
@@ -13,7 +13,7 @@ let sat_assign = function
     begin try
         fst (D.get_assign t)
       with D.Not_assigned _ ->
-        Builtin.p_true
+        Builtin.Misc.p_true
     end
   | _ -> assert false
 
@@ -21,9 +21,9 @@ let rec sat_eval = function
   | {Expr.formula = Expr.Pred ({Expr.term = Expr.App (p, _, _)} as t)} ->
     begin try
         let b, lvl = D.get_assign t in
-        if Expr.Term.equal Builtin.p_true b then
+        if Expr.Term.equal Builtin.Misc.p_true b then
           Some (true, lvl)
-        else if Expr.Term.equal Builtin.p_false b then
+        else if Expr.Term.equal Builtin.Misc.p_false b then
           Some (false, lvl)
         else
           assert false

@@ -64,7 +64,7 @@ val fixpoint : t -> t
 
 val saturate : t -> t
 (** Binds all metavariables occuring in terms but not bound, to a constant of the correct type.
-    WARNING: This is unsafe,and, as it seems, uncomplete to use... *)
+    WARNING: This is unsafe,and, as it seems, incomplete to use... *)
 
 (** {2 Unification caching} *)
 

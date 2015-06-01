@@ -79,15 +79,11 @@ val set_assign : term -> term -> int -> unit
 (** [set_assign t v lvl] sets the assignment of [t] to [v], with level [lvl].
     May erase previous assignment of [t]. *)
 
-(*
-val try_eval : term -> term option
-(** Try and eval the given term. In case it fails (and returns [None]),
-    it sets up a watching scheme to evaluate the given term as soon as possible. *)
-*)
-
-val watch : string -> int -> term list -> (unit -> unit) -> unit
+val watch : ?formula:formula -> string -> int -> term list -> (unit -> unit) -> unit
 (** [watch tag k l f] sets up a k-watching among the terms in l, calling f once there is fewer
-    than k terms not assigned in l. The pair [(l, tag)] is used as a key to eliminate duplicates. *)
+    than k terms not assigned in l. The pair [(l, tag)] is used as a key to eliminate duplicates.
+    @param formula attach the watcher to a formula, so that the callback will onlybe called
+      if the given formula is among the current assumption when the watcher triggers. *)
 
 val model : unit -> (term * term) list
 (** Returns the full assignment in the current model. *)

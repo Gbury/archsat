@@ -10,11 +10,6 @@ type multiplicity =
   | Linear (* var should only be instantied once *)
   | Infinite (* you can do what you want *)
 
-(* Type for evaluation result (not yet used) *)
-type 't eval =
-  | Interpreted of 't * int
-  | Waiting of 't
-
 (* Private aliases *)
 type hash = int
 type index = int
@@ -399,8 +394,9 @@ module Id = struct
   let ty_fun ?builtin name n = const ?builtin name [] (CCList.replicate n Type) Type
   let term_fun = const
 
-  (* Builtin Prop Type *)
+  (* Builtin Types *)
   let prop = ty_fun "Prop" 0
+  let base = ty_fun "$i" 0
 
   (* Free variables *)
   let null_fv = [], []
@@ -424,10 +420,10 @@ module Id = struct
 
   let interpreter v =
     match CCVector.get eval_vec v.index with
-    | None -> raise Exit
+    | None -> (fun _ -> ())
     | Some (_, f) -> f
 
-  let set_eval v prio f =
+  let set_eval v (prio: int) (f: term -> unit) =
     match CCVector.get eval_vec v.index with
     | None ->
       CCVector.set eval_vec v.index (Some (prio, f))
@@ -444,7 +440,7 @@ module Id = struct
     | None -> raise Exit
     | Some (_, f) -> f
 
-  let set_assign v prio f =
+  let set_assign v (prio: int) f =
     match CCVector.get assign_vec v.index with
     | None ->
       CCVector.set assign_vec v.index (Some (prio, f))
@@ -636,8 +632,9 @@ module Ty = struct
   let get_tag ty k = Tag.get ty.ty_tags k
   let tag ty k v = { ty with ty_tags = Tag.add ty.ty_tags k v }
 
-  (* Builtin Prop Type *)
+  (* Builtin types *)
   let prop = apply Id.prop []
+  let base = apply Id.base []
 
   (* Substitutions *)
   let rec subst_aux map t = match t.ty with
@@ -774,12 +771,10 @@ module Term = struct
   let fv = free_vars Id.null_fv
 
   (* Evaluation & Assignment *)
-  let eval t =
-    try match t.term with
-      | Var v -> (Id.interpreter v) t
-      | Meta m -> (Id.interpreter m.meta_id) t
-      | App (f, _, _) -> (Id.interpreter f) t
-    with Exit -> raise (Cannot_interpret t)
+  let eval t = match t.term with
+    | Var v -> (Id.interpreter v) t
+    | Meta m -> (Id.interpreter m.meta_id) t
+    | App (f, _, _) -> (Id.interpreter f) t
 
   let assign t =
     try match t.term with
