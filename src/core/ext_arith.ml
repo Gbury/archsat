@@ -1,0 +1,40 @@
+
+module B = Builtin.Arith
+
+(* Type definitions *)
+
+type bound =
+  | Strict of Q.t
+  | Large of Q.t
+
+type interval = {
+  inf: bound;
+  upp: bound;
+}
+
+type domain = interval list
+(** Intervals in a domain should be non-overlapping and ordered in ascending order. *)
+
+(* Domain checking *)
+
+module E = Backtrack.HashtblBack(Expr.Term)
+
+let h : domain E.t = E.create Dispatcher.stack
+
+let val_to_q = function
+  | B.Int z -> Q.of_bigint z
+  | B.Rat q | B.Real q -> q
+
+let evaluate_aux t =
+  Arith.M.fold (fun e c acc ->
+      match Dispatcher.get_assign e with
+      | ({ Expr.term = Expr.App ({ Expr.builtin = B.Val v}, [], []) }, _) ->
+        CCOpt.map (fun acc -> Q.(acc + c * val_to_q v)) acc
+      | _ -> None) t.Arith.Lit.sum (Some (val_to_q t.Arith.Lit.const))
+
+let evaluate t = CCOpt.map evaluate_aux @@ Arith.Lit.parse_num t
+
+;;
+Dispatcher.Plugin.register "arith"
+  ~descr:"Handles satisfiability of arithmetic formulas."
+  (Dispatcher.mk_ext ())

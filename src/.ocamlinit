@@ -1,5 +1,6 @@
 #require "containers";;
 #require "containers.data";;
+#require "zarith";;
 #require "msat";;
 #require "cmdliner";;
 #require "ocamlgraph";;
@@ -8,27 +9,8 @@
 
 open Tabsat;;
 
-#install_printer Expr.print_ty;;
-#install_printer Expr.print_term;;
-#install_printer Expr.print_formula;;
-
-let x = Expr.ty_var "x" Builtin.type_i;;
-let a = Expr.term_const "a" [] [] Builtin.type_i;;
-let b = Expr.term_const "b" [] [] Builtin.type_i;;
-let p = Expr.term_const "p" [] [Builtin.type_i] Expr.type_prop;;
-let f = Expr.term_const "f" [] [Builtin.type_i] Builtin.type_i;;
-let g = Expr.term_const "g" [] [Builtin.type_i] Builtin.type_i;;
-
-let ax_f = Expr.f_equal (Expr.term_app f [] [Expr.term_var x]) (Expr.term_var x);;
-let ax = Expr.f_all [x] ax_f;;
-let mx = match Expr.new_term_metas ax with [mx] -> mx | _ -> assert false;;
-
-let ax_x = Expr.term_meta mx;;
-let ax_fx = Expr.term_app f [] [ax_x];;
-let ax_eq = Expr.f_equal ax_x ax_fx;;
-
-let fa = Expr.term_app f [] [Expr.term_app a [] []];;
-
-let u = Expr.term_app p [] [Expr.term_app b [] []];;
-let v = Expr.term_app p [] [fa];;
+#install_printer Z.pp_print;;
+#install_printer Expr.Print.ty;;
+#install_printer Expr.Print.term;;
+#install_printer Expr.Print.formula;;
 

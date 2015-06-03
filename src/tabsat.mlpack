@@ -5,10 +5,13 @@
 # Base modules
 Ast
 Lpo
+Tag
 Expr
+Type
 Index
 Position
 Builtin
+Semantics
 
 # Standard Algorithms
 Unif
@@ -23,20 +26,24 @@ Solver
 
 # Extensions
 Inst
-Meta
-Skolem
-Tab
-Eq
-Functions
 Stats
+Ext_meta
+Ext_skolem
+Ext_logic
+Ext_eq
+Ext_functions
 
 ##### Misc modules #####
 ########################
 
 # Utilities modules
 Util
+Arith
 Backtrack
 Comparison
+Extension
+Extension_intf
+ParseLocation
 
 # Input modules
 Io

@@ -8,7 +8,7 @@ include Ext_eq
 include Ext_meta
 include Ext_prop
 include Ext_logic
-(* include Ext_arith *)
+include Ext_arith
 include Ext_prenex
 include Ext_skolem
 include Ext_functions
