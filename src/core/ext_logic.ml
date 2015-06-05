@@ -15,6 +15,20 @@ let push_or r l =
   if not (List.exists (Expr.Formula.equal Expr.Formula.f_true) l) then
     push "or" (Expr.Formula.neg r :: l)
 
+let is_equiv_quant = function
+  | { Expr.formula = Expr.Equiv _ }
+  | { Expr.formula = Expr.All _ } | { Expr.formula = Expr.AllTy _ }
+  | { Expr.formula = Expr.Ex _ } | { Expr.formula = Expr.ExTy _ } -> true
+  | _ -> false
+
+let imply_left p =
+  List.map Expr.Formula.neg (match p with
+        { Expr.formula = Expr.And l } -> l | p -> [p])
+
+let rec imply_right = function
+  | { Expr.formula = Expr.Or l } -> l
+  | q -> [q]
+
 let tab = function
   (* 'True/False' traduction *)
   | { Expr.formula = Expr.False } ->
@@ -34,12 +48,8 @@ let tab = function
 
   (* 'Imply' traduction *)
   | { Expr.formula = Expr.Imply (p, q) } as r ->
-    let left = List.map Expr.Formula.neg (match p with
-        | { Expr.formula = Expr.And l } -> l
-        | _ -> [p]) in
-    let right = match q with
-      | { Expr.formula = Expr.Or l } -> l
-      | _ -> [q] in
+    let left = imply_left p in
+    let right = imply_right q in
     push "imply" (Expr.Formula.neg r :: (left @ right))
   | { Expr.formula = Expr.Not ({ Expr.formula = Expr.Imply (p, q) } as r )  } ->
     push "not-imply" [r; p];
@@ -47,8 +57,8 @@ let tab = function
 
   (* 'Equiv' traduction *)
   | { Expr.formula = Expr.Equiv (p, q) } as r ->
-    push "equiv" [Expr.Formula.neg r; Expr.Formula.neg p; q];
-    push "equiv" [Expr.Formula.neg r; Expr.Formula.neg q; p]
+    push "equiv" [Expr.Formula.neg r; Expr.Formula.imply p q];
+    push "equiv" [Expr.Formula.neg r; Expr.Formula.imply q p]
   | { Expr.formula = Expr.Not ({ Expr.formula = Expr.Equiv (p, q) } as r )  } ->
     push "not-equiv" [r; Expr.Formula.f_and [p; Expr.Formula.neg q]; Expr.Formula.f_and [Expr.Formula.neg p; q] ]
 
