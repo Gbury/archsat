@@ -15,19 +15,10 @@ let push_or r l =
   if not (List.exists (Expr.Formula.equal Expr.Formula.f_true) l) then
     push "or" (Expr.Formula.neg r :: l)
 
-let is_equiv_quant = function
-  | { Expr.formula = Expr.Equiv _ }
-  | { Expr.formula = Expr.All _ } | { Expr.formula = Expr.AllTy _ }
-  | { Expr.formula = Expr.Ex _ } | { Expr.formula = Expr.ExTy _ } -> true
-  | _ -> false
+let imply_left p = List.map Expr.Formula.neg @@
+  match p with { Expr.formula = Expr.And l } -> l | p -> [p]
 
-let imply_left p =
-  List.map Expr.Formula.neg (match p with
-        { Expr.formula = Expr.And l } -> l | p -> [p])
-
-let rec imply_right = function
-  | { Expr.formula = Expr.Or l } -> l
-  | q -> [q]
+let imply_right = function { Expr.formula = Expr.Or l } -> l | q -> [q]
 
 let tab = function
   (* 'True/False' traduction *)
