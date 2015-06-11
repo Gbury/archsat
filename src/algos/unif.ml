@@ -5,9 +5,6 @@
  * what are usually called 'variables' in litterature are
  * actually the metavariables in the terms *)
 
-exception Not_unifiable_ty of Expr.ty * Expr.ty
-exception Not_unifiable_term of Expr.term * Expr.term
-
 let log_section = Util.Section.make "unif"
 let log i fmt = Util.debug ~section:log_section i fmt
 
@@ -66,11 +63,6 @@ let inverse s =
       | _ -> bind_ty s m ty
     ) s.ty_map empty)
 
-(*
-let print_inst l s =
-  Expr.Subst.iter (fun k v -> log l " |- %a -> %a" Expr.Debug.meta k Expr.Debug.term v) s.t_map
-   *)
-
 (* Manipulation over meta substitutions *)
 (* ************************************************************************ *)
 
@@ -101,9 +93,9 @@ let term_subst u t =
 
 (* Fixpoint on meta substitutions *)
 let fixpoint u = {
-    ty_map = Expr.Subst.fold (fun m t acc -> Expr.Subst.Meta.bind m (type_subst u t) acc) u.ty_map Expr.Subst.empty;
-    t_map = Expr.Subst.fold (fun m t acc -> Expr.Subst.Meta.bind m (term_subst u t) acc) u.t_map Expr.Subst.empty;
-  }
+  ty_map = Expr.Subst.fold (fun m t acc -> Expr.Subst.Meta.bind m (type_subst u t) acc) u.ty_map Expr.Subst.empty;
+  t_map = Expr.Subst.fold (fun m t acc -> Expr.Subst.Meta.bind m (term_subst u t) acc) u.t_map Expr.Subst.empty;
+}
 
 (* Assign dangling metas to constants *)
 let saturate_aux_term l u =
@@ -121,190 +113,267 @@ let saturate u = {
     ) u.t_map u.t_map;
 }
 
-(* Meta-matching *)
+(* Utilities functions *)
 (* ************************************************************************ *)
 
-(* Operations on involutions *)
-let inv_map_ty u m1 m2 =
-  try
-    let t1 = get_ty u m1 in
-    let t2 = Expr.Ty.of_meta m2 in
-    if not (Expr.Ty.equal t1 t2) then
-      raise (Not_unifiable_ty (t1, t2))
-    else
-      u
-  with Not_found ->
-    bind_ty (bind_ty u m1 (Expr.Ty.of_meta m2)) m2 (Expr.Ty.of_meta m1)
+module Robinson = struct
 
-let inv_map_term u m1 m2 =
-  try
-    let t1 = get_term u m1 in
-    let t2 = Expr.Term.of_meta m2 in
-    if not (Expr.Term.equal t1 t2) then
-      raise (Not_unifiable_term (t1, t2))
-    else
-      u
-  with Not_found ->
-    bind_term (bind_term u m1 (Expr.Term.of_meta m2)) m2 (Expr.Term.of_meta m1)
+  exception Impossible_ty of Expr.ty * Expr.ty
+  exception Impossible_term of Expr.term * Expr.term
 
-let meta_def m = Expr.Meta.ty_def m.Expr.meta_index
-let meta_ty_def m = Expr.Meta.ttype_def m.Expr.meta_index
+  let rec follow_ty subst = function
+    | { Expr.ty = Expr.TyMeta m } as t ->
+      begin match get_ty_opt subst m with
+        | Some t' -> follow_ty subst t'
+        | None -> t
+      end
+    | t -> t
 
-(* Finding meta-stable involutions *)
-let rec meta_match_ty subst s t =
-  begin match s, t with
-    | _, { Expr.ty = Expr.TyVar _ } | { Expr.ty = Expr.TyVar _}, _ -> assert false
-    | { Expr.ty = Expr.TyMeta ({ Expr.meta_id = v1 } as m1)},
-      { Expr.ty = Expr.TyMeta ({ Expr.meta_id = v2 } as m2)} ->
-      if Expr.Id.equal v1 v2 && Expr.Formula.equal (meta_ty_def m1) (meta_ty_def m2) then
-        inv_map_ty subst m1 m2
+  let rec follow_term subst = function
+    | { Expr.term = Expr.Meta m } as t ->
+      begin match get_term_opt subst m with
+        | Some t' -> follow_term subst t'
+        | None -> t
+      end
+    | t -> t
+
+  let rec occurs_check_ty subst v = function
+    | { Expr.ty = Expr.TyMeta m } as v' ->
+      begin try occurs_check_ty subst v (get_ty subst m)
+        with Not_found -> Expr.Ty.equal v v' end
+    | { Expr.ty = Expr.TyApp (_, l) } -> List.exists (occurs_check_ty subst v) l
+    | _ -> false
+
+  let rec occurs_check_term subst v = function
+    | { Expr.term = Expr.Meta m } as v' ->
+      begin try occurs_check_term subst v (get_term subst m)
+        with Not_found -> Expr.Term.equal v v' end
+    | { Expr.term = Expr.App (_, _, l) } -> List.exists (occurs_check_term subst v) l
+    | _ -> false
+
+  let rec ty subst s t =
+    let s = follow_ty subst s in
+    let t = follow_ty subst t in
+    match s, t with
+    | _ when Expr.Ty.equal s t -> subst
+    | ({ Expr.ty = Expr.TyMeta v } as m), u
+    | u, ({ Expr.ty = Expr.TyMeta v } as m) ->
+      if occurs_check_ty subst m u then
+        raise (Impossible_ty (m, u))
       else
-        raise (Not_unifiable_ty (s, t))
+        bind_ty subst v u
     | { Expr.ty = Expr.TyApp (f, f_args) },
       { Expr.ty = Expr.TyApp (g, g_args) } ->
       if Expr.Id.equal f g then
-        List.fold_left2 meta_match_ty subst f_args g_args
+        List.fold_left2 ty subst f_args g_args
       else
-        raise (Not_unifiable_ty (s, t))
-    | _ -> raise (Not_unifiable_ty (s, t))
-  end
+        raise (Impossible_ty (s, t))
+    | _ -> assert false
 
-let rec meta_match_term subst s t =
-  log 90 "trying %a <-> %a" Expr.Debug.term s Expr.Debug.term t;
-  begin match s, t with
-    | _, { Expr.term = Expr.Var _ } | { Expr.term = Expr.Var _}, _ -> assert false
-    | { Expr.term = Expr.Meta ({ Expr.meta_id = v1 } as m1) },
-      { Expr.term = Expr.Meta ({ Expr.meta_id = v2 } as m2)} ->
-      if Expr.Id.equal v1 v2 && Expr.Formula.equal (meta_def m1) (meta_def m2) then
-        inv_map_term subst m1 m2
+  let rec term subst s t =
+    let s = follow_term subst s in
+    let t = follow_term subst t in
+    match s, t with
+    | _ when Expr.Term.equal s t -> subst
+    | ({ Expr.term = Expr.Meta v } as m), u
+    | u, ({ Expr.term = Expr.Meta v } as m) ->
+      if occurs_check_term subst m u then
+        raise (Impossible_term (m, u))
       else
-        raise (Not_unifiable_term (s, t))
+        let subst' = ty subst Expr.(m.t_type) Expr.(u.t_type) in
+        bind_term subst' v u
     | { Expr.term = Expr.App (f, f_ty_args, f_t_args) },
       { Expr.term = Expr.App (g, g_ty_args, g_t_args) } ->
       if Expr.Id.equal f g then
-        List.fold_left2 meta_match_term
-          (List.fold_left2 meta_match_ty subst f_ty_args g_ty_args)
+        List.fold_left2 term
+          (List.fold_left2 ty subst f_ty_args g_ty_args)
           f_t_args g_t_args
       else
-        raise (Not_unifiable_term (s, t))
-    | _ -> raise (Not_unifiable_term (s, t))
-  end
+        raise (Impossible_term (s, t))
+    | _ -> assert false
 
-(* Robinson unification *)
+  let unify_ty f s t =
+    try
+      f (ty empty s t)
+    with Impossible_ty _ -> ()
+
+  let unify_term f s t =
+    try
+      f (term empty s t)
+    with Impossible_ty _ | Impossible_term _ -> ()
+
+  let find_unifier s t =
+    try Some (term empty s t)
+    with Impossible_ty _ | Impossible_term _ -> None
+
+end
+
+(* Matching of types and terms *)
 (* ************************************************************************ *)
 
-let rec follow_ty subst = function
-  | { Expr.ty = Expr.TyMeta m } as t ->
-    begin match get_ty_opt subst m with
-      | Some t' -> follow_ty subst t'
-      | None -> t
-    end
-  | t -> t
+module Match = struct
 
-let rec follow_term subst = function
-  | { Expr.term = Expr.Meta m } as t ->
-    begin match get_term_opt subst m with
-      | Some t' -> follow_term subst t'
-      | None -> t
-    end
-  | t -> t
+  exception Impossible_ty of Expr.ty * Expr.ty
+  exception Impossible_term of Expr.term * Expr.term
 
-let rec occurs_check_ty subst v = function
-  | { Expr.ty = Expr.TyMeta m } as v' ->
-    begin try occurs_check_ty subst v (get_ty subst m)
-      with Not_found -> Expr.Ty.equal v v' end
-  | { Expr.ty = Expr.TyApp (_, l) } -> List.exists (occurs_check_ty subst v) l
-  | _ -> false
+  type tt = t * t
 
-let rec occurs_check_term subst v = function
-  | { Expr.term = Expr.Meta m } as v' ->
-    begin try occurs_check_term subst v (get_term subst m)
-      with Not_found -> Expr.Term.equal v v' end
-  | { Expr.term = Expr.App (_, _, l) } -> List.exists (occurs_check_term subst v) l
-  | _ -> false
+  let empty = empty, empty
 
-let rec robinson_ty subst s t =
-  let s = follow_ty subst s in
-  let t = follow_ty subst t in
-  match s, t with
-        | _ when Expr.Ty.equal s t -> subst
-        | _, { Expr.ty = Expr.TyVar _ } | { Expr.ty = Expr.TyVar _}, _ -> assert false
-        | ({ Expr.ty = Expr.TyMeta v } as m), u
-        | u, ({ Expr.ty = Expr.TyMeta v } as m) ->
-          if occurs_check_ty subst m u then
-            raise (Not_unifiable_ty (m, u))
-          else
-            bind_ty subst v u
-        | { Expr.ty = Expr.TyApp (f, f_args) },
-          { Expr.ty = Expr.TyApp (g, g_args) } ->
-          if Expr.Id.equal f g then
-            List.fold_left2 robinson_ty subst f_args g_args
-          else
-            raise (Not_unifiable_ty (s, t))
+  let to_subst (_, u) = u
 
-let rec robinson_term subst s t =
-  let s = follow_term subst s in
-  let t = follow_term subst t in
-  match s, t with
-        | _ when Expr.Term.equal s t -> subst
-        | _, { Expr.term = Expr.Var _ } | { Expr.term = Expr.Var _}, _ -> assert false
-        | ({ Expr.term = Expr.Meta v } as m), u
-        | u, ({ Expr.term = Expr.Meta v } as m) ->
-          if occurs_check_term subst m u then
-            raise (Not_unifiable_term (m, u))
-          else
-            let subst' = robinson_ty subst Expr.(m.t_type) Expr.(u.t_type) in
-            bind_term subst' v u
-        | { Expr.term = Expr.App (f, f_ty_args, f_t_args) },
-          { Expr.term = Expr.App (g, g_ty_args, g_t_args) } ->
-          if Expr.Id.equal f g then
-            List.fold_left2 robinson_term
-              (List.fold_left2 robinson_ty subst f_ty_args g_ty_args)
-              f_t_args g_t_args
-          else
-            raise (Not_unifiable_term (s, t))
+  let rec ty (stable, subst) s t =
+    let t = Robinson.follow_ty subst t in
+    match s, t with
+    | u, ({ Expr.ty = Expr.TyMeta v } as m) ->
+      let eq = Expr.Ty.equal s t in
+      if eq then
+        (bind_ty stable v m, subst)
+      else if mem_ty stable v && not eq then
+        raise (Impossible_ty (m, u))
+      else if Robinson.occurs_check_ty subst m u then
+        raise (Impossible_ty (m, u))
+      else
+        ty (stable, bind_ty subst v u) u u
+    | { Expr.ty = Expr.TyApp (f, f_args) },
+      { Expr.ty = Expr.TyApp (g, g_args) } ->
+      if Expr.Id.equal f g then
+        List.fold_left2 ty (stable, subst) f_args g_args
+      else
+        raise (Impossible_ty (s, t))
+    | _ -> raise (Impossible_ty (s, t))
 
-let unify_ty f s t =
-  try
-    f (robinson_ty empty s t)
-  with Not_unifiable_ty _ -> ()
+  let rec term (stable, subst) s t =
+    let t = Robinson.follow_term subst t in
+    match s, t with
+    | u, ({ Expr.term = Expr.Meta v } as m) ->
+      let eq = Expr.Term.equal s t in
+      if eq then
+        (bind_term stable v m, subst)
+      else if mem_term stable v && not eq then
+        raise (Impossible_term (m, u))
+      else if Robinson.occurs_check_term subst m u then
+        raise (Impossible_term (m, u))
+      else
+        term (stable, bind_term subst v u) u u
+    | { Expr.term = Expr.App (f, f_ty_args, f_t_args) },
+      { Expr.term = Expr.App (g, g_ty_args, g_t_args) } ->
+      if Expr.Id.equal f g then
+        List.fold_left2 term
+          (List.fold_left2 ty (stable, subst) f_ty_args g_ty_args)
+          f_t_args g_t_args
+      else
+        raise (Impossible_term (s, t))
+    | _ -> raise (Impossible_term (s, t))
 
-let unify_term f s t =
-  try
-    f (robinson_term empty s t)
-  with Not_unifiable_ty _ | Not_unifiable_term _ -> ()
+  let find s t =
+    try
+      let m = term empty s t in
+      assert (Expr.Term.equal s (term_subst (snd m) t));
+      Some m
+    with Impossible_ty _ | Impossible_term _ -> None
 
-let find_unifier s t =
-  try Some (robinson_term empty s t)
-  with Not_unifiable_ty _ | Not_unifiable_term _ -> None
+end
 
 (* Caching (modulo meta switching) *)
 (* ************************************************************************ *)
 
-module H = Hashtbl.Make(struct
-    type t = Expr.term * Expr.term
-    let hash (s, t) = Hashtbl.hash (Expr.Term.hash s, Expr.Term.hash t)
-    let equal (s1, t1) (s2, t2) =
-      try
-        let tmp = meta_match_term empty s1 s2 in
-        let _ = meta_match_term tmp t1 t2 in
-        true
-      with Not_unifiable_ty _ | Not_unifiable_term _ ->
-        false
-  end)
+module Cache = struct
 
-type 'a cache = 'a H.t
+  exception Impossible_ty of Expr.ty * Expr.ty
+  exception Impossible_term of Expr.term * Expr.term
 
-let new_cache () = H.create 4096
+  (* Operations on involutions *)
+  let inv_map_ty u m1 m2 =
+    try
+      let t1 = get_ty u m1 in
+      let t2 = Expr.Ty.of_meta m2 in
+      if not (Expr.Ty.equal t1 t2) then
+        raise (Impossible_ty (t1, t2))
+      else
+        u
+    with Not_found ->
+      bind_ty (bind_ty u m1 (Expr.Ty.of_meta m2)) m2 (Expr.Ty.of_meta m1)
 
-let clear_cache = H.clear
+  let inv_map_term u m1 m2 =
+    try
+      let t1 = get_term u m1 in
+      let t2 = Expr.Term.of_meta m2 in
+      if not (Expr.Term.equal t1 t2) then
+        raise (Impossible_term (t1, t2))
+      else
+        u
+    with Not_found ->
+      bind_term (bind_term u m1 (Expr.Term.of_meta m2)) m2 (Expr.Term.of_meta m1)
 
-let with_cache cache f a b =
-  let key = (a, b) in
-  try
-    H.find cache key
-  with Not_found ->
-    let res = f a b in
-    H.add cache key res;
-    res
+  let meta_def m = Expr.Meta.ty_def m.Expr.meta_index
+  let meta_ty_def m = Expr.Meta.ttype_def m.Expr.meta_index
 
+  (* Finding meta-stable involutions *)
+  let rec meta_match_ty subst s t =
+    begin match s, t with
+      | _, { Expr.ty = Expr.TyVar _ } | { Expr.ty = Expr.TyVar _}, _ -> assert false
+      | { Expr.ty = Expr.TyMeta ({ Expr.meta_id = v1 } as m1)},
+        { Expr.ty = Expr.TyMeta ({ Expr.meta_id = v2 } as m2)} ->
+        if Expr.Id.equal v1 v2 && Expr.Formula.equal (meta_ty_def m1) (meta_ty_def m2) then
+          inv_map_ty subst m1 m2
+        else
+          raise (Impossible_ty (s, t))
+      | { Expr.ty = Expr.TyApp (f, f_args) },
+        { Expr.ty = Expr.TyApp (g, g_args) } ->
+        if Expr.Id.equal f g then
+          List.fold_left2 meta_match_ty subst f_args g_args
+        else
+          raise (Impossible_ty (s, t))
+      | _ -> raise (Impossible_ty (s, t))
+    end
+
+  let rec meta_match_term subst s t =
+    log 90 "trying %a <-> %a" Expr.Debug.term s Expr.Debug.term t;
+    begin match s, t with
+      | _, { Expr.term = Expr.Var _ } | { Expr.term = Expr.Var _}, _ -> assert false
+      | { Expr.term = Expr.Meta ({ Expr.meta_id = v1 } as m1) },
+        { Expr.term = Expr.Meta ({ Expr.meta_id = v2 } as m2)} ->
+        if Expr.Id.equal v1 v2 && Expr.Formula.equal (meta_def m1) (meta_def m2) then
+          inv_map_term subst m1 m2
+        else
+          raise (Impossible_term (s, t))
+      | { Expr.term = Expr.App (f, f_ty_args, f_t_args) },
+        { Expr.term = Expr.App (g, g_ty_args, g_t_args) } ->
+        if Expr.Id.equal f g then
+          List.fold_left2 meta_match_term
+            (List.fold_left2 meta_match_ty subst f_ty_args g_ty_args)
+            f_t_args g_t_args
+        else
+          raise (Impossible_term (s, t))
+      | _ -> raise (Impossible_term (s, t))
+    end
+
+  module H = Hashtbl.Make(struct
+      type t = Expr.term * Expr.term
+      let hash (s, t) = Hashtbl.hash (Expr.Term.hash s, Expr.Term.hash t)
+      let equal (s1, t1) (s2, t2) =
+        try
+          let tmp = meta_match_term empty s1 s2 in
+          let _ = meta_match_term tmp t1 t2 in
+          true
+        with Impossible_ty _ | Impossible_term _ ->
+          false
+    end)
+
+  type 'a t = 'a H.t
+
+  let create () = H.create 4096
+
+  let clear = H.clear
+
+  let with_cache cache f a b =
+    let key = (a, b) in
+    try
+      H.find cache key
+    with Not_found ->
+      let res = f a b in
+      H.add cache key res;
+      res
+
+end

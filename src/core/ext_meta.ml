@@ -235,7 +235,7 @@ let insts r l =
 
 let single_inst u = insts (ref 1) [u]
 
-let cache = Unif.new_cache ()
+let cache = Unif.Cache.create ()
 
 let wrap_unif unif p notp =
   try unif p notp
@@ -244,7 +244,7 @@ let wrap_unif unif p notp =
 let rec unif_f st = function
   | No_unif -> assert false
   | Simple ->
-    fold_diff (fun () -> wrap_unif (Unif.with_cache cache (Unif.unify_term single_inst))) () st
+    fold_diff (fun () -> wrap_unif (Unif.Cache.with_cache cache (Unif.Robinson.unify_term single_inst))) () st
   | ERigid ->
     fold_diff (fun () -> wrap_unif (Rigid.unify ~max_depth:(rigid_depth ()) st.equalities single_inst)) () st
   | SuperEach ->

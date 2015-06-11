@@ -3,64 +3,49 @@
    types, terms and formulas.
 *)
 
-(* Misc *)
+(* Position type *)
 (* ************************************************************************ *)
 
-exception Invalid
+type t =
+  | Here
+  | Arg of int * t
 
-let rec nth n = function
-  | [] -> raise Invalid
-  | x :: _ when n <= 0 -> x
-  | _ :: r -> nth (n - 1) r
+let root = Here
 
-(* Signature for position modules *)
-(* ************************************************************************ *)
+let arg i t = Arg (i, t)
 
-module type S = sig
-  type t
-  type expr
+let compare = Pervasives.compare
 
-  val root : t
-  val arg : int -> t -> t
-
-  val compare : t -> t -> int
-
-  val apply : t -> expr -> expr
-  val substitute : t -> by:expr -> expr -> expr
-  val fold : ('a -> t -> expr -> 'a) -> 'a -> expr -> 'a
-  val find_map : (t -> expr -> 'a option) -> expr -> 'a option
-end
+type 'a res =
+  | Var
+  | Top of 'a Expr.function_descr Expr.id
+  | Possible
+  | Impossible
 
 (* Positions for Types *)
 (* ************************************************************************ *)
 
-module Ty : S with type expr = Expr.ty = struct
-
-  type t =
-    | Here
-    | Arg of int * t
-
-  type expr = Expr.ty
-
-  let root = Here
-
-  let arg i t = Arg (i, t)
-
-  let compare = compare
+module Ty = struct
 
   let rec apply p t = match p, t with
-    | Here, _ -> t
+    | Here, { Expr.ty = Expr.TyVar _ }
+    | Here, { Expr.ty = Expr.TyMeta _ } -> Var, Some t
+    | Here, { Expr.ty = Expr.TyApp (f, _) } -> Top f, Some t
+    | Arg _, { Expr.ty = Expr.TyVar _ }
+    | Arg _, { Expr.ty = Expr.TyMeta _ } -> Possible, None
     | Arg (k, p'), { Expr.ty = Expr.TyApp(_, l) } ->
-      apply p' (nth k l)
-    | _ -> raise Invalid
+      begin match CCList.Idx.get l k with
+        | None -> Impossible, None
+        | Some ty -> apply p' ty
+      end
 
   let rec substitute p ~by:u t =
     match p, t with
-    | Here, _ -> u
+    | Here, _ -> Some u
     | Arg (k, p'), { Expr.ty = Expr.TyApp(f, l) } ->
-      Expr.Ty.apply ~status:t.Expr.ty_status f
-        (List.mapi (fun i v -> if i = k then substitute p' ~by:u v else v) l)
-    | _ -> raise Invalid
+      CCOpt.map (Expr.Ty.apply ~status:t.Expr.ty_status f) @@ CCOpt.sequence_l
+        (List.mapi (fun i v -> if i = k then substitute p' ~by:u v else Some v) l)
+    | _ -> None
 
   let rec fold_aux f acc cur_pos t =
     let acc' = f acc (cur_pos Here) t in
@@ -89,33 +74,27 @@ end
 (* Positions for Terms *)
 (* ************************************************************************ *)
 
-module Term : S with type expr = Expr.term = struct
-
-  type t =
-    | Here
-    | Arg of int * t
-
-  type expr = Expr.term
-
-  let root = Here
-
-  let arg i t = Arg (i, t)
-
-  let compare = compare
+module Term = struct
 
   let rec apply p t = match p, t with
-    | Here, _ -> t
+    | Here, { Expr.term = Expr.Var _ }
+    | Here, { Expr.term = Expr.Meta _ } -> Var, Some t
+    | Here, { Expr.term = Expr.App (f, _, _) } -> Top f, Some t
+    | Arg _, { Expr.term = Expr.Var _ }
+    | Arg _, { Expr.term = Expr.Meta _ } -> Possible, None
     | Arg (k, p'), { Expr.term = Expr.App(_, _, l) } ->
-      apply p' (nth k l)
-    | _ -> raise Invalid
+      begin match CCList.Idx.get l k with
+        | None -> Impossible, None
+        | Some term -> apply p' term
+      end
 
   let rec substitute p ~by:u t =
     match p, t with
-    | Here, _ -> u
-    | Arg (k, p'), { Expr.term = Expr.App(f, ty_args, l) } ->
-      Expr.Term.apply ~status:t.Expr.t_status f ty_args
-        (List.mapi (fun i v -> if i = k then substitute p' ~by:u v else v) l)
-    | _ -> raise Invalid
+    | Here, _ -> Some u
+    | Arg (k, p'), { Expr.term = Expr.App(f, tys, l) } ->
+      CCOpt.map (Expr.Term.apply ~status:t.Expr.t_status f tys) @@ CCOpt.sequence_l
+        (List.mapi (fun i v -> if i = k then substitute p' ~by:u v else Some v) l)
+    | _ -> None
 
   let rec fold_aux f acc cur_pos t =
     let acc' = f acc (cur_pos Here) t in
@@ -138,5 +117,5 @@ module Term : S with type expr = Expr.term = struct
       end
 
   let find_map f t = find_map_aux f (fun x -> x) t
-end
 
+end

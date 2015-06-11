@@ -85,7 +85,7 @@ let compare_side a b = match a, b with
   | Left, Right -> -1 | Right, Left -> 1
 
 type pos_cl = {
-  pos : Position.Term.t;
+  pos : Position.t;
   side : side;
   clause : clause;
 }
@@ -93,7 +93,7 @@ type pos_cl = {
 let compare_pos_cl pc pc' =
   match compare_cl pc.clause pc'.clause with
   | 0 -> begin match compare_side pc.side pc'.side with
-      | 0 -> Position.Term.compare pc.pos pc'.pos
+      | 0 -> Position.compare pc.pos pc'.pos
       | x -> x
     end
   | x -> x
@@ -148,14 +148,14 @@ let change_state f_set f_index c t =
     root_pos_index =
       if c.eq then
         List.fold_left (fun i (t, side) ->
-            f_index t { pos = Position.Term.root; side; clause = c } i)
+            f_index t { pos = Position.root; side; clause = c } i)
           t.root_pos_index l
       else
         t.root_pos_index;
     root_neg_index =
       if not c.eq then
         List.fold_left (fun i (t, side) ->
-            f_index t { pos = Position.Term.root; side; clause = c } i)
+            f_index t { pos = Position.root; side; clause = c } i)
           t.root_neg_index l
       else
         t.root_neg_index;
@@ -204,7 +204,7 @@ let extract cl =
   | _, None -> assert false
 
 let do_supp acc sigma active inactive =
-  assert (active.clause.eq && active.pos = Position.Term.root);
+  assert (active.clause.eq && active.pos = Position.root);
   let aux = Unif.term_subst sigma in
   let s, t = extract active in
   let u, v = extract inactive in
@@ -213,15 +213,18 @@ let do_supp acc sigma active inactive =
      Lpo.compare v' (aux u) = Comparison.Gt then
     acc
   else
-    let u' = aux (Position.Term.substitute inactive.pos ~by:t u) in
-    let c = mk_cl inactive.clause.eq (Some (ord u' v')) (tsize u' v')
-        (add_acc sigma (merge_acc inactive.clause.acc active.clause.acc))
-        [active.clause; inactive.clause]
-    in
-    push_cl c acc
+    match Position.Term.substitute inactive.pos ~by:t u with
+    | Some tmp ->
+      let u' = aux tmp in
+      let c = mk_cl inactive.clause.eq (Some (ord u' v')) (tsize u' v')
+          (add_acc sigma (merge_acc inactive.clause.acc active.clause.acc))
+          [active.clause; inactive.clause]
+      in
+      push_cl c acc
+    | None -> acc
 
 let do_rewrite sigma active inactive =
-  assert (active.clause.eq && active.pos = Position.Term.root);
+  assert (active.clause.eq && active.pos = Position.root);
   if inactive.clause.eq || not (List.for_all valid_subst (sigma :: active.clause.acc)) then
     None
   else begin
@@ -232,26 +235,22 @@ let do_rewrite sigma active inactive =
     let t' = aux t in
     match Lpo.compare s' t' with
     | Comparison.Gt when (not inactive.clause.eq) || Lpo.compare u v <> Comparison.Gt ->
-      let u' = Position.Term.substitute inactive.pos ~by:t' u in
-      let c = mk_cl inactive.clause.eq (Some (ord u' v)) (tsize u' v)
-          (add_acc sigma (merge_acc inactive.clause.acc active.clause.acc))
-          (active.clause :: inactive.clause.parents)
-      in
-      Some c
+      CCOpt.(Position.Term.substitute inactive.pos ~by:t' u >|=
+             (fun u' ->
+                mk_cl inactive.clause.eq (Some (ord u' v)) (tsize u' v)
+                  (add_acc sigma (merge_acc inactive.clause.acc active.clause.acc))
+                  (active.clause :: inactive.clause.parents)))
     | _ -> None
   end
 
 let find_subst_eq index v w =
-  List.fold_left (fun acc (_, sigma, l) ->
-      if acc = None then
-        List.fold_left (fun acc pos_cl ->
-            if acc = None && pos_cl.clause.eq then
-              let s, t = extract pos_cl in
-              try Some (Unif.robinson_term sigma w t)
-              with Unif.Not_unifiable_ty _ | Unif.Not_unifiable_term _ -> None
-            else acc) acc l
-      else acc
-    ) None (I.unify v index)
+  CCList.find_map (fun (_, sigma, l) ->
+      CCList.find_map (fun pos_cl ->
+          let s, t = extract pos_cl in
+          (* sigma(s) = v *)
+          try Some (Unif.Robinson.term sigma w t)
+          with Unif.Robinson.Impossible_ty _ | Unif.Robinson.Impossible_term _ -> None
+        ) l) (I.find_unify v index)
 
 let rec make_eq p_set a b =
   if Expr.Term.equal a b then
@@ -288,7 +287,7 @@ let equality_resolution c =
   if not c.eq then
     match c.lit with
     | Some (a, b) ->
-      begin match Unif.find_unifier a b with
+      begin match Unif.Robinson.find_unifier a b with
         | Some u -> [mk_none (u :: c.acc) [c]]
         | None -> []
       end
@@ -299,7 +298,7 @@ let equality_resolution c =
 let add_passive_supp p_set clause side acc pos = function
   | { Expr.term = Expr.Meta _ } -> acc
   | p ->
-    let l = I.unify p p_set.root_pos_index in
+    let l = I.find_unify p p_set.root_pos_index in
     let inactive = { clause; side; pos } in
     List.fold_left (fun acc (_, u, l) ->
         List.fold_left (fun acc active ->
@@ -308,8 +307,8 @@ let add_passive_supp p_set clause side acc pos = function
       ) acc l
 
 let add_active_supp p_set clause side s acc =
-  let l = I.unify s p_set.inactive_index in
-  let active = { clause; side; pos = Position.Term.root } in
+  let l = I.find_unify s p_set.inactive_index in
+  let active = { clause; side; pos = Position.root } in
   List.fold_left (fun acc (_, u, l) ->
       List.fold_left (fun acc inactive ->
           do_supp acc u active inactive
@@ -340,9 +339,9 @@ let supp_lit c p_set acc =
     | Comparison.Eq -> acc (* not much to do... *)
   end
 
-(* rewriting of negative litterals, alis RN *)
+(* rewriting of litterals, i.e RP & RN *)
 let add_inactive_rewrite p_set clause side pos u =
-  let l = I.unify u p_set.root_pos_index in
+  let l = I.find_unify u p_set.root_pos_index in
   let inactive = { clause; side; pos } in
   CCList.find_map (fun (_, sigma, l') ->
       if valid_subst sigma then
@@ -356,8 +355,8 @@ let rewrite_lit p_set c =
   | Some (s, t) ->
     let res = Position.Term.find_map (add_inactive_rewrite p_set c Left) s in
     begin match res with
-    | Some _ -> res
-    | None -> Position.Term.find_map (add_inactive_rewrite p_set c Right) t
+      | Some _ -> res
+      | None -> Position.Term.find_map (add_inactive_rewrite p_set c Right) t
     end
 
 (* equality_subsumption, alias ES *)

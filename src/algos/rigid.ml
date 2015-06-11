@@ -275,22 +275,22 @@ let sf_belongs sf (s, t) =
       Expr.Term.equal s s' && Expr.Term.equal t t') sf.constraints
 
 let rec add_eq sf s t =
-  let s = Unif.follow_term sf.solved s in
-  let t = Unif.follow_term sf.solved t in
+  let s = Unif.Robinson.follow_term sf.solved s in
+  let t = Unif.Robinson.follow_term sf.solved t in
   match s, t with
   | _ when Expr.Term.equal s t -> sf_singleton sf
   | ({ Expr.term = Expr.Meta m} as v), w
   | w, ({ Expr.term = Expr.Meta m} as v) ->
-    if Unif.occurs_check_term sf.solved v w then empty_sf_list
+    if Unif.Robinson.occurs_check_term sf.solved v w then empty_sf_list
     else add_subst sf m w
   | { Expr.term = Expr.App (f, f_ty_args, f_args) },
     { Expr.term = Expr.App(g, g_ty_args, g_args) } ->
     if Expr.Id.compare f g = 0 then begin
       try
-        let u = List.fold_left2 Unif.robinson_ty
+        let u = List.fold_left2 Unif.Robinson.ty
             sf.solved f_ty_args g_ty_args in
         List.fold_left2 add_eq_set (sf_singleton {sf with solved = u}) f_args g_args
-      with Unif.Not_unifiable_ty _ ->
+      with Unif.Robinson.Impossible_ty _ ->
         empty_sf_list
     end else
       empty_sf_list
@@ -303,20 +303,20 @@ and add_eq_set l s t =
 
 and add_subst sf m t =
   try
-    let u = Unif.robinson_ty sf.solved Expr.(m.meta_id.id_type) Expr.(t.t_type) in
+    let u = Unif.Robinson.ty sf.solved Expr.(m.meta_id.id_type) Expr.(t.t_type) in
     List.fold_left (fun acc (s, t) -> add_gt_set acc t s)
       (sf_singleton {solved = Unif.bind_term u m t; constraints = []}) sf.constraints
-  with Unif.Not_unifiable_ty (ty, ty') ->
+  with Unif.Robinson.Impossible_ty (ty, ty') ->
     empty_sf_list
 
 and add_gt sf s t =
-  let s = Unif.follow_term sf.solved s in
-  let t = Unif.follow_term sf.solved t in
+  let s = Unif.Robinson.follow_term sf.solved s in
+  let t = Unif.Robinson.follow_term sf.solved t in
   match s, t with
   | { Expr.term = Expr.Meta _ }, _
-    when Unif.occurs_check_term sf.solved s t -> empty_sf_list
+    when Unif.Robinson.occurs_check_term sf.solved s t -> empty_sf_list
   | _, { Expr.term = Expr.Meta _ }
-    when Unif.occurs_check_term sf.solved t s -> sf_singleton sf
+    when Unif.Robinson.occurs_check_term sf.solved t s -> sf_singleton sf
   | { Expr.term = Expr.Meta _ }, _ | _, { Expr.term = Expr.Meta _ }
     when sf_belongs sf (s, t) -> empty_sf_list
   | { Expr.term = Expr.Meta _ }, _ | _, { Expr.term = Expr.Meta _ } ->

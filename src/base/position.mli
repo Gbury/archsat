@@ -1,47 +1,27 @@
 
-(** Positions insisde terms and types.
-    This module provides tools to record positions
-    inside terms as paths. *)
+type t
 
-exception Invalid
-(** Returned when a position is used in an expression, but the path
-    representing the position does not exist. *)
+type 'a res =
+  | Var
+  | Top of 'a Expr.function_descr Expr.id
+  | Possible
+  | Impossible
 
-module type S = sig
-  (** Type signature for a module that implements
-      positions inside an arbitrary type *)
+val root : t
+val arg : int -> t -> t
 
-  type t
-  (** The type of paths/positions inside a value of type [expr]. *)
-  type expr
-  (** The type on values on which paths can be used. *)
-
-  val root : t
-  val arg : int -> t -> t
-  (** Functions to build paths. *)
-
-  val compare : t -> t -> int
-  (** Comparison between paths *)
-
-  val apply : t -> expr -> expr
-  (** Returns the expression at a given position. *)
-
-  val substitute : t -> by:expr -> expr -> expr
-  (** [substitute p v t] returns [t] where the expression at posisiton [p]
-      has been substituted with [v]. *)
-
-  val fold : ('a -> t -> expr -> 'a) -> 'a -> expr -> 'a
-  (** Fold on all sub-expressions of an expression. *)
-
-  val find_map : (t -> expr -> 'a option) -> expr -> 'a option
-  (** Fold on al subterms but stop on the first time a not [None] result is returned. *)
-
-end
+val compare : t -> t -> int
 
 module Ty : sig
-  include S with type expr = Expr.ty
+  val apply : t -> Expr.ty -> Expr.ttype res * Expr.ty option
+  val substitute : t -> by:Expr.ty -> Expr.ty -> Expr.ty option
+  val fold : ('a -> t -> Expr.ty -> 'a) -> 'a -> Expr.ty -> 'a
+  val find_map : (t -> Expr.ty -> 'a option) -> Expr.ty -> 'a option
 end
 
 module Term : sig
-  include S with type expr = Expr.term
+  val apply : t -> Expr.term -> Expr.ty res * Expr.term option
+  val substitute : t -> by:Expr.term -> Expr.term -> Expr.term option
+  val fold : ('a -> t -> Expr.term -> 'a) -> 'a -> Expr.term -> 'a
+  val find_map : (t -> Expr.term -> 'a option) -> Expr.term -> 'a option
 end

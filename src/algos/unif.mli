@@ -1,9 +1,6 @@
 
 (** Unification for terms *)
 
-exception Not_unifiable_ty of Expr.ty * Expr.ty
-exception Not_unifiable_term of Expr.term * Expr.term
-
 (** {2 Unifiers} *)
 
 type t = {
@@ -38,16 +35,6 @@ val bind_ty : t -> Expr.ttype Expr.meta -> Expr.ty -> t
 val bind_term : t -> Expr.ty Expr.meta -> Expr.term -> t
 (** Add new bindings. *)
 
-val follow_ty : t -> Expr.ty -> Expr.ty
-val follow_term : t -> Expr.term -> Expr.term
-(** Applies bindings in the substitution until either
-    a non-meta variable if found, or the meta-variable is not in the substitution.
-    Pseudo-code examples :
-    {ul
-      {li [follow_term \[x -> y; y -> f(a)\] x = f(a)]}
-      {li [follow_term \[x -> f(y); y -> a\] x = f(y)]}
-    } *)
-
 val inverse : t -> t
 (** [inverse s] returns a substitution with the same bindings as [s] except
     for bindings of [s] which binds a meta-variable [m] to another meta-variable [m'],
@@ -68,46 +55,84 @@ val saturate : t -> t
 
 (** {2 Unification caching} *)
 
-type 'a cache
-(** The type of caches for binary functions on terms, with return type 'a.
-    Currently implemented with a Hash table.
-    Two pair of terms [(s, t)] and [(s', t')] are equal iff there exists
-    an involution of the meta-variables [u], such that:
-    {ul
+module Cache : sig
+
+  type 'a t
+  (** The type of caches for binary functions on terms, with return type 'a.
+      Currently implemented with a Hash table.
+      Two pair of terms [(s, t)] and [(s', t')] are equal iff there exists
+      an involution of the meta-variables [u], such that:
+      {ul
       {li [u] unifies [s] with [s'] and [t] with [t']}
       {li Any binding in [u] that links a meta [m] to a meta [m']
           verifies that [m] and [m'] are defined by the same formula.}
-    }
-    *)
+      }
+  *)
 
-val new_cache : unit -> 'a cache
-(** Create a new cache. *)
+  val create : unit -> 'a t
+  (** Create a new cache. *)
 
-val clear_cache : 'a cache -> unit
-(** Empty the cache table. *)
+  val clear : 'a t -> unit
+  (** Empty the cache table. *)
 
-val with_cache : 'a cache -> (Expr.term -> Expr.term -> 'a) ->
-  Expr.term -> Expr.term -> 'a
-(** Wraps the given function with the given cache. *)
+  val with_cache : 'a t -> (Expr.term -> Expr.term -> 'a) ->
+    Expr.term -> Expr.term -> 'a
+  (** Wraps the given function with the given cache. *)
+
+end
 
 (** {2 Robinson unification} *)
 
-val occurs_check_ty : t -> Expr.ty -> Expr.ty -> bool
-val occurs_check_term : t -> Expr.term -> Expr.term -> bool
-(** Occurs check on terms and types. *)
+module Match : sig
 
-val robinson_ty : t -> Expr.ty -> Expr.ty -> t
-val robinson_term : t -> Expr.term -> Expr.term -> t
-(** Robinson unification with input substitution. Can be used to extend substitutions.
-    Fixpoint computation should be applied to substitutions returned by these functions.
-    @raise Not_unifiable_ty _
-    @raise Not_unifiable_term _ *)
+  exception Impossible_ty of Expr.ty * Expr.ty
+  exception Impossible_term of Expr.term * Expr.term
 
-val find_unifier : Expr.term -> Expr.term -> t option
-(** Tries and find a unifier. *)
+  type tt
 
-val unify_ty : (t -> unit) -> Expr.ty -> Expr.ty -> unit
-val unify_term : (t -> unit) -> Expr.term -> Expr.term -> unit
-(** Unification on types and terms. Expects a function to deal with
-    the substitution if one is found. Currently uses robinson unification. *)
+  val empty : tt
+
+  val to_subst : tt -> t
+
+  val ty : tt -> Expr.ty -> Expr.ty -> tt
+  val term : tt -> Expr.term -> Expr.term -> tt
+
+  val find : Expr.term -> Expr.term -> tt option
+
+end
+
+module Robinson : sig
+
+  exception Impossible_ty of Expr.ty * Expr.ty
+  exception Impossible_term of Expr.term * Expr.term
+
+  val occurs_check_ty : t -> Expr.ty -> Expr.ty -> bool
+  val occurs_check_term : t -> Expr.term -> Expr.term -> bool
+  (** Occurs check on terms and types. *)
+
+  val follow_ty : t -> Expr.ty -> Expr.ty
+  val follow_term : t -> Expr.term -> Expr.term
+  (** Applies bindings in the substitution until either
+      a non-meta variable if found, or the meta-variable is not in the substitution.
+      Pseudo-code examples :
+      {ul
+      {li [follow_term \[x -> y; y -> f(a)\] x = f(a)]}
+      {li [follow_term \[x -> f(y); y -> a\] x = f(y)]}
+      } *)
+
+  val ty : t -> Expr.ty -> Expr.ty -> t
+  val term : t -> Expr.term -> Expr.term -> t
+  (** Robinson unification with input substitution. Can be used to extend substitutions.
+      Fixpoint computation should be applied to substitutions returned by these functions.
+      @raise Impossible_ty _
+      @raise Impossible_term _ *)
+
+  val find_unifier : Expr.term -> Expr.term -> t option
+  (** Tries and find a unifier. *)
+
+  val unify_ty : (t -> unit) -> Expr.ty -> Expr.ty -> unit
+  val unify_term : (t -> unit) -> Expr.term -> Expr.term -> unit
+  (** Unification on types and terms. Expects a function to deal with
+      the substitution if one is found. Currently uses robinson unification. *)
+end
 
