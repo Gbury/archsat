@@ -127,7 +127,7 @@ module Robinson : sig
       @raise Impossible_ty _
       @raise Impossible_term _ *)
 
-  val find_unifier : Expr.term -> Expr.term -> t option
+  val find : Expr.term -> Expr.term -> t option
   (** Tries and find a unifier. *)
 
   val unify_ty : (t -> unit) -> Expr.ty -> Expr.ty -> unit

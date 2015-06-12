@@ -1,0 +1,56 @@
+
+\section{ArchSat}
+
+Plugins in archsat are the mechanism used to add support for theories.
+Typically each plugins is in charge of taking care of a particular theory.
+The main way for plugins to exchange information (so as to effectly combine
+the theories they describe) is through the assignments.
+
+\subsection{General invariants}
+
+In Archsat, much like in the Zenon automated theorem prover, terms and formulas
+are immutable, i.e once created, they will not change during proof search.
+This is especially important when considering the treatment of universally
+quantified axioms (or existentially quantified goals).
+
+Assignements currently are a map from terms to terms. As stated above, the
+substitution that the assignments represent is supposed to be an involution,
+which means that any value $v$ which is assigned to a term $t$, either has
+no assignment, or an assignment to itself. This is a particularly important
+point because we use structural equality to decide equality between assigned
+values, i.e if two terms are assigned to not structurally equal values, then
+they are assumed to be distinct in the current model.
+A consequence of that is that once a term has been assigned, its value will
+not change except for when the solver backtracks to before the assignment.
+
+\subsection{Automatic backtracking}
+
+Backtracking in ArchSat is done using a global undo stack, defined in the
+Backtrack module. The main idea behind that is to avoid having explicit
+functions to handle backtracking in the plugins. Instead, each plugin
+can have its own internal state defined in its module, and is responsible for
+logging changes onto the global stack. In order to be easier to use,
+we define wrapped data structures, such as a hashtable. In this case, creation
+of the hastable requires an undo stack to use, but afterwards, all operations
+on the hashtabl automatically registers the correponding undo actions in
+the undo stack, allowing the extensions to not have to implement explicit
+backtracking functions.
+
+\subsection{Dispatcher}
+
+The dispatcher is the module responsible for combining plugins in order
+to have a single theory interface with the McSat Solver. The dispatcher
+offers a powerful watch system for the plugins to use. It is used through
+a function of the form:
+\begin{lstlisting}
+val watch: int -> term list -> (unit -> unit) -> unit
+\end{lstlisting}
+
+Calling \lstinline{watch k l f} register the callback \lstinline{f} to be called
+as soon as there are strictly less than \lstinline{k} terms in \lstinline{l} that
+are not assigned. Typically, watching with \lstinline{k=1} is used to evaluate and
+propagate terms and formulas as soon as all arguments of an application are evaluated.
+Watching with \lstinline{k=2} allows plugins to propagate constraints in their internal
+state: for instance, if the formula $x < y$ is in the current set of assumptions,
+and $y$ is assigned to $5$, it might be useful to add $x < 5$ to the internal set of
+arithmetic contraints, or to propagate $y > 10$ to the solver.

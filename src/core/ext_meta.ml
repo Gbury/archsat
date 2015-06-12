@@ -87,10 +87,27 @@ let empty_st () = {
   inequalities = [];
 }
 
+let top = function
+  | { Expr.term = Expr.App (f, _, _) } -> Some f
+  | _ -> None
+
+(* Folding over terms to unify *)
+let fold_diff f start st =
+  let acc = List.fold_left (fun acc (a, b) -> f acc a b) start st.inequalities in
+  List.fold_left (fun acc' p ->
+      List.fold_left (fun acc'' notp  ->
+          if CCOpt.equal Expr.Id.equal (top p) (top notp) then
+            f acc'' p notp
+          else
+            acc''
+        ) acc' st.false_preds
+    ) acc st.true_preds
+
 let debug_st n st =
   log n "Found : %d true preds, %d false preds, %d equalities, %d inequalities"
     (List.length st.true_preds) (List.length st.false_preds) (List.length st.equalities) (List.length st.inequalities);
-  List.iter (fun (a, b) -> log n " |- %a == %a" Expr.Debug.term a Expr.Debug.term b) st.equalities
+  List.iter (fun (a, b) -> log n " |- %a == %a" Expr.Debug.term a Expr.Debug.term b) st.equalities;
+  fold_diff (fun () a b -> log n " |- %a <> %a" Expr.Debug.term a Expr.Debug.term b) () st
 
 let parse_slice iter =
   let res = empty_st () in
@@ -207,14 +224,6 @@ let meta_assume lvl = function
 (* Finding instanciations *)
 (* ************************************************************************ *)
 
-(* Folding over terms to unify *)
-let fold_diff f start st =
-  let acc = List.fold_left (fun acc p ->
-      List.fold_left (fun acc notp  ->
-          f acc p notp) acc st.false_preds) start st.true_preds
-  in
-  List.fold_left (fun acc (a, b) -> f acc a b) acc st.inequalities
-
 (* Supperposition limit *)
 let supp_limit st =
   let n = fold_diff (fun n _ _ -> n + 1) 0 st in
@@ -227,9 +236,9 @@ let insts r l =
   let l = List.map Unif.fixpoint l in
   let l = CCList.flat_map Inst.split l in
   let l = List.map do_inst l in
-  if List.exists (fun b -> b) l then begin
+  if List.exists CCFun.id l then begin
     decr r;
-    log 10 "%d remaining" !r;
+    log 10 "Waiting for %d other insts" !r;
     if !r <= 0 then raise Found_unif
   end
 
@@ -292,7 +301,7 @@ let opts t =
   let docs = Options.ext_sect in
   let inst =
     let doc = CCPrint.sprintf
-      "Select unification method to use in order to find instanciations
+        "Select unification method to use in order to find instanciations
        $(docv) may be %s." (Cmdliner.Arg.doc_alts_enum ~quoted:false unif_list) in
     Cmdliner.Arg.(value & opt unif_conv Auto & info ["meta.find"] ~docv:"METHOD" ~docs ~doc)
   in
@@ -310,7 +319,7 @@ let opts t =
   in
   let heuristic =
     let doc = CCPrint.sprintf
-      "Select heuristic to use when assigning scores to possible unifiers/instanciations.
+        "Select heuristic to use when assigning scores to possible unifiers/instanciations.
        $(docv) may be %s" (Cmdliner.Arg.doc_alts_enum ~quoted:true heur_list) in
     Cmdliner.Arg.(value & opt heur_conv No_heuristic & info ["meta.heur"] ~docv:"HEUR" ~docs ~doc)
   in
@@ -346,7 +355,7 @@ let opts t =
 ;;
 
 Dispatcher.Plugin.register "meta" ~options:opts
-      ~descr:"Generate meta variables for universally quantified formulas, and use unification to push
+  ~descr:"Generate meta variables for universally quantified formulas, and use unification to push
               possible instanciations to the 'inst' module."
   (Dispatcher.mk_ext ~assume:(fun (f, lvl) -> meta_assume lvl f) ~if_sat:find_all_insts ())
 

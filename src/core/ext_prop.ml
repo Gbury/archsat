@@ -43,24 +43,11 @@ let f_eval f () =
   | Some(false, lvl) -> D.propagate (Expr.Formula.neg f) lvl
   | None -> ()
 
-let rec sat_preprocess = function
+let sat_preprocess = function
   | { Expr.formula = Expr.Pred ({Expr.term = Expr.App (p, _, _)} as t)} as f
     when Expr.(Ty.equal t.t_type Ty.prop) ->
     Expr.Id.set_assign p 5 sat_assign;
     D.watch "prop" 1 [t] (f_eval f)
-  | { Expr.formula = Expr.Not f } ->
-    sat_preprocess f
-  | { Expr.formula = Expr.And l }
-  | { Expr.formula = Expr.Or l } ->
-    List.iter sat_preprocess l
-  | { Expr.formula = Expr.Imply (p, q) }
-  | { Expr.formula = Expr.Equiv (p, q) } ->
-    sat_preprocess p;
-    sat_preprocess q
-  | { Expr.formula = Expr.All (_, _, f) }
-  | { Expr.formula = Expr.AllTy (_, _, f) }
-  | { Expr.formula = Expr.Ex (_, _, f) } ->
-    sat_preprocess f
   | _ -> ()
 
 ;;

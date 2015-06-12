@@ -96,27 +96,13 @@ let rec set_handler t =
       Expr.Id.set_assign f 0 eq_assign;
     List.iter set_handler l
 
-let rec eq_pre = function
+let eq_pre = function
   | { Expr.formula = Expr.Equal (a, b) } as f ->
     watch 1 [a; b] (f_eval f);
     set_handler a;
     set_handler b
   | { Expr.formula = Expr.Pred p } ->
     set_handler p
-  | { Expr.formula = Expr.Not f } ->
-    eq_pre f
-  | { Expr.formula = Expr.And l }
-  | { Expr.formula = Expr.Or l } ->
-    List.iter eq_pre l
-  | { Expr.formula = Expr.Imply (p, q) }
-  | { Expr.formula = Expr.Equiv (p, q) } ->
-    eq_pre p;
-    eq_pre q
-  | { Expr.formula = Expr.All (_, _, f) }
-  | { Expr.formula = Expr.AllTy (_, _, f) }
-  | { Expr.formula = Expr.Ex (_, _, f) }
-  | { Expr.formula = Expr.ExTy (_, _, f) } ->
-    eq_pre f
   | _ -> ()
 
 ;;

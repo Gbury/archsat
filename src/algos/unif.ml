@@ -202,7 +202,7 @@ module Robinson = struct
       f (term empty s t)
     with Impossible_ty _ | Impossible_term _ -> ()
 
-  let find_unifier s t =
+  let find s t =
     try Some (term empty s t)
     with Impossible_ty _ | Impossible_term _ -> None
 
@@ -225,16 +225,19 @@ module Match = struct
   let rec ty (stable, subst) s t =
     let t = Robinson.follow_ty subst t in
     match s, t with
-    | u, ({ Expr.ty = Expr.TyMeta v } as m) ->
+    | _, { Expr.ty = Expr.TyMeta v } ->
       let eq = Expr.Ty.equal s t in
       if eq then
-        (bind_ty stable v m, subst)
-      else if mem_ty stable v && not eq then
-        raise (Impossible_ty (m, u))
-      else if Robinson.occurs_check_ty subst m u then
-        raise (Impossible_ty (m, u))
+        if mem_ty subst v then
+          raise (Impossible_ty (s, t))
+        else
+          (bind_ty stable v t, subst)
+      else if mem_ty stable v then
+        raise (Impossible_ty (s, t))
+      else if Robinson.occurs_check_ty subst t s then
+        raise (Impossible_ty (s, t))
       else
-        ty (stable, bind_ty subst v u) u u
+        ty (stable, bind_ty subst v s) s s
     | { Expr.ty = Expr.TyApp (f, f_args) },
       { Expr.ty = Expr.TyApp (g, g_args) } ->
       if Expr.Id.equal f g then
@@ -246,16 +249,19 @@ module Match = struct
   let rec term (stable, subst) s t =
     let t = Robinson.follow_term subst t in
     match s, t with
-    | u, ({ Expr.term = Expr.Meta v } as m) ->
+    | _, { Expr.term = Expr.Meta v } ->
       let eq = Expr.Term.equal s t in
       if eq then
-        (bind_term stable v m, subst)
-      else if mem_term stable v && not eq then
-        raise (Impossible_term (m, u))
-      else if Robinson.occurs_check_term subst m u then
-        raise (Impossible_term (m, u))
+        if mem_term subst v then
+          raise (Impossible_term (s, t))
+        else
+          (bind_term stable v t, subst)
+      else if mem_term stable v then
+        raise (Impossible_term (s, t))
+      else if Robinson.occurs_check_term subst t s then
+        raise (Impossible_term (s, t))
       else
-        term (stable, bind_term subst v u) u u
+        term (stable, bind_term subst v s) s s
     | { Expr.term = Expr.App (f, f_ty_args, f_t_args) },
       { Expr.term = Expr.App (g, g_ty_args, g_t_args) } ->
       if Expr.Id.equal f g then

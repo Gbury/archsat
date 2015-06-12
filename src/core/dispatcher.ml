@@ -189,22 +189,7 @@ let rec check = function
     check_term b
   | { Expr.formula = Expr.Pred p } ->
     check_term p
-  | { Expr.formula = ( Expr.True | Expr.False ) } ->
-    ()
-  | { Expr.formula = Expr.Not f } ->
-    check f
-  | { Expr.formula = Expr.And l }
-  | { Expr.formula = Expr.Or l } ->
-    List.iter check l
-  | { Expr.formula = Expr.Imply (p, q) }
-  | { Expr.formula = Expr.Equiv (p, q) } ->
-    check p;
-    check q
-  | { Expr.formula = Expr.All (_, _, f) }
-  | { Expr.formula = Expr.AllTy (_, _, f) }
-  | { Expr.formula = Expr.Ex (_, _, f) }
-  | { Expr.formula = Expr.ExTy (_, _, f) } ->
-    check f
+  | _ -> ()
 
 let peek_at f = match (Plugin.get_res ()).peek with
   | Some peek -> peek f; check f
@@ -433,7 +418,7 @@ let assign t =
 
 let rec iter_assign_aux f e = match Expr.(e.term) with
   | Expr.App (p, _, l) ->
-    if not (Expr.Id.is_interpreted p) then f e;
+    if Expr.Id.is_assignable p then f e;
     List.iter (iter_assign_aux f) l
   | _ -> f e
 

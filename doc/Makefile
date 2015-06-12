@@ -8,4 +8,5 @@ all:
 	rubber --clean $(TEX)
 
 clean:
+	rubber --clean $(TEX)
 	rm -f $(PDF)

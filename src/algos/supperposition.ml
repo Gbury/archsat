@@ -17,6 +17,7 @@ type clause = {
   size : int;
   lit : (Expr.Term.t * Expr.Term.t) option;
   acc : Unif.t list;
+  reason : string;
   parents : clause list;
 }
 
@@ -37,13 +38,16 @@ let compare_cl c c' =
         | x -> x
       end
 
-let debug_cl buf c =
+let rec debug_cl ?(full=false) buf c =
   match c.lit with
-  | None -> Printf.bprintf buf "[]"
-  | Some (a, b) -> Printf.bprintf buf "[%a %s %a]"
-                     Expr.Debug.term a
-                     (if c.eq then "=" else "<>")
-                     Expr.Debug.term b
+  | None -> Printf.bprintf buf "%s:[]" c.reason
+  | Some (a, b) ->
+    Printf.bprintf buf "%s:[%a %s %a]"
+      c.reason Expr.Debug.term a
+      (if c.eq then "=" else "<>") Expr.Debug.term b;
+    if full then
+      Printf.bprintf buf " ||%a||"
+        CCPrint.(list ~start:" " ~stop:" " ~sep:", " (debug_cl ~full:false)) c.parents
 
 let rec term_size = function
   | { Expr.term = Expr.App (_, _, l) } ->
@@ -59,21 +63,19 @@ let add_acc x l = CCList.sorted_merge_uniq ~cmp:Unif.compare l [x]
 let merge_acc = CCList.sorted_merge_uniq ~cmp:Unif.compare
 
 (* Clauses *)
-let mk_cl p lit size acc parents = {
-  eq = p;
-  lit;
-  size;
+let mk_cl reason p lit size acc parents = {
+  eq = p; lit; size;
   acc = List.sort Unif.compare acc;
-  parents;
+  reason; parents;
 }
 
 let ord a b = if Expr.Term.compare a b <= 0 then a, b else b, a
 
-let mk_eq a b = mk_cl true (Some (ord a b)) (tsize a b)
+let mk_eq r a b = mk_cl r true (Some (ord a b)) (tsize a b)
 
-let mk_neq a b = mk_cl false (Some (ord a b)) (tsize a b)
+let mk_neq r a b = mk_cl r false (Some (ord a b)) (tsize a b)
 
-let mk_none = mk_cl true None 0
+let mk_none r = mk_cl r true None 0
 
 (* Indexes *)
 (* ************************************************************************ *)
@@ -128,9 +130,7 @@ let empty f = {
 let mem_clause c t = S.mem c t.clauses
 
 let fold_subterms f e side clause i =
-  Position.Term.fold (fun i pos t -> match t with
-      | { Expr.term = Expr.Meta _ } -> i
-      | _ -> f t { pos; side; clause } i) i e
+  Position.Term.fold (fun i pos t -> f t { pos; side; clause } i) i e
 
 let change_state f_set f_index c t =
   let a, b = match c.lit with
@@ -192,7 +192,10 @@ let push_cl c acc = if valid_cl c then c :: acc else acc
 let valid_subst u = (* Check that only meta-var of infinite multiplicity are instantiated *)
   Expr.Subst.for_all (fun m e -> match m.Expr.meta_mult with
       | Expr.Linear -> false
-      | Expr.Infinite -> true
+      | Expr.Infinite -> begin match e with
+          | { Expr.term = Expr.Meta m' } when m'.Expr.meta_mult = Expr.Linear -> false
+          | _ -> true
+        end
     ) u.Unif.t_map
 
 (* Help functions *)
@@ -216,7 +219,7 @@ let do_supp acc sigma active inactive =
     match Position.Term.substitute inactive.pos ~by:t u with
     | Some tmp ->
       let u' = aux tmp in
-      let c = mk_cl inactive.clause.eq (Some (ord u' v')) (tsize u' v')
+      let c = mk_cl "supp" inactive.clause.eq (Some (ord u' v')) (tsize u' v')
           (add_acc sigma (merge_acc inactive.clause.acc active.clause.acc))
           [active.clause; inactive.clause]
       in
@@ -237,7 +240,7 @@ let do_rewrite sigma active inactive =
     | Comparison.Gt when (not inactive.clause.eq) || Lpo.compare u v <> Comparison.Gt ->
       CCOpt.(Position.Term.substitute inactive.pos ~by:t' u >|=
              (fun u' ->
-                mk_cl inactive.clause.eq (Some (ord u' v)) (tsize u' v)
+                mk_cl "rewrite" inactive.clause.eq (Some (ord u' v)) (tsize u' v)
                   (add_acc sigma (merge_acc inactive.clause.acc active.clause.acc))
                   (active.clause :: inactive.clause.parents)))
     | _ -> None
@@ -246,11 +249,16 @@ let do_rewrite sigma active inactive =
 let find_subst_eq index v w =
   CCList.find_map (fun (_, sigma, l) ->
       CCList.find_map (fun pos_cl ->
+          assert (pos_cl.clause.eq);
           let s, t = extract pos_cl in
-          (* sigma(s) = v *)
-          try Some (Unif.Robinson.term sigma w t)
-          with Unif.Robinson.Impossible_ty _ | Unif.Robinson.Impossible_term _ -> None
-        ) l) (I.find_unify v index)
+          try
+            let m = Unif.Match.term sigma w t in
+            let u = Unif.Match.to_subst m in
+            assert (Expr.Term.equal v (Unif.term_subst u s));
+            assert (Expr.Term.equal w (Unif.term_subst u t));
+            Some u
+          with Unif.Match.Impossible_ty _ | Unif.Match.Impossible_term _ -> None
+        ) l) (I.find_match v index)
 
 let rec make_eq p_set a b =
   if Expr.Term.equal a b then
@@ -287,8 +295,8 @@ let equality_resolution c =
   if not c.eq then
     match c.lit with
     | Some (a, b) ->
-      begin match Unif.Robinson.find_unifier a b with
-        | Some u -> [mk_none (u :: c.acc) [c]]
+      begin match Unif.Robinson.find a b with
+        | Some u -> [mk_none "eq" (u :: c.acc) [c]]
         | None -> []
       end
     | _ -> []
@@ -309,8 +317,10 @@ let add_passive_supp p_set clause side acc pos = function
 let add_active_supp p_set clause side s acc =
   let l = I.find_unify s p_set.inactive_index in
   let active = { clause; side; pos = Position.root } in
-  List.fold_left (fun acc (_, u, l) ->
-      List.fold_left (fun acc inactive ->
+  List.fold_left (fun acc (t, u, l) ->
+      match t with
+      | { Expr.term = Expr.Meta _ } -> acc
+      | _ -> List.fold_left (fun acc inactive ->
           do_supp acc u active inactive
         ) acc l
     ) acc l
@@ -341,9 +351,10 @@ let supp_lit c p_set acc =
 
 (* rewriting of litterals, i.e RP & RN *)
 let add_inactive_rewrite p_set clause side pos u =
-  let l = I.find_unify u p_set.root_pos_index in
+  let l = I.find_match u p_set.root_pos_index in
   let inactive = { clause; side; pos } in
-  CCList.find_map (fun (_, sigma, l') ->
+  CCList.find_map (fun (_, m, l') ->
+      let sigma = Unif.Match.to_subst m in
       if valid_subst sigma then
         CCList.find_map (fun active ->
             do_rewrite sigma active inactive) l'
@@ -360,7 +371,7 @@ let rewrite_lit p_set c =
     end
 
 (* equality_subsumption, alias ES *)
-let equality_subsumption c p_set = (* is there a more generic equality in p_set ? *)
+let equality_subsumption c p_set = (* is there a more generic equality than c in p_set ? *)
   c.eq && match c.lit with
   | None -> false
   | Some (a, b) -> begin match make_eq p_set a b with
@@ -374,8 +385,8 @@ let positive_simplify_reflect p_set c =
     match c.lit with
     | Some (a, b) ->
       begin match make_eq p_set a b with
-        | `Equal -> Some (mk_none c.acc c.parents)
-        | `Unifiable u -> Some (mk_none (add_acc u c.acc) c.parents)
+        | `Equal -> Some (mk_none "ps"c.acc c.parents)
+        | `Unifiable u -> Some (mk_none "ps" (add_acc u c.acc) c.parents)
         | `Impossible -> None
       end
     | None -> None
@@ -388,7 +399,7 @@ let negative_simplify_reflect p_set c =
     match c.lit with
     | Some (a, b) ->
       begin match find_subst_eq p_set.root_neg_index a b with
-        | Some u -> Some (mk_none (add_acc u c.acc) c.parents)
+        | Some u -> Some (mk_none "ns" (add_acc u c.acc) c.parents)
         | None -> None
       end
     | None -> None
@@ -411,9 +422,11 @@ let fix arg f =
 (* Applies: RP, RN, PS, NS *)
 let simplify_clause c p =
   fix c (chain [
+      (*
       rewrite_lit p;
       positive_simplify_reflect p;
       negative_simplify_reflect p;
+         *)
     ])
 
 let simplify c p =
@@ -424,7 +437,9 @@ let simplify c p =
 (* Applies: RP, RN *)
 let cheap_simplify_aux c p =
   fix c (chain [
+      (*
       rewrite_lit p;
+         *)
     ])
 
 let cheap_simplify c p =
@@ -433,7 +448,7 @@ let cheap_simplify c p =
   | None -> c
 
 (* Applies: ES *)
-let redundant c p = equality_subsumption c p
+let redundant c p = false || equality_subsumption c p
 
 (* Applies: ER, SP, SN *)
 let generate c p = supp_lit c p (equality_resolution c)
@@ -452,13 +467,17 @@ let not_is_descendant p c = not (List.memq p c.parents)
 let rec discount_loop p_set =
   match Q.take p_set.queue with
   | None -> p_set
-  | Some (u, c) ->
-    let c = simplify c p_set in
-    if redundant c p_set then begin
-      log 20 "Redundant clause : %a" debug_cl c;
+  | Some (u, cl) ->
+    let c = simplify cl p_set in
+    if compare_cl c cl <> 0 then log 15 "Original clause : %a" (debug_cl ~full:false) cl;
+    if trivial c p_set then begin
+      log 20 "Trivial clause : %a" (debug_cl ~full:false) c;
+      discount_loop { p_set with queue = u }
+    end else if redundant c p_set then begin
+      log 20 "Redundant clause : %a" (debug_cl ~full:false) c;
       discount_loop { p_set with queue = u }
     end else begin
-      log 15 "Adding clause : %a" debug_cl c;
+      log 15 "Adding clause : %a" (debug_cl ~full:false) c;
       if c.lit = None then begin
         log 10 "Inst reached, %d clauses in state" (S.cardinal p_set.clauses);
         p_set.continuation c.acc;
@@ -479,7 +498,7 @@ let rec discount_loop p_set =
             if trivial p p_set then
               acc
             else begin
-              log 30 " |- %a" debug_cl p;
+              log 30 " |- %a" (debug_cl ~full:true) p;
               Q.insert p acc
             end
           ) t u in
@@ -491,11 +510,11 @@ let rec discount_loop p_set =
 (* ************************************************************************ *)
 
 let add_eq t a b =
-  let c = mk_eq a b [] [] in
+  let c = mk_eq "init" a b [] [] in
   if trivial c t then t
   else { t with queue = Q.insert c t.queue }
 
-let add_neq t a b = { t with queue = Q.insert (mk_neq a b [] []) t.queue }
+let add_neq t a b = { t with queue = Q.insert (mk_neq "init" a b [] []) t.queue }
 
 let solve t = discount_loop t
 

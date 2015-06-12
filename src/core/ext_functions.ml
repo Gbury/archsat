@@ -44,26 +44,12 @@ let rec set_handler = function
     List.iter set_handler l;
     if l <> [] then Dispatcher.watch "uf" 1 (t :: l) (set_interpretation t)
 
-let rec uf_pre = function
+let uf_pre = function
   | { Expr.formula = Expr.Equal (a, b) } ->
     set_handler a;
     set_handler b
   | { Expr.formula = Expr.Pred p } ->
     set_handler p
-  | { Expr.formula = Expr.Not f } ->
-    uf_pre f
-  | { Expr.formula = Expr.And l }
-  | { Expr.formula = Expr.Or l } ->
-    List.iter uf_pre l
-  | { Expr.formula = Expr.Imply (p, q) }
-  | { Expr.formula = Expr.Equiv (p, q) } ->
-    uf_pre p;
-    uf_pre q
-  | { Expr.formula = Expr.All (_, _, f) }
-  | { Expr.formula = Expr.AllTy (_, _, f) }
-  | { Expr.formula = Expr.Ex (_, _, f) }
-  | { Expr.formula = Expr.ExTy (_, _, f) } ->
-    uf_pre f
   | _ -> ()
 
 ;;

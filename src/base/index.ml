@@ -32,6 +32,7 @@ module Make(T: Set.OrderedType) = struct
   module S = Set.Make(T)
 
   type node =
+    | Empty
     | Leaf of S.t Mt.t
     | Node of node Mf.t
 
@@ -44,34 +45,31 @@ module Make(T: Set.OrderedType) = struct
     | [] -> Position.root
     | i :: r -> Position.arg (i - 1) (of_list r)
 
-  let master_key = List.map of_list [
-      []
-      (*
-      []; [1]; [2]; [3]; [1;1]; [1;2]
-         *)
-    ]
+  let master_key = List.map of_list [[]; [1]; [2]; [3]; [1; 1]; [1; 2]]
 
   let empty = {
     key = master_key;
-    trie = Node Mf.empty;
+    trie = Empty;
   }
 
-  let fp l e = List.map CCFun.(fun p -> fst @@ Position.Term.apply p e) l
+  let fp_aux e p = fst @@ Position.Term.apply p e
+  let fp l e = List.map (fp_aux e) l
 
   let findt e m = try Mt.find e m with Not_found -> S.empty
-  let findf f m = try Mf.find f m with Not_found -> Node Mf.empty
+  let findf f m = try Mf.find f m with Not_found -> Empty
 
   let rec modify action e c f t =
     match f, t with
     | [], Leaf m ->
       let s = findt e m in
       Leaf (Mt.add e (action c s) m)
-    | [], Node m ->
-      assert (Mf.is_empty m);
+    | [], Empty ->
       Leaf (Mt.singleton e (action c S.empty))
     | f' :: r, Node m ->
       let t' = findf f' m in
       Node (Mf.add f' (modify action e c r t') m)
+    | f' :: r, Empty ->
+      Node (Mf.singleton f' (modify action e c r Empty))
     | _ -> assert false
 
   let add e c t = { t with trie = modify S.add e c (fp t.key e) t.trie }
@@ -80,6 +78,7 @@ module Make(T: Set.OrderedType) = struct
 
   let rec find compat acc l t =
     match l, t with
+    | _, Empty -> acc
     | [], Leaf m -> Mt.fold (fun e s acc ->
         if S.is_empty s then acc else (e, s) :: acc) m acc
     | f :: r , Node m ->
@@ -108,17 +107,15 @@ module Make(T: Set.OrderedType) = struct
 
   let find_unify e t =
     CCList.filter_map (fun (e', s) ->
-        match Unif.Robinson.find_unifier e e' with
+        match Unif.Robinson.find e e' with
         | Some u -> Some (e', u, S.elements s) | None -> None
       ) (find compat_unif [] (fp t.key e) t.trie)
 
   let find_match e t =
     let l = find compat_match [] (fp t.key e) t.trie in
     CCList.filter_map (fun (e', s) ->
-        match Unif.Match.term Unif.Match.empty e e' with
-        | exception Unif.Match.Impossible_ty _ -> None
-        | exception Unif.Match.Impossible_term _ -> None
-        | m -> Some (e', m, S.elements s)
+        match Unif.Match.find e e' with
+        | Some m -> Some (e', m, S.elements s) | None -> None
       ) l
 
 end
