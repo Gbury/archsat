@@ -18,10 +18,10 @@ module Addon = Extension.Make(struct
     let log_name = "addons"
     let merge l = {
       builtins = (fun input_format s args arg' ->
-        let aux ext = ext.builtins input_format s args arg' in
-        CCList.find_map aux l);
+          let aux ext = ext.builtins input_format s args arg' in
+          CCList.find_map aux l);
     }
   end)
 
-let type_env = (Addon.get_res ()).builtins
+let type_env input = (Addon.get_res ()).builtins input
 

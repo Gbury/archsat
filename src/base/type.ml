@@ -17,8 +17,12 @@ module H = Backtrack.HashtblBack(struct
 (* ************************************************************************ *)
 
 exception Typing_error of string * Ast.term
-exception Scoping_error of string
-exception Bad_arity of string * int * Ast.term list
+
+let _scope_err t = raise (Typing_error ("Scoping error", t))
+let _expected s t = raise (Typing_error (
+    Printf.sprintf "Expected a %s" s, t))
+let _bad_arity s n t = raise (Typing_error (
+    Printf.sprintf "Bad arity (%d) for operator '%s'" n s, t))
 
 (* Global Environment *)
 (* ************************************************************************ *)
@@ -51,10 +55,8 @@ let add_cst name c =
     H.add constants name c
 
 let find_ty_cstr name =
-  try
-    H.find types name
-  with Not_found ->
-    raise (Scoping_error name)
+  try Some (H.find types name)
+  with Not_found -> None
 
 let find_cst (default_args, default_ret) name =
   try
@@ -133,9 +135,9 @@ let add_let_prop env name t = { env with prop_vars = M.add name t env.prop_vars 
 
 let find_var map s =
   try
-    M.find s map
+    Some (M.find s map)
   with Not_found ->
-    raise (Scoping_error s)
+    None
 
 let find_type_var env s = find_var env.type_vars s
 let find_term_var env s = find_var env.term_vars s
@@ -144,27 +146,40 @@ let find_prop_var env s = find_var env.prop_vars s
 (* Expression parsing *)
 (* ************************************************************************ *)
 
+let scope t f arg =
+  match f arg with
+  | Some res -> res
+  | None -> _scope_err t
+
 let parse_ttype_var = function
   | { Ast.term = Ast.Column (
       { Ast.term = Ast.Var s }, {Ast.term = Ast.Const Ast.Ttype}) } ->
     Expr.Id.ttype s
-  | t -> raise (Typing_error ("Expected a type variable", t))
+  | t -> _expected "a type variable" t
 
 let parse_ty_cstr env ty_args s =
   match env.builtins s ty_args [] with
-  | Some `Ty res -> res
-  | _ -> (find_ty_cstr s), ty_args
+  | Some `Ty res -> Some res
+  | _ ->
+    begin match find_ty_cstr s with
+      | Some x -> Some (x, ty_args)
+      | None -> None
+    end
 
 let rec parse_ty ~status env = function
-  | { Ast.term = Ast.Var s} -> find_type_var env s
-  | { Ast.term = Ast.Const (Ast.String c)} ->
-    let f, args = parse_ty_cstr env [] c in
-    Expr.Ty.apply ~status f args
-  | { Ast.term = Ast.App ({Ast.term = Ast.Const (Ast.String c) }, l) } ->
+  | { Ast.term = Ast.Var s} as t -> scope t (find_type_var env) s
+  | { Ast.term = Ast.Const (Ast.String c)} as t ->
+    begin match parse_ty_cstr env [] c with
+      | Some (f, args) -> Expr.Ty.apply ~status f args
+      | None -> _scope_err t
+    end
+  | { Ast.term = Ast.App ({Ast.term = Ast.Const (Ast.String c) }, l) } as t ->
     let l' = List.map (parse_ty ~status env) l in
-    let f, args = parse_ty_cstr env l' c in
-    Expr.Ty.apply ~status f args
-  | t -> raise (Typing_error ("Expected a type", t))
+    begin match parse_ty_cstr env l' c with
+      | Some (f, args) -> Expr.Ty.apply ~status f args
+      | None -> _scope_err t
+    end
+  | t -> _expected "type" t
 
 let rec parse_sig ~status env = function
   | { Ast.term = Ast.Binding (Ast.AllTy, vars, t) } ->
@@ -181,7 +196,7 @@ let parse_ty_var ~status env = function
     Expr.Id.ty s Expr.Ty.base
   | { Ast.term = Ast.Column ({ Ast.term = Ast.Var s }, ty) } ->
     Expr.Id.ty s (parse_ty ~status env ty)
-  | t -> raise (Typing_error ("Expected a (typed) variable", t))
+  | t -> _expected "(typed) variable" t
 
 let default_cst_ty n ret = (CCList.replicate n Expr.Ty.base, ret)
 
@@ -194,7 +209,7 @@ let parse_cst env ty_args t_args ret s =
 
 let parse_let_var eval = function
   | { Ast.term = Ast.Column ({ Ast.term = Ast.Var s}, t) } -> (s, eval t)
-  | t -> raise (Typing_error ("Expected a 'let' construct", t))
+  | t -> _expected "'let' construct" t
 
 let rec parse_args ~status env = function
   | [] -> [], []
@@ -203,17 +218,17 @@ let rec parse_args ~status env = function
       let ty_arg = parse_ty ~status env e in
       let ty_args, t_args = parse_args ~status env r in
       ty_arg :: ty_args, t_args
-    with Typing_error _ | Scoping_error _ ->
+    with Typing_error _ ->
       let t_args = List.map (parse_term ~status Expr.Ty.base env) l in
       [], t_args
 
 and parse_term ~status ret env = function
-  | { Ast.term = Ast.Var s } -> find_term_var env s
+  | { Ast.term = Ast.Var s } as t -> scope t (find_term_var env) s
   | { Ast.term = Ast.App ({ Ast.term = Ast.Const Ast.String s }, []) }
   | { Ast.term = Ast.Const Ast.String s } ->
-    begin try
-        find_term_var env s
-      with Scoping_error _ ->
+    begin match find_term_var env s with
+      | Some res -> res
+      | None ->
         let f, ty_args, t_args = parse_cst env [] [] ret s in
         Expr.Term.apply ~status f ty_args t_args
     end
@@ -227,7 +242,7 @@ and parse_term ~status ret env = function
         add_let_term acc s t) env vars
     in
     parse_term ~status ret env' f
-  | t -> raise (Typing_error ("Expected a term", t))
+  | t -> _expected "term" t
 
 let rec parse_quant_vars ~status env = function
   | [] -> [], [], env
@@ -255,20 +270,20 @@ let rec parse_formula ~status env = function
     Expr.Formula.f_or (List.map (parse_formula ~status env) l)
   | { Ast.term = Ast.App ({Ast.term = Ast.Const Ast.Xor}, l) } ->
     assert false
-  | { Ast.term = Ast.App ({Ast.term = Ast.Const Ast.Imply}, l) } ->
+  | { Ast.term = Ast.App ({Ast.term = Ast.Const Ast.Imply}, l) } as t ->
     begin match l with
       | [p; q] -> Expr.Formula.imply (parse_formula ~status env p) (parse_formula ~status env q)
-      | _ -> raise (Bad_arity ("=>", 2, l))
+      | _ -> _bad_arity "=>" 2 t
     end
-  | { Ast.term = Ast.App ({Ast.term = Ast.Const Ast.Equiv}, l) } ->
+  | { Ast.term = Ast.App ({Ast.term = Ast.Const Ast.Equiv}, l) } as t ->
     begin match l with
       | [p; q] -> Expr.Formula.equiv (parse_formula ~status env p) (parse_formula ~status env q)
-      | _ -> raise (Bad_arity ("<=>", 2, l))
+      | _ -> _bad_arity "<=>" 2 t
     end
-  | { Ast.term = Ast.App ({Ast.term = Ast.Const Ast.Not}, l) } ->
+  | { Ast.term = Ast.App ({Ast.term = Ast.Const Ast.Not}, l) } as t ->
     begin match l with
       | [p] -> Expr.Formula.neg (parse_formula ~status env p)
-      | _ -> raise (Bad_arity ("not", 1, l))
+      | _ -> _bad_arity "not" 1 t
     end
 
   (* Binders *)
@@ -293,10 +308,10 @@ let rec parse_formula ~status env = function
     parse_formula ~status env' f
 
   (* (Dis)Equality *)
-  | { Ast.term = Ast.App ({Ast.term = Ast.Const Ast.Eq}, l) } ->
+  | { Ast.term = Ast.App ({Ast.term = Ast.Const Ast.Eq}, l) } as t ->
     begin match l with
       | [a; b] -> Expr.Formula.eq (parse_term ~status Expr.Ty.base env a) (parse_term ~status Expr.Ty.base env b)
-      | _ -> raise (Bad_arity ("=", 2, l))
+      | _ -> _bad_arity "=" 2 t
     end
   | { Ast.term = Ast.App ({Ast.term = Ast.Const Ast.Distinct}, args) } ->
     let l = CCList.diagonal (List.map (parse_term ~status Expr.Ty.base env) args) in
@@ -305,8 +320,10 @@ let rec parse_formula ~status env = function
   (* Possibly bound variables *)
   | { Ast.term = Ast.App ({ Ast.term = Ast.Const Ast.String s }, []) }
   | { Ast.term = Ast.Const Ast.String s } | { Ast.term = Ast.Var s } as t ->
-    begin try find_prop_var env s
-      with Scoping_error _ -> Expr.Formula.pred (parse_term ~status Expr.Ty.prop env t) end
+    begin match find_prop_var env s with
+      | Some res -> res
+      | None -> Expr.Formula.pred (parse_term ~status Expr.Ty.prop env t)
+    end
 
   (* Generic terms *)
   | { Ast.term = Ast.App _ }
@@ -314,7 +331,7 @@ let rec parse_formula ~status env = function
     Expr.Formula.pred (parse_term ~status Expr.Ty.prop env t)
 
   (* Absurd case *)
-  | t -> raise (Typing_error ("Expected a formula", t))
+  | t -> _expected "formula" t
 
 (* Exported functions *)
 (* ************************************************************************ *)

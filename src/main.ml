@@ -98,7 +98,7 @@ let do_command opt = function
     exit 2
 
 (* Main function *)
-let main () =
+let () =
   (* Argument parsing *)
   let man = Options.help_secs (Dispatcher.Plugin.ext_doc ()) (Semantics.Addon.ext_doc ()) in
   let info = Cmdliner.Term.(info ~sdocs:Options.copts_sect ~man ~version:"0.1" "tabsat") in
@@ -110,67 +110,70 @@ let main () =
   (* Gc alarm for limits *)
   setup_alarm opt.time_limit opt.size_limit;
 
-  (* Io options *)
-  Io.set_input opt.input_format;
-  Io.set_output opt.output_format;
+  try
+    (* Io options *)
+    Io.set_input opt.input_format;
+    Io.set_output opt.output_format;
 
-  (* Syntax extensions *)
-  Semantics.Addon.set_exts "+base,+arith";
-  List.iter Semantics.Addon.set_ext opt.s_exts;
+    (* Syntax extensions *)
+    Semantics.Addon.set_exts "+base,+arith";
+    List.iter Semantics.Addon.set_ext opt.s_exts;
 
-  (* Extensions options *)
-  Dispatcher.Plugin.set_exts "+eq,+uf,+logic,+prop,+skolem,+meta,+inst,+stats";
-  List.iter Dispatcher.Plugin.set_ext opt.extensions;
+    (* Extensions options *)
+    Dispatcher.Plugin.set_exts "+eq,+uf,+logic,+prop,+skolem,+meta,+inst,+stats";
+    List.iter Dispatcher.Plugin.set_ext opt.extensions;
 
-  (* Print options *)
-  wrap 0 "Options" (fun () ->
-      Options.log_opts opt;
-      Semantics.Addon.log_active 0;
-      Dispatcher.Plugin.log_active 0) ();
+    (* Print options *)
+    wrap 0 "Options" (fun () ->
+        Options.log_opts opt;
+        Semantics.Addon.log_active 0;
+        Dispatcher.Plugin.log_active 0) ();
 
-  (* Input file parsing *)
-  let commands = wrap 1 "parsing" Io.parse_input opt.input_file in
+    (* Input file parsing *)
+    let commands = wrap 1 "parsing" Io.parse_input opt.input_file in
 
-  (* Commands execution *)
-  Queue.iter (do_command opt) commands;
+    (* Commands execution *)
+    Queue.iter (do_command opt) commands;
 
-  (* Clean up *)
-  Options.clean opt
-;;
+    (* Clean up *)
+    Options.clean opt
 
-try
-  main ()
-with
-| Exit -> ()
-(* Limits management *)
-| Out_of_time ->
-  delete_alarm ();
-  Io.print_res Format.std_formatter "Timeout"
-| Out_of_space ->
-  delete_alarm ();
-  Io.print_res Format.std_formatter "Out of space"
+  with
+  | Exit -> ()
+  (* Limits management *)
+  | Out_of_time ->
+    delete_alarm ();
+    Io.print_res Format.std_formatter "Timeout"
+  | Out_of_space ->
+    delete_alarm ();
+    Io.print_res Format.std_formatter "Out of space"
 
-(* Parsing/Typing errors *)
-| Io.Parsing_error (l, msg) ->
-  Format.fprintf Format.std_formatter "%a:@\n%s@." ParseLocation.fmt l msg;
-  exit 2
-| Type.Typing_error (msg, t) ->
-  Format.fprintf Format.std_formatter "Typing error: '%s' while typing:@\n%s@." msg (Ast.s_term t);
-  exit 2
+  (* Parsing/Typing errors *)
+  | Io.Parsing_error (l, msg) ->
+    Format.fprintf Format.std_formatter "In %a:@\n%s@." ParseLocation.fmt l msg;
+    exit 2
+  | Type.Typing_error (msg, t) ->
+    let s = Printexc.get_backtrace () in
+    let loc = CCOpt.maybe CCFun.id (ParseLocation.mk opt.input_file 0 0 0 0) Ast.(t.loc) in
+    Format.fprintf Format.std_formatter "In %a:@\nTyping error: '%s' while typing@\n%s@."
+      ParseLocation.fmt loc msg (Ast.s_term t);
+    if Printexc.backtrace_status () then
+      Format.fprintf Format.std_formatter "%s" s;
+    exit 2
 
-(* Extension error *)
-| Extension.Extension_not_found (sect, ext, l) ->
-  Format.fprintf Format.std_formatter "Extension '%s/%s' not found. Available extensions are :@\n%a@."
-    sect ext (fun fmt -> List.iter (fun s -> Format.fprintf fmt "%s " s)) l;
-  exit 3
+  (* Extension error *)
+  | Extension.Extension_not_found (sect, ext, l) ->
+    Format.fprintf Format.std_formatter "Extension '%s/%s' not found. Available extensions are :@\n%a@."
+      sect ext (fun fmt -> List.iter (fun s -> Format.fprintf fmt "%s " s)) l;
+    exit 3
 
 
-| Dispatcher.Bad_assertion s ->
-  Format.fprintf Format.std_formatter "%s@." s;
-  exit 4
-| Expr.Type_error_mismatch (ty1, ty2) ->
-  Format.fprintf Format.std_formatter "The following types are NOT compatible :@\n%a ~~ %a@."
-    Expr.Print.ty ty1 Expr.Print.ty ty2;
-  exit 4
+  | Dispatcher.Bad_assertion s ->
+    Format.fprintf Format.std_formatter "%s@." s;
+    exit 4
+  | Expr.Type_error_mismatch (ty1, ty2) ->
+    Format.fprintf Format.std_formatter "The following types are NOT compatible :@\n%a ~~ %a@."
+      Expr.Print.ty ty1 Expr.Print.ty ty2;
+    exit 4
 
 

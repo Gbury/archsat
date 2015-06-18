@@ -263,7 +263,6 @@ module Arith = struct
         | _ -> Some (parse_number s 0)
       end
     with Invalid_argument _ ->
-      log 1 "failed to parse string : %s" s;
       None
 
   let q_of_val = function Int z -> Q.of_bigint z | Rat q -> q | Real r -> r

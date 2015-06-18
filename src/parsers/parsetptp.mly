@@ -237,14 +237,12 @@ fof_unary_formula:
   | NOT { T.not_ }
 
 atomic_formula:
-  | TRUE { T.true_ }
-  | FALSE { T.false_ }
-  | l=term o=infix_connective r=term { o l r }
+  | TRUE  { let loc = L.mk_pos $startpos $endpos in T.at_loc ~loc T.true_ }
+  | FALSE { let loc = L.mk_pos $startpos $endpos in T.at_loc ~loc T.false_ }
+  | l=term o=infix_connective r=term
+    { let loc = L.mk_pos $startpos $endpos in T.at_loc ~loc (o l r) }
   | t=function_term
-    {
-      let loc = L.mk_pos $startpos $endpos in
-      T.at_loc ~loc t
-    }
+    { let loc = L.mk_pos $startpos $endpos in T.at_loc ~loc t }
 
 %inline infix_connective:
   | EQUAL { T.eq }
@@ -278,7 +276,8 @@ plain_term:
 constant:
 | s=atomic_word { T.sym s }
 | s=atomic_defined_word { s }
-functor_: f=atomic_word { T.const (T.sym f) }
+functor_: f=atomic_word
+{ let loc = L.mk_pos $startpos $endpos in T.const ~loc (T.sym f) }
 
 defined_term:
   | t=defined_atom
@@ -343,11 +342,11 @@ tff_type:
     { T.mk_fun_ty args r }
 
 tff_atom_type:
-  | v=tff_ty_var { v }
-  | w=type_const { T.const w }
+  | v=tff_ty_var { let loc = L.mk_pos $startpos $endpos in T.at_loc ~loc v }
+  | w=type_const { let loc = L.mk_pos $startpos $endpos in T.const ~loc w }
   | w=type_const LEFT_PAREN l=separated_nonempty_list(COMMA, tff_type) RIGHT_PAREN
-    { T.app (T.const w) l }
-  | TYPE_TY { T.tType }
+    { let loc = L.mk_pos $startpos $endpos in T.app ~loc (T.const w) l }
+  | TYPE_TY { let loc = L.mk_pos $startpos $endpos in T.at_loc ~loc T.tType }
   | LEFT_PAREN ty=tff_type RIGHT_PAREN { ty }
 
 tff_ty_args:
@@ -358,7 +357,7 @@ tff_ty_vars:
   | v=tff_ty_var COLUMN TYPE_TY {  [v] }
   | v=tff_ty_var COLUMN TYPE_TY COMMA l=tff_ty_vars { v::l }
 
-tff_ty_var: w=UPPER_WORD { T.var w }
+tff_ty_var: w=UPPER_WORD { let loc = L.mk_pos $startpos $endpos in T.var ~loc w }
 
 type_const:
   | WILDCARD { T.wildcard }
@@ -387,7 +386,7 @@ atomic_word:
   | s=LOWER_WORD { s }
 
 atomic_defined_word:
-  | WILDCARD { T.Wildcard }
+  | WILDCARD { T.wildcard }
   | w=DOLLAR_WORD { T.sym w }
 
 atomic_system_word:
