@@ -64,16 +64,16 @@ module Misc = struct
   let p_true = Expr.Term.apply (Expr.Id.term_fun "true" [] [] Expr.Ty.prop) [] []
   let p_false = Expr.Term.apply (Expr.Id.term_fun "false" [] [] Expr.Ty.prop) [] []
 
+  let prop_cache = CCCache.unbounded 128
+  let mk_prop_aux = CCCache.with_cache prop_cache
+      (fun i ->
+         let c = Expr.Id.term_fun ("p" ^ string_of_int i) [] [] Expr.Ty.prop in
+         Expr.Formula.pred (Expr.Term.apply c [] []))
+
   let mk_prop i =
-    let aux = CCCache.with_cache (CCCache.unbounded 128)
-        (fun i ->
-           let c = Expr.Id.term_fun ("p" ^ string_of_int i) [] [] Expr.Ty.prop in
-           Expr.Formula.pred (Expr.Term.apply c [] []))
-    in
-    if i >= 0 then
-      aux i
-    else
-      Expr.Formula.neg (aux ~-i)
+    let p = mk_prop_aux (abs i) in
+    if i >= 0 then p
+    else Expr.Formula.neg p
 
   (* Absolute constants for types *)
   let const =
@@ -101,9 +101,9 @@ module Arith = struct
     | Product | Quotient
 
   type Expr.builtin +=
-    | Type of ty
-    | Val of value
-    | Op of op
+       | Type of ty
+     | Val of value
+     | Op of op
 
   type operator = ty -> Expr.ty Expr.function_descr Expr.id
 
