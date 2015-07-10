@@ -58,7 +58,7 @@ let unif_setting = ref No_unif
 let unif_list = [
   "none", No_unif;
   "simple", Simple;
-  "eunif", ERigid;
+  "rigid", ERigid;
   "super", SuperAll;
   "super_each", SuperEach;
   "auto", Auto;
