@@ -23,7 +23,8 @@ let h : domain E.t = E.create Dispatcher.stack
 
 let val_to_q = function
   | B.Int z -> Q.of_bigint z
-  | B.Rat q | B.Real q -> q
+  | B.Rat q -> q
+  | B.Real q -> Lazy.force q
 
 let evaluate_aux t =
   Arith.M.fold (fun e c acc ->

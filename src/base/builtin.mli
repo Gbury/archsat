@@ -37,7 +37,7 @@ module Arith : sig
 
   type ty = Int | Rat | Real
 
-  type value = Int of Z.t | Rat of Q.t | Real of Q.t
+  type value = Int of Z.t | Rat of Q.t | Real of Q.t Lazy.t
 
   type op =
     | Less | Lesseq

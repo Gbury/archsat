@@ -1,6 +1,4 @@
 
-module M = Map.Make(Q)
-
 let log_section = Util.Section.make "builtin"
 let log i fmt = Util.debug ~section:log_section i fmt
 
@@ -91,7 +89,10 @@ module Arith = struct
   (* Type definitions *)
   type ty = Int | Rat | Real
 
-  type value = Int of Z.t | Rat of Q.t | Real of Q.t
+  type value =
+    | Int of Z.t
+    | Rat of Q.t
+    | Real of Q.t Lazy.t
 
   type op =
     | Less | Lesseq
@@ -101,9 +102,9 @@ module Arith = struct
     | Product | Quotient
 
   type Expr.builtin +=
-       | Type of ty
-     | Val of value
-     | Op of op
+    | Type of ty
+    | Val of value
+    | Op of op
 
   type operator = ty -> Expr.ty Expr.function_descr Expr.id
 
@@ -119,18 +120,18 @@ module Arith = struct
   let add a b = match a, b with
     | Int z, Int z' -> Int Z.(z + z')
     | Rat q, Rat q' -> Rat Q.(q + q')
-    | Real r, Real r' -> Rat Q.(r + r')
+    | Real r, Real r' -> Real Q.(lazy (Lazy.force r + Lazy.force r'))
     | Int z, Rat q | Rat q, Int z -> Rat Q.(q + of_bigint z)
-    | Int z, Real r | Real r, Int z -> Real Q.(r + of_bigint z)
-    | Rat q, Real r | Real r, Rat q -> Real Q.(q + r)
+    | Int z, Real r | Real r, Int z -> Real Q.(lazy (Lazy.force r + of_bigint z))
+    | Rat q, Real r | Real r, Rat q -> Real Q.(lazy (q + Lazy.force r))
 
   let mul a b = match a, b with
     | Int z, Int z' -> Int Z.(z * z')
     | Rat q, Rat q' -> Rat Q.(q * q')
-    | Real r, Real r' -> Rat Q.(r * r')
+    | Real r, Real r' -> Real Q.(lazy (Lazy.force r * Lazy.force r'))
     | Int z, Rat q | Rat q, Int z -> Rat Q.(q * of_bigint z)
-    | Int z, Real r | Real r, Int z -> Real Q.(r * of_bigint z)
-    | Rat q, Real r | Real r, Rat q -> Real Q.(q * r)
+    | Int z, Real r | Real r, Int z -> Real Q.(lazy (Lazy.force r * of_bigint z))
+    | Rat q, Real r | Real r, Rat q -> Real Q.(lazy (q * Lazy.force r))
 
   (* Solver types for arithmetic *)
   let int_cstr = Expr.Id.ty_fun ~builtin:(Type Int) "Z" 0
@@ -220,8 +221,8 @@ module Arith = struct
       end
 
   (* Parsing arithmetic input *)
-  let val_of_string s =
-    let rec parse_int s pos acc =
+  let rec parse_int s pos base =
+    let rec aux s pos acc =
       if pos >= 0 && pos < String.length s then begin
         match s.[pos] with
         | '0' .. '9' as c ->
@@ -231,53 +232,82 @@ module Arith = struct
       end else
         acc, pos
     in
-    let parse_number s start_pos =
-      let n, pos = parse_int s start_pos Z.zero in
-      if pos >= String.length s then Int n
-      else begin match s.[pos] with
-        | '/' ->
-          if pos = start_pos then raise (Invalid_argument s)
-          else begin
-            let m, end_pos = parse_int s (pos + 1) Z.zero in
-            if end_pos = String.length s then Rat Q.(make n m)
-            else raise (Invalid_argument s)
-          end
-        | '.' ->
-          let pos = pos + 1 in
-          let m, end_pos = parse_int s pos Z.zero in
-          if end_pos = String.length s then begin
-            let exp = end_pos - pos in
-            Real (Q.make n Z.(m / (pow (of_int 10) exp)))
-          end else raise (Invalid_argument s)
-        | _ -> raise (Invalid_argument s)
-      end
-    in
-    try
-      if s = "" then None
-      else begin match s.[0] with
-        | '-' -> begin match parse_number s 1 with
-            | Int z -> Some (Int (Z.neg z))
-            | Rat q -> Some (Rat (Q.neg q))
-            | Real r -> Some (Real (Q.neg r))
-          end
-        | _ -> Some (parse_number s 0)
-      end
-    with Invalid_argument _ ->
-      None
+    if pos >= String.length s then base, pos
+    else match s.[pos] with
+      | '-' ->
+        let n, new_pos = aux s (pos + 1) base in
+        Z.neg n, new_pos
+      | _ -> aux s pos base
 
-  let q_of_val = function Int z -> Q.of_bigint z | Rat q -> q | Real r -> r
+  let parse_number s start_pos =
+    let n, pos = parse_int s start_pos Z.zero in
+    if pos >= String.length s then Int n
+    else begin match s.[pos] with
+      | '/' ->
+        if pos = start_pos then raise (Invalid_argument s)
+        else begin
+          let m, new_pos = parse_int s (pos + 1) Z.zero in
+          if new_pos >= String.length s then Rat Q.(make n m)
+          else raise (Invalid_argument s)
+        end
+      | '.' ->
+        let pos = pos + 1 in
+        let m, new_pos = parse_int s pos Z.zero in
+        let exp = new_pos - pos in
+        let r = lazy (Q.make n Z.(m / (pow (of_int 10) exp))) in
+        if new_pos = String.length s then begin
+          Real r
+        end else begin match s.[new_pos] with
+          | 'E' | 'e' ->
+            let e, end_pos = parse_int s (new_pos + 1) Z.zero in
+            if not (end_pos = String.length s) then raise (Invalid_argument s);
+            let exp = Z.to_int e in
+            Real (lazy (Q.make
+                          (Z.pow (Lazy.force r).Q.num exp)
+                          (Z.pow (Lazy.force r).Q.den exp)))
+          | _ -> raise (Invalid_argument s)
+        end
+      | _ -> raise (Invalid_argument s)
+    end
+
+  let val_of_string s =
+    if s = "" then None
+    else
+      try Some (parse_number s 0)
+      with Invalid_argument _ -> None
+
+  let q_of_val = function Int z -> Q.of_bigint z | Rat q -> q | Real r -> Lazy.force r
   let ty_of_val = function Int _ -> type_int | Rat _ -> type_rat | Real _ -> type_real
 
-  let const_map = ref M.empty
+  let int_const = Hashtbl.create 42
+  let rat_const = Hashtbl.create 42
+  let real_const = Hashtbl.create 42
 
-  let const_num v =
-    let q = q_of_val v in
-    try
-      M.find q !const_map
-    with Not_found ->
-      let res = Expr.Id.term_fun ~builtin:(Val v) (Q.to_string q) [] [] (ty_of_val v) in
-      const_map := M.add q res !const_map;
-      res
+  let const_num s = function
+    | Int i as v ->
+      begin try
+          Hashtbl.find int_const i
+        with Not_found ->
+          let res = Expr.Id.term_fun ~builtin:(Val v) s [] [] type_int in
+          Hashtbl.add int_const i res;
+          res
+      end
+    | Rat q as v ->
+      begin try
+          Hashtbl.find rat_const q
+        with Not_found ->
+          let res = Expr.Id.term_fun ~builtin:(Val v) s [] [] type_rat in
+          Hashtbl.add rat_const q res;
+          res
+      end
+    | Real _ as v ->
+      begin try
+          Hashtbl.find real_const s
+        with Not_found ->
+          let res = Expr.Id.term_fun ~builtin:(Val v) s [] [] type_real in
+          Hashtbl.add real_const s res;
+          res
+      end
 
   let list_type l =
     let rec aux = function
@@ -316,7 +346,7 @@ module Arith = struct
     | "$to_rat" when ty_args = [] -> aux_cast type_rat
     | "$to_real" when ty_args = [] -> aux_cast type_real
     | _ -> begin match val_of_string s with
-        | Some value -> Some (`Term (const_num value, ty_args, t_args))
+        | Some value -> Some (`Term (const_num s value, ty_args, t_args))
         | None -> None
       end
 

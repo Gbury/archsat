@@ -304,8 +304,13 @@ let rec parse_formula ~status env = function
     Expr.Formula.f_and (List.map (parse_formula ~status env) l)
   | { Ast.term = Ast.App ({Ast.term = Ast.Const Ast.Or}, l) } ->
     Expr.Formula.f_or (List.map (parse_formula ~status env) l)
-  | { Ast.term = Ast.App ({Ast.term = Ast.Const Ast.Xor}, l) } ->
-    assert false
+  | { Ast.term = Ast.App ({Ast.term = Ast.Const Ast.Xor}, l) } as t ->
+    begin match l with
+      | [p; q] ->
+        Expr.Formula.neg (
+          Expr.Formula.equiv (parse_formula ~status env p) (parse_formula ~status env q))
+      | _ -> _bad_arity "xor" 2 t
+    end
   | { Ast.term = Ast.App ({Ast.term = Ast.Const Ast.Imply}, l) } as t ->
     begin match l with
       | [p; q] -> Expr.Formula.imply (parse_formula ~status env p) (parse_formula ~status env q)

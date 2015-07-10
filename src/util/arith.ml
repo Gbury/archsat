@@ -70,7 +70,7 @@ module Lit = struct
   let times q e = {
     const = A.mul q e.const;
     sum =
-      let c = match q with A.Int z -> Q.of_bigint z | A.Rat q | A.Real q -> q in
+      let c = match q with A.Int z -> Q.of_bigint z | A.Rat q -> q | A.Real q -> Lazy.force q in
       M.map (Q.mul c) e.sum;
   }
 
