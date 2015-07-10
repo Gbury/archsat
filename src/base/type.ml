@@ -20,9 +20,11 @@ exception Typing_error of string * Ast.term
 
 let _scope_err t = raise (Typing_error ("Scoping error", t))
 let _expected s t = raise (Typing_error (
-    Printf.sprintf "Expected a %s" s, t))
+    Format.asprintf "Expected a %s" s, t))
 let _bad_arity s n t = raise (Typing_error (
-    Printf.sprintf "Bad arity (%d) for operator '%s'" n s, t))
+    Format.asprintf "Bad arity for operator '%s' (expected %d arguments)" s n, t))
+let _type_mismatch ty ty' t = raise (Typing_error (
+    Format.asprintf "Type Mismatch : '%a' <> '%a'" Expr.Print.ty ty Expr.Print.ty ty', t))
 
 (* Global Environment *)
 (* ************************************************************************ *)
@@ -143,6 +145,40 @@ let find_type_var env s = find_var env.type_vars s
 let find_term_var env s = find_var env.term_vars s
 let find_prop_var env s = find_var env.prop_vars s
 
+(* Wrappers for expression building *)
+(* ************************************************************************ *)
+
+let arity f =
+  List.length Expr.(f.id_type.fun_vars) +
+  List.length Expr.(f.id_type.fun_args)
+
+let ty_apply ast_term ~status f args =
+  try
+    Expr.Ty.apply ~status f args
+  with Expr.Bad_ty_arity _ ->
+    _bad_arity Expr.(f.id_name) (arity f) ast_term
+
+let term_apply ast_term ~status f ty_args t_args =
+  try
+    Expr.Term.apply ~status f ty_args t_args
+  with
+  | Expr.Bad_arity _ ->
+    _bad_arity Expr.(f.id_name) (arity f) ast_term
+  | Expr.Type_mismatch (ty, ty') ->
+    _type_mismatch ty ty' ast_term
+
+let make_eq ast_term a b =
+  try
+    Expr.Formula.eq a b
+  with Expr.Type_mismatch (ty, ty') ->
+    _type_mismatch ty ty' ast_term
+
+let make_pred ast_term p =
+  try
+    Expr.Formula.pred p
+  with Expr.Type_mismatch (ty, ty') ->
+    _type_mismatch ty ty' ast_term
+
 (* Expression parsing *)
 (* ************************************************************************ *)
 
@@ -170,13 +206,13 @@ let rec parse_ty ~status env = function
   | { Ast.term = Ast.Var s} as t -> scope t (find_type_var env) s
   | { Ast.term = Ast.Const (Ast.String c)} as t ->
     begin match parse_ty_cstr env [] c with
-      | Some (f, args) -> Expr.Ty.apply ~status f args
+      | Some (f, args) -> ty_apply t ~status f args
       | None -> _scope_err t
     end
   | { Ast.term = Ast.App ({Ast.term = Ast.Const (Ast.String c) }, l) } as t ->
     let l' = List.map (parse_ty ~status env) l in
     begin match parse_ty_cstr env l' c with
-      | Some (f, args) -> Expr.Ty.apply ~status f args
+      | Some (f, args) -> ty_apply t ~status f args
       | None -> _scope_err t
     end
   | t -> _expected "type" t
@@ -224,18 +260,18 @@ let rec parse_args ~status env = function
 
 and parse_term ~status ret env = function
   | { Ast.term = Ast.Var s } as t -> scope t (find_term_var env) s
-  | { Ast.term = Ast.App ({ Ast.term = Ast.Const Ast.String s }, []) }
-  | { Ast.term = Ast.Const Ast.String s } ->
+  | ({ Ast.term = Ast.App ({ Ast.term = Ast.Const Ast.String s }, []) } as t)
+  | ({ Ast.term = Ast.Const Ast.String s } as t) ->
     begin match find_term_var env s with
       | Some res -> res
       | None ->
         let f, ty_args, t_args = parse_cst env [] [] ret s in
-        Expr.Term.apply ~status f ty_args t_args
+        term_apply t ~status f ty_args t_args
     end
-  | { Ast.term = Ast.App ({ Ast.term = Ast.Const Ast.String s }, l) } ->
+  | { Ast.term = Ast.App ({ Ast.term = Ast.Const Ast.String s }, l) } as t ->
     let ty_args, t_args = parse_args ~status env l in
     let f, l, l' = parse_cst env ty_args t_args ret s in
-    Expr.Term.apply ~status f l l'
+    term_apply t ~status f l l'
   | { Ast.term = Ast.Binding (Ast.Let, vars, f) } ->
     let env' = List.fold_left (fun acc var ->
         let (s, t) = parse_let_var (parse_term ~status Expr.Ty.base env) var in
@@ -310,25 +346,25 @@ let rec parse_formula ~status env = function
   (* (Dis)Equality *)
   | { Ast.term = Ast.App ({Ast.term = Ast.Const Ast.Eq}, l) } as t ->
     begin match l with
-      | [a; b] -> Expr.Formula.eq (parse_term ~status Expr.Ty.base env a) (parse_term ~status Expr.Ty.base env b)
+      | [a; b] -> make_eq t (parse_term ~status Expr.Ty.base env a) (parse_term ~status Expr.Ty.base env b)
       | _ -> _bad_arity "=" 2 t
     end
-  | { Ast.term = Ast.App ({Ast.term = Ast.Const Ast.Distinct}, args) } ->
+  | { Ast.term = Ast.App ({Ast.term = Ast.Const Ast.Distinct}, args) } as t ->
     let l = CCList.diagonal (List.map (parse_term ~status Expr.Ty.base env) args) in
-    Expr.Formula.f_and (List.map (fun (a, b) -> Expr.Formula.neg (Expr.Formula.eq a b)) l)
+    Expr.Formula.f_and (List.map (fun (a, b) -> Expr.Formula.neg (make_eq t a b)) l)
 
   (* Possibly bound variables *)
   | { Ast.term = Ast.App ({ Ast.term = Ast.Const Ast.String s }, []) }
   | { Ast.term = Ast.Const Ast.String s } | { Ast.term = Ast.Var s } as t ->
     begin match find_prop_var env s with
       | Some res -> res
-      | None -> Expr.Formula.pred (parse_term ~status Expr.Ty.prop env t)
+      | None -> make_pred t (parse_term ~status Expr.Ty.prop env t)
     end
 
   (* Generic terms *)
   | { Ast.term = Ast.App _ }
   | { Ast.term = Ast.Const _ } as t ->
-    Expr.Formula.pred (parse_term ~status Expr.Ty.prop env t)
+    make_pred t (parse_term ~status Expr.Ty.prop env t)
 
   (* Absurd case *)
   | t -> _expected "formula" t

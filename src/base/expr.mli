@@ -155,10 +155,9 @@ and formula = private {
 
 (** {3 Exceptions} *)
 
-exception Type_error_doublon of string * int
-exception Type_error_app of ty function_descr id * ty list * term list
-exception Type_error_ty_app of ttype function_descr id * ty list
-exception Type_error_mismatch of ty * ty
+exception Type_mismatch of ty * ty
+exception Bad_arity of ty function_descr id * ty list * term list
+exception Bad_ty_arity of ttype function_descr id * ty list
 (** Errors raised when trying to buld a term that does not typecheck. *)
 
 exception Cannot_assign of term
@@ -196,10 +195,16 @@ module Print : sig
   val id_ty : Format.formatter -> ty id -> unit
   val id_ttype : Format.formatter -> ttype id -> unit
 
+  val const_ty : Format.formatter -> ty function_descr id -> unit
+  val const_ttype : Format.formatter -> ttype function_descr id -> unit
+
   val meta : Format.formatter -> 'a meta -> unit
 
   val ty : Format.formatter -> ty -> unit
+  val fun_ty : Format.formatter -> ty function_descr -> unit
+
   val ttype : Format.formatter -> ttype -> unit
+  val fun_ttype : Format.formatter -> ttype function_descr -> unit
 
   val term : Format.formatter -> term -> unit
   val formula : Format.formatter -> formula -> unit

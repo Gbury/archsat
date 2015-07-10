@@ -150,13 +150,13 @@ let () =
 
   (* Parsing/Typing errors *)
   | Io.Parsing_error (l, msg) ->
-    Format.fprintf Format.std_formatter "In %a:@\n%s@." ParseLocation.fmt l msg;
+    Format.fprintf Format.std_formatter "%a:@\n%s@." ParseLocation.fmt l msg;
     exit 2
   | Type.Typing_error (msg, t) ->
     let s = Printexc.get_backtrace () in
     let loc = CCOpt.maybe CCFun.id (ParseLocation.mk opt.input_file 0 0 0 0) Ast.(t.loc) in
-    Format.fprintf Format.std_formatter "In %a:@\nTyping error: '%s' while typing@\n%s@."
-      ParseLocation.fmt loc msg (Ast.s_term t);
+    Format.fprintf Format.std_formatter "%a:@\n%s@."
+      ParseLocation.fmt loc msg;
     if Printexc.backtrace_status () then
       Format.fprintf Format.std_formatter "%s" s;
     exit 2
@@ -167,11 +167,11 @@ let () =
       sect ext (fun fmt -> List.iter (fun s -> Format.fprintf fmt "%s " s)) l;
     exit 3
 
-
+  (* Internal errors. Should not happen *)
   | Dispatcher.Bad_assertion s ->
     Format.fprintf Format.std_formatter "%s@." s;
     exit 4
-  | Expr.Type_error_mismatch (ty1, ty2) ->
+  | Expr.Type_mismatch (ty1, ty2) ->
     Format.fprintf Format.std_formatter "The following types are NOT compatible :@\n%a ~~ %a@."
       Expr.Print.ty ty1 Expr.Print.ty ty2;
     exit 4

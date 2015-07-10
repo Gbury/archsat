@@ -107,10 +107,9 @@ and formula = {
 (* Exceptions *)
 (* ************************************************************************ *)
 
-exception Type_error_doublon of string * int
-exception Type_error_app of ty function_descr id * ty list * term list
-exception Type_error_ty_app of ttype function_descr id * ty list
-exception Type_error_mismatch of ty * ty
+exception Type_mismatch of ty * ty
+exception Bad_arity of ty function_descr id * ty list * term list
+exception Bad_ty_arity of ttype function_descr id * ty list
 
 exception Cannot_assign of term
 exception Cannot_interpret of term
@@ -209,9 +208,7 @@ module Print = struct
       list f sep fmt r
 
   let id fmt v = Format.fprintf fmt "%s" v.id_name
-
   let meta fmt m = Format.fprintf fmt "m%d_%a" m.meta_index id m.meta_id
-
   let ttype fmt = function Type -> Format.fprintf fmt "Type"
 
   let rec ty fmt t = match t.ty with
@@ -222,8 +219,25 @@ module Print = struct
     | TyApp (f, l) ->
       Format.fprintf fmt "%a(%a)" id f (list ty ", ") l
 
-  let id_ttype fmt v = Format.fprintf fmt "%a : %a" id v ttype v.id_type
-  let id_ty fmt v = Format.fprintf fmt "%a : %a" id v ty v.id_type
+  let params fmt = function
+    | [] -> ()
+    | l -> Format.fprintf fmt "∀ %a. " (list id ", ") l
+
+  let signature print fmt f =
+    match f.fun_args with
+    | [] -> Format.fprintf fmt "%a%a" params f.fun_vars print f.fun_ret
+    | l -> Format.fprintf fmt "%a%a -> %a" params f.fun_vars
+             (list print " -> ") l print f.fun_ret
+
+  let fun_ty = signature ty
+  let fun_ttype = signature ttype
+
+  let id_type print fmt v = Format.fprintf fmt "%a : %a" id v print v.id_type
+
+  let id_ty = id_type ty
+  let id_ttype = id_type ttype
+  let const_ty = id_type fun_ty
+  let const_ttype = id_type fun_ttype
 
   let rec term fmt t = match t.term with
     | Var v -> id fmt v
@@ -624,7 +638,7 @@ module Ty = struct
   let apply ?status f args =
     assert (f.id_type.fun_vars = []);
     if List.length args <> List.length f.id_type.fun_args then
-      raise (Type_error_ty_app (f, args))
+      raise (Bad_ty_arity (f, args))
     else
       mk_ty ?status (TyApp (f, args))
 
@@ -651,14 +665,13 @@ module Ty = struct
   let instantiate f tys args =
     if List.length f.id_type.fun_vars <> List.length tys ||
        List.length f.id_type.fun_args <> List.length args then
-      raise (Type_error_app (f, tys, args))
+      raise (Bad_arity (f, tys, args))
     else
       let map = List.fold_left2 (fun acc v ty -> Subst.Id.bind v ty acc) Subst.empty f.id_type.fun_vars tys in
       let fun_args = List.map (subst map) f.id_type.fun_args in
-      if List.for_all2 equal (List.map (fun x -> x.t_type) args) fun_args then
-        subst map f.id_type.fun_ret
-      else
-        raise (Type_error_app (f, tys, args))
+      List.iter2 (fun t t' -> if not (equal t t') then raise (Type_mismatch (t, t')))
+        (List.map (fun x -> x.t_type) args) fun_args;
+      subst map f.id_type.fun_ret
 
   (* Free variables *)
   let rec free_vars acc ty = match ty.ty with
@@ -934,11 +947,11 @@ module Formula = struct
 
   let eq a b =
     if not (Ty.equal a.t_type b.t_type) then
-      raise (Type_error_mismatch (a.t_type, b.t_type))
+      raise (Type_mismatch (a.t_type, b.t_type))
     else if (Ty.equal Ty.prop a.t_type) then
-      raise (Type_error_mismatch (Ty.prop, a.t_type))
+      raise (Type_mismatch (Ty.prop, a.t_type))
     else if (Ty.equal Ty.prop b.t_type) then
-      raise (Type_error_mismatch (Ty.prop, b.t_type))
+      raise (Type_mismatch (Ty.prop, b.t_type))
     else
     if Term.compare a b < 0 then
       mk_formula (Equal (a, b))
@@ -947,7 +960,7 @@ module Formula = struct
 
   let pred t =
     if not (Ty.equal Ty.prop t.t_type) then
-      raise (Type_error_mismatch (Ty.prop, t.t_type))
+      raise (Type_mismatch (Ty.prop, t.t_type))
     else
       mk_formula (Pred t)
 
