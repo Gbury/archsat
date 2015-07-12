@@ -106,6 +106,10 @@ let () =
   in
   (* Gc alarm for limits *)
   setup_alarm opt.time_limit opt.size_limit;
+  Sys.set_signal Sys.sigint (Sys.Signal_handle (fun _ ->
+      Util.need_cleanup := true;
+      Util.debug 0 "Interrupted by user";
+      exit 1));
 
   try
     (* Profiling *)
@@ -137,7 +141,6 @@ let () =
     Queue.iter (do_command opt) commands;
 
     (* Clean up *)
-    if opt.profile then Util.print_prof opt.out;
     Options.clean opt
 
   with

@@ -30,9 +30,6 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 (** time elapsed since start of program *)
 val get_total_time : unit -> float
 
-(** time at which the program started *)
-val get_start_time : unit -> float
-
 (** {2 Debugging} *)
 
 (** Debug section *)
@@ -75,13 +72,10 @@ val debug : ?section:Section.t -> int ->
 
 (** {2 profiling facilities} *)
 
-val enable_profiling : unit -> unit   (** Enable/disable profiling *)
+val enable_profiling : unit -> unit   (** Enable profiling (disabled by default) *)
 
 val enter_prof : Section.t -> unit                (** Enter the profiler *)
 val exit_prof : Section.t -> unit                 (** Exit the profiler *)
-val profile : Section.t -> ('a -> 'b) -> 'a -> 'b (** Profile a function with one argument *)
-
-val print_prof : out_channel -> unit  (** Print the results of profiling *)
 
 (** {2 LogtkOrdering utils} *)
 

@@ -116,14 +116,14 @@ type t = {
   section : Util.Section.t;
 }
 
-let empty f sect = {
+let empty f section = {
   queue = Q.empty;
   clauses = S.empty;
-  root_pos_index = I.empty;
-  root_neg_index = I.empty;
-  inactive_index = I.empty;
+  root_pos_index = I.empty (Util.Section.make ~parent:section "pos_index");
+  root_neg_index = I.empty (Util.Section.make ~parent:section "neg_index");
+  inactive_index = I.empty (Util.Section.make ~parent:section "all_index");
   continuation = f;
-  section = sect;
+  section = section;
 }
 
 let mem_clause c t = S.mem c t.clauses
@@ -162,8 +162,8 @@ let change_state f_set f_index c t =
           fold_subterms f_index t side c i) t.inactive_index l;
   }
 
-let add_clause c p = change_state S.add (I.add ~section:p.section) c p
-let rm_clause c p = change_state S.remove (I.remove ~section:p.section) c p
+let add_clause = change_state S.add I.add
+let rm_clause = change_state S.remove I.remove
 
 (* Instanciations constraints *)
 (* ************************************************************************ *)
@@ -243,7 +243,7 @@ let do_rewrite sigma active inactive =
     | _ -> None
   end
 
-let find_subst_eq find v w =
+let find_subst_eq index v w =
   CCList.find_map (fun (_, sigma, l) ->
       CCList.find_map (fun pos_cl ->
           assert (pos_cl.clause.eq);
@@ -255,13 +255,13 @@ let find_subst_eq find v w =
             assert (Expr.Term.equal w (Unif.term_subst u t));
             Some u
           with Unif.Match.Impossible_ty _ | Unif.Match.Impossible_term _ -> None
-        ) l) (find v)
+        ) l) (I.find_match v index)
 
 let rec make_eq p_set a b =
   if Expr.Term.equal a b then
     `Equal
   else
-    match find_subst_eq (fun v -> I.find_match ~section:p_set.section v p_set.root_pos_index) a b with
+    match find_subst_eq p_set.root_pos_index a b with
     | Some u when valid_subst u -> `Unifiable u
     | _ ->
       begin match a, b with
@@ -303,7 +303,7 @@ let equality_resolution ~section c =
 let add_passive_supp p_set clause side acc pos = function
   | { Expr.term = Expr.Meta _ } -> acc
   | p ->
-    let l = I.find_unify ~section:p_set.section p p_set.root_pos_index in
+    let l = I.find_unify p p_set.root_pos_index in
     let inactive = { clause; side; pos } in
     List.fold_left (fun acc (_, u, l) ->
         List.fold_left (fun acc active ->
@@ -312,7 +312,7 @@ let add_passive_supp p_set clause side acc pos = function
       ) acc l
 
 let add_active_supp p_set clause side s acc =
-  let l = I.find_unify ~section:p_set.section s p_set.inactive_index in
+  let l = I.find_unify s p_set.inactive_index in
   let active = { clause; side; pos = Position.root } in
   List.fold_left (fun acc (t, u, l) ->
       match t with
@@ -348,7 +348,7 @@ let supp_lit c p_set acc =
 
 (* rewriting of litterals, i.e RP & RN *)
 let add_inactive_rewrite p_set clause side pos u =
-  let l = I.find_match ~section:p_set.section u p_set.root_pos_index in
+  let l = I.find_match u p_set.root_pos_index in
   let inactive = { clause; side; pos } in
   CCList.find_map (fun (_, m, l') ->
       let sigma = Unif.Match.to_subst m in
@@ -395,8 +395,7 @@ let negative_simplify_reflect p_set c =
   if c.eq then
     match c.lit with
     | Some (a, b) ->
-      begin match find_subst_eq (fun v ->
-          I.find_match ~section:p_set.section v p_set.root_neg_index) a b with
+      begin match find_subst_eq p_set.root_neg_index a b with
         | Some u -> Some (mk_none "ns" (add_acc u c.acc) c.parents)
         | None -> None
       end

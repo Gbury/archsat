@@ -77,7 +77,7 @@ let print_szs_status fmt status =
   Format.fprintf fmt "%% SZS status %s for %s" status !input_file
 
 let print_res fmt status =
-  Format.fprintf fmt "%s (%.3f)" status (Sys.time ())
+  Format.fprintf fmt "%s (%.3f)" status (Util.get_total_time ())
 
 let print_sat fmt = match !output with
   | Standard -> Format.fprintf fmt "%a@." print_res "Sat"

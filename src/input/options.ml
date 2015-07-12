@@ -83,8 +83,7 @@ let set_opts gc bt quiet log debug =
 
 let clean opt =
   CCOpt.iter close_out opt.dot_proof;
-  CCOpt.iter close_out opt.model_out;
-  close_out opt.out
+  CCOpt.iter close_out opt.model_out
 
 (* Argument converter for integer with multiplier suffix *)
 (* ************************************************************************ *)
@@ -182,8 +181,8 @@ let bool_opt s bool = if bool then Printf.sprintf "[%s]" s else ""
 
 let log_opts opt =
   log 0 "Limits : %s / %s" (time_string opt.time_limit) (size_string opt.size_limit);
-  log 0 "Options : %s%s[in: %s][out: %s]"
-    (bool_opt "solve" opt.solve) (bool_opt "check_proof" opt.proof)
+  log 0 "Options : %s%s%s[in: %s][out: %s]"
+    (bool_opt "profile" opt.profile) (bool_opt "solve" opt.solve) (bool_opt "check_proof" opt.proof)
     (input_string opt.input_format) (output_string opt.output_format);
   log 0 "Input file : %s" opt.input_file
 

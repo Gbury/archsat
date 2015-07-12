@@ -28,12 +28,11 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 (** {2 Time facilities} *)
 
 (** Time elapsed since initialization of the program, and time of start *)
-let get_total_time, get_start_time =
+let get_total_time =
   let start = Unix.gettimeofday () in
   (function () ->
     let stop = Unix.gettimeofday () in
-    stop -. start),
-  (function () -> start)
+    stop -. start)
 
 (** {2 Misc} *)
 
@@ -161,7 +160,7 @@ module Section = struct
 
   (* Entering a profiler *)
   let prof_enter s =
-    let time = Sys.time () in
+    let time = get_total_time () in
     s.prof_status <- In time
 
   let rec prof_exit_aux s time =
@@ -175,7 +174,7 @@ module Section = struct
     | In _ -> assert false
 
   let prof_exit s =
-    let time = Sys.time () in
+    let time = get_total_time () in
     match s.prof_status with
     | In start ->
       let increment = time -. start in
@@ -249,12 +248,6 @@ let exit_prof section =
     | [] -> assert false
   end
 
-let profile section f x =
-  enter_prof section;
-  let res = f x in
-  exit_prof section;
-  res
-
 (** Print the profiler results *)
 let parent_time s =
   match s.Section.descr with
@@ -277,27 +270,29 @@ let rec map_tree f = function
   | `Empty -> `Empty
   | `Tree (x, l) -> `Tree (f x, List.map (map_tree f) l)
 
-let print_prof out =
-  assert (!active = []);
-  let total_time = Sys.time () in
-  if total_time <= 0.01 then Printf.fprintf out "Not enough time to profile\n"
-  else begin
-    let s_tree = section_tree Section.root in
-    let tree_box = Containers_misc.PrintBox.(
-        Simple.to_box (map_tree (fun s -> `Text (Section.short_name s)) s_tree)) in
-    let time_box = Containers_misc.PrintBox.(vlist ~bars:false (flatten (
-        map_tree (fun s -> text (Format.sprintf "%10.2f" s.Section.prof_total)) s_tree))) in
-    let rate_box = Containers_misc.PrintBox.(vlist ~bars:false (flatten (
-        map_tree (fun s -> text (Format.sprintf "%6.2f%%" (
-            s.Section.prof_total /. total_time *. 100.))) s_tree))) in
-    let b = Containers_misc.PrintBox.(
-        grid ~pad:(hpad 3) ~bars:true [|
-          [| text "Section name"; text "Time profiled"; text "Profiled rate" |];
-          [| text "Total Time"; text (Format.sprintf "%10.2f" total_time); text "100.00%" |];
-          [| tree_box; time_box; rate_box |];
-        |]) in
-    Containers_misc.PrintBox.output out b
-  end
+let () = at_exit (fun () ->
+    if !profile then begin
+      if !active <> [] then debug 0 "Debug sections not closed properly";
+      let total_time = get_total_time () in
+      if total_time <= 0.01 then Printf.fprintf stdout "Not enough time to profile\n"
+      else begin
+        let s_tree = section_tree Section.root in
+        let tree_box = Containers_misc.PrintBox.(
+            Simple.to_box (map_tree (fun s -> `Text (Section.short_name s)) s_tree)) in
+        let time_box = Containers_misc.PrintBox.(vlist ~bars:false (flatten (
+            map_tree (fun s -> text (Format.sprintf "%13.3f" s.Section.prof_total)) s_tree))) in
+        let rate_box = Containers_misc.PrintBox.(vlist ~bars:false (flatten (
+            map_tree (fun s -> text (Format.sprintf "%6.2f%%" (
+                s.Section.prof_total /. total_time *. 100.))) s_tree))) in
+        let b = Containers_misc.PrintBox.(
+            grid ~pad:(hpad 3) ~bars:true [|
+              [| text "Section name"; text "Time profiled"; text "Profiled rate" |];
+              [| text "Total Time"; text (Format.sprintf "%13.3f" total_time); text "100.00%" |];
+              [| tree_box; time_box; rate_box |];
+            |]) in
+        Containers_misc.PrintBox.output stdout b
+      end
+    end)
 
 (** {2 LogtkOrdering utils} *)
 

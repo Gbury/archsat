@@ -200,8 +200,13 @@ module Robinson = struct
     with Impossible_ty _ | Impossible_term _ -> ()
 
   let find ~section s t =
-    try Some (term empty s t)
-    with Impossible_ty _ | Impossible_term _ -> None
+    Util.enter_prof section;
+    let res =
+      try Some (term empty s t)
+      with Impossible_ty _ | Impossible_term _ -> None
+    in
+    Util.exit_prof section;
+    res
 
 end
 
@@ -270,11 +275,15 @@ module Match = struct
     | _ -> raise (Impossible_term (s, t))
 
   let find ~section s t =
-    try
-      let m = term empty s t in
-      assert (Expr.Term.equal s (term_subst (snd m) t));
-      Some m
-    with Impossible_ty _ | Impossible_term _ -> None
+    Util.enter_prof section;
+    let res = try
+        let m = term empty s t in
+        assert (Expr.Term.equal s (term_subst (snd m) t));
+        Some m
+      with Impossible_ty _ | Impossible_term _ -> None
+    in
+    Util.exit_prof section;
+    res
 
 end
 
