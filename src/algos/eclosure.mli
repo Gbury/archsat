@@ -35,7 +35,7 @@ module type S = sig
         an equality [p = q] has been added to the closure.
   *)
 
-  val create : Backtrack.Stack.t -> t
+  val create : Backtrack.Stack.t -> Util.Section.t -> t
   (** Creates an empty state which uses the given backtrack stack *)
 
   val find : t -> var -> var
@@ -57,3 +57,4 @@ module type S = sig
 end
 
 module Make(T : Key) : S with type var = T.t
+

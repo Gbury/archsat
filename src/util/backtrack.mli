@@ -17,7 +17,7 @@ module Stack : sig
   type level
   (** The type of backtracking point. *)
 
-  val create : unit -> t
+  val create : Util.Section.t -> t
   (** Creates an empty stack. *)
 
   val dummy_level : level

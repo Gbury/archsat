@@ -1,9 +1,6 @@
 
 module Stack = struct
 
-  let log_section = Util.Section.make "stack"
-  let log i fmt = Util.debug ~section:log_section i fmt
-
   type op =
     (* Stack structure *)
     | Nil : op
@@ -16,6 +13,7 @@ module Stack = struct
     | CallUnit : (unit -> unit) * op -> op
 
   type t = {
+    section : Util.Section.t;
     mutable stack : op;
     mutable level : int;
   }
@@ -24,7 +22,11 @@ module Stack = struct
 
   let dummy_level = -1
 
-  let create () = {stack=Nil; level=0}
+  let create section = {
+    section;
+    level = 0;
+    stack = Nil;
+  }
 
   let register_set t ref value = t.stack <- Set(ref, value, t.stack)
   let register_undo t f = t.stack <- CallUnit (f, t.stack)
@@ -33,7 +35,7 @@ module Stack = struct
   let register3 t f x y z = t.stack <- Call3 (f, x, y, z, t.stack)
 
   let push t =
-    log 5 "Push (%d)" t.level;
+    Util.debug ~section:t.section 5 "Push (%d)" t.level;
     t.stack <- Level (t.stack, t.level);
     t.level <- t.level + 1
 
@@ -56,8 +58,10 @@ module Stack = struct
       | Call2 (f, x, y, op) -> f x y; pop op
       | Call3 (f, x, y, z, op) -> f x y z; pop op
     in
-    log 3 "Backtracking to level %d" lvl;
-    pop t.stack
+    Util.enter_prof t.section;
+    Util.debug ~section:t.section 3 "Backtracking to level %d" lvl;
+    pop t.stack;
+    Util.exit_prof t.section
 
   let pop t = backtrack t (t.level - 1)
 

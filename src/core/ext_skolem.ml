@@ -1,4 +1,6 @@
 
+let section = Util.Section.make ~parent:Dispatcher.section "skolem"
+
 module H = Hashtbl.Make(Expr.Formula)
 
 type kind =
@@ -97,5 +99,5 @@ let opts t =
 ;;
 Dispatcher.Plugin.register "skolem" ~options:opts
   ~descr:"Generate skolem or tau for existencially quantified formulas (see options)."
-  (Dispatcher.mk_ext ~assume:tau_assume ())
+  (Dispatcher.mk_ext ~section ~assume:tau_assume ())
 

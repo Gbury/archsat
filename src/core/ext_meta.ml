@@ -1,6 +1,9 @@
 
-let log_section = Util.Section.make "meta"
-let log i fmt = Util.debug ~section:log_section i fmt
+let section = Util.Section.make ~parent:Dispatcher.section "meta"
+let log i fmt = Util.debug ~section i fmt
+
+let unif_section = Util.Section.make ~parent:section "unif"
+let supp_section = Util.Section.make ~parent:section "supp"
 
 module H = Hashtbl.Make(Expr.Formula)
 
@@ -213,7 +216,7 @@ let do_meta_inst = function
   | _ -> assert false
 
 (* Assuming function *)
-let meta_assume lvl = function
+let meta_assume (f, lvl) = match f with
   | ({ Expr.formula = Expr.Not { Expr.formula = Expr.ExTy _ } } as f)
   | ({ Expr.formula = Expr.Not { Expr.formula = Expr.Ex _ } } as f)
   | ({ Expr.formula = Expr.AllTy _ } as f)
@@ -253,11 +256,12 @@ let wrap_unif unif p notp =
 let rec unif_f st = function
   | No_unif -> assert false
   | Simple ->
-    fold_diff (fun () -> wrap_unif (Unif.Cache.with_cache cache (Unif.Robinson.unify_term single_inst))) () st
+    fold_diff (fun () -> wrap_unif (Unif.Cache.with_cache cache (
+        Unif.Robinson.unify_term ~section:unif_section single_inst))) () st
   | ERigid ->
     fold_diff (fun () -> wrap_unif (Rigid.unify ~max_depth:(rigid_depth ()) st.equalities single_inst)) () st
   | SuperEach ->
-    let t = Supperposition.empty (insts (ref 1)) in
+    let t = Supperposition.empty (insts (ref 1)) supp_section in
     let t = List.fold_left (fun acc (a, b) -> Supperposition.add_eq acc a b) t st.equalities in
     let t = Supperposition.solve t in
     fold_diff (fun () a b ->
@@ -265,7 +269,7 @@ let rec unif_f st = function
         with Found_unif -> ()
       ) () st
   | SuperAll ->
-    let t = Supperposition.empty (insts (ref (supp_limit st))) in
+    let t = Supperposition.empty (insts (ref (supp_limit st))) supp_section in
     let t = List.fold_left (fun acc (a, b) -> Supperposition.add_eq acc a b) t st.equalities in
     let t = fold_diff (fun acc a b -> Supperposition.add_neq acc a b) t st in
     begin try
@@ -357,5 +361,9 @@ let opts t =
 Dispatcher.Plugin.register "meta" ~options:opts
   ~descr:"Generate meta variables for universally quantified formulas, and use unification to push
               possible instanciations to the 'inst' module."
-  (Dispatcher.mk_ext ~assume:(fun (f, lvl) -> meta_assume lvl f) ~if_sat:find_all_insts ())
+  (Dispatcher.mk_ext
+     ~section
+     ~assume:meta_assume
+     ~if_sat:find_all_insts
+     ())
 

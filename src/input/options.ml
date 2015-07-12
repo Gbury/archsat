@@ -1,5 +1,7 @@
 
-let log_section = Util.Section.make "options"
+let misc_section = Util.Section.make "misc"
+
+let log_section = Util.Section.make ~parent:misc_section "options"
 let log i fmt = Util.debug ~section:log_section i fmt
 
 open Cmdliner
@@ -15,31 +17,27 @@ type input =
 
 type output =
   | Standard
-  | Dot
-
-type model =
-  | NoModel
-  | Simple
-  | Full
+  | SZS
 
 type copts = {
   (* Input/Output option *)
-  formatter : Format.formatter;
+  out : out_channel;
   input_file : string;
   input_format : input;
   output_format : output;
 
   (* Proving options *)
-  proof : bool;
   solve : bool;
-  extensions : string list;
-  s_exts : string list;
+  proof : bool;
+  addons : string list;
+  plugins : string list;
 
   (* Printing options *)
-  print_proof : out_channel option;
-  print_model : model;
+  dot_proof : out_channel option;
+  model_out : out_channel option;
 
-  (* Limits *)
+  (* Time/Memory options *)
+  profile : bool;
   time_limit : float;
   size_limit : float;
 }
@@ -47,20 +45,23 @@ type copts = {
 (* Option values *)
 (* ************************************************************************ *)
 
-let mk_opts () file input output proof type_only exts sexts p_proof p_model time size = {
-    formatter = Format.std_formatter;
+let mk_opts () file input output proof type_only plugins addons
+    dot_proof model_out time size profile =
+  {
+    out = stdout;
     input_file = file;
     input_format = input;
     output_format = output;
 
-    proof = proof || (p_proof <> None);
     solve = not type_only;
-    extensions = List.concat exts;
-    s_exts = List.concat sexts;
+    proof = proof || (dot_proof <> None);
+    addons = List.concat addons;
+    plugins = List.concat plugins;
 
-    print_model = p_model;
-    print_proof = (match p_proof with | Some s -> Some (open_out s) | None -> None);
+    model_out = model_out;
+    dot_proof = dot_proof;
 
+    profile = profile;
     time_limit = time;
     size_limit = size;
   }
@@ -81,7 +82,9 @@ let set_opts gc bt quiet log debug =
   end
 
 let clean opt =
-  match opt.print_proof with Some out -> close_out out | None -> ()
+  CCOpt.iter close_out opt.dot_proof;
+  CCOpt.iter close_out opt.model_out;
+  close_out opt.out
 
 (* Argument converter for integer with multiplier suffix *)
 (* ************************************************************************ *)
@@ -168,18 +171,12 @@ let input_string = function
 
 let output_string = function
   | Standard -> "standard"
-  | Dot -> "dot"
-
-let model_string = function
-  | NoModel -> "none"
-  | Simple -> "simple"
-  | Full -> "full"
+  | SZS -> "SZS"
 
 let stringify f l = List.map (fun x -> (f x, x)) l
 
 let input_list = stringify input_string [Auto; Dimacs; Tptp; Smtlib]
-let output_list = stringify output_string [Standard; Dot]
-let model_list = stringify model_string [NoModel; Simple; Full]
+let output_list = stringify output_string [Standard; SZS]
 
 let bool_opt s bool = if bool then Printf.sprintf "[%s]" s else ""
 
@@ -193,6 +190,11 @@ let log_opts opt =
 (* Other Argument converters *)
 (* ************************************************************************ *)
 
+(* Input/Output formats *)
+let input = Arg.enum input_list
+let output = Arg.enum output_list
+
+(* Converter for sections *)
 let print_section fmt s = Format.fprintf fmt "%s" (Util.Section.full_name s)
 let parse_section arg =
   try `Ok (Util.Section.find arg)
@@ -200,9 +202,13 @@ let parse_section arg =
 
 let section = parse_section, print_section
 
-let input = Arg.enum input_list
-let output = Arg.enum output_list
-let model = Arg.enum model_list
+(* Converter for out_channels *)
+let print_out fmt _ = Format.fprintf fmt "<out_channel>"
+let parse_out = function
+  | "stdout" -> `Ok stdout
+  | f -> `Ok (open_out f)
+
+let out_ch = parse_out, print_out
 
 (* Argument parsing *)
 (* ************************************************************************ *)
@@ -267,16 +273,17 @@ let copts_t () =
         (Arg.doc_alts_enum ~quoted:false  output_list) in
     Arg.(value & opt output Standard & info ["o"; "output"] ~docs ~docv:"OUTPUT" ~doc)
   in
-  let proof =
+  let check_proof =
     let doc = "If set, compute and check the resolution proofs for unsat results. This option
-                 does not trigger printing of the proof (see $(b,--proof) option)." in
+               does not trigger printing of the proof, for that a proof format printing option
+               (such as the $(b,--dot) option) must be used." in
     Arg.(value & flag & info ["c"; "check"] ~docs ~doc)
   in
   let type_only =
     let doc = "Only parse and type the given problem. Do not attempt to solve." in
     Arg.(value & flag & info ["type-only"] ~docs ~doc)
   in
-  let exts =
+  let plugins =
     let doc = "Activate/deactivate extensions, using their names (see EXTENSIONS section).
                  Prefixing an extension with a $(b,'-') deactivates it, while using only its name
                  (possibly with the $(b,'+') prefix, but not necessarily) will activate it.
@@ -284,20 +291,21 @@ let copts_t () =
                  option multiple times." in
     Arg.(value & opt_all (list string) [] & info ["x"; "ext"] ~docs ~docv:"EXTS" ~doc)
   in
-  let semantics_exts =
+  let addons =
     let doc = "Activate/deactivate syntax extensions. See the extension options
                for more documentation." in
     Arg.(value & opt_all (list string) [] & info ["semantics"] ~docs ~doc)
   in
-  let print_proof =
-    let doc = "Print proof for unsat results (implies proof generation)." in
-    Arg.(value & opt (some string) None & info ["p"; "proof"] ~docs ~doc)
+  let dot_proof =
+    let doc = "Set the file to which the program sould output a proof in dot format.
+               A special 'stdout' value can be used to use standard output." in
+    Arg.(value & opt (some out_ch) None & info ["dot"] ~docs ~doc)
   in
-  let print_model =
+  let model_out =
     let doc = CCPrint.sprintf
-        "Set the option for printing the model (if one is found) to $(docv) (%s)."
-        (Arg.doc_alts_enum ~quoted:false model_list) in
-    Arg.(value & opt model NoModel & info ["m"; "model"] ~docs ~docv:"MODEL" ~doc)
+        "Set the file to which output a model (if found). A special value
+        'stdout' can be used to output on standard output." in
+    Arg.(value & opt (some out_ch) None & info ["m"; "model"] ~docs ~docv:"MODEL" ~doc)
   in
   let time =
     let doc = "Stop the program after a time lapse of $(docv).
@@ -311,6 +319,10 @@ let copts_t () =
               "Without suffix, default to a size in octet." in
     Arg.(value & opt c_size 1_000_000_000. & info ["s"; "size"] ~docs ~docv:"SIZE" ~doc)
   in
+  let profile =
+    let doc = "Activate time profiling of the prover." in
+    Arg.(value & flag & info ["p"; "profile"] ~docs ~doc)
+  in
   Term.(pure mk_opts $ (pure set_opts $ gc $ bt $ quiet $ log $ debug) $
-        file $ input $ output $ proof $ type_only $ exts $ semantics_exts $ print_proof $ print_model $ time $ size)
+        file $ input $ output $ check_proof $ type_only $ plugins $ addons $ dot_proof $ model_out $ time $ size $ profile)
 

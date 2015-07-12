@@ -1,6 +1,8 @@
 
-let log_section = Util.Section.make "dispatch"
-let log i fmt = Util.debug ~section:log_section i fmt
+let section = Util.Section.make "dispatch"
+
+(* This one section is only there to have a different section for merged extensions *)
+let ext_section = Util.Section.make ~parent:section "exts"
 
 (* Type definitions *)
 (* ************************************************************************ *)
@@ -47,6 +49,7 @@ type eval_res =
 type 'a job = {
   job_ext : 'a;
   job_n : int;
+  job_section : Util.Section.t;
   job_callback : unit -> unit;
   job_formula : formula option;
   mutable job_done : int;
@@ -54,10 +57,31 @@ type 'a job = {
   mutable not_watched : term list;
 }
 
+(* Exceptions *)
+(* ************************************************************************ *)
+
+exception Absurd of formula list * proof
+exception Bad_assertion of string
+
+let _fail s = raise (Bad_assertion s)
+
+let profile section f = fun x ->
+  Util.enter_prof section;
+  try
+    let res = f x in
+    Util.exit_prof section;
+    res
+  with Absurd _ as e ->
+    Util.exit_prof section;
+    raise e
+
 (* Extensions *)
 (* ************************************************************************ *)
 
 type ext = {
+  (* Section for the extension (used for profiling) *)
+  section : Util.Section.t;
+
   (* Called once on each new formula *)
   peek : (formula -> unit) option;
 
@@ -74,8 +98,14 @@ type ext = {
   preprocess : (formula -> (formula * lemma) option) option;
 }
 
-let mk_ext ?peek ?if_sat ?assume?eval_pred ?preprocess () =
-  { peek; if_sat; assume; eval_pred; preprocess; }
+let mk_ext ~section ?peek ?if_sat ?assume ?eval_pred ?preprocess () = {
+  section;
+  peek = CCOpt.map (profile section) peek;
+  if_sat = CCOpt.map (profile section) if_sat;
+  assume = CCOpt.map (profile section) assume;
+  eval_pred =CCOpt.map (profile section) eval_pred;
+  preprocess = CCOpt.map (profile section) preprocess;
+}
 
 let merge_opt merge o1 o2 = match o1, o2 with
   | None, res | res, None -> res
@@ -107,13 +137,13 @@ let merge_exts l =
   let assume = List.fold_left (fun f r -> merge_iter f r.assume) None l in
   let eval_pred = List.fold_left (fun f r -> merge_first f r.eval_pred) None l in
   let preprocess = List.fold_left (fun f r -> merge_preprocess f r.preprocess) None l in
-  mk_ext ?peek ?if_sat ?assume ?eval_pred ?preprocess ()
+  { section = ext_section; peek; if_sat; assume; eval_pred; preprocess; }
 
 module Plugin = Extension.Make(struct
     type t = ext
-    let dummy = mk_ext ()
+    let dummy = mk_ext ~section ()
     let merge = merge_exts
-    let log_name = "plugins"
+    let section = Util.Section.make ~parent:section "plugins"
   end)
 
 (* Proof management *)
@@ -135,14 +165,6 @@ let proof_debug p =
   in
   p.proof_name, p.proof_formula_args, p.proof_term_args, color
 
-(* Exceptions *)
-(* ************************************************************************ *)
-
-exception Absurd of formula list * proof
-exception Bad_assertion of string
-
-let _fail s = raise (Bad_assertion s)
-
 (* Delayed propagation *)
 (* ************************************************************************ *)
 
@@ -158,14 +180,14 @@ let propagate f lvl =
 let do_propagate propagate =
   while not (Stack.is_empty propagate_stack) do
     let (t, lvl) = Stack.pop propagate_stack in
-    log 10 "Propagating : %a" Expr.Debug.formula t;
+    Util.debug ~section 10 "Propagating : %a" Expr.Debug.formula t;
     propagate t lvl
   done
 
 let do_push f =
   while not (Stack.is_empty push_stack) do
     let (a, p) = Stack.pop push_stack in
-    log 2 "Pushing '%s' : %a" p.proof_name (CCPrint.list ~sep:" || " Expr.Debug.formula) a;
+    Util.debug ~section 2 "Pushing '%s' : %a" p.proof_name (CCPrint.list ~sep:" || " Expr.Debug.formula) a;
     f a p
   done
 
@@ -174,7 +196,7 @@ let do_push f =
 
 let check_var v =
   if not (Expr.Id.is_interpreted v) && not (Expr.Id.is_assignable v) then
-    log 0 "WARNING: Variable %a is neither interpreted nor assignable" Expr.Debug.id v
+    Util.debug ~section 0 "WARNING: Variable %a is neither interpreted nor assignable" Expr.Debug.id v
 
 let rec check_term = function
   | { Expr.term = Expr.Var v } -> check_var v
@@ -183,7 +205,7 @@ let rec check_term = function
     check_var p;
     List.iter check_term l
 
-let rec check = function
+let check = function
   | { Expr.formula = Expr.Equal (a, b) } ->
     check_term a;
     check_term b
@@ -196,8 +218,9 @@ let peek_at f = match (Plugin.get_res ()).peek with
   | None -> ()
 
 let pre_process f =
-  log 5 "  %a" Expr.Debug.formula f;
-  log 5 "Pre-processing :";
+  Util.enter_prof section;
+  Util.debug ~section 5 "  %a" Expr.Debug.formula f;
+  Util.debug ~section 5 "Pre-processing :";
   let f' = match (Plugin.get_res ()).preprocess with
     | None -> f
     | Some processor -> begin match processor f with
@@ -205,13 +228,15 @@ let pre_process f =
         | Some (f', _) -> f'
       end
   in
-  log 5 "  %a" Expr.Debug.formula f';
+  Util.debug ~section 5 "  %a" Expr.Debug.formula f';
+  Util.exit_prof section;
   f'
 
 (* Backtracking *)
 (* ************************************************************************ *)
 
-let stack = Backtrack.Stack.create ()
+let stack = Backtrack.Stack.create (
+    Util.Section.make ~parent:section "backtrack")
 
 let dummy = Backtrack.Stack.dummy_level
 
@@ -220,7 +245,7 @@ let last_backtrack = ref 0
 let current_level () = Backtrack.Stack.level stack
 
 let backtrack lvl =
-  log 10 "Backtracking";
+  Util.debug ~section 10 "Backtracking";
   incr last_backtrack;
   Stack.clear propagate_stack;
   Backtrack.Stack.backtrack stack lvl
@@ -267,7 +292,7 @@ let call_job j =
   if CCOpt.(get true (map is_true j.job_formula))
      && j.job_done < !last_backtrack then begin
     j.job_done <- !last_backtrack;
-    j.job_callback ()
+    profile j.job_section j.job_callback ()
   end
 
 let update_watch x j =
@@ -280,25 +305,26 @@ let update_watch x j =
     let _, old_watched = find (Expr.Term.equal x) [] j.watched in
     try
       let y, old_not_watched = find (fun y -> not (is_assigned y)) [] j.not_watched in
-      log 10 "New watcher (%a) for job from %s"
+      Util.debug ~section 10 "New watcher (%a) for job from %s"
         Expr.Debug.term y Plugin.((get j.job_ext).name);
       j.not_watched <- x :: old_not_watched;
       j.watched <- y :: old_watched;
       add_job j y
     with Not_found ->
       add_job j x;
-      log 10 "Calling job from %s" Plugin.((get j.job_ext).name);
+      Util.debug ~section 10 "Calling job from %s" Plugin.((get j.job_ext).name);
       call_job j
   with Not_found ->
     let ext = Plugin.get j.job_ext in
-    log 0 "Error for job from %s, looking for %d, called by %a" ext.Plugin.name j.job_n Expr.Debug.term x;
-    log 0 "watched : %a" (CCPrint.list ~sep:" || " Expr.Debug.term) j.watched;
-    log 0 "not_watched : %a" (CCPrint.list ~sep:" || " Expr.Debug.term) j.not_watched;
+    Util.debug ~section 0 "Error for job from %s, looking for %d, called by %a" ext.Plugin.name j.job_n Expr.Debug.term x;
+    Util.debug ~section 0 "watched : %a" (CCPrint.list ~sep:" || " Expr.Debug.term) j.watched;
+    Util.debug ~section 0 "not_watched : %a" (CCPrint.list ~sep:" || " Expr.Debug.term) j.not_watched;
     assert false
 
-let new_job ?formula id k watched not_watched f = {
+let new_job ?formula id k section watched not_watched f = {
   job_ext = id;
   job_n = k;
+  job_section = section;
   watched = watched;
   job_formula = formula;
   not_watched = not_watched;
@@ -306,18 +332,20 @@ let new_job ?formula id k watched not_watched f = {
   job_done = - 1;
 }
 
-let watch ?formula ext k args f =
-  let tag = Plugin.((find ext).id) in
+let watch ?formula ext_name k args f =
+  let plugin = Plugin.find ext_name in
+  let section = Plugin.(plugin.ext.section) in
+  let tag = Plugin.(plugin.id) in
   List.iter Expr.Term.eval args;
   assert (k > 0);
   let rec split assigned not_assigned i = function
     | l when i <= 0 ->
-      let j = new_job ?formula tag k not_assigned (List.rev_append l assigned) f in
+      let j = new_job ?formula tag k section not_assigned (List.rev_append l assigned) f in
       List.iter (add_job j) not_assigned
     | [] (* i > 0 *) ->
       let l = List.rev_append not_assigned assigned in
       let to_watch, not_watched = CCList.split k l in
-      let j = new_job ?formula tag k to_watch not_watched f in
+      let j = new_job ?formula tag k section to_watch not_watched f in
       List.iter (add_job j) to_watch;
       call_job j
     | y :: r ->
@@ -329,34 +357,37 @@ let watch ?formula ext k args f =
   let t' = Builtin.Misc.tuple args in
   let l = try H.find watchers t' with Not_found -> [] in
   if not (List.mem tag l) then begin
-    log 10 "New watch from %s, %d among : %a" Plugin.((get tag).name) k (CCPrint.list ~sep:" || " Expr.Debug.term) args;
+    Util.debug ~section 10 "New watch from %s, %d among : %a" Plugin.((get tag).name) k (CCPrint.list ~sep:" || " Expr.Debug.term) args;
     H.add watchers t' (tag :: l);
     split [] [] k (List.sort_uniq Expr.Term.compare args)
   end
 
 let rec assign_watch t = function
-  | [] -> ()
+  | [] -> Util.exit_prof section
   | j :: r ->
     begin
       try
         update_watch t j
       with Absurd _ as e ->
         List.iter (fun job -> add_job job t) r;
+        Util.exit_prof section;
         raise e
     end;
     assign_watch t r
 
 and set_assign t v lvl =
+  Util.enter_prof section;
   try
     let v', lvl' = M.find eval_map t in
-    log 5 "Assigned (%d) : %a -> %a / %a" lvl' Expr.Debug.term t Expr.Debug.term v' Expr.Debug.term v;
+    Util.debug ~section 5 "Assigned (%d) : %a -> %a / %a" lvl' Expr.Debug.term t Expr.Debug.term v' Expr.Debug.term v;
     if not (Expr.Term.equal v v') then
-      _fail "Incoherent assignments"
+      _fail "Incoherent assignments";
+    Util.exit_prof section
   with Not_found ->
-    log 5 "Assign (%d) : %a -> %a" lvl Expr.Debug.term t Expr.Debug.term v;
+    Util.debug ~section 5 "Assign (%d) : %a -> %a" lvl Expr.Debug.term t Expr.Debug.term v;
     M.add eval_map t (v, lvl);
     let l = try hpop watch_map t with Not_found -> [] in
-    log 10 " Found %d watchers" (List.length l);
+    Util.debug ~section 10 " Found %d watchers" (List.length l);
     assign_watch t l
 
 let model () = M.fold eval_map (fun t (v, _) acc -> (t, v) :: acc) []
@@ -365,52 +396,59 @@ let model () = M.fold eval_map (fun t (v, _) acc -> (t, v) :: acc) []
 (* ************************************************************************ *)
 
 let assume s =
-  log 5 "New slice of length %d" s.length;
+  Util.enter_prof section;
+  Util.debug ~section 5 "New slice of length %d" s.length;
   try
     for i = s.start to s.start + s.length - 1 do
       match s.get i with
       | Lit f, lvl ->
-        log 1 " Assuming (%d) %a" lvl Expr.Debug.formula f;
+        Util.debug ~section 1 " Assuming (%d) %a" lvl Expr.Debug.formula f;
         add_assumption f lvl;
         begin match (Plugin.get_res ()).assume with
           | Some assume -> assume (f, lvl)
           | None -> ()
         end
       | Assign (t, v), lvl ->
-        log 1 " Assuming (%d) %a -> %a" lvl Expr.Debug.term t Expr.Debug.term v;
+        Util.debug ~section 1 " Assuming (%d) %a -> %a" lvl Expr.Debug.term t Expr.Debug.term v;
         set_assign t v lvl
     done;
-    log 8 "Propagating (%d)" (Stack.length propagate_stack);
+    Util.exit_prof section;
+    Util.debug ~section 8 "Propagating (%d)" (Stack.length propagate_stack);
     do_propagate s.propagate;
     do_push s.push;
     Sat
   with Absurd (l, p) ->
-    log 3 "Conflict '%s'" p.proof_name;
-    List.iter (fun f -> log 1 " |- %a" Expr.Debug.formula f) l;
+    Util.debug ~section 3 "Conflict '%s'" p.proof_name;
+    List.iter (fun f -> Util.debug ~section 1 " |- %a" Expr.Debug.formula f) l;
+    Util.exit_prof section;
     Unsat (l, p)
 
+let if_sat_iter s f =
+  for i = s.start to s.start + s.length - 1 do
+    match s.get i with
+    | Lit g, _ -> f g
+    | _ -> ()
+  done
+
 let if_sat s =
-  log 0 "Iteration with complete model";
-  let iter f =
-    for i = s.start to s.start + s.length - 1 do
-      match s.get i with
-      | Lit g, _ -> f g
-      | _ -> ()
-    done
-  in
+  Util.enter_prof section;
+  Util.debug ~section 0 "Iteration with complete model";
   begin try
       match (Plugin.get_res ()).if_sat with
-      | Some if_sat -> if_sat iter
+      | Some if_sat -> if_sat (if_sat_iter s)
       | None -> ()
     with Absurd _ -> assert false
   end;
+  Util.exit_prof section;
   do_push s.push
 
 let assign t =
-  log 5 "Finding assignment for %a" Expr.Debug.term t;
+  Util.enter_prof section;
+  Util.debug ~section 5 "Finding assignment for %a" Expr.Debug.term t;
   try
     let res = Expr.Term.assign t in
-    log 5 " -> %a" Expr.Debug.term res;
+    Util.debug ~section 5 " -> %a" Expr.Debug.term res;
+    Util.exit_prof section;
     res
   with Expr.Cannot_assign _ ->
     _fail (CCPrint.sprintf
@@ -423,12 +461,15 @@ let rec iter_assign_aux f e = match Expr.(e.term) with
   | _ -> f e
 
 let iter_assignable f e =
-  log 5 "Iter_assign on %a" Expr.Debug.formula e;
+  Util.enter_prof section;
+  Util.debug ~section 5 "Iter_assign on %a" Expr.Debug.formula e;
   peek_at e;
-  match Expr.(e.formula) with
-  | Expr.Equal (a, b) -> iter_assign_aux f a; iter_assign_aux f b
-  | Expr.Pred p -> iter_assign_aux f p
-  | _ -> ()
+  begin match Expr.(e.formula) with
+    | Expr.Equal (a, b) -> iter_assign_aux f a; iter_assign_aux f b
+    | Expr.Pred p -> iter_assign_aux f p
+    | _ -> ()
+  end;
+  Util.exit_prof section
 
 let eval_aux f =
   match (Plugin.get_res ()).eval_pred with
@@ -439,7 +480,10 @@ let eval_aux f =
     end
 
 let eval formula =
-  log 5 "Evaluating formula : %a" Expr.Debug.formula formula;
-  eval_aux formula
+  Util.enter_prof section;
+  Util.debug ~section 5 "Evaluating formula : %a" Expr.Debug.formula formula;
+  let res = eval_aux formula in
+  Util.exit_prof section;
+  res
 
 

@@ -1,7 +1,4 @@
 
-let log_section = Util.Section.make "union-find"
-let log i fmt = Util.debug ~section:log_section i fmt
-
 module type Key = sig
   type t
   val hash : t -> int
@@ -16,7 +13,7 @@ module type S = sig
 
   exception Unsat of var * var * var list
 
-  val create : Backtrack.Stack.t -> t
+  val create : Backtrack.Stack.t -> Util.Section.t -> t
 
   val find : t -> var -> var
 
@@ -53,9 +50,11 @@ module Make(T : Key) = struct
     size : int H.t;
     expl : var H.t;
     repr : node H.t;
+    section : Util.Section.t;
   }
 
-  let create s = {
+  let create s section = {
+    section;
     size = H.create s;
     expl = H.create s;
     repr = H.create s;
@@ -64,16 +63,6 @@ module Make(T : Key) = struct
   let debug_tag b = function
     | None -> Printf.bprintf b "_"
     | Some (y, v) -> Printf.bprintf b "%a : %a" T.debug y T.debug v
-
-  let debug_forbidden =
-    M.iter (fun x (y, z) -> log 50 "    |-  %a (%a <> %a)" T.debug x T.debug y T.debug z)
-
-  let debug_m x { rank; tag; forbidden } =
-    log 50 "Repr for %a :" T.debug x;
-    log 50 " |- rank = %d" rank;
-    log 50 " |- tag = %a" debug_tag tag;
-    log 50 " |- forbidden list :";
-    debug_forbidden forbidden
 
   (* Union-find algorithm with path compression *)
   let self_repr = Repr { rank = 0; tag = None; forbidden = M.empty }
@@ -103,7 +92,6 @@ module Make(T : Key) = struct
           | (Some _) as t -> t
           | None -> Some (x, v) }
     in
-    debug_m y new_m;
     H.add h.repr y (Repr new_m)
 
   let find h x = fst (get_repr h x)
@@ -124,7 +112,7 @@ module Make(T : Key) = struct
       tag = (match mx.tag, my.tag with
           | Some (z, t1), Some (w, t2) ->
             if not (T.equal t1 t2) then begin
-              log 20 "Tag shenanigan : %a (%a) <> %a (%a)" T.debug t1 T.debug z T.debug t2 T.debug w;
+              Util.debug ~section:h.section 20 "Tag shenanigan : %a (%a) <> %a (%a)" T.debug t1 T.debug z T.debug t2 T.debug w;
               raise (Equal (z, w))
             end else Some (z, t1)
           | Some t, None | None, Some t -> Some t
@@ -142,26 +130,19 @@ module Make(T : Key) = struct
         H.add m z (Repr r')
       | _ -> assert false
     in
-    debug_m x mx;
-    debug_m y my;
     M.iter (aux h.repr) my.forbidden;
     H.add h.repr y (Follow x);
-    H.add h.repr x (Repr new_m);
-    debug_m x new_m
+    H.add h.repr x (Repr new_m)
 
   let union h x y =
     let rx, mx = get_repr h x in
     let ry, my = get_repr h y in
     if T.compare rx ry <> 0 then begin
-      log 30 "Checking %a in forbidden of %a" T.debug ry T.debug rx;
       forbid_aux mx.forbidden ry;
-      log 30 "Checking %a in forbidden of %a" T.debug rx T.debug ry;
       forbid_aux my.forbidden rx;
       if mx.rank > my.rank then begin
-        log 20 "Linking %a <- %a" T.debug rx T.debug ry;
         link h rx mx ry my
       end else begin
-        log 20 "Linking %a <- %a" T.debug ry T.debug rx;
         link h ry my rx mx
       end
     end
@@ -182,7 +163,6 @@ module Make(T : Key) = struct
   let find_parent v m = find_hash m v v
 
   let rec root m acc curr =
-    log 30 "Finding root for %a" T.debug curr;
     let parent = find_parent curr m in
     if T.compare curr parent = 0 then
       curr :: acc
@@ -190,7 +170,6 @@ module Make(T : Key) = struct
       root m (curr :: acc) parent
 
   let rec rev_root m curr =
-    log 30 "looking at %a" T.debug curr;
     let next = find_parent curr m in
     if T.compare curr next = 0 then
       curr
@@ -232,33 +211,33 @@ module Make(T : Key) = struct
   (* Functions wrapped to produce explanation in case
    * something went wrong *)
   let add_tag t x v =
-    log 30 "Adding %a -> %a" T.debug x T.debug v;
-    try
-      tag t x v;
-    with Equal (a, b) ->
-      log 3 "Tag error";
+    Util.enter_prof t.section;
+    match tag t x v with
+    | () -> Util.exit_prof t.section
+    | exception Equal (a, b) ->
+      Util.exit_prof t.section;
       raise (Unsat (a, b, expl t a b))
 
   let add_eq t i j =
-    log 30 "Adding %a = %a" T.debug i T.debug j;
+    Util.enter_prof t.section;
     add_eq_aux t i j;
-    try
-      union t i j;
-    with Equal (a, b) ->
-      log 3 "Equality error : %a = %a" T.debug a T.debug b;
+    match union t i j with
+    | () -> Util.exit_prof t.section
+    | exception Equal (a, b) ->
+      Util.exit_prof t.section;
       raise (Unsat (a, b, expl t a b))
 
   let add_neq t i j =
-    log 30 "Adding %a <> %a" T.debug i T.debug j;
-    try
-      forbid t i j
-    with
-    | Equal (a, b) ->
-      log 3 "Difference error";
+    Util.enter_prof t.section;
+    match forbid t i j with
+    | () -> Util.exit_prof t.section
+    | exception Equal (a, b) ->
+      Util.exit_prof t.section;
       raise (Unsat (a, b, expl t a b))
-    | Same_tag (x, y) ->
+    | exception Same_tag (x, y) ->
       add_eq_aux t i j;
-      log 3 "Difference(tag) error.";
-      raise (Unsat (i, j, expl t i j))
+      let res = expl t i j in
+      Util.exit_prof t.section;
+      raise (Unsat (i, j, res))
 
 end

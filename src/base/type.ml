@@ -2,9 +2,11 @@
 (* Log&Module Init *)
 (* ************************************************************************ *)
 
-let log_section = Util.Section.make "type"
-let log i fmt = Util.debug ~section:log_section i fmt
-let stack = Backtrack.Stack.create ()
+let section = Util.Section.make "type"
+let log i fmt = Util.debug ~section i fmt
+
+let stack = Backtrack.Stack.create (
+    Util.Section.make ~parent:section "backtrack")
 
 module M = Map.Make(String)
 module H = Backtrack.HashtblBack(struct

@@ -8,8 +8,8 @@ exception Parsing_error of ParseLocation.t * string
 
 val set_input : Options.input -> unit
 val set_output : Options.output -> unit
-(** Sets the input or output to the given format.
-    @raise Setting_not_found if the string is not recognised *)
+val set_input_file : string -> unit
+(** Sets the input, output, or input file to the given value. *)
 
 val parse_input : string -> Ast.command Queue.t
 (** Parse the given input file according to the current input options.
@@ -20,14 +20,21 @@ val input_env : unit -> Type.builtin_symbols
 
 (** {2 Printing wrappers} *)
 
-val fprintf : Format.formatter -> ('a, Format.formatter, unit) format -> 'a
 (** Wrapper around Format.fprintf to print inside comments according to the output format. *)
 
-val print_res : Format.formatter -> string -> unit
-(** Prints the string result in current format, with the cureent execution time. *)
+val print_sat : Format.formatter -> unit
+val print_unsat : Format.formatter -> unit
+val print_timeout : Format.formatter -> unit
+val print_spaceout : Format.formatter -> unit
+(** Prints the resulton the formatter according to the output format set. *)
+
+val print_error : Format.formatter -> ('a, Format.formatter, unit) format -> 'a
+(** Print the given error format string ot output. *)
 
 val print_model : Format.formatter -> (Expr.term * Expr.term) list -> unit
 (** Prints the assignemnts in the model, one by line. *)
 
-val print_proof : Format.formatter -> Solver.proof -> unit
-(** Prints the given proof according to the current output format. *)
+val print_proof : (Format.formatter -> Solver.proof -> unit) ->
+  Format.formatter -> Solver.proof -> unit
+(** Wrapper around a proof printer. *)
+

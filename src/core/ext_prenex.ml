@@ -1,6 +1,5 @@
 
-let log_section = Util.Section.make "prenex"
-let log i fmt = Util.debug ~section:log_section i fmt
+let section = Util.Section.make ~parent:Dispatcher.section "prenex"
 
 (* Local environments *)
 (* ************************************************************************ *)
@@ -33,7 +32,7 @@ let add_ty_var env v =
     if env.num <= 0 then Expr.Ty.of_id v
     else Expr.(Ty.of_id (Id.ttype (name env v.id_name)))
   in
-  log 10 "%a -> %a" Expr.Debug.id_ttype v Expr.Debug.ty ty;
+  Util.debug ~section 10 "%a -> %a" Expr.Debug.id_ttype v Expr.Debug.ty ty;
   { env with type_vars = Expr.Subst.Id.bind v ty env.type_vars }
 
 let add_term_var env v =
@@ -41,7 +40,7 @@ let add_term_var env v =
     if env.num <= 0 then Expr.Term.of_id v
     else Expr.(Term.of_id (Id.ty (name env v.id_name) v.id_type))
   in
-  log 10 "%a -> %a" Expr.Debug.id_ty v Expr.Debug.term t;
+  Util.debug ~section 10 "%a -> %a" Expr.Debug.id_ty v Expr.Debug.term t;
   { env with term_vars = Expr.Subst.Id.bind v t env.term_vars }
 
 let add_ty_vars = List.fold_left add_ty_var
@@ -87,7 +86,7 @@ let rec specialize env = function
   | { Expr.formula = Expr.True } -> apply_truth env.truth Expr.Formula.f_true
   | { Expr.formula = Expr.False } -> apply_truth env.truth Expr.Formula.f_false
 
-  (* Logical connectives *)
+  (* Util.debug ~sectionical connectives *)
   | { Expr.formula = Expr.Not p } -> specialize (negate env) p
   | { Expr.formula = Expr.And l } -> mk_and env (List.map (specialize env) l)
   | { Expr.formula = Expr.Or l } -> mk_or env (List.map (specialize env) l)
@@ -142,22 +141,22 @@ let rec generalize = function
     Expr.Formula.f_or (List.map generalize l)
   | f ->
     let ty_vars, t_vars = Expr.Formula.fv f in
-    log 15 "generalizing : %a" Expr.Debug.formula f;
-    log 15 "Free_vars :";
-    List.iter (fun v -> log 15 " |- %a" Expr.Debug.id_ttype v) ty_vars;
-    List.iter (fun v -> log 15 " |- %a" Expr.Debug.id_ty v) t_vars;
+    Util.debug ~section 15 "generalizing : %a" Expr.Debug.formula f;
+    Util.debug ~section 15 "Free_vars :";
+    List.iter (fun v -> Util.debug ~section 15 " |- %a" Expr.Debug.id_ttype v) ty_vars;
+    List.iter (fun v -> Util.debug ~section 15 " |- %a" Expr.Debug.id_ty v) t_vars;
     Expr.Formula.allty ty_vars (Expr.Formula.all t_vars f)
 
 let prenex = function f -> generalize (specialize empty_env f)
 
 let do_formula f =
   let f' = prenex f in
-  log 5 "from : %a" Expr.Debug.formula f;
+  Util.debug ~section 5 "from : %a" Expr.Debug.formula f;
   if Expr.Formula.equal f f' then begin
-    log 5 "not changed.";
+    Util.debug ~section 5 "not changed.";
     None
   end else begin
-    log 5 "to   : %a" Expr.Debug.formula f';
+    Util.debug ~section 5 "to   : %a" Expr.Debug.formula f';
     Some (f', Dispatcher.mk_proof "prenex" "todo")
   end
 
@@ -165,6 +164,7 @@ let do_formula f =
 Dispatcher.Plugin.register "prenex"
   ~descr:"Pre-process formulas to put them in prenex normal form" (
   Dispatcher.mk_ext
+    ~section
     ~preprocess:do_formula
     ()
 )

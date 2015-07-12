@@ -42,6 +42,7 @@ type ext
 (** Type of plugins/extensions *)
 
 val mk_ext :
+  section:Util.Section.t ->
   ?peek:(formula -> unit) ->
   ?if_sat:(((formula -> unit) -> unit) -> unit) ->
   ?assume:(formula * int -> unit) ->
@@ -57,6 +58,9 @@ val pre_process : formula -> formula
 (** Give the formula to extensions for pre-processing. *)
 
 (** {2 Extension-side helpers} *)
+
+val section : Util.Section.t
+(** Debug Section for the dispatcher *)
 
 val stack : Backtrack.Stack.t
 (** The global undo stack. All extensions should either use datatypes

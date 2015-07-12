@@ -1,4 +1,6 @@
 
+let section = Util.Section.make ~parent:Dispatcher.section "arith"
+
 module B = Builtin.Arith
 
 (* Type definitions *)
@@ -38,4 +40,4 @@ let evaluate t = CCOpt.map evaluate_aux @@ Arith.Lit.parse_num t
 ;;
 Dispatcher.Plugin.register "arith"
   ~descr:"Handles satisfiability of arithmetic formulas."
-  (Dispatcher.mk_ext ())
+  (Dispatcher.mk_ext ~section ())

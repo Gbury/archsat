@@ -33,7 +33,7 @@ module Loc = ParseLocation
 exception Parse_error of Loc.t * string
 exception Syntax_error of string
 
-let log_section = Util.Section.make "tptp"
+let log_section = Util.Section.make ~parent:Options.misc_section "tptp"
 let log i fmt = Util.debug ~section:log_section i fmt
 
 (** {2 Translation} *)

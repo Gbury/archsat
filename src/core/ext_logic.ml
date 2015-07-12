@@ -1,4 +1,6 @@
 
+let section = Util.Section.make ~parent:Dispatcher.section "logic"
+
 module H = Hashtbl.Make(Expr.Formula)
 
 let st = H.create 1024
@@ -57,15 +59,15 @@ let tab = function
   | _ -> ()
 
 let tab_assume (f, i) =
-  try
-    ignore (H.find st f)
-  with Not_found ->
-    tab f;
-    H.add st f i
+    try
+      ignore (H.find st f)
+    with Not_found ->
+      tab f;
+      H.add st f i
 
 ;;
 Dispatcher.Plugin.register "logic"
   ~descr:"Does lazy cnf conversion on input formulas whose topconstructor is a logical connective
           (i.e quantified formulas are $(b,not) handled by this plugin)."
-  (Dispatcher.mk_ext ~assume:tab_assume ())
+  (Dispatcher.mk_ext ~section ~assume:tab_assume ())
 

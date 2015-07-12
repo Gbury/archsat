@@ -1,7 +1,5 @@
 
-let log_section = Util.Section.make "solver"
-let sat_log_section = Util.Section.make "mcsat"
-let log i fmt = Util.debug ~section:log_section i fmt
+let section = Util.Section.make "solver"
 
 (* Wrapper around expressions *)
 (* ************************************************************************ *)
@@ -32,25 +30,31 @@ module SatPlugin = Dispatcher
 (* ************************************************************************ *)
 
 module Smt = Msat.Mcsolver.Make(struct
-    let debug i format = Util.debug ~section:sat_log_section i format
+    let debug i format = Util.debug ~section i format
   end)(SatExpr)(SatPlugin)
 
 (* Solving *)
 type res = Sat | Unsat
 
 let solve () =
-  try
-    Smt.solve ();
-    Sat
-  with Smt.Unsat -> Unsat
+  Util.enter_prof section;
+  let res = match Smt.solve () with
+    | () -> Sat
+    | exception Smt.Unsat -> Unsat
+  in
+  Util.exit_prof section;
+  res
 
 let assume l =
+  Util.enter_prof section;
   let l = List.map (List.map Dispatcher.pre_process) l in
-  List.iter (fun cl -> log 1 "Assuming : %a"
+  List.iter (fun cl -> Util.debug ~section 1 "Assuming : %a"
                 (CCPrint.list ~sep:"; " Expr.Debug.formula) cl) l;
-  try
-    Smt.assume l
-  with Smt.Unsat -> ()
+  begin match Smt.assume l with
+    | () -> ()
+    | exception Smt.Unsat -> ()
+  end;
+  Util.exit_prof section
 
 (* Model output *)
 let model = Smt.model
@@ -65,6 +69,6 @@ let get_proof () =
   | None -> assert false
   | Some c -> Smt.Proof.prove_unsat c
 
-let print_proof_dot = Smt.Proof.print_dot
+let print_dot_proof = Smt.Proof.print_dot
 
 

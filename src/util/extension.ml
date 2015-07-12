@@ -5,15 +5,15 @@ module type K = sig
   type t
   val dummy : t
   val merge : t list -> t
-  val log_name : string
+  val section : Util.Section.t
 end
 
 module type S = Extension_intf.S
 
 module Make(E: K) : S with type ext = E.t = struct
 
-  let log_section = Util.Section.make E.log_name
-  let log i fmt = Util.debug ~section:log_section i fmt
+  let log_name = Util.Section.short_name E.section
+  let log i fmt = Util.debug ~section:E.section i fmt
 
   type id = int
   type ext = E.t
@@ -36,7 +36,7 @@ module Make(E: K) : S with type ext = E.t = struct
   let get_res () = !actual
 
   let _not_found ext_name =
-    raise (Extension_not_found (E.log_name, ext_name,
+    raise (Extension_not_found (log_name, ext_name,
                                 List.map (fun r -> r.name) (CCVector.to_list exts)))
 
   let get id = CCVector.get exts id

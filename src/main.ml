@@ -37,12 +37,9 @@ let delete_alarm () = match !al with
   | None -> ()
 
 (* Model printing *)
-let get_model p_model =
+let get_model () =
   List.sort (fun (t, _) (t', _) -> Expr.Term.compare t t')
-    (match p_model with
-     | NoModel -> assert false
-     | Simple -> Solver.model ()
-     | Full -> Solver.full_model ())
+     (Solver.full_model ())
 
 (* Logging *)
 let start_section l s =
@@ -74,27 +71,27 @@ let do_command opt = function
       begin match res with
         (* Model found *)
         | Solver.Sat ->
-          Io.print_res opt.formatter "Sat";
-          begin match opt.print_model with
-            | NoModel -> ()
-            | _ ->
-              Io.fprintf opt.formatter "Model :";
-              Io.print_model opt.formatter (get_model opt.print_model)
+          Io.print_sat (Format.formatter_of_out_channel opt.out);
+          begin match opt.model_out with
+            | None -> ()
+            | Some out ->
+              Io.print_model (Format.formatter_of_out_channel out) (get_model ())
           end
         (* Proof found *)
         | Solver.Unsat ->
-          Io.print_res opt.formatter "Unsat";
+          Io.print_unsat (Format.formatter_of_out_channel opt.out);
           if opt.proof then begin
             let proof = Solver.get_proof () in
-            begin match opt.print_proof with
+            begin match opt.dot_proof with
             | Some out ->
-              Io.print_proof (Format.formatter_of_out_channel out) proof
+              Io.print_proof Solver.print_dot_proof (Format.formatter_of_out_channel out) proof
             | None -> ()
             end
           end
       end
   | c ->
-    Io.fprintf opt.formatter "%a : operation not supported yet" Ast.print_command_name c;
+    Io.print_error (Format.formatter_of_out_channel opt.out)
+      "%a : operation not supported yet" Ast.print_command_name c;
     exit 2
 
 (* Main function *)
@@ -111,17 +108,21 @@ let () =
   setup_alarm opt.time_limit opt.size_limit;
 
   try
+    (* Profiling *)
+    if opt.profile then Util.enable_profiling ();
+
     (* Io options *)
+    Io.set_input_file opt.input_file;
     Io.set_input opt.input_format;
     Io.set_output opt.output_format;
 
     (* Syntax extensions *)
     Semantics.Addon.set_exts "+base,+arith";
-    List.iter Semantics.Addon.set_ext opt.s_exts;
+    List.iter Semantics.Addon.set_ext opt.addons;
 
     (* Extensions options *)
     Dispatcher.Plugin.set_exts "+eq,+uf,+logic,+prop,+skolem,+meta,+inst,+stats";
-    List.iter Dispatcher.Plugin.set_ext opt.extensions;
+    List.iter Dispatcher.Plugin.set_ext opt.plugins;
 
     (* Print options *)
     wrap 0 "Options" (fun () ->
@@ -136,6 +137,7 @@ let () =
     Queue.iter (do_command opt) commands;
 
     (* Clean up *)
+    if opt.profile then Util.print_prof opt.out;
     Options.clean opt
 
   with
@@ -143,10 +145,10 @@ let () =
   (* Limits management *)
   | Out_of_time ->
     delete_alarm ();
-    Io.print_res Format.std_formatter "Timeout"
+    Io.print_timeout Format.std_formatter
   | Out_of_space ->
     delete_alarm ();
-    Io.print_res Format.std_formatter "Out of space"
+    Io.print_spaceout Format.std_formatter
 
   (* Parsing/Typing errors *)
   | Io.Parsing_error (l, msg) ->

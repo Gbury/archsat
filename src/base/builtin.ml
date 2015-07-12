@@ -86,6 +86,8 @@ end
 
 module Arith = struct
 
+  exception Int_div
+
   (* Type definitions *)
   type ty = Int | Rat | Real
 
@@ -193,8 +195,28 @@ module Arith = struct
   let sum = dispatch @@ mk_binop ~builtin:(Op Sum) "$sum"
   let diff = dispatch @@ mk_binop ~builtin:(Op Difference) "$difference"
   let mult = dispatch @@ mk_binop ~builtin:(Op Product) "$product"
-  let div = dispatch @@ mk_binop ~builtin:(Op Quotient) "$quotient"
   let uminus = dispatch @@ mk_uop ~builtin:(Op Minus) "$uminus"
+
+  let div_aux_q = mk_binary type_rat ~builtin:(Op Quotient) "$quotient"
+  let div_aux_r = mk_binary type_real ~builtin:(Op Quotient) "$quotient"
+
+  let div (aty: ty) = match aty with
+    | Int -> raise Int_div
+    | Rat -> div_aux_q
+    | Real -> div_aux_r
+
+  let div_e = dispatch @@ mk_binop "$quotient_e"
+  let div_t = dispatch @@ mk_binop "$quotient_t"
+  let div_f = dispatch @@ mk_binop "$quotient_f"
+
+  let rem_e = dispatch @@ mk_binop "$remainder_e"
+  let rem_t = dispatch @@ mk_binop "$remainder_t"
+  let rem_f = dispatch @@ mk_binop "$remainder_f"
+
+  let ceiling = dispatch @@ mk_uop "$ceiling"
+  let truncate = dispatch @@ mk_uop "$truncate"
+  let floor = dispatch @@ mk_uop "$floor"
+  let round = dispatch @@ mk_uop "$round"
 
   let is_int = dispatch @@ mk_pred1 "$is_int"
   let is_rat = dispatch @@ mk_pred1 "$is_rat"
@@ -339,6 +361,16 @@ module Arith = struct
     | "$difference" -> aux diff
     | "$product" -> aux mult
     | "$quotient" -> aux div
+    | "$quotient_e" -> aux div_e
+    | "$quotient_t" -> aux div_t
+    | "$quotient_f" -> aux div_f
+    | "$remainder_e" -> aux rem_e
+    | "$remainder_t" -> aux rem_t
+    | "$remainder_f" -> aux rem_f
+    | "$floor" -> aux floor
+    | "$ceiling" -> aux ceiling
+    | "$truncate" -> aux truncate
+    | "$round" -> aux round
     | "$is_int" -> aux is_int
     | "$is_rat" -> aux is_rat
     | "$is_real" -> aux is_real

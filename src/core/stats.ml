@@ -1,6 +1,5 @@
 
-let log_section = Util.Section.make "stats"
-let log i fmt = Util.debug ~section:log_section i fmt
+let section = Util.Section.make ~parent:Dispatcher.section "stats"
 
 (* Statistics record & manipulations *)
 type t = {
@@ -11,7 +10,7 @@ type t = {
 let print_state state =
   let s = state.cur_round in
   let (i, r) = CCVector.get state.instanciations s in
-  log 0 "Round %d : instanciations %d (remaining : %d)" s i r
+  Util.debug ~section 0 "Round %d : instanciations %d (remaining : %d)" s i r
 
 let init_round state =
   state.cur_round <- state.cur_round + 1;
@@ -45,6 +44,7 @@ let clock _ =
 Dispatcher.Plugin.register "stats" ~prio:0
   ~descr:"Handles delayed printing of statistics for each round of solving"
   (Dispatcher.mk_ext
+     ~section
      ~if_sat:clock ()
   )
 

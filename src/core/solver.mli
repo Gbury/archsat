@@ -31,6 +31,6 @@ val full_model : unit -> (Expr.term * Expr.term) list
 val get_proof : unit -> proof
 (** Returns a proof of unsatisfiability of the current assumptions. *)
 
-val print_proof_dot : Format.formatter -> proof -> unit
+val print_dot_proof : Format.formatter -> proof -> unit
 (** Prints the proof on the given formatter. *)
 

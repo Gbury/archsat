@@ -12,10 +12,11 @@
 <algos/*>: package(ocamlgraph)
 <core/*>: package(msat), package(cmdliner), package(zarith)
 <input/*>: package(cmdliner)
-<util/*>: package(cmdliner), package(zarith)
+<util/*>: package(cmdliner), package(zarith), package(containers.misc)
 
 <main.*>: package(msat), package(cmdliner), package(ocamlgraph), \
-          package(containers), package(containers.data), package(zarith)
+          package(containers), package(containers.data), package(containers.misc), \
+          package(zarith)
 
 # more warnings
 <**/*.ml>: warn_K, warn_Y, warn_X

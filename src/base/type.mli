@@ -14,6 +14,9 @@ type builtin_symbols = string -> Expr.ty list -> Expr.term list ->
     since the exact function symbol returned can depend on the arguments (and even be different
     between two calls with the same arguments). *)
 
+val section : Util.Section.t
+(** Debug section used in typechecking. *)
+
 val new_type_def : Ast.symbol * int -> unit
 (** Register a new type constructor. Takes the name of the constructor and its arity,
     and adds them to the global environment for type-checking. *)

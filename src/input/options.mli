@@ -1,6 +1,8 @@
 
 (** Gloabl options for the prover. *)
 
+val misc_section : Util.Section.t
+
 type input =
   | Auto
   | Dimacs
@@ -11,38 +13,33 @@ type input =
 
 type output =
   | Standard
-  | Dot
-
-(** Type for output formats. *)
-
-type model =
-  | NoModel
-  | Simple
-  | Full
+  | SZS
 
 (** Type for choosing model output *)
 
 type copts = {
-    (** Input/Output option *)
-    formatter : Format.formatter;
-    input_file : string;
-    input_format : input;
-    output_format : output;
+  (* Input/Output option *)
+  out : out_channel;
+  input_file : string;
+  input_format : input;
+  output_format : output;
 
-    (** Proving options *)
-    proof : bool;
-    solve : bool;
-    extensions : string list;
-    s_exts : string list;
+  (* Proving options *)
+  solve : bool;
+  proof : bool;
+  addons : string list;
+  plugins : string list;
 
-    (** Printing options *)
-    print_proof : out_channel option;
-    print_model : model;
+  (* Printing options *)
+  dot_proof : out_channel option;
+  model_out : out_channel option;
 
-    (** Limits *)
-    time_limit : float;
-    size_limit : float;
+  (* Time/Memory options *)
+  profile : bool;
+  time_limit : float;
+  size_limit : float;
 }
+
 
 (** Common options for theorem proving. *)
 

@@ -33,12 +33,17 @@ val get_total_time : unit -> float
 (** time at which the program started *)
 val get_start_time : unit -> float
 
-(** {2 Misc} *)
+(** {2 Debugging} *)
 
 (** Debug section *)
 module Section : sig
   type t
+
+  module type S = sig val section : t end
+
   val full_name : t -> string  (** Full path to the section *)
+  val short_name : t -> string
+
   val set_debug : t -> int -> unit (** Debug level for section (and its descendants) *)
   val clear_debug : t -> unit (** Clear debug level (will be same as parent's) *)
   val get_debug : t -> int option (** Specific level of this section, if any *)
@@ -68,25 +73,15 @@ val debug : ?section:Section.t -> int ->
     The message might be dropped if its level is too high.
     {b NOTE}: non-thread safe *)
 
-val pp_pos : Lexing.position -> string
-
 (** {2 profiling facilities} *)
 
-type profiler
-val enable_profiling : bool ref           (** Enable/disable profiling *)
-val mk_profiler : string -> profiler      (** Create a named profiler *)
-val enter_prof : profiler -> unit         (** Enter the profiler *)
-val exit_prof : profiler -> unit          (** Exit the profiler *)
-val yield_prof : profiler -> unit         (** Yield control to sub-call *)
+val enable_profiling : unit -> unit   (** Enable/disable profiling *)
 
-(** {2 Runtime statistics} *)
+val enter_prof : Section.t -> unit                (** Enter the profiler *)
+val exit_prof : Section.t -> unit                 (** Exit the profiler *)
+val profile : Section.t -> ('a -> 'b) -> 'a -> 'b (** Profile a function with one argument *)
 
-type stat
-
-val mk_stat : string -> stat
-val print_global_stats : unit -> unit
-val incr_stat : stat -> unit
-val add_stat : stat -> int -> unit
+val print_prof : out_channel -> unit  (** Print the results of profiling *)
 
 (** {2 LogtkOrdering utils} *)
 

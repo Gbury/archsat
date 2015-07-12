@@ -5,9 +5,6 @@
    'E, a brainiac theorem prover' by shulz.
 *)
 
-let log_section = Util.Section.make "supp"
-let log i fmt = Util.debug ~section:log_section i fmt
-
 (* Clauses *)
 (* ************************************************************************ *)
 
@@ -116,15 +113,17 @@ type t = {
   root_neg_index : I.t;
   inactive_index : I.t;
   continuation : Unif.t list -> unit;
+  section : Util.Section.t;
 }
 
-let empty f = {
+let empty f sect = {
   queue = Q.empty;
   clauses = S.empty;
   root_pos_index = I.empty;
   root_neg_index = I.empty;
   inactive_index = I.empty;
   continuation = f;
+  section = sect;
 }
 
 let mem_clause c t = S.mem c t.clauses
@@ -142,8 +141,7 @@ let change_state f_set f_index c t =
     | Comparison.Incomparable -> [a, Left; b, Right]
     | Comparison.Eq -> []
   in
-  {
-    queue = t.queue;
+  { t with
     clauses = f_set c t.clauses;
     root_pos_index =
       if c.eq then
@@ -162,11 +160,10 @@ let change_state f_set f_index c t =
     inactive_index =
       List.fold_left (fun i (t, side) ->
           fold_subterms f_index t side c i) t.inactive_index l;
-    continuation = t.continuation;
   }
 
-let add_clause = change_state S.add I.add
-let rm_clause = change_state S.remove I.remove
+let add_clause c p = change_state S.add (I.add ~section:p.section) c p
+let rm_clause c p = change_state S.remove (I.remove ~section:p.section) c p
 
 (* Instanciations constraints *)
 (* ************************************************************************ *)
@@ -246,7 +243,7 @@ let do_rewrite sigma active inactive =
     | _ -> None
   end
 
-let find_subst_eq index v w =
+let find_subst_eq find v w =
   CCList.find_map (fun (_, sigma, l) ->
       CCList.find_map (fun pos_cl ->
           assert (pos_cl.clause.eq);
@@ -258,13 +255,13 @@ let find_subst_eq index v w =
             assert (Expr.Term.equal w (Unif.term_subst u t));
             Some u
           with Unif.Match.Impossible_ty _ | Unif.Match.Impossible_term _ -> None
-        ) l) (I.find_match v index)
+        ) l) (find v)
 
 let rec make_eq p_set a b =
   if Expr.Term.equal a b then
     `Equal
   else
-    match find_subst_eq p_set.root_pos_index a b with
+    match find_subst_eq (fun v -> I.find_match ~section:p_set.section v p_set.root_pos_index) a b with
     | Some u when valid_subst u -> `Unifiable u
     | _ ->
       begin match a, b with
@@ -291,11 +288,11 @@ and make_eq_list p_set l l' = match l, l' with
 (* ************************************************************************ *)
 
 (* Equality resolution, alias ER *)
-let equality_resolution c =
+let equality_resolution ~section c =
   if not c.eq then
     match c.lit with
     | Some (a, b) ->
-      begin match Unif.Robinson.find a b with
+      begin match Unif.Robinson.find ~section a b with
         | Some u -> [mk_none "eq" (u :: c.acc) [c]]
         | None -> []
       end
@@ -306,7 +303,7 @@ let equality_resolution c =
 let add_passive_supp p_set clause side acc pos = function
   | { Expr.term = Expr.Meta _ } -> acc
   | p ->
-    let l = I.find_unify p p_set.root_pos_index in
+    let l = I.find_unify ~section:p_set.section p p_set.root_pos_index in
     let inactive = { clause; side; pos } in
     List.fold_left (fun acc (_, u, l) ->
         List.fold_left (fun acc active ->
@@ -315,7 +312,7 @@ let add_passive_supp p_set clause side acc pos = function
       ) acc l
 
 let add_active_supp p_set clause side s acc =
-  let l = I.find_unify s p_set.inactive_index in
+  let l = I.find_unify ~section:p_set.section s p_set.inactive_index in
   let active = { clause; side; pos = Position.root } in
   List.fold_left (fun acc (t, u, l) ->
       match t with
@@ -351,7 +348,7 @@ let supp_lit c p_set acc =
 
 (* rewriting of litterals, i.e RP & RN *)
 let add_inactive_rewrite p_set clause side pos u =
-  let l = I.find_match u p_set.root_pos_index in
+  let l = I.find_match ~section:p_set.section u p_set.root_pos_index in
   let inactive = { clause; side; pos } in
   CCList.find_map (fun (_, m, l') ->
       let sigma = Unif.Match.to_subst m in
@@ -398,7 +395,8 @@ let negative_simplify_reflect p_set c =
   if c.eq then
     match c.lit with
     | Some (a, b) ->
-      begin match find_subst_eq p_set.root_neg_index a b with
+      begin match find_subst_eq (fun v ->
+          I.find_match ~section:p_set.section v p_set.root_neg_index) a b with
         | Some u -> Some (mk_none "ns" (add_acc u c.acc) c.parents)
         | None -> None
       end
@@ -451,7 +449,7 @@ let cheap_simplify c p =
 let redundant c p = false || equality_subsumption c p
 
 (* Applies: ER, SP, SN *)
-let generate c p = supp_lit c p (equality_resolution c)
+let generate c p = supp_lit c p (equality_resolution ~section:p.section c)
 
 (* Applies: TD1 *)
 let trivial c p =
@@ -469,17 +467,18 @@ let rec discount_loop p_set =
   | None -> p_set
   | Some (u, cl) ->
     let c = simplify cl p_set in
-    if compare_cl c cl <> 0 then log 15 "Original clause : %a" (debug_cl ~full:false) cl;
+    if compare_cl c cl <> 0 then
+      Util.debug ~section:p_set.section 15 "Original clause : %a" (debug_cl ~full:false) cl;
     if trivial c p_set then begin
-      log 20 "Trivial clause : %a" (debug_cl ~full:false) c;
+      Util.debug ~section:p_set.section 20 "Trivial clause : %a" (debug_cl ~full:false) c;
       discount_loop { p_set with queue = u }
     end else if redundant c p_set then begin
-      log 20 "Redundant clause : %a" (debug_cl ~full:false) c;
+      Util.debug ~section:p_set.section 20 "Redundant clause : %a" (debug_cl ~full:false) c;
       discount_loop { p_set with queue = u }
     end else begin
-      log 15 "Adding clause : %a" (debug_cl ~full:false) c;
+      Util.debug ~section:p_set.section 15 "Adding clause : %a" (debug_cl ~full:false) c;
       if c.lit = None then begin
-        log 10 "Inst reached, %d clauses in state" (S.cardinal p_set.clauses);
+        Util.debug ~section:p_set.section 10 "Inst reached, %d clauses in state" (S.cardinal p_set.clauses);
         p_set.continuation c.acc;
         discount_loop { p_set with queue = u }
       end else begin
@@ -498,7 +497,7 @@ let rec discount_loop p_set =
             if trivial p p_set then
               acc
             else begin
-              log 30 " |- %a" (debug_cl ~full:true) p;
+              Util.debug ~section:p_set.section 30 " |- %a" (debug_cl ~full:true) p;
               Q.insert p acc
             end
           ) t u in

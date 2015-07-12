@@ -1,5 +1,5 @@
 
-let log_section = Util.Section.make "IO"
+let log_section = Util.Section.make ~parent:Options.misc_section "IO"
 let log i fmt = Util.debug ~section:log_section i fmt
 
 (* Type definitions *)
@@ -14,9 +14,11 @@ open Options
 
 let input = ref Auto
 let output = ref Standard
+let input_file = ref ""
 
 let set_input i = input := i
 let set_output o = output := o
+let set_input_file f = input_file := f
 
 let pp_input b = function
   | Auto -> Printf.bprintf b "auto"
@@ -65,29 +67,39 @@ let input_env () = Semantics.type_env !input
 (* Output functions *)
 (* ************************************************************************ *)
 
-let print_with pre post f fmt format =
-  Format.fprintf fmt "%s@[<hov> " pre;
-  Format.kfprintf (fun fmt -> Format.fprintf fmt "@] %s" post; f fmt) fmt format
-
 let flush fmt = Format.fprintf fmt "@."
 
-let fprintf fmt format =
-  let res = match !output with
-    | Standard -> Format.kfprintf flush fmt format
-    | Dot -> print_with "/*" "*/" flush fmt format
-  in
-  res
+let print_model _ _ = ()
 
-let print_model fmt l =
-  let aux (t, v) = fprintf fmt "%a -> %a" Expr.Print.term t Expr.Print.term v in
-  List.iter aux l
+let print_proof _ _ _ = ()
 
-let print_proof fmt p =
-  match !output with
-  | Standard -> fprintf fmt "Standard proof output not supported yet."
-  | Dot -> Solver.print_proof_dot fmt p
+let print_szs_status fmt status =
+  Format.fprintf fmt "%% SZS status %s for %s" status !input_file
 
 let print_res fmt status =
-  fprintf fmt "%s (%.3f)" status (Sys.time ())
+  Format.fprintf fmt "%s (%.3f)" status (Sys.time ())
 
+let print_sat fmt = match !output with
+  | Standard -> Format.fprintf fmt "%a@." print_res "Sat"
+  | SZS -> Format.fprintf fmt "%a@." print_szs_status "CounterSatisfiable"
+
+let print_unsat fmt = match !output with
+  | Standard -> Format.fprintf fmt "%a@." print_res "Unsat"
+  | SZS -> Format.fprintf fmt "%a@." print_szs_status "Theorem"
+
+let print_error fmt format = match !output with
+  | Standard ->
+    Format.fprintf fmt "%a@\n" print_res "Error";
+    Format.kfprintf flush fmt format
+  | SZS ->
+    Format.fprintf fmt "%a : " print_res "Error";
+    Format.kfprintf flush fmt format
+
+let print_timeout fmt = match !output with
+  | Standard -> Format.fprintf fmt "%a@." print_res "Timeout"
+  | SZS -> Format.fprintf fmt "%a@." print_szs_status "Timeout"
+
+let print_spaceout fmt = match !output with
+  | Standard -> Format.fprintf fmt "%a@." print_res "Outof Memory"
+  | SZS -> Format.fprintf fmt "%a@." print_szs_status "MemoryOut"
 

@@ -72,9 +72,9 @@ module Make(T: Set.OrderedType) = struct
       Node (Mf.singleton f' (modify action e c r Empty))
     | _ -> assert false
 
-  let add e c t = { t with trie = modify S.add e c (fp t.key e) t.trie }
+  let add ~section e c t = { t with trie = modify S.add e c (fp t.key e) t.trie }
 
-  let remove e c t = { t with trie = modify S.remove e c (fp t.key e) t.trie }
+  let remove ~section e c t = { t with trie = modify S.remove e c (fp t.key e) t.trie }
 
   let rec find compat acc l t =
     match l, t with
@@ -105,16 +105,16 @@ module Make(T: Set.OrderedType) = struct
     | Possible -> f' = Possible
     | Impossible -> f' = Possible || f' = Impossible
 
-  let find_unify e t =
+  let find_unify ~section e t =
     CCList.filter_map (fun (e', s) ->
-        match Unif.Robinson.find e e' with
+        match Unif.Robinson.find ~section e e' with
         | Some u -> Some (e', u, S.elements s) | None -> None
       ) (find compat_unif [] (fp t.key e) t.trie)
 
-  let find_match e t =
+  let find_match ~section e t =
     let l = find compat_match [] (fp t.key e) t.trie in
     CCList.filter_map (fun (e', s) ->
-        match Unif.Match.find e e' with
+        match Unif.Match.find ~section e e' with
         | Some m -> Some (e', m, S.elements s) | None -> None
       ) l
 

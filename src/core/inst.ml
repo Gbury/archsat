@@ -1,6 +1,5 @@
 
-let log_section = Util.Section.make "inst"
-let log i fmt = Util.debug ~section:log_section i fmt
+let section = Util.Section.make ~parent:Dispatcher.section "inst"
 
 (* Instanciation helpers *)
 (* ************************************************************************ *)
@@ -182,14 +181,14 @@ let add ?(delay=0) ?(score=0) u =
   let t = Inst.mk u score in
   if not (H.mem inst_set t) then begin
     H.add inst_set t false;
-    log 10 "New inst : %a" Inst.debug t;
+    Util.debug ~section 10 "New inst : %a" Inst.debug t;
     if delay <= 0 then
       heap := Q.add !heap t
     else
       delayed := (t, delay) :: !delayed;
     true
   end else begin
-    log 15 "Redondant inst : %a" Inst.debug t;
+    Util.debug ~section 15 "Redondant inst : %a" Inst.debug t;
     false
   end
 
@@ -197,7 +196,7 @@ let push inst =
   Stats.inst_done ();
   assert (not (H.find inst_set inst));
   H.replace inst_set inst true;
-  log 5 "Pushed inst : %a" Inst.debug inst;
+  Util.debug ~section 5 "Pushed inst : %a" Inst.debug inst;
   let open Inst in
   let cl, p = soft_subst inst.formula inst.ty_subst inst.term_subst in
   Dispatcher.push cl p
@@ -261,5 +260,5 @@ let opts t =
 Dispatcher.Plugin.register "inst" ~prio:5 ~options:opts
   ~descr:"Handles the pushing of clauses corresponding to instanciations. This plugin does not
           do anything by itself, but rather is called by other plugins when doing instanciations."
-  (Dispatcher.mk_ext ~if_sat:inst_sat ())
+  (Dispatcher.mk_ext ~section ~if_sat:inst_sat ())
 

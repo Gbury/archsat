@@ -97,7 +97,7 @@ module Match : sig
   val ty : tt -> Expr.ty -> Expr.ty -> tt
   val term : tt -> Expr.term -> Expr.term -> tt
 
-  val find : Expr.term -> Expr.term -> tt option
+  val find : section:Util.Section.t -> Expr.term -> Expr.term -> tt option
 
 end
 
@@ -127,12 +127,13 @@ module Robinson : sig
       @raise Impossible_ty _
       @raise Impossible_term _ *)
 
-  val find : Expr.term -> Expr.term -> t option
+  val find : section:Util.Section.t -> Expr.term -> Expr.term -> t option
   (** Tries and find a unifier. *)
 
-  val unify_ty : (t -> unit) -> Expr.ty -> Expr.ty -> unit
-  val unify_term : (t -> unit) -> Expr.term -> Expr.term -> unit
+  val unify_ty : section:Util.Section.t -> (t -> unit) -> Expr.ty -> Expr.ty -> unit
+  val unify_term : section:Util.Section.t -> (t -> unit) -> Expr.term -> Expr.term -> unit
   (** Unification on types and terms. Expects a function to deal with
       the substitution if one is found. Currently uses robinson unification. *)
+
 end
 

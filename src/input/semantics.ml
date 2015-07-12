@@ -15,7 +15,7 @@ let mk_ext ?(tptp=default) ?(smtlib=default) () =
 module Addon = Extension.Make(struct
     type t = ext
     let dummy = mk_ext ()
-    let log_name = "addons"
+    let section = Util.Section.make ~parent:Type.section "addons"
     let merge l = {
       builtins = (fun input_format s args arg' ->
           let aux ext = ext.builtins input_format s args arg' in

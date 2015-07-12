@@ -7,7 +7,7 @@ module type K = sig
   val dummy : t
   val merge : t list -> t
 
-  val log_name : string
+  val section : Util.Section.t
 end
 
 module type S = Extension_intf.S

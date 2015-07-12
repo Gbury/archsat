@@ -5,9 +5,6 @@
  * what are usually called 'variables' in litterature are
  * actually the metavariables in the terms *)
 
-let log_section = Util.Section.make "unif"
-let log i fmt = Util.debug ~section:log_section i fmt
-
 (* Unifiers *)
 (* ************************************************************************ *)
 
@@ -192,17 +189,17 @@ module Robinson = struct
         raise (Impossible_term (s, t))
     | _ -> assert false
 
-  let unify_ty f s t =
+  let unify_ty ~section f s t =
     try
       f (ty empty s t)
     with Impossible_ty _ -> ()
 
-  let unify_term f s t =
+  let unify_term ~section f s t =
     try
       f (term empty s t)
     with Impossible_ty _ | Impossible_term _ -> ()
 
-  let find s t =
+  let find ~section s t =
     try Some (term empty s t)
     with Impossible_ty _ | Impossible_term _ -> None
 
@@ -272,7 +269,7 @@ module Match = struct
         raise (Impossible_term (s, t))
     | _ -> raise (Impossible_term (s, t))
 
-  let find s t =
+  let find ~section s t =
     try
       let m = term empty s t in
       assert (Expr.Term.equal s (term_subst (snd m) t));
@@ -335,7 +332,6 @@ module Cache = struct
     end
 
   let rec meta_match_term subst s t =
-    log 90 "trying %a <-> %a" Expr.Debug.term s Expr.Debug.term t;
     begin match s, t with
       | _, { Expr.term = Expr.Var _ } | { Expr.term = Expr.Var _}, _ -> assert false
       | { Expr.term = Expr.Meta ({ Expr.meta_id = v1 } as m1) },
