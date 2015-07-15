@@ -58,6 +58,13 @@ module Section : sig
       Unless specificed explicitely otherwise (using
       {!set_debug}) the level of the section will be the max level of its
       parent and its inherited sections. *)
+
+  val profile_section : t -> unit
+  (** Activate profiling for a section and all its children (overrides max depth) *)
+
+  val set_profile_depth : int -> unit
+  (** Set maximum depth for profiling *)
+
 end
 
 val set_debug : int -> unit     (** Set debug level of [Section.root] *)
@@ -73,8 +80,6 @@ val debug : ?section:Section.t -> int ->
 (** {2 profiling facilities} *)
 
 val enable_profiling : unit -> unit   (** Enable profiling (disabled by default) *)
-val profile_section : Section.t -> unit (** Activate profiling for a section and all its children *)
-val set_profile_depth : int -> unit
 
 val enter_prof : Section.t -> unit                (** Enter the profiler *)
 val exit_prof : Section.t -> unit                 (** Exit the profiler *)

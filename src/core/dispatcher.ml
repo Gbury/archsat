@@ -1,8 +1,7 @@
 
 let section = Util.Section.make "dispatch"
 
-(* This one section is only there to have a different section for merged extensions *)
-let ext_section = Util.Section.make ~parent:section "exts"
+let dummy_section = Util.Section.make "DUMMY"
 
 (* Type definitions *)
 (* ************************************************************************ *)
@@ -137,7 +136,7 @@ let merge_exts l =
   let assume = List.fold_left (fun f r -> merge_iter f r.assume) None l in
   let eval_pred = List.fold_left (fun f r -> merge_first f r.eval_pred) None l in
   let preprocess = List.fold_left (fun f r -> merge_preprocess f r.preprocess) None l in
-  { section = ext_section; peek; if_sat; assume; eval_pred; preprocess; }
+  { section = dummy_section; peek; if_sat; assume; eval_pred; preprocess; }
 
 module Plugin = Extension.Make(struct
     type t = ext

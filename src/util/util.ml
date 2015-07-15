@@ -46,16 +46,13 @@ module Section = struct
 
   let null_level = -1 (* absence of level *)
 
-  type prof_status =
-    | Out             (* not currently profiling section *)
-    | In of float   (* section was entered at given time *)
-
   type t = {
     descr : descr;
     mutable level : int;
-    mutable profile : bool;
+    mutable profile : bool; (* should this section be profiled *)
+    mutable prof_in : bool; (* are we currently inside the profiler of this section *)
+    mutable prof_enter : float; (* time of last entry of the profiler *)
     mutable prof_total : float;
-    mutable prof_status : prof_status;
     mutable full_name : string;
   }
 
@@ -67,8 +64,9 @@ module Section = struct
     descr = Root;
     level = 0;
     profile = false;
+    prof_in = false;
+    prof_enter = 0.;
     prof_total = 0.;
-    prof_status = Out;
     full_name = "";
   }
 
@@ -119,8 +117,9 @@ module Section = struct
       descr = Sub (name, parent, inheriting);
       level = null_level;
       profile = false;
+      prof_in = false;
+      prof_enter = 0.;
       prof_total = 0.;
-      prof_status = Out;
       full_name="";
     } in
     let name' = compute_full_name sec in
@@ -163,30 +162,40 @@ module Section = struct
 
   (* Entering a profiler *)
   let prof_enter s =
-    let time = get_total_time () in
-    s.prof_status <- In time
+    s.prof_enter <- get_total_time ();
+    s.prof_in <- true
 
   let rec prof_exit_aux s time =
-    match s.prof_status with
-    | Out ->
+    if not s.prof_in then begin
       s.prof_total <- s.prof_total +. time;
       begin match s.descr with
-        | Root -> ()
+        | Root -> true
         | Sub (_, s', _) -> prof_exit_aux s' time
       end
-    | In _ -> assert false
+    end else
+      false
 
   let prof_exit s =
     let time = get_total_time () in
-    match s.prof_status with
-    | In start ->
-      let increment = time -. start in
-      s.prof_status <- Out;
+    if s.prof_in then begin
+      let increment = time -. s.prof_enter in
+      s.prof_in <- false;
       prof_exit_aux s increment
+    end else
+      true
 
-    (* In case of nested enter in the same section, this case can happen *)
-    | Out -> ()
+  (** Activate profiling for a section (and its children) *)
+  let rec profile_section s =
+    s.profile <- true;
+    List.iter profile_section !(get_children s)
 
+  let rec profile_depth d s =
+    s.profile <- d >= 0;
+    List.iter (profile_depth (d - 1)) !(get_children s)
+
+  let set_profile_depth d =
+    if d <= 0 then profile_section root
+    else profile_depth d root
 end
 
 (* Debug output functions *)
@@ -214,18 +223,6 @@ let debug ?(section=Section.root) l format =
 
 (** {2 profiling facilities} *)
 
-(** Activate profiling for a section (and its children) *)
-let rec profile_section s =
-  s.Section.profile <- true;
-  List.iter profile_section !(Section.get_children s)
-
-let rec profile_depth d s =
-  s.Section.profile <- d >= 0;
-  List.iter (profile_depth (d - 1)) !(Section.get_children s)
-
-let set_profile_depth d =
-  if d <= 0 then profile_section Section.root
-  else profile_depth d Section.root
 
 (** Global switch for profiling *)
 let active = ref []
@@ -234,13 +231,20 @@ let curr () = match !active with
   | s :: _ -> Some s | [] -> None
 
 (** Enter the profiler *)
+let rec is_parent_active s =
+  s.Section.prof_in ||
+  (match s.Section.descr with
+   | Section.Root -> false
+   | Section.Sub (_, s', _) -> is_parent_active s')
+
 let enter_prof section =
   if section.Section.profile then begin
     match !active with
     | s :: _ when s == section ->
       active := section :: !active
     | _ ->
-      CCOpt.iter Section.prof_exit (curr ());
+      if not (is_parent_active section) then
+        ignore (CCOpt.map Section.prof_exit (curr ()));
       Section.prof_enter section;
       active := section :: !active
   end
@@ -251,11 +255,11 @@ let exit_prof section =
     match !active with
     | s :: r ->
       assert (s == section);
-      Section.prof_exit section;
+      let b = Section.prof_exit section in
       active := r;
       begin match r with
         | [] -> ()
-        | s' :: _ -> Section.prof_enter s'
+        | s' :: _ -> if b then Section.prof_enter s'
       end
     | [] -> assert false
   end
@@ -283,7 +287,13 @@ let rec map_tree f = function
   | `Tree (x, l) -> `Tree (f x, List.map (map_tree f) l)
 
 let print_profiler () =
-  if !active <> [] then debug 0 "Debug sections not closed properly";
+  if !active <> [] then begin
+    debug 0 "Debug sections not closed properly";
+    while !active <> [] do
+      debug 0 "Closing section %s forcefully" (List.hd !active).Section.full_name;
+      exit_prof (List.hd !active)
+    done;
+  end;
   let total_time = get_total_time () in
   let s_tree = section_tree Section.root in
   let tree_box = Containers_misc.PrintBox.(
@@ -302,7 +312,7 @@ let print_profiler () =
   Containers_misc.PrintBox.output stdout b
 
 let enable_profiling () =
-  profile_section Section.root;
+  Section.profile_section Section.root;
   at_exit print_profiler
 
 (** {2 LogtkOrdering utils} *)

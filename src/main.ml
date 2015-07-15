@@ -17,6 +17,8 @@ include Ext_functions
 exception Out_of_time
 exception Out_of_space
 
+let misc_sect = Util.Section.make "misc"
+
 (* GC alarm for time/space limits *)
 let check time_limit size_limit = function () ->
   let t = Sys.time () in
@@ -118,8 +120,9 @@ let () =
   try
     (* Profiling *)
     if opt.profile.enabled then Util.enable_profiling ();
-    CCOpt.iter Util.set_profile_depth opt.profile.max_depth;
-    List.iter Util.profile_section opt.profile.sections;
+    CCOpt.iter Util.Section.set_profile_depth opt.profile.max_depth;
+    List.iter Util.Section.profile_section opt.profile.sections;
+    Util.enter_prof misc_sect;
 
     (* Io options *)
     Io.set_input_file opt.input_file;
@@ -147,6 +150,7 @@ let () =
     Queue.iter (do_command opt) commands;
 
     (* Clean up *)
+    Util.exit_prof misc_sect;
     Options.clean opt
 
   with
