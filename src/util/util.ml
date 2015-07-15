@@ -53,6 +53,7 @@ module Section = struct
   type t = {
     descr : descr;
     mutable level : int;
+    mutable profile : bool;
     mutable prof_total : float;
     mutable prof_status : prof_status;
     mutable full_name : string;
@@ -65,6 +66,7 @@ module Section = struct
   let root= {
     descr = Root;
     level = 0;
+    profile = false;
     prof_total = 0.;
     prof_status = Out;
     full_name = "";
@@ -116,6 +118,7 @@ module Section = struct
     let sec = {
       descr = Sub (name, parent, inheriting);
       level = null_level;
+      profile = false;
       prof_total = 0.;
       prof_status = Out;
       full_name="";
@@ -211,11 +214,20 @@ let debug ?(section=Section.root) l format =
 
 (** {2 profiling facilities} *)
 
+(** Activate profiling for a section (and its children) *)
+let rec profile_section s =
+  s.Section.profile <- true;
+  List.iter profile_section !(Section.get_children s)
+
+let rec profile_depth d s =
+  s.Section.profile <- d >= 0;
+  List.iter (profile_depth (d - 1)) !(Section.get_children s)
+
+let set_profile_depth d =
+  if d <= 0 then profile_section Section.root
+  else profile_depth d Section.root
+
 (** Global switch for profiling *)
-let profile = ref false
-
-let enable_profiling () = profile := true
-
 let active = ref []
 
 let curr () = match !active with
@@ -223,7 +235,7 @@ let curr () = match !active with
 
 (** Enter the profiler *)
 let enter_prof section =
-  if !profile then begin
+  if section.Section.profile then begin
     match !active with
     | s :: _ when s == section ->
       active := section :: !active
@@ -235,7 +247,7 @@ let enter_prof section =
 
 (** Exit the profiler *)
 let exit_prof section =
-  if !profile then begin
+  if section.Section.profile then begin
     match !active with
     | s :: r ->
       assert (s == section);
@@ -270,29 +282,28 @@ let rec map_tree f = function
   | `Empty -> `Empty
   | `Tree (x, l) -> `Tree (f x, List.map (map_tree f) l)
 
-let () = at_exit (fun () ->
-    if !profile then begin
-      if !active <> [] then debug 0 "Debug sections not closed properly";
-      let total_time = get_total_time () in
-      if total_time <= 0.01 then Printf.fprintf stdout "Not enough time to profile\n"
-      else begin
-        let s_tree = section_tree Section.root in
-        let tree_box = Containers_misc.PrintBox.(
-            Simple.to_box (map_tree (fun s -> `Text (Section.short_name s)) s_tree)) in
-        let time_box = Containers_misc.PrintBox.(vlist ~bars:false (flatten (
-            map_tree (fun s -> text (Format.sprintf "%13.3f" s.Section.prof_total)) s_tree))) in
-        let rate_box = Containers_misc.PrintBox.(vlist ~bars:false (flatten (
-            map_tree (fun s -> text (Format.sprintf "%6.2f%%" (
-                s.Section.prof_total /. total_time *. 100.))) s_tree))) in
-        let b = Containers_misc.PrintBox.(
-            grid ~pad:(hpad 3) ~bars:true [|
-              [| text "Section name"; text "Time profiled"; text "Profiled rate" |];
-              [| text "Total Time"; text (Format.sprintf "%13.3f" total_time); text "100.00%" |];
-              [| tree_box; time_box; rate_box |];
-            |]) in
-        Containers_misc.PrintBox.output stdout b
-      end
-    end)
+let print_profiler () =
+  if !active <> [] then debug 0 "Debug sections not closed properly";
+  let total_time = get_total_time () in
+  let s_tree = section_tree Section.root in
+  let tree_box = Containers_misc.PrintBox.(
+      Simple.to_box (map_tree (fun s -> `Text (Section.short_name s)) s_tree)) in
+  let time_box = Containers_misc.PrintBox.(vlist ~bars:false (flatten (
+      map_tree (fun s -> text (Format.sprintf "%13.3f" s.Section.prof_total)) s_tree))) in
+  let rate_box = Containers_misc.PrintBox.(vlist ~bars:false (flatten (
+      map_tree (fun s -> text (Format.sprintf "%6.2f%%" (
+          s.Section.prof_total /. total_time *. 100.))) s_tree))) in
+  let b = Containers_misc.PrintBox.(
+      grid ~pad:(hpad 3) ~bars:true [|
+        [| text "Section name"; text "Time profiled"; text "Profiled rate" |];
+        [| text "Total Time"; text (Format.sprintf "%13.3f" total_time); text "100.00%" |];
+        [| tree_box; time_box; rate_box |];
+      |]) in
+  Containers_misc.PrintBox.output stdout b
+
+let enable_profiling () =
+  profile_section Section.root;
+  at_exit print_profiler
 
 (** {2 LogtkOrdering utils} *)
 

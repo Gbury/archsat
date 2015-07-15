@@ -19,6 +19,12 @@ type output =
   | Standard
   | SZS
 
+type profile_options = {
+  enabled : bool;
+  max_depth : int option;
+  sections : Util.Section.t list;
+}
+
 type copts = {
   (* Input/Output option *)
   out : out_channel;
@@ -37,7 +43,7 @@ type copts = {
   model_out : out_channel option;
 
   (* Time/Memory options *)
-  profile : bool;
+  profile : profile_options;
   time_limit : float;
   size_limit : float;
 }
@@ -65,6 +71,12 @@ let mk_opts () file input output proof type_only plugins addons
     time_limit = time;
     size_limit = size;
   }
+
+let profile_opts enable depth l = {
+  enabled = enable || depth <> None || l <> [];
+  max_depth = depth;
+  sections = l;
+}
 
 (* Side-effects options *)
 let set_opts gc bt quiet log debug =
@@ -182,7 +194,7 @@ let bool_opt s bool = if bool then Printf.sprintf "[%s]" s else ""
 let log_opts opt =
   log 0 "Limits : %s / %s" (time_string opt.time_limit) (size_string opt.size_limit);
   log 0 "Options : %s%s%s[in: %s][out: %s]"
-    (bool_opt "profile" opt.profile) (bool_opt "solve" opt.solve) (bool_opt "check_proof" opt.proof)
+    (bool_opt "profile" opt.profile.enabled) (bool_opt "solve" opt.solve) (bool_opt "check_proof" opt.proof)
     (input_string opt.input_format) (output_string opt.output_format);
   log 0 "Input file : %s" opt.input_file
 
@@ -213,6 +225,7 @@ let out_ch = parse_out, print_out
 (* ************************************************************************ *)
 
 let copts_sect = "COMMON OPTIONS"
+let prof_sect = "PROFILING OPTIONS"
 let ext_sect = "ADVANCED OPTIONS"
 let help_secs ext_doc sext_doc = [
   `S copts_sect; `P "Common options for the prover";
@@ -224,6 +237,7 @@ let help_secs ext_doc sext_doc = [
       are called earlier than those with lower priorities.";
   ] @ ext_doc @ [
     `S ext_sect; `P "Options primarily used by the extensions (use only if you know what you're doing !).";
+    `S prof_sect;
     `S "BUGS"; `P "TODO";
   ]
 
@@ -231,6 +245,22 @@ let log_sections () =
   let l = ref [] in
   Util.Section.iter (fun (name, _) -> if name <> "" then l := name :: !l);
   !l
+
+let profile_t =
+  let docs = prof_sect in
+  let profile =
+    let doc = "Activate time profiling of the prover." in
+    Arg.(value & flag & info ["p"; "profile"] ~docs ~doc)
+  in
+  let depth =
+    let doc = "Maximum depth for profiling" in
+    Arg.(value & opt (some int) None & info ["pdepth"] ~doc ~docs)
+  in
+  let sects =
+    let doc = "Section to be porfiled with its children (overrides pdeth setting)" in
+    Arg.(value & opt_all section [] & info ["psection"] ~doc ~docs)
+  in
+  Term.(pure profile_opts $ profile $ depth $ sects)
 
 let copts_t () =
   let docs = copts_sect in
@@ -318,10 +348,6 @@ let copts_t () =
               "Without suffix, default to a size in octet." in
     Arg.(value & opt c_size 1_000_000_000. & info ["s"; "size"] ~docs ~docv:"SIZE" ~doc)
   in
-  let profile =
-    let doc = "Activate time profiling of the prover." in
-    Arg.(value & flag & info ["p"; "profile"] ~docs ~doc)
-  in
   Term.(pure mk_opts $ (pure set_opts $ gc $ bt $ quiet $ log $ debug) $
-        file $ input $ output $ check_proof $ type_only $ plugins $ addons $ dot_proof $ model_out $ time $ size $ profile)
+        file $ input $ output $ check_proof $ type_only $ plugins $ addons $ dot_proof $ model_out $ time $ size $ profile_t)
 

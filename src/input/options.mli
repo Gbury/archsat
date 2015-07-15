@@ -17,6 +17,12 @@ type output =
 
 (** Type for choosing model output *)
 
+type profile_options = {
+  enabled : bool;
+  max_depth : int option;
+  sections : Util.Section.t list;
+}
+
 type copts = {
   (* Input/Output option *)
   out : out_channel;
@@ -35,7 +41,7 @@ type copts = {
   model_out : out_channel option;
 
   (* Time/Memory options *)
-  profile : bool;
+  profile : profile_options;
   time_limit : float;
   size_limit : float;
 }

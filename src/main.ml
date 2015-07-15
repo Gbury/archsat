@@ -106,14 +106,20 @@ let () =
   in
   (* Gc alarm for limits *)
   setup_alarm opt.time_limit opt.size_limit;
+
+  (* Signal handlers *)
   Sys.set_signal Sys.sigint (Sys.Signal_handle (fun _ ->
       Util.need_cleanup := true;
       Util.debug 0 "Interrupted by user";
       exit 1));
+  Sys.set_signal Sys.sigalrm (Sys.Signal_handle (fun _ ->
+      raise Out_of_time));
 
   try
     (* Profiling *)
-    if opt.profile then Util.enable_profiling ();
+    if opt.profile.enabled then Util.enable_profiling ();
+    CCOpt.iter Util.set_profile_depth opt.profile.max_depth;
+    List.iter Util.profile_section opt.profile.sections;
 
     (* Io options *)
     Io.set_input_file opt.input_file;

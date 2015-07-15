@@ -73,6 +73,8 @@ val debug : ?section:Section.t -> int ->
 (** {2 profiling facilities} *)
 
 val enable_profiling : unit -> unit   (** Enable profiling (disabled by default) *)
+val profile_section : Section.t -> unit (** Activate profiling for a section and all its children *)
+val set_profile_depth : int -> unit
 
 val enter_prof : Section.t -> unit                (** Enter the profiler *)
 val exit_prof : Section.t -> unit                 (** Exit the profiler *)
