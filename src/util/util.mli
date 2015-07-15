@@ -84,6 +84,8 @@ val enable_profiling : unit -> unit   (** Enable profiling (disabled by default)
 val enter_prof : Section.t -> unit                (** Enter the profiler *)
 val exit_prof : Section.t -> unit                 (** Exit the profiler *)
 
+val csv_prof_data : Format.formatter -> unit
+
 (** {2 LogtkOrdering utils} *)
 
 val lexicograph : ('a -> 'b -> int) -> 'a list -> 'b list -> int

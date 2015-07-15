@@ -51,8 +51,9 @@ module Section = struct
     mutable level : int;
     mutable profile : bool; (* should this section be profiled *)
     mutable prof_in : bool; (* are we currently inside the profiler of this section *)
+    mutable prof_calls : int; (* number of calls to the profiler *)
     mutable prof_enter : float; (* time of last entry of the profiler *)
-    mutable prof_total : float;
+    mutable prof_total : float; (* total time elasped inside the profiler *)
     mutable full_name : string;
   }
 
@@ -65,6 +66,7 @@ module Section = struct
     level = 0;
     profile = false;
     prof_in = false;
+    prof_calls = 0;
     prof_enter = 0.;
     prof_total = 0.;
     full_name = "";
@@ -118,6 +120,7 @@ module Section = struct
       level = null_level;
       profile = false;
       prof_in = false;
+      prof_calls = 0;
       prof_enter = 0.;
       prof_total = 0.;
       full_name="";
@@ -163,6 +166,7 @@ module Section = struct
   (* Entering a profiler *)
   let prof_enter s =
     s.prof_enter <- get_total_time ();
+    s.prof_calls <- s.prof_calls + 1;
     s.prof_in <- true
 
   let rec prof_exit_aux s time =
@@ -238,14 +242,15 @@ let rec is_parent_active s =
    | Section.Sub (_, s', _) -> is_parent_active s')
 
 let enter_prof section =
-  if section.Section.profile then begin
+  let open Section in
+  if section.profile then begin
     match !active with
     | s :: _ when s == section ->
       active := section :: !active
     | _ ->
       if not (is_parent_active section) then
-        ignore (CCOpt.map Section.prof_exit (curr ()));
-      Section.prof_enter section;
+        ignore (CCOpt.map prof_exit (curr ()));
+      prof_enter section;
       active := section :: !active
   end
 
@@ -270,12 +275,12 @@ let parent_time s =
   | Section.Root -> s.Section.prof_total
   | Section.Sub (_, s', _) -> s'.Section.prof_total
 
-let rec section_tree s =
-  if s.Section.prof_total < (parent_time s) /. 100. then `Empty
+let rec section_tree test s =
+  if test s then `Empty
   else begin
     let l = !(Section.get_children s) in
     let l' = List.sort (fun s' s'' -> Section.(compare s''.prof_total s'.prof_total)) l in
-    `Tree(s , List.map section_tree l')
+    `Tree(s , List.map (section_tree test) l')
   end
 
 let rec flatten = function
@@ -295,9 +300,11 @@ let print_profiler () =
     done;
   end;
   let total_time = get_total_time () in
-  let s_tree = section_tree Section.root in
+  let s_tree = section_tree (fun s -> s.Section.prof_total < (parent_time s) /. 100.) Section.root in
   let tree_box = Containers_misc.PrintBox.(
       Simple.to_box (map_tree (fun s -> `Text (Section.short_name s)) s_tree)) in
+  let call_box = Containers_misc.PrintBox.(vlist ~bars:false (flatten (
+      map_tree (fun s -> text (Format.sprintf "%7d" s.Section.prof_calls)) s_tree))) in
   let time_box = Containers_misc.PrintBox.(vlist ~bars:false (flatten (
       map_tree (fun s -> text (Format.sprintf "%13.3f" s.Section.prof_total)) s_tree))) in
   let rate_box = Containers_misc.PrintBox.(vlist ~bars:false (flatten (
@@ -305,11 +312,19 @@ let print_profiler () =
           s.Section.prof_total /. total_time *. 100.))) s_tree))) in
   let b = Containers_misc.PrintBox.(
       grid ~pad:(hpad 3) ~bars:true [|
-        [| text "Section name"; text "Time profiled"; text "Profiled rate" |];
-        [| text "Total Time"; text (Format.sprintf "%13.3f" total_time); text "100.00%" |];
-        [| tree_box; time_box; rate_box |];
+        [| text "Section name"; text "Time profiled"; text "Profiled rate"; text "n° calls" |];
+        [| text "Total Time"; text (Format.sprintf "%13.3f" total_time); text "100.00%"; text (Format.sprintf "%7d" 0) |];
+        [| tree_box; time_box; rate_box; call_box |];
       |]) in
   Containers_misc.PrintBox.output stdout b
+
+let csv_prof_data fmt =
+  let tree = section_tree (fun s -> false) Section.root in
+  List.iter (fun s ->
+      let open Section in
+      let name = if full_name s = "" then "root" else full_name s in
+      Format.fprintf fmt "%s,%d,%f@." name s.prof_calls s.prof_total
+    ) (flatten tree)
 
 let enable_profiling () =
   Section.profile_section Section.root;

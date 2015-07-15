@@ -91,7 +91,8 @@ let rec set_handler t =
     if not Expr.(Ty.equal v.id_type Ty.prop) then
       Expr.Id.set_assign v 0 eq_assign
   in
-  watch 1 [t] (tag t);
+  if not Expr.(Ty.equal t.t_type Ty.prop) then
+    watch 1 [t] (tag t);
   match t with
   | { Expr.term = Expr.Var v } -> aux v
   | { Expr.term = Expr.Meta m } -> aux Expr.(m.meta_id)

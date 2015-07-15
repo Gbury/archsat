@@ -44,6 +44,7 @@ let f_eval f () =
   | None -> ()
 
 let sat_preprocess = function
+  | { Expr.formula = Expr.Pred {Expr.term = Expr.App (_, [], [])}} -> ()
   | { Expr.formula = Expr.Pred ({Expr.term = Expr.App (p, _, _)} as t)} as f
     when Expr.(Ty.equal t.t_type Ty.prop) ->
     Expr.Id.set_assign p 5 sat_assign;

@@ -23,6 +23,7 @@ type profile_options = {
   enabled : bool;
   max_depth : int option;
   sections : Util.Section.t list;
+  raw_data : out_channel option;
 }
 
 type copts = {
@@ -72,10 +73,11 @@ let mk_opts () file input output proof type_only plugins addons
     size_limit = size;
   }
 
-let profile_opts enable depth l = {
+let profile_opts enable depth l out = {
   enabled = enable || depth <> None || l <> [];
   max_depth = depth;
   sections = l;
+  raw_data = out;
 }
 
 (* Side-effects options *)
@@ -260,7 +262,12 @@ let profile_t =
     let doc = "Section to be porfiled with its children (overrides pdeth setting)" in
     Arg.(value & opt_all section [] & info ["psection"] ~doc ~docs)
   in
-  Term.(pure profile_opts $ profile $ depth $ sects)
+  let raw_data =
+    let doc = "Set a file to which output the raw profiling data.
+               A special 'stdout' value can be used to use standard output." in
+    Arg.(value & opt (some out_ch) None & info ["pdata"] ~docs ~doc)
+  in
+  Term.(pure profile_opts $ profile $ depth $ sects $ raw_data)
 
 let copts_t () =
   let docs = copts_sect in

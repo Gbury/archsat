@@ -200,8 +200,9 @@ let check_var v =
 let rec check_term = function
   | { Expr.term = Expr.Var v } -> check_var v
   | { Expr.term = Expr.Meta m } -> check_var Expr.(m.meta_id)
-  | { Expr.term = Expr.App (p, _, l)} ->
-    check_var p;
+  | { Expr.term = Expr.App (p, _, l)} as t ->
+    if not (Expr.(Ty.equal t.t_type Ty.prop) && l = []) then
+      check_var p;
     List.iter check_term l
 
 let check = function

@@ -21,6 +21,7 @@ type profile_options = {
   enabled : bool;
   max_depth : int option;
   sections : Util.Section.t list;
+  raw_data : out_channel option;
 }
 
 type copts = {

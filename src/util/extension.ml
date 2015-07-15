@@ -52,13 +52,16 @@ module Make(E: K) : S with type ext = E.t = struct
     CCVector.push exts { id; prio; name; descr; options; ext };
     id
 
+  let refresh () =
+    actual := E.merge (List.map (fun t -> t.ext) !active)
+
   let activate ext =
     let aux r = r.name = ext in
     try
       let r = CCVector.find_exn aux exts in
       if not (List.exists aux !active) then begin
         active := List.merge (fun r r' -> compare r'.prio r.prio) [r] !active;
-        actual := E.merge (List.map (fun t -> t.ext) !active)
+        refresh ()
       end else
         log 0 "WARNING: Extension %s already activated" ext
     with Not_found -> _not_found ext
@@ -70,7 +73,9 @@ module Make(E: K) : S with type ext = E.t = struct
       let l1, l2 = List.partition aux !active in
       begin match l1 with
         | [] -> log 0 "WARNING: Extension %s already deactivated" ext
-        | [r] -> active := l2;
+        | [r] ->
+          active := l2;
+          refresh ()
         | _ -> assert false
       end
     with Not_found -> _not_found ext
