@@ -36,8 +36,6 @@ val get_total_time : unit -> float
 module Section : sig
   type t
 
-  module type S = sig val section : t end
-
   val full_name : t -> string  (** Full path to the section *)
   val short_name : t -> string
 
@@ -65,6 +63,18 @@ module Section : sig
   val set_profile_depth : int -> unit
   (** Set maximum depth for profiling *)
 
+end
+
+module Stats : sig
+  type t
+
+  val calls : t
+  val watchers :t
+
+  val get : Section.t -> t -> int
+  val set : Section.t -> t -> int -> unit
+
+  val incr : Section.t -> t -> unit
 end
 
 val set_debug : int -> unit     (** Set debug level of [Section.root] *)

@@ -321,7 +321,9 @@ let update_watch x j =
     Util.debug ~section 0 "not_watched : %a" (CCPrint.list ~sep:" || " Expr.Debug.term) j.not_watched;
     assert false
 
-let new_job ?formula id k section watched not_watched f = {
+let new_job ?formula id k section watched not_watched f =
+  Util.Stats.incr section Util.Stats.watchers;
+  {
   job_ext = id;
   job_n = k;
   job_section = section;
@@ -330,7 +332,7 @@ let new_job ?formula id k section watched not_watched f = {
   not_watched = not_watched;
   job_callback = f;
   job_done = - 1;
-}
+  }
 
 let watch ?formula ext_name k args f =
   let plugin = Plugin.find ext_name in
