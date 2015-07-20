@@ -168,8 +168,8 @@ let () =
   | Type.Typing_error (msg, t) ->
     let s = Printexc.get_backtrace () in
     let loc = CCOpt.maybe CCFun.id (ParseLocation.mk opt.input_file 0 0 0 0) Ast.(t.loc) in
-    Format.fprintf Format.std_formatter "%a:@\n%s@."
-      ParseLocation.fmt loc msg;
+    Format.fprintf Format.std_formatter "While typing : %s@\n%a:@\n%s@."
+      (Ast.s_term t) ParseLocation.fmt loc msg;
     if Printexc.backtrace_status () then
       Format.fprintf Format.std_formatter "%s" s;
     exit 2
@@ -184,9 +184,9 @@ let () =
   | Dispatcher.Bad_assertion s ->
     Format.fprintf Format.std_formatter "%s@." s;
     exit 4
-  | Expr.Type_mismatch (ty1, ty2) ->
-    Format.fprintf Format.std_formatter "The following types are NOT compatible :@\n%a ~~ %a@."
-      Expr.Print.ty ty1 Expr.Print.ty ty2;
+  | Expr.Type_mismatch (t, ty1, ty2) ->
+    Format.fprintf Format.std_formatter "Term %a has type %a but an expression of type %a was expected@."
+      Expr.Print.term t Expr.Print.ty ty1 Expr.Print.ty ty2;
     exit 4
 
 

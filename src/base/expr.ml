@@ -107,7 +107,7 @@ and formula = {
 (* Exceptions *)
 (* ************************************************************************ *)
 
-exception Type_mismatch of ty * ty
+exception Type_mismatch of term * ty * ty
 exception Bad_arity of ty function_descr id * ty list * term list
 exception Bad_ty_arity of ttype function_descr id * ty list
 
@@ -669,8 +669,9 @@ module Ty = struct
     else
       let map = List.fold_left2 (fun acc v ty -> Subst.Id.bind v ty acc) Subst.empty f.id_type.fun_vars tys in
       let fun_args = List.map (subst map) f.id_type.fun_args in
-      List.iter2 (fun t t' -> if not (equal t t') then raise (Type_mismatch (t, t')))
-        (List.map (fun x -> x.t_type) args) fun_args;
+      List.iter2 (fun t ty ->
+          if not (equal t.t_type ty) then raise (Type_mismatch (t, t.t_type, ty)))
+        args fun_args;
       subst map f.id_type.fun_ret
 
   (* Free variables *)
@@ -945,22 +946,9 @@ module Formula = struct
     f_vars = None;
   }
 
-  let eq a b =
-    if not (Ty.equal a.t_type b.t_type) then
-      raise (Type_mismatch (a.t_type, b.t_type))
-    else if (Ty.equal Ty.prop a.t_type) then
-      raise (Type_mismatch (Ty.prop, a.t_type))
-    else if (Ty.equal Ty.prop b.t_type) then
-      raise (Type_mismatch (Ty.prop, b.t_type))
-    else
-    if Term.compare a b < 0 then
-      mk_formula (Equal (a, b))
-    else
-      mk_formula (Equal (b, a))
-
   let pred t =
     if not (Ty.equal Ty.prop t.t_type) then
-      raise (Type_mismatch (Ty.prop, t.t_type))
+      raise (Type_mismatch (t, t.t_type, Ty.prop))
     else
       mk_formula (Pred t)
 
@@ -996,6 +984,16 @@ module Formula = struct
   let imply p q = mk_formula (Imply (p, q))
 
   let equiv p q = mk_formula (Equiv (p, q))
+
+  let eq a b =
+    if not (Ty.equal a.t_type b.t_type) then
+      raise (Type_mismatch (b, b.t_type, a.t_type))
+    else if (Ty.equal Ty.prop a.t_type) then
+      equiv (pred a) (pred b)
+    else if Term.compare a b < 0 then
+      mk_formula (Equal (a, b))
+    else
+      mk_formula (Equal (b, a))
 
   let all l f =
     if l = [] then f else

@@ -25,8 +25,9 @@ let _expected s t = raise (Typing_error (
     Format.asprintf "Expected a %s" s, t))
 let _bad_arity s n t = raise (Typing_error (
     Format.asprintf "Bad arity for operator '%s' (expected %d arguments)" s n, t))
-let _type_mismatch ty ty' t = raise (Typing_error (
-    Format.asprintf "Type Mismatch : '%a' <> '%a'" Expr.Print.ty ty Expr.Print.ty ty', t))
+let _type_mismatch t ty ty' ast = raise (Typing_error (
+    Format.asprintf "Type Mismatch: '%a' has type %a, but an expression of type %a was expected"
+      Expr.Print.term t Expr.Print.ty ty Expr.Print.ty ty', ast))
 
 (* Global Environment *)
 (* ************************************************************************ *)
@@ -48,6 +49,10 @@ let add_type name c =
     log 1 "New type constructor : %a" Expr.Debug.const_ttype c;
     H.add types name c
 
+let find_ty_cstr name =
+  try Some (H.find types name)
+  with Not_found -> None
+
 let add_cst name c =
   try
     let c' = H.find constants name in
@@ -57,10 +62,6 @@ let add_cst name c =
   with Not_found ->
     log 1 "New constant : %a" Expr.Debug.const_ty c;
     H.add constants name c
-
-let find_ty_cstr name =
-  try Some (H.find types name)
-  with Not_found -> None
 
 let find_cst (default_args, default_ret) name =
   try
@@ -166,20 +167,20 @@ let term_apply ast_term ~status f ty_args t_args =
   with
   | Expr.Bad_arity _ ->
     _bad_arity Expr.(f.id_name) (arity f) ast_term
-  | Expr.Type_mismatch (ty, ty') ->
-    _type_mismatch ty ty' ast_term
+  | Expr.Type_mismatch (t, ty, ty') ->
+    _type_mismatch t ty ty' ast_term
 
 let make_eq ast_term a b =
   try
     Expr.Formula.eq a b
-  with Expr.Type_mismatch (ty, ty') ->
-    _type_mismatch ty ty' ast_term
+  with Expr.Type_mismatch (t, ty, ty') ->
+    _type_mismatch t ty ty' ast_term
 
 let make_pred ast_term p =
   try
     Expr.Formula.pred p
-  with Expr.Type_mismatch (ty, ty') ->
-    _type_mismatch ty ty' ast_term
+  with Expr.Type_mismatch (t, ty, ty') ->
+    _type_mismatch t ty ty' ast_term
 
 (* Expression parsing *)
 (* ************************************************************************ *)
@@ -195,28 +196,29 @@ let parse_ttype_var = function
     Expr.Id.ttype s
   | t -> _expected "a type variable" t
 
-let parse_ty_cstr env ty_args s =
+let parse_ty_cstr ~infer env ty_args s =
   match env.builtins s ty_args [] with
   | Some `Ty res -> Some res
-  | _ ->
-    begin match find_ty_cstr s with
+  | _ -> begin match find_ty_cstr s with
       | Some x -> Some (x, ty_args)
-      | None -> None
+      | None ->
+        if infer && ty_args = [] then begin
+          let res = Expr.Id.ty_fun s 0 in
+          add_type s res;
+          Some (res, [])
+        end else
+          None
     end
 
-let rec parse_ty ~status env = function
+let rec parse_ty ~infer ~status env = function
   | { Ast.term = Ast.Var s} as t -> scope t (find_type_var env) s
   | { Ast.term = Ast.Const (Ast.String c)} as t ->
-    begin match parse_ty_cstr env [] c with
-      | Some (f, args) -> ty_apply t ~status f args
-      | None -> _scope_err t
-    end
+    let (f, args) = scope t (parse_ty_cstr ~infer env []) c in
+    ty_apply t ~status f args
   | { Ast.term = Ast.App ({Ast.term = Ast.Const (Ast.String c) }, l) } as t ->
-    let l' = List.map (parse_ty ~status env) l in
-    begin match parse_ty_cstr env l' c with
-      | Some (f, args) -> ty_apply t ~status f args
-      | None -> _scope_err t
-    end
+    let l' = List.map (parse_ty ~infer ~status env) l in
+    let (f, args) = scope t (parse_ty_cstr ~infer env l') c in
+    ty_apply t ~status f args
   | t -> _expected "type" t
 
 let rec parse_sig ~status env = function
@@ -226,14 +228,14 @@ let rec parse_sig ~status env = function
     let params, args, ret = parse_sig ~status env' t in
     (typed_vars @ params, args, ret)
   | { Ast.term = Ast.App ({Ast.term = Ast.Const Ast.Arrow}, ret :: args) } ->
-    [], List.map (parse_ty ~status env) args, parse_ty ~status env ret
-  | t -> [], [], parse_ty ~status env t
+    [], List.map (parse_ty ~infer:true ~status env) args, parse_ty ~infer:true ~status env ret
+  | t -> [], [], parse_ty ~infer:true ~status env t
 
 let parse_ty_var ~status env = function
   | { Ast.term = Ast.Var s } ->
     Expr.Id.ty s Expr.Ty.base
   | { Ast.term = Ast.Column ({ Ast.term = Ast.Var s }, ty) } ->
-    Expr.Id.ty s (parse_ty ~status env ty)
+    Expr.Id.ty s (parse_ty ~infer:true ~status env ty)
   | t -> _expected "(typed) variable" t
 
 let default_cst_ty n ret = (CCList.replicate n Expr.Ty.base, ret)
@@ -253,7 +255,7 @@ let rec parse_args ~status env = function
   | [] -> [], []
   | (e :: r) as l ->
     try
-      let ty_arg = parse_ty ~status env e in
+      let ty_arg = parse_ty ~infer:false ~status env e in
       let ty_args, t_args = parse_args ~status env r in
       ty_arg :: ty_args, t_args
     with Typing_error _ ->

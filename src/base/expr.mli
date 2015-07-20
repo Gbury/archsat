@@ -155,10 +155,12 @@ and formula = private {
 
 (** {3 Exceptions} *)
 
-exception Type_mismatch of ty * ty
+exception Type_mismatch of term * ty * ty
+(* Raised when as Type_mismatch(term, actual_type, expected_type) *)
+
 exception Bad_arity of ty function_descr id * ty list * term list
 exception Bad_ty_arity of ttype function_descr id * ty list
-(** Errors raised when trying to buld a term that does not typecheck. *)
+(** Raised when trying to buld a term that does not typecheck *)
 
 exception Cannot_assign of term
 exception Cannot_interpret of term
