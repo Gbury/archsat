@@ -1,5 +1,6 @@
 
 let section = Util.Section.make "dispatch"
+let solver_section = Util.Section.make "solver"
 
 let dummy_section = Util.Section.make "DUMMY"
 
@@ -10,9 +11,6 @@ module H = Hashtbl.Make(Expr.Term)
 module M = Backtrack.HashtblBack(Expr.Term)
 module F = Backtrack.HashtblBack(Expr.Formula)
 
-type term = Expr.term
-type formula = Expr.formula
-
 type lemma = {
   plugin_name : string;
   proof_name : string;
@@ -21,45 +19,47 @@ type lemma = {
   proof_formula_args : Expr.formula list;
 }
 
-type proof = lemma
-
-type assumption =
-  | Lit of formula
-  | Assign of term * term
-
-type slice = {
-  start : int;
-  length : int;
-  get : int -> assumption * int;
-  push : formula list -> proof -> unit;
-  propagate : formula -> int -> unit;
-}
-
-type level = Backtrack.Stack.level
-
-type res =
-  | Sat
-  | Unsat of formula list * proof
-
-type eval_res =
-  | Valued of bool * int
-  | Unknown
-
 type 'a job = {
   job_ext : 'a;
   job_n : int;
   job_section : Util.Section.t;
   job_callback : unit -> unit;
-  job_formula : formula option;
+  job_formula : Expr.formula option;
   mutable job_done : int;
-  mutable watched : term list;
-  mutable not_watched : term list;
+  mutable watched : Expr.term list;
+  mutable not_watched : Expr.term list;
 }
+
+(* Solver types *)
+(* ************************************************************************ *)
+
+module SolverExpr = struct
+
+  module Term = Expr.Term
+  module Formula = Expr.Formula
+
+  type proof = lemma
+
+  let dummy = Expr.Formula.f_true
+
+  let fresh () = assert false
+
+  let neg f = Expr.Formula.neg f
+
+  let norm = function
+    | { Expr.formula = Expr.False } -> Expr.Formula.f_true, true
+    | { Expr.formula = Expr.Not f } -> f, true
+    | f -> f, false
+end
+
+module SolverTypes = Msat.Solver_types.McMake(struct
+    let debug i format = Util.debug ~section:solver_section i format
+  end)(SolverExpr)
 
 (* Exceptions *)
 (* ************************************************************************ *)
 
-exception Absurd of formula list * proof
+exception Absurd of Expr.formula list * lemma
 exception Bad_assertion of string
 
 let _fail s = raise (Bad_assertion s)
@@ -82,19 +82,19 @@ type ext = {
   section : Util.Section.t;
 
   (* Called once on each new formula *)
-  peek : (formula -> unit) option;
+  peek : (Expr.formula -> unit) option;
 
   (* Called at the end of each round of solving *)
-  if_sat : (((formula -> unit) -> unit) -> unit) option;
+  if_sat : (((Expr.formula -> unit) -> unit) -> unit) option;
 
   (* Called on each formula that the solver assigns to true *)
-  assume : (formula * int -> unit) option;
+  assume : (Expr.formula * int -> unit) option;
 
   (* Evaluate a formula with the current assignments *)
-  eval_pred : (formula -> (bool * int) option) option;
+  eval_pred : (Expr.formula -> (bool * int) option) option;
 
   (* Pre-process input formulas *)
-  preprocess : (formula -> (formula * lemma) option) option;
+  preprocess : (Expr.formula -> (Expr.formula * lemma) option) option;
 }
 
 let mk_ext ~section ?peek ?if_sat ?assume ?eval_pred ?preprocess () = {
@@ -162,7 +162,7 @@ let proof_debug p =
     | "tab" -> Some "LIGHTBLUE"
     | _ -> None
   in
-  p.proof_name, p.proof_formula_args, p.proof_term_args, color
+  p.proof_name, color, p.proof_term_args, p.proof_formula_args
 
 (* Delayed propagation *)
 (* ************************************************************************ *)
@@ -238,27 +238,17 @@ let pre_process f =
 let stack = Backtrack.Stack.create (
     Util.Section.make ~parent:section "backtrack")
 
-let dummy = Backtrack.Stack.dummy_level
-
 let last_backtrack = ref 0
-
-let current_level () = Backtrack.Stack.level stack
-
-let backtrack lvl =
-  Util.debug ~section 10 "Backtracking";
-  incr last_backtrack;
-  Stack.clear propagate_stack;
-  Backtrack.Stack.backtrack stack lvl
 
 (* Current asusmptions *)
 (* ************************************************************************ *)
 
-(* The map of formula that are currently true *)
-let f_map = F.create stack
-
-let is_true f = F.mem f_map f
-
-let add_assumption = F.add f_map
+let eval_f f =
+  let open SolverTypes in
+  let a = add_atom f in
+  if a.is_true then Some true
+  else if a.neg.is_true then Some false
+  else None
 
 (* Evaluation/Watching functions *)
 (* ************************************************************************ *)
@@ -270,7 +260,7 @@ let watchers = H.create 4096
 let watch_map = H.create 4096
 
 (* Exceptions *)
-exception Not_assigned of term
+exception Not_assigned of Expr.term
 
 (* Convenience function *)
 let hpop assoc key =
@@ -289,7 +279,7 @@ let add_job job t =
   H.replace watch_map t (job :: l)
 
 let call_job j =
-  if CCOpt.(get true (map is_true j.job_formula))
+  if CCOpt.(map eval_f j.job_formula) = Some (Some true)
      && j.job_done < !last_backtrack then begin
     j.job_done <- !last_backtrack;
     profile j.job_section j.job_callback ()
@@ -397,95 +387,133 @@ let model () = M.fold eval_map (fun t (v, _) acc -> (t, v) :: acc) []
 (* Mcsat Plugin functions *)
 (* ************************************************************************ *)
 
-let assume s =
-  Util.enter_prof section;
-  Util.debug ~section 5 "New slice of length %d" s.length;
-  try
+module SolverTheory = struct
+
+  type term = Expr.term
+  type formula = Expr.formula
+
+  type proof = lemma
+
+  type assumption =
+    | Lit of formula
+    | Assign of term * term
+
+  type slice = {
+    start : int;
+    length : int;
+    get : int -> assumption * int;
+    push : formula list -> proof -> unit;
+    propagate : formula -> int -> unit;
+  }
+
+  type level = Backtrack.Stack.level
+
+  type res =
+    | Sat
+    | Unsat of formula list * proof
+
+  type eval_res =
+    | Valued of bool * int
+    | Unknown
+
+  let dummy = Backtrack.Stack.dummy_level
+
+  let current_level () = Backtrack.Stack.level stack
+
+  let backtrack lvl =
+    Util.debug ~section 10 "Backtracking";
+    incr last_backtrack;
+    Stack.clear propagate_stack;
+    Backtrack.Stack.backtrack stack lvl
+
+  let assume s =
+    Util.enter_prof section;
+    Util.debug ~section 5 "New slice of length %d" s.length;
+    try
+      for i = s.start to s.start + s.length - 1 do
+        match s.get i with
+        | Lit f, lvl ->
+          Util.debug ~section 1 " Assuming (%d) %a" lvl Expr.Debug.formula f;
+          begin match (Plugin.get_res ()).assume with
+            | Some assume -> assume (f, lvl)
+            | None -> ()
+          end
+        | Assign (t, v), lvl ->
+          Util.debug ~section 1 " Assuming (%d) %a -> %a" lvl Expr.Debug.term t Expr.Debug.term v;
+          set_assign t v lvl
+      done;
+      Util.exit_prof section;
+      Util.debug ~section 8 "Propagating (%d)" (Stack.length propagate_stack);
+      do_propagate s.propagate;
+      do_push s.push;
+      Sat
+    with Absurd (l, p) ->
+      Util.debug ~section 3 "Conflict '%s'" p.proof_name;
+      List.iter (fun f -> Util.debug ~section 1 " |- %a" Expr.Debug.formula f) l;
+      Util.exit_prof section;
+      Unsat (l, p)
+
+  let if_sat_iter s f =
     for i = s.start to s.start + s.length - 1 do
       match s.get i with
-      | Lit f, lvl ->
-        Util.debug ~section 1 " Assuming (%d) %a" lvl Expr.Debug.formula f;
-        add_assumption f lvl;
-        begin match (Plugin.get_res ()).assume with
-          | Some assume -> assume (f, lvl)
-          | None -> ()
-        end
-      | Assign (t, v), lvl ->
-        Util.debug ~section 1 " Assuming (%d) %a -> %a" lvl Expr.Debug.term t Expr.Debug.term v;
-        set_assign t v lvl
-    done;
+      | Lit g, _ -> f g
+      | _ -> ()
+    done
+
+  let if_sat s =
+    Util.enter_prof section;
+    Util.debug ~section 0 "Iteration with complete model";
+    begin try
+        match (Plugin.get_res ()).if_sat with
+        | Some if_sat -> if_sat (if_sat_iter s)
+        | None -> ()
+      with Absurd _ -> assert false
+    end;
     Util.exit_prof section;
-    Util.debug ~section 8 "Propagating (%d)" (Stack.length propagate_stack);
-    do_propagate s.propagate;
-    do_push s.push;
-    Sat
-  with Absurd (l, p) ->
-    Util.debug ~section 3 "Conflict '%s'" p.proof_name;
-    List.iter (fun f -> Util.debug ~section 1 " |- %a" Expr.Debug.formula f) l;
-    Util.exit_prof section;
-    Unsat (l, p)
+    do_push s.push
 
-let if_sat_iter s f =
-  for i = s.start to s.start + s.length - 1 do
-    match s.get i with
-    | Lit g, _ -> f g
-    | _ -> ()
-  done
+  let assign t =
+    Util.enter_prof section;
+    Util.debug ~section 5 "Finding assignment for %a" Expr.Debug.term t;
+    try
+      let res = Expr.Term.assign t in
+      Util.debug ~section 5 " -> %a" Expr.Debug.term res;
+      Util.exit_prof section;
+      res
+    with Expr.Cannot_assign _ ->
+      _fail (CCPrint.sprintf
+               "Expected to be able to assign symbol %a\nYou may have forgotten to activate an extension" Expr.Debug.term t)
 
-let if_sat s =
-  Util.enter_prof section;
-  Util.debug ~section 0 "Iteration with complete model";
-  begin try
-      match (Plugin.get_res ()).if_sat with
-      | Some if_sat -> if_sat (if_sat_iter s)
-      | None -> ()
-    with Absurd _ -> assert false
-  end;
-  Util.exit_prof section;
-  do_push s.push
+  let rec iter_assign_aux f e = match Expr.(e.term) with
+    | Expr.App (p, _, l) ->
+      if Expr.Id.is_assignable p then f e;
+      List.iter (iter_assign_aux f) l
+    | _ -> f e
 
-let assign t =
-  Util.enter_prof section;
-  Util.debug ~section 5 "Finding assignment for %a" Expr.Debug.term t;
-  try
-    let res = Expr.Term.assign t in
-    Util.debug ~section 5 " -> %a" Expr.Debug.term res;
+  let iter_assignable f e =
+    Util.enter_prof section;
+    Util.debug ~section 5 "Iter_assign on %a" Expr.Debug.formula e;
+    peek_at e;
+    begin match Expr.(e.formula) with
+      | Expr.Equal (a, b) -> iter_assign_aux f a; iter_assign_aux f b
+      | Expr.Pred p -> iter_assign_aux f p
+      | _ -> ()
+    end;
+    Util.exit_prof section
+
+  let eval_aux f =
+    match (Plugin.get_res ()).eval_pred with
+    | None -> Unknown
+    | Some eval_pred -> begin match eval_pred f with
+        | None -> Unknown
+        | Some (b, lvl) -> Valued (b, lvl)
+      end
+
+  let eval formula =
+    Util.enter_prof section;
+    Util.debug ~section 5 "Evaluating formula : %a" Expr.Debug.formula formula;
+    let res = eval_aux formula in
     Util.exit_prof section;
     res
-  with Expr.Cannot_assign _ ->
-    _fail (CCPrint.sprintf
-             "Expected to be able to assign symbol %a\nYou may have forgotten to activate an extension" Expr.Debug.term t)
 
-let rec iter_assign_aux f e = match Expr.(e.term) with
-  | Expr.App (p, _, l) ->
-    if Expr.Id.is_assignable p then f e;
-    List.iter (iter_assign_aux f) l
-  | _ -> f e
-
-let iter_assignable f e =
-  Util.enter_prof section;
-  Util.debug ~section 5 "Iter_assign on %a" Expr.Debug.formula e;
-  peek_at e;
-  begin match Expr.(e.formula) with
-    | Expr.Equal (a, b) -> iter_assign_aux f a; iter_assign_aux f b
-    | Expr.Pred p -> iter_assign_aux f p
-    | _ -> ()
-  end;
-  Util.exit_prof section
-
-let eval_aux f =
-  match (Plugin.get_res ()).eval_pred with
-  | None -> Unknown
-  | Some eval_pred -> begin match eval_pred f with
-      | None -> Unknown
-      | Some (b, lvl) -> Valued (b, lvl)
-    end
-
-let eval formula =
-  Util.enter_prof section;
-  Util.debug ~section 5 "Evaluating formula : %a" Expr.Debug.formula formula;
-  let res = eval_aux formula in
-  Util.exit_prof section;
-  res
-
-
+end

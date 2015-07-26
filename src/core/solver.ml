@@ -1,37 +1,22 @@
 
-let section = Util.Section.make "solver"
-
-(* Wrapper around expressions *)
-(* ************************************************************************ *)
-
-module SatExpr = struct
-
-  module Term = Expr.Term
-  module Formula = Expr.Formula
-
-  let dummy = Expr.Formula.f_true
-
-  let fresh () = assert false
-
-  let neg f = Expr.Formula.neg f
-
-  let norm = function
-    | { Expr.formula = Expr.False } -> Expr.Formula.f_true, true
-    | { Expr.formula = Expr.Not f } -> f, true
-    | f -> f, false
-end
-
-(* Dispatcher *)
-(* ************************************************************************ *)
-
-module SatPlugin = Dispatcher
+let section = Dispatcher.solver_section
 
 (* Solving module *)
 (* ************************************************************************ *)
 
-module Smt = Msat.Mcsolver.Make(struct
+module Smt = Msat.Internal.Make(struct
     let debug i format = Util.debug ~section i format
-  end)(SatExpr)(SatPlugin)
+  end)(Dispatcher.SolverTypes)(Dispatcher.SolverTheory)
+
+module Dot = Msat.Dot.Make(Smt.Proof)(struct
+    let clause_name c = c.Dispatcher.SolverTypes.name
+    let print_atom = Dispatcher.SolverTypes.print_atom
+    let lemma_info p =
+      let name, color, t_args, f_args = Dispatcher.proof_debug p in
+      name, color,
+      List.map (fun t -> (fun fmt () -> Expr.Print.term fmt t)) t_args @
+      List.map (fun f -> (fun fmt () -> Expr.Print.formula fmt f)) f_args
+  end)
 
 (* Solving *)
 type res = Sat | Unsat
@@ -69,6 +54,6 @@ let get_proof () =
   | None -> assert false
   | Some c -> Smt.Proof.prove_unsat c
 
-let print_dot_proof = Smt.Proof.print_dot
+let print_dot_proof = Dot.print
 
 
