@@ -18,22 +18,26 @@ exception Out_of_time
 exception Out_of_space
 
 (* GC alarm for time/space limits *)
-let check time_limit size_limit = function () ->
-  let t = Sys.time () in
+let check size_limit = function () ->
   let heap_size = (Gc.quick_stat ()).Gc.heap_words in
   let s = float heap_size *. float Sys.word_size /. 8. in
-  if t > time_limit then
-    raise Out_of_time
-  else if s > size_limit then
+  if s > size_limit then
     raise Out_of_space
 
 let al = ref None
 let setup_alarm t s = match !al with
-  | None -> al := Some (Gc.create_alarm (check t s))
+  | None ->
+    let _ = Unix.setitimer Unix.ITIMER_REAL
+        Unix.{it_value = t; it_interval = 0.001 } in
+    al := Some (Gc.create_alarm (check s))
   | Some _ -> assert false
 
 let delete_alarm () = match !al with
-  | Some alarm -> Gc.delete_alarm alarm
+  | Some alarm ->
+    let _ = Unix.setitimer Unix.ITIMER_REAL
+        Unix.{it_value = 0.; it_interval = 0. } in
+    Gc.delete_alarm alarm;
+    al := None
   | None -> ()
 
 (* Model printing *)
@@ -113,6 +117,7 @@ let () =
       Util.debug 0 "Interrupted by user";
       exit 1));
   Sys.set_signal Sys.sigalrm (Sys.Signal_handle (fun _ ->
+      Util.debug 0 "Alarm clock";
       raise Out_of_time));
 
   try
@@ -153,6 +158,7 @@ let () =
 
   with
   | Exit -> ()
+
   (* Limits management *)
   | Out_of_time ->
     delete_alarm ();
