@@ -37,11 +37,11 @@ let compare_cl c c' =
 
 let rec debug_cl ?(full=false) buf c =
   match c.lit with
-  | None -> Printf.bprintf buf "%s:[]" c.reason
+  | None -> Printf.bprintf buf "%s:[](%d)" c.reason (List.length c.acc)
   | Some (a, b) ->
-    Printf.bprintf buf "%s:[%a %s %a]"
+    Printf.bprintf buf "%s:[%a %s %a](%d)"
       c.reason Expr.Debug.term a
-      (if c.eq then "=" else "<>") Expr.Debug.term b;
+      (if c.eq then "=" else "<>") Expr.Debug.term b (List.length c.acc);
     if full then
       Printf.bprintf buf " ||%a||"
         CCPrint.(list ~start:" " ~stop:" " ~sep:", " (debug_cl ~full:false)) c.parents
@@ -292,7 +292,7 @@ let equality_resolution ~section c =
     match c.lit with
     | Some (a, b) ->
       begin match Unif.Robinson.find ~section a b with
-        | Some u -> [mk_none "eq" (u :: c.acc) [c]]
+        | Some u -> [mk_none ("ER:" ^ c.reason) (u :: c.acc) [c]]
         | None -> []
       end
     | _ -> []
@@ -381,8 +381,10 @@ let positive_simplify_reflect p_set c =
     match c.lit with
     | Some (a, b) ->
       begin match make_eq p_set a b with
-        | `Equal -> Some (mk_none "ps"c.acc c.parents)
-        | `Unifiable u -> Some (mk_none "ps" (add_acc u c.acc) c.parents)
+        | `Equal -> Some (mk_none ("PS_eq:" ^ c.reason) c.acc c.parents)
+        | `Unifiable u ->
+          Util.debug ~section:p_set.section 50 "Found unif : %a" Unif.debug u;
+          Some (mk_none ("PS_unif:" ^ c.reason) (add_acc u c.acc) c.parents)
         | `Impossible -> None
       end
     | None -> None
@@ -395,7 +397,7 @@ let negative_simplify_reflect p_set c =
     match c.lit with
     | Some (a, b) ->
       begin match find_subst_eq p_set.root_neg_index a b with
-        | Some u -> Some (mk_none "ns" (add_acc u c.acc) c.parents)
+        | Some u -> Some (mk_none ("NS:" ^ c.reason) (add_acc u c.acc) c.parents)
         | None -> None
       end
     | None -> None
@@ -503,11 +505,11 @@ let rec discount_loop p_set =
 (* ************************************************************************ *)
 
 let add_eq t a b =
-  let c = mk_eq "init" a b [] [] in
+  let c = mk_eq "init_eq" a b [] [] in
   if trivial c t then t
   else { t with queue = Q.insert c t.queue }
 
-let add_neq t a b = { t with queue = Q.insert (mk_neq "init" a b [] []) t.queue }
+let add_neq t a b = { t with queue = Q.insert (mk_neq "init_neq" a b [] []) t.queue }
 
 let solve t = discount_loop t
 

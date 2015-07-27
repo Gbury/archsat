@@ -53,6 +53,8 @@ val saturate : t -> t
 (** Binds all metavariables occuring in terms but not bound, to a constant of the correct type.
     WARNING: This is unsafe,and, as it seems, incomplete to use... *)
 
+val debug : Buffer.t -> t -> unit
+
 (** {2 Unification caching} *)
 
 module Cache : sig
