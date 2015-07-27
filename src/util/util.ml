@@ -297,7 +297,7 @@ let parent_time s =
   | Section.Sub (_, s', _) -> s'.Section.prof_total
 
 let rec section_tree test s =
-  if test s then `Empty
+  if not (test s) then `Empty
   else begin
     let l = !(Section.get_children s) in
     let l' = List.sort (fun s' s'' -> Section.(compare s''.prof_total s'.prof_total)) l in
@@ -321,7 +321,7 @@ let print_profiler () =
     done;
   end;
   let total_time = get_total_time () in
-  let s_tree = section_tree (fun s -> s.Section.prof_total < (parent_time s) /. 100.) Section.root in
+  let s_tree = section_tree (fun s -> s.Section.prof_total > (parent_time s) /. 100.) Section.root in
   let tree_box = Containers_misc.PrintBox.(
       Simple.to_box (map_tree (fun s -> `Text (Section.short_name s)) s_tree)) in
   let stats_box_list = List.map (fun stat ->
@@ -344,7 +344,7 @@ let print_profiler () =
   Containers_misc.PrintBox.output stdout b
 
 let csv_prof_data fmt =
-  let tree = section_tree (fun s -> false) Section.root in
+  let tree = section_tree (fun _ -> true) Section.root in
   List.iter (fun s ->
       let open Section in
       let name = match full_name s with "" -> "root" | s -> s in
