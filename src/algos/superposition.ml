@@ -246,7 +246,6 @@ let do_rewrite sigma active inactive =
 let find_subst_eq index v w =
   CCList.find_map (fun (_, sigma, l) ->
       CCList.find_map (fun pos_cl ->
-          assert (pos_cl.clause.eq);
           let s, t = extract pos_cl in
           try
             let m = Unif.Match.term sigma w t in
@@ -419,11 +418,9 @@ let fix arg f =
 (* Applies: RP, RN, PS, NS *)
 let simplify_clause c p =
   fix c (chain [
-      (*
       rewrite_lit p;
       positive_simplify_reflect p;
       negative_simplify_reflect p;
-         *)
     ])
 
 let simplify c p =
@@ -434,9 +431,7 @@ let simplify c p =
 (* Applies: RP, RN *)
 let cheap_simplify_aux c p =
   fix c (chain [
-      (*
       rewrite_lit p;
-         *)
     ])
 
 let cheap_simplify c p =

@@ -279,7 +279,7 @@ let add_job job t =
   H.replace watch_map t (job :: l)
 
 let call_job j =
-  if CCOpt.(map eval_f j.job_formula) = Some (Some true)
+  if CCOpt.(get true (j.job_formula >>= eval_f))
      && j.job_done < !last_backtrack then begin
     j.job_done <- !last_backtrack;
     profile j.job_section j.job_callback ()

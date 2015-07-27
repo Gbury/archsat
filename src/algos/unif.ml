@@ -136,8 +136,10 @@ module Robinson = struct
 
   let rec occurs_check_ty subst v = function
     | { Expr.ty = Expr.TyMeta m } as v' ->
-      begin try occurs_check_ty subst v (get_ty subst m)
-        with Not_found -> Expr.Ty.equal v v' end
+      begin match get_ty subst m with
+        | exception Not_found -> Expr.Ty.equal v v'
+        | m' -> occurs_check_ty subst v m'
+      end
     | { Expr.ty = Expr.TyApp (_, l) } -> List.exists (occurs_check_ty subst v) l
     | _ -> false
 
@@ -227,19 +229,21 @@ module Match = struct
   let rec ty (stable, subst) s t =
     let t = Robinson.follow_ty subst t in
     match s, t with
-    | _, { Expr.ty = Expr.TyMeta v } ->
-      let eq = Expr.Ty.equal s t in
-      if eq then
-        if mem_ty subst v then
-          raise (Impossible_ty (s, t))
-        else
-          (bind_ty stable v t, subst)
-      else if mem_ty stable v then
-        raise (Impossible_ty (s, t))
-      else if Robinson.occurs_check_ty subst t s then
+    | { Expr.ty = Expr.TyMeta v },
+      { Expr.ty = Expr.TyMeta v' } ->
+      if mem_ty subst v || mem_ty stable v' then
         raise (Impossible_ty (s, t))
       else
-        ty (stable, bind_ty subst v s) s s
+        (bind_ty stable v s,
+         if Expr.Ty.equal s t then subst
+         else bind_ty subst v' s)
+    | _, { Expr.ty = Expr.TyMeta v } ->
+      if Robinson.occurs_check_ty subst t s then
+        raise (Impossible_ty (s, t))
+      else if mem_ty stable v then
+        raise (Impossible_ty (s, t))
+      else
+        (stable, bind_ty subst v s)
     | { Expr.ty = Expr.TyApp (f, f_args) },
       { Expr.ty = Expr.TyApp (g, g_args) } ->
       if Expr.Id.equal f g then
@@ -251,16 +255,18 @@ module Match = struct
   let rec term (stable, subst) s t =
     let t = Robinson.follow_term subst t in
     match s, t with
-    | _, { Expr.term = Expr.Meta v } ->
-      let eq = Expr.Term.equal s t in
-      if eq then
-        if mem_term subst v then
-          raise (Impossible_term (s, t))
-        else
-          (bind_term stable v t, subst)
-      else if mem_term stable v then
+    | { Expr.term = Expr.Meta v },
+      { Expr.term = Expr.Meta v' } ->
+      if mem_term subst v || mem_term stable v' then
         raise (Impossible_term (s, t))
-      else if Robinson.occurs_check_term subst t s then
+      else
+        (bind_term stable v s,
+         if Expr.Term.equal s t then subst
+         else bind_term subst v' s)
+    | _, { Expr.term = Expr.Meta v } ->
+      if Robinson.occurs_check_term subst t s then
+        raise (Impossible_term (s, t))
+      else if mem_term stable v then
         raise (Impossible_term (s, t))
       else
         term (stable, bind_term subst v s) s s
