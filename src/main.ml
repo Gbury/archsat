@@ -13,7 +13,8 @@ include Ext_prenex
 include Ext_skolem
 include Ext_functions
 
-(* Types and exceptions *)
+(* Exceptions *)
+exception Sigint
 exception Out_of_time
 exception Out_of_space
 
@@ -115,7 +116,7 @@ let () =
   Sys.set_signal Sys.sigint (Sys.Signal_handle (fun _ ->
       Util.need_cleanup := true;
       Util.debug 0 "Interrupted by user";
-      exit 1));
+      raise Sigint));
   Sys.set_signal Sys.sigalrm (Sys.Signal_handle (fun _ ->
       Util.debug 0 "Alarm clock";
       raise Out_of_time));
@@ -157,15 +158,22 @@ let () =
     Options.clean opt
 
   with
-  | Exit -> ()
-
-  (* Limits management *)
+  (* Normal exit (return code 0) *)
   | Out_of_time ->
     delete_alarm ();
     Io.print_timeout Format.std_formatter
   | Out_of_space ->
     delete_alarm ();
     Io.print_spaceout Format.std_formatter
+
+  (* Bad usage of command line *)
+  | Exit -> exit 1
+
+  (* User interrupt *)
+  | Sigint ->
+    if Printexc.backtrace_status () then
+      Printexc.print_backtrace stdout;
+    exit 1
 
   (* Parsing/Typing errors *)
   | Io.Parsing_error (l, msg) ->
@@ -187,12 +195,14 @@ let () =
     exit 3
 
   (* Internal errors. Should not happen *)
-  | Dispatcher.Bad_assertion s ->
-    Format.fprintf Format.std_formatter "%s@." s;
+  | Dispatcher.Bad_assertion msg ->
+    let s = Printexc.get_backtrace () in
+    Format.fprintf Format.std_formatter "%s@\n%s@." msg s;
     exit 4
   | Expr.Type_mismatch (t, ty1, ty2) ->
-    Format.fprintf Format.std_formatter "Term %a has type %a but an expression of type %a was expected@."
-      Expr.Print.term t Expr.Print.ty ty1 Expr.Print.ty ty2;
+    let s = Printexc.get_backtrace () in
+    Format.fprintf Format.std_formatter "Term %a has type %a but an expression of type %a was expected@\n%s@."
+      Expr.Print.term t Expr.Print.ty ty1 Expr.Print.ty ty2 s;
     exit 4
 
 

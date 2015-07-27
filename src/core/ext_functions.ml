@@ -8,6 +8,7 @@ let st = H.create Dispatcher.stack
 let mk_proof l = Dispatcher.mk_proof ~term_args:l "uf" "f-eq"
 
 let set_interpretation t = fun () ->
+  Util.debug ~section 10 "Check interpretation of %a" Expr.Debug.term t;
     match t with
     | { Expr.term = Expr.App (f, tys, l) } ->
       let is_prop = Expr.(Ty.equal t.t_type Ty.prop) in
@@ -45,8 +46,8 @@ let rec set_handler = function
   | { Expr.term = Expr.Var _ }
   | { Expr.term = Expr.Meta _ } -> ()
   | { Expr.term = Expr.App (f, _, l) } as t ->
-    List.iter set_handler l;
-    if l <> [] then Dispatcher.watch "uf" 1 (t :: l) (set_interpretation t)
+    if l <> [] then Dispatcher.watch "uf" 1 (t :: l) (set_interpretation t);
+    List.iter set_handler l
 
 let uf_pre = function
     | { Expr.formula = Expr.Equal (a, b) } ->

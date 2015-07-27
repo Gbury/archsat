@@ -347,7 +347,7 @@ let csv_prof_data fmt =
   let tree = section_tree (fun s -> false) Section.root in
   List.iter (fun s ->
       let open Section in
-      let name = if full_name s = "" then "root" else full_name s in
+      let name = match full_name s with "" -> "root" | s -> s in
       Format.fprintf fmt "%s,%f@." name s.prof_total
     ) (flatten tree)
 

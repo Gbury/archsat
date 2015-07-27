@@ -74,7 +74,7 @@ let mk_opts () file input output proof type_only plugins addons
   }
 
 let profile_opts enable depth l out = {
-  enabled = enable || depth <> None || l <> [];
+  enabled = enable || depth <> None || l <> [] || out <> None;
   max_depth = depth;
   sections = l;
   raw_data = out;
