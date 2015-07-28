@@ -382,22 +382,29 @@ let rec parse_formula ~status env = function
 (* ************************************************************************ *)
 
 let new_type_def (sym, n) =
-  match sym with
-  | Ast.String s -> add_type s (Expr.Id.ty_fun s n)
-  | _ ->
-    log 0 "Illicit type declaration for symbol : %a" Ast.debug_symbol sym
+  Util.enter_prof section;
+  begin match sym with
+    | Ast.String s -> add_type s (Expr.Id.ty_fun s n)
+    | _ -> log 0 "Illicit type declaration for symbol : %a" Ast.debug_symbol sym
+  end;
+  Util.exit_prof section
 
 let new_const_def builtins (sym, t) =
-  match sym with
-  | Ast.String s ->
-    let params, args, ret = parse_sig ~status:Expr.Status.hypothesis (empty_env builtins) t in
-    add_cst s (Expr.Id.term_fun s params args ret)
-  | _ ->
-    log 0 "Illicit type declaration for symbol : %a" Ast.debug_symbol sym
+  Util.enter_prof section;
+  begin match sym with
+    | Ast.String s ->
+      let params, args, ret = parse_sig ~status:Expr.Status.hypothesis (empty_env builtins) t in
+      add_cst s (Expr.Id.term_fun s params args ret)
+    | _ ->
+      log 0 "Illicit type declaration for symbol : %a" Ast.debug_symbol sym
+  end;
+  Util.exit_prof section
 
 let parse ~goal builtins t =
+  Util.enter_prof section;
   let status = if goal then Expr.Status.goal else Expr.Status.hypothesis in
   let f = parse_formula ~status (empty_env builtins) t in
   log 1 "New expr : %a" Expr.Debug.formula f;
+  Util.exit_prof section;
   f
 

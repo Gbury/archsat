@@ -48,12 +48,15 @@ module Section = struct
 
   type t = {
     descr : descr;
-    stats : int array;
     mutable level : int;
+    mutable stats : int array;
+
     mutable profile : bool; (* should this section be profiled *)
     mutable prof_in : bool; (* are we currently inside the profiler of this section *)
     mutable prof_enter : float; (* time of last entry of the profiler *)
     mutable prof_total : float; (* total time elasped inside the profiler *)
+
+    mutable nb_calls : int;
     mutable full_name : string;
   }
 
@@ -61,37 +64,18 @@ module Section = struct
     | Root
     | Sub of string * t * t list  (* name, parent, inheriting *)
 
-  module Stats = struct
-    type t = int
-
-    let nb = 2
-
-    (* Stats, as array indexes *)
-    let calls = 0
-    let watchers = 1
-
-    let list = CCList.range 0 (nb - 1)
-    let names = [
-      "calls";
-      "watchers";
-    ]
-
-    (* Getter/setter *)
-    let get section s = section.stats.(s)
-
-    let set section s v = section.stats.(s) <- v
-
-    let incr section s = set section s (get section s + 1)
-  end
+  let stats t = t.stats
+  let set_stats t a = t.stats <- a
 
   let root = {
     descr = Root;
-    stats = Array.make Stats.nb 0;
+    stats = [| |];
     level = 0;
     profile = false;
     prof_in = false;
     prof_enter = 0.;
     prof_total = 0.;
+    nb_calls = 0;
     full_name = "";
   }
 
@@ -132,16 +116,17 @@ module Section = struct
   let get_debug s =
     if s.level=null_level then None else Some s.level
 
-  let make ?(parent=root) ?(inheriting=[]) name =
+  let make ?(parent=root) ?(inheriting=[]) ?(stats=[||]) name =
     if name = "" then invalid_arg "Section.make: empty name";
     let sec = {
       descr = Sub (name, parent, inheriting);
-      stats = Array.make Stats.nb 0;
+      stats = stats;
       level = null_level;
       profile = false;
       prof_in = false;
       prof_enter = 0.;
       prof_total = 0.;
+      nb_calls= 0;
       full_name="";
     } in
     let name' = compute_full_name sec in
@@ -185,7 +170,7 @@ module Section = struct
   (* Entering a profiler *)
   let prof_enter s =
     s.prof_enter <- get_total_time ();
-    Stats.incr s Stats.calls;
+    s.nb_calls <- s.nb_calls + 1;
     s.prof_in <- true
 
   let rec prof_exit_aux s time =
@@ -221,7 +206,10 @@ module Section = struct
     else profile_depth d root
 end
 
-module Stats = Section.Stats
+(* Stat increase function *)
+let incr ?(k=1) section i =
+  let a = Section.stats section in
+  a.(i) <- a.(i) + k
 
 (* Debug output functions *)
 let set_debug = Section.set_debug Section.root
@@ -273,7 +261,8 @@ let enter_prof section =
         ignore (CCOpt.map prof_exit (curr ()));
       prof_enter section;
       active := section :: !active
-  end
+  end else
+    debug 0 ~section "not entering"
 
 (** Exit the profiler *)
 let exit_prof section =
@@ -324,10 +313,16 @@ let print_profiler () =
   let s_tree = section_tree (fun s -> s.Section.prof_total > (parent_time s) /. 100.) Section.root in
   let tree_box = Containers_misc.PrintBox.(
       Simple.to_box (map_tree (fun s -> `Text (Section.short_name s)) s_tree)) in
-  let stats_box_list = List.map (fun stat ->
-      Containers_misc.PrintBox.(vlist ~bars:false (flatten (
-          map_tree (fun s -> text (Format.sprintf "%7d" (Section.Stats.get s stat))) s_tree)))
-    ) Section.Stats.list in
+  let stats_box = Containers_misc.PrintBox.(vlist ~bars:false (flatten (
+      map_tree (fun s ->
+          let a = s.Section.stats in text (
+            if Array.length a = 0 then "N/A"
+            else begin
+              CCPrint.(to_string (array ~start:"" ~stop:"" ~sep:"/" (
+                  fun b i -> Printf.bprintf b "%9d" i)) a)
+            end)) s_tree))) in
+  let call_box = Containers_misc.PrintBox.(vlist ~bars:false (flatten (
+      map_tree (fun s -> text (Format.sprintf "%10d" s.Section.nb_calls)) s_tree))) in
   let time_box = Containers_misc.PrintBox.(vlist ~bars:false (flatten (
       map_tree (fun s -> text (Format.sprintf "%13.3f" s.Section.prof_total)) s_tree))) in
   let rate_box = Containers_misc.PrintBox.(vlist ~bars:false (flatten (
@@ -335,11 +330,9 @@ let print_profiler () =
           s.Section.prof_total /. total_time *. 100.))) s_tree))) in
   let b = Containers_misc.PrintBox.(
       grid ~pad:(hpad 3) ~bars:true [|
-        Array.of_list ([text "Section name"; text "Time profiled"; text "Profiled rate"; ] @
-                       List.map text Section.Stats.names);
-        Array.of_list ([ text "Total Time"; text (Format.sprintf "%13.3f" total_time); text "100.00%";] @
-                      CCList.replicate Section.Stats.nb (text "N/A"));
-        Array.of_list ([ tree_box; time_box; rate_box; ] @ stats_box_list);
+        [| text "Section name"; text "Time profiled"; text "Profiled rate"; text "Calls"; text "Statistics" |];
+        [| text "Total Time"; text (Format.sprintf "%13.3f" total_time); text "100.00%"; text "N/A"; text "N/A" |];
+        [| tree_box; time_box; rate_box; call_box; stats_box |];
       |]) in
   Containers_misc.PrintBox.output stdout b
 
@@ -348,12 +341,11 @@ let csv_prof_data fmt =
   List.iter (fun s ->
       let open Section in
       let name = match full_name s with "" -> "root" | s -> s in
-      Format.fprintf fmt "%s,%f@." name s.prof_total
+      Format.fprintf fmt "%s,%f,%s@." name s.prof_total
+        CCPrint.(to_string (array ~start:"" ~stop:"" ~sep:"/" int) s.Section.stats)
     ) (flatten tree)
 
-let enable_profiling () =
-  Section.profile_section Section.root;
-  at_exit print_profiler
+let enable_profiling () = at_exit print_profiler
 
 (** {2 LogtkOrdering utils} *)
 

@@ -45,7 +45,7 @@ module Make(E: K) : S with type ext = E.t = struct
     | Some x -> x
     | None -> _not_found name
 
-  let register name ?(descr="coming later...") ?(prio=10) ?(options=(fun x -> x)) ext =
+  let register name ?(descr="think hard !") ?(prio=10) ?(options=(fun x -> x)) ext =
     assert (not (CCVector.exists (fun r -> r.name = name) exts));
     if prio < 0 then log 0 "WARNING: %s - extensions should have positive priority" name;
     let id = CCVector.length exts in

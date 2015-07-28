@@ -442,7 +442,7 @@ let cheap_simplify c p =
   | None -> c
 
 (* Applies: ES *)
-let redundant c p = false || equality_subsumption c p
+let redundant c p = equality_subsumption c p
 
 (* Applies: ER, SP, SN *)
 let generate c p = supp_lit c p (equality_resolution ~section:p.section c)

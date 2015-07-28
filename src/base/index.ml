@@ -49,12 +49,14 @@ module Make(T: Set.OrderedType) = struct
 
   let master_key = List.map of_list [[]; [1]; [2]; [3]; [1; 1]; [1; 2]]
 
-  let empty section = {
-    key = master_key;
-    trie = Empty;
-    section = section;
-    unif_section = Util.Section.make ~parent:section "unif";
-  }
+  let empty section =
+    Util.Section.set_stats section [|0;0;0|];
+    {
+      key = master_key;
+      trie = Empty;
+      section = section;
+      unif_section = Util.Section.make ~parent:section "unif";
+    }
 
   let fp_aux e p = fst @@ Position.Term.apply p e
   let fp l e = List.map (fp_aux e) l
@@ -97,15 +99,14 @@ module Make(T: Set.OrderedType) = struct
       Mf.fold (fun f' t' acc' -> if compat f f' then find compat acc' r t' else acc') m acc
     | _ -> assert false
 
-  let compat_unif f f' = true &&
+  let compat_unif f f' =
     let open Position in
     match f, f' with
     | Top f1, Top f2 -> Expr.Id.equal f1 f2
     | Impossible, (Top _ | Var) | (Top _ | Var), Impossible -> false
     | _ -> true
 
-  let compat_match f f' = true &&
-    (* can f' be 'sustituted' to be equal to f ? *)
+  let compat_match f f' = (* can f' be 'sustituted' to be equal to f ? *)
     let open Position in
     match f with
     | Top f1 -> begin match f' with
@@ -119,20 +120,28 @@ module Make(T: Set.OrderedType) = struct
 
   let find_unify e t =
     Util.enter_prof t.section;
+    Util.incr t.section 2;
+    let l = find compat_unif [] (fp t.key e) t.trie in
+    Util.incr ~k:(List.length l) t.section 1;
     let res = CCList.filter_map (fun (e', s) ->
         match Unif.Robinson.find ~section:t.unif_section e e' with
         | Some u -> Some (e', u, S.elements s) | None -> None
-      ) (find compat_unif [] (fp t.key e) t.trie) in
+      ) l in
+    Util.incr ~k:(List.length res) t.section 0;
     Util.exit_prof t.section;
     res
 
   let find_match e t =
     Util.enter_prof t.section;
-    let res = let l = find compat_match [] (fp t.key e) t.trie in
-    CCList.filter_map (fun (e', s) ->
-        match Unif.Match.find ~section:t.unif_section e e' with
-        | Some m -> Some (e', m, S.elements s) | None -> None
+    Util.incr t.section 2;
+    let l = find compat_match [] (fp t.key e) t.trie in
+    Util.incr ~k:(List.length l) t.section 1;
+    let res =
+      CCList.filter_map (fun (e', s) ->
+          match Unif.Match.find ~section:t.unif_section e e' with
+          | Some m -> Some (e', m, S.elements s) | None -> None
         ) l in
+    Util.incr ~k:(List.length res) t.section 0;
     Util.exit_prof t.section;
     res
 

@@ -1,4 +1,11 @@
 
+module H = Hashtbl.Make(Expr.Formula)
+
+exception Found_unif
+
+(* Extension parameters *)
+(* ************************************************************************ *)
+
 let section = Util.Section.make ~parent:Dispatcher.section "meta"
 let log i fmt = Util.debug ~section i fmt
 
@@ -6,9 +13,8 @@ let sup_section = Util.Section.make ~parent:section "sup"
 let unif_section = Util.Section.make ~parent:section "unif"
 let rigid_section = Util.Section.make ~parent:section "rigid"
 
-module H = Hashtbl.Make(Expr.Formula)
-
-exception Found_unif
+(* Create the necessary sections for superposition *)
+let () = ignore (Superposition.empty (fun _ -> assert false) sup_section)
 
 (* Extension parameters *)
 (* ************************************************************************ *)

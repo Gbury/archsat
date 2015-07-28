@@ -49,7 +49,7 @@ module Section : sig
 
   val root : t (** Default section, with no parent *)
 
-  val make : ?parent:t -> ?inheriting:t list -> string -> t
+  val make : ?parent:t -> ?inheriting:t list -> ?stats:int array -> string -> t
   (** [make ?parent ?inheriting name] makes a new section with the given name.
       It has a parent (default [root]), used to give it a name. It can
       also have a list of sections it inherits from.
@@ -63,19 +63,16 @@ module Section : sig
   val set_profile_depth : int -> unit
   (** Set maximum depth for profiling *)
 
+  val stats : t -> int array
+  (** Return the stat array (of length determinadby the section creation) *)
+
+  val set_stats :t -> int array -> unit
+  (** Allows to set the array to be used to record statistics *)
+
 end
 
-module Stats : sig
-  type t
-
-  val calls : t
-  val watchers :t
-
-  val get : Section.t -> t -> int
-  val set : Section.t -> t -> int -> unit
-
-  val incr : Section.t -> t -> unit
-end
+val incr : ?k:int -> Section.t -> int -> unit
+(** [incr ?k section i] increases the i-th cell of stats of [section] by [k] (default [k=1]). *)
 
 val set_debug : int -> unit     (** Set debug level of [Section.root] *)
 val get_debug : unit -> int     (** Current debug level for [Section.root] *)

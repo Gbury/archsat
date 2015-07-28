@@ -97,14 +97,17 @@ type ext = {
   preprocess : (Expr.formula -> (Expr.formula * lemma) option) option;
 }
 
-let mk_ext ~section ?peek ?if_sat ?assume ?eval_pred ?preprocess () = {
-  section;
-  peek = CCOpt.map (profile section) peek;
-  if_sat = CCOpt.map (profile section) if_sat;
-  assume = CCOpt.map (profile section) assume;
-  eval_pred =CCOpt.map (profile section) eval_pred;
-  preprocess = CCOpt.map (profile section) preprocess;
-}
+let mk_ext ~section ?peek ?if_sat ?assume ?eval_pred ?preprocess () =
+  if Array.length (Util.Section.stats section) = 0 then
+    Util.Section.set_stats section [|0|];
+  {
+    section;
+    peek = CCOpt.map (profile section) peek;
+    if_sat = CCOpt.map (profile section) if_sat;
+    assume = CCOpt.map (profile section) assume;
+    eval_pred =CCOpt.map (profile section) eval_pred;
+    preprocess = CCOpt.map (profile section) preprocess;
+  }
 
 let merge_opt merge o1 o2 = match o1, o2 with
   | None, res | res, None -> res
@@ -312,16 +315,17 @@ let update_watch x j =
     assert false
 
 let new_job ?formula id k section watched not_watched f =
-  Util.Stats.incr section Util.Stats.watchers;
+  let s = Util.Section.stats section in
+  s.(0) <- s.(0) + 1;
   {
-  job_ext = id;
-  job_n = k;
-  job_section = section;
-  watched = watched;
-  job_formula = formula;
-  not_watched = not_watched;
-  job_callback = f;
-  job_done = - 1;
+    job_ext = id;
+    job_n = k;
+    job_section = section;
+    watched = watched;
+    job_formula = formula;
+    not_watched = not_watched;
+    job_callback = f;
+    job_done = - 1;
   }
 
 let watch ?formula ext_name k args f =

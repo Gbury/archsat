@@ -1,8 +1,8 @@
 
 let misc_section = Util.Section.make "misc"
 
-let log_section = Util.Section.make ~parent:misc_section "options"
-let log i fmt = Util.debug ~section:log_section i fmt
+let section = Util.Section.make ~parent:misc_section "options"
+let log i fmt = Util.debug ~section i fmt
 
 open Cmdliner
 
@@ -246,7 +246,7 @@ let help_secs ext_doc sext_doc = [
 let log_sections () =
   let l = ref [] in
   Util.Section.iter (fun (name, _) -> if name <> "" then l := name :: !l);
-  !l
+  List.sort Pervasives.compare !l
 
 let profile_t =
   let docs = prof_sect in
@@ -259,7 +259,7 @@ let profile_t =
     Arg.(value & opt (some int) None & info ["pdepth"] ~doc ~docs)
   in
   let sects =
-    let doc = "Section to be porfiled with its children (overrides pdeth setting)" in
+    let doc = "Section to be profiled with its children (overrides pdeth setting locally)" in
     Arg.(value & opt_all section [] & info ["psection"] ~doc ~docs)
   in
   let raw_data =

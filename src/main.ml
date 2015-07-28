@@ -66,9 +66,9 @@ let do_command opt = function
   | Ast.NewType (name, s, n) ->
     wrap 1 ("typing " ^ name) Type.new_type_def (s, n)
   | Ast.TypeDef (name, s, t) ->
-    wrap 1 ("typing " ^ name) Type.new_const_def (Io.input_env ()) (s, t)
+    wrap 1 ("typing " ^ name) (Type.new_const_def (Io.input_env ())) (s, t)
   | Ast.Assert (name, t, goal) ->
-    let f = wrap 1 ("typing " ^ name) (Type.parse ~goal) (Io.input_env ()) t in
+    let f = wrap 1 ("typing " ^ name) (Type.parse ~goal (Io.input_env ())) t in
     if opt.solve then wrap 1 "assume" Solver.assume [[f]]
   | Ast.CheckSat ->
     if opt.solve then
@@ -123,9 +123,11 @@ let () =
 
   try
     (* Profiling *)
-    if opt.profile.enabled then Util.enable_profiling ();
-    CCOpt.iter Util.Section.set_profile_depth opt.profile.max_depth;
-    List.iter Util.Section.profile_section opt.profile.sections;
+    if opt.profile.enabled then begin
+      Util.enable_profiling ();
+      Util.Section.set_profile_depth (CCOpt.get 0 opt.profile.max_depth);
+      List.iter Util.Section.profile_section opt.profile.sections
+    end;
 
     (* Io options *)
     Io.set_input_file opt.input_file;

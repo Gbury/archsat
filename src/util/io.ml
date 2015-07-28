@@ -1,6 +1,6 @@
 
-let log_section = Util.Section.make ~parent:Options.misc_section "IO"
-let log i fmt = Util.debug ~section:log_section i fmt
+let section = Util.Section.make ~parent:Options.misc_section "IO"
+let log i fmt = Util.debug ~section i fmt
 
 (* Type definitions *)
 (* ************************************************************************ *)

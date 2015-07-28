@@ -33,8 +33,8 @@ module Loc = ParseLocation
 exception Parse_error of Loc.t * string
 exception Syntax_error of string
 
-let log_section = Util.Section.make ~parent:Options.misc_section "tptp"
-let log i fmt = Util.debug ~section:log_section i fmt
+let section = Util.Section.make ~parent:Options.misc_section "tptp"
+let log i fmt = Util.debug ~section i fmt
 
 (** {2 Translation} *)
 let t_assert name t b = Ast.Assert (A.string_of_name name, t, b)
@@ -130,6 +130,7 @@ let _find_and_open filename dir =
     | None -> failwith ("could not find file " ^ filename)
 
 let parse_file ~recursive f =
+  Util.enter_prof section;
   let dir = Filename.dirname f in
   let result_decls = Queue.create () in
   (* function that parses one file *)
@@ -168,5 +169,6 @@ let parse_file ~recursive f =
   parse_this_file ?names:None (Filename.basename f);
   let res = Queue.create () in
   Queue.iter (translate res) result_decls;
+  Util.exit_prof section;
   res
 

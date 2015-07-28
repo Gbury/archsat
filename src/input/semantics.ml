@@ -18,8 +18,11 @@ module Addon = Extension.Make(struct
     let section = Util.Section.make ~parent:Type.section "addons"
     let merge l = {
       builtins = (fun input_format s args arg' ->
+          Util.enter_prof section;
           let aux ext = ext.builtins input_format s args arg' in
-          CCList.find_map aux l);
+          let res = CCList.find_map aux l in
+          Util.exit_prof section;
+          res);
     }
   end)
 
