@@ -4,6 +4,13 @@ let solver_section = Util.Section.make "solver"
 
 let dummy_section = Util.Section.make "DUMMY"
 
+(* Statistics *)
+(* ************************************************************************ *)
+
+let stats_watchers = Util.Stats.mk "watchers"
+
+let stats_group = Util.Stats.bundle [stats_watchers]
+
 (* Type definitions *)
 (* ************************************************************************ *)
 
@@ -98,8 +105,7 @@ type ext = {
 }
 
 let mk_ext ~section ?peek ?if_sat ?assume ?eval_pred ?preprocess () =
-  if Array.length (Util.Section.stats section) = 0 then
-    Util.Section.set_stats section [|0|];
+  Util.Stats.attach section stats_group;
   {
     section;
     peek = CCOpt.map (profile section) peek;
@@ -315,8 +321,7 @@ let update_watch x j =
     assert false
 
 let new_job ?formula id k section watched not_watched f =
-  let s = Util.Section.stats section in
-  s.(0) <- s.(0) + 1;
+  Util.Stats.incr stats_watchers section;
   {
     job_ext = id;
     job_n = k;

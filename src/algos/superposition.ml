@@ -22,14 +22,14 @@ let compare_cl c c' =
   match c.lit, c'.lit with
   | None, Some _ -> -1
   | Some _, None -> 1
-  | None, None -> Util.lexicograph Unif.compare c.acc c'.acc
+  | None, None -> CCOrd.list_ Unif.compare c.acc c'.acc
   | Some (a, b), Some (a', b') ->
     match c.eq, c'.eq with
     | true, false -> -1
     | false, true -> 1
     | _ -> begin match Expr.Term.compare a a' with
         | 0 -> begin match Expr.Term.compare b b' with
-            | 0 ->  Util.lexicograph Unif.compare c.acc c'.acc
+            | 0 ->  CCOrd.list_ Unif.compare c.acc c'.acc
             | x -> x
           end
         | x -> x

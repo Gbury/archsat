@@ -24,6 +24,7 @@ type profile_options = {
   max_depth : int option;
   sections : Util.Section.t list;
   raw_data : out_channel option;
+  print_stats : bool;
 }
 
 type copts = {
@@ -73,11 +74,12 @@ let mk_opts () file input output proof type_only plugins addons
     size_limit = size;
   }
 
-let profile_opts enable depth l out = {
+let profile_opts enable depth l out stats = {
   enabled = enable || depth <> None || l <> [] || out <> None;
   max_depth = depth;
   sections = l;
   raw_data = out;
+  print_stats = stats;
 }
 
 (* Side-effects options *)
@@ -267,7 +269,11 @@ let profile_t =
                A special 'stdout' value can be used to use standard output." in
     Arg.(value & opt (some out_ch) None & info ["pdata"] ~docs ~doc)
   in
-  Term.(pure profile_opts $ profile $ depth $ sects $ raw_data)
+  let stats =
+    let doc = "Print statistics" in
+    Arg.(value & flag & info ["stats"] ~docs ~doc)
+  in
+  Term.(pure profile_opts $ profile $ depth $ sects $ raw_data $ stats)
 
 let copts_t () =
   let docs = copts_sect in

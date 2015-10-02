@@ -18,7 +18,9 @@ let sat_assign = function
   | _ -> assert false
 
 let rec sat_eval = function
-  | {Expr.formula = Expr.Pred ({Expr.term = Expr.App (p, _, _)} as t)} ->
+  | { Expr.formula = Expr.Pred {Expr.term = Expr.App (p, [], [])}} ->
+    None
+  | { Expr.formula = Expr.Pred ({Expr.term = Expr.App (p, _, _)} as t)} ->
     begin try
         let b, lvl = Dispatcher.get_assign t in
         if Expr.Term.equal Builtin.Misc.p_true b then
@@ -31,10 +33,7 @@ let rec sat_eval = function
         None
     end
   | { Expr.formula = Expr.Not f } ->
-    begin match sat_eval f with
-      | None -> None
-      | Some (b, lvl) -> Some (not b, lvl)
-    end
+    CCOpt.map (fun (b, lvl) -> (not b, lvl)) (sat_eval f)
   | _ -> None
 
 let f_eval f () =

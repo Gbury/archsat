@@ -9,7 +9,6 @@ module Smt = Msat.Internal.Make(struct
   end)(Dispatcher.SolverTypes)(Dispatcher.SolverTheory)
 
 module Dot = Msat.Dot.Make(Smt.Proof)(struct
-    let clause_name c = c.Dispatcher.SolverTypes.name
     let print_atom = Dispatcher.SolverTypes.print_atom
     let lemma_info p =
       let name, color, t_args, f_args = Dispatcher.proof_debug p in

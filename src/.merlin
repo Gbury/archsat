@@ -20,4 +20,3 @@ PKG cmdliner
 PKG ocamlgraph
 PKG containers
 PKG containers.data
-PKG containers.misc

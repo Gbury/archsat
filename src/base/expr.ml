@@ -614,7 +614,7 @@ module Ty = struct
       | TyMeta m1, TyMeta m2 -> Meta.compare m1 m2
       | TyApp (f1, args1), TyApp (f2, args2) ->
         begin match Id.compare f1 f2 with
-          | 0 -> Util.lexicograph compare args1 args2
+          | 0 -> CCOrd.list_ compare args1 args2
           | x -> x
         end
       | _, _ -> Pervasives.compare (discr u) (discr v)
@@ -719,8 +719,8 @@ module Term = struct
       | App (f1, tys1, args1), App (f2, tys2, args2) ->
         begin match Id.compare f1 f2 with
           | 0 ->
-            begin match Util.lexicograph Ty.compare tys1 tys2 with
-              | 0 -> Util.lexicograph compare args1 args2
+            begin match CCOrd.list_ Ty.compare tys1 tys2 with
+              | 0 -> CCOrd.list_ compare args1 args2
               | x -> x
             end
           | x -> x
@@ -873,30 +873,30 @@ module Formula = struct
     if hf <> hg then Pervasives.compare hf hg
     else match f.formula, g.formula with
       | True, True | False, False -> 0
-      | Equal (u1, v1), Equal(u2, v2) -> Util.lexicograph Term.compare [u1; v1] [u2; v2]
+      | Equal (u1, v1), Equal(u2, v2) -> CCOrd.list_ Term.compare [u1; v1] [u2; v2]
       | Pred t1, Pred t2 -> Term.compare t1 t2
       | Not h1, Not h2 -> compare h1 h2
-      | And l1, And l2 -> Util.lexicograph compare l1 l2
-      | Or l1, Or l2 -> Util.lexicograph compare l1 l2
-      | Imply (h1, i1), Imply (h2, i2) -> Util.lexicograph compare [h1; i1] [h2; i2]
-      | Equiv (h1, i1), Equiv (h2, i2) -> Util.lexicograph compare [h1; i1] [h2; i2]
+      | And l1, And l2 -> CCOrd.list_ compare l1 l2
+      | Or l1, Or l2 -> CCOrd.list_ compare l1 l2
+      | Imply (h1, i1), Imply (h2, i2) -> CCOrd.list_ compare [h1; i1] [h2; i2]
+      | Equiv (h1, i1), Equiv (h2, i2) -> CCOrd.list_ compare [h1; i1] [h2; i2]
       | All (l1, _, h1), All (l2, _, h2) ->
-        begin match Util.lexicograph Id.compare l1 l2 with
+        begin match CCOrd.list_ Id.compare l1 l2 with
           | 0 -> compare h1 h2
           | x -> x
         end
       | AllTy (l1, _, h1), AllTy (l2, _, h2) ->
-        begin match Util.lexicograph Id.compare l1 l2 with
+        begin match CCOrd.list_ Id.compare l1 l2 with
           | 0 -> compare h1 h2
           | x -> x
         end
       | Ex (l1, _, h1), Ex (l2, _, h2) ->
-        begin match Util.lexicograph Id.compare l1 l2 with
+        begin match CCOrd.list_ Id.compare l1 l2 with
           | 0 -> compare h1 h2
           | x -> x
         end
       | ExTy (l1, _, h1), ExTy (l2, _, h2) ->
-        begin match Util.lexicograph Id.compare l1 l2 with
+        begin match CCOrd.list_ Id.compare l1 l2 with
           | 0 -> compare h1 h2
           | x -> x
         end

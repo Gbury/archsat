@@ -49,7 +49,7 @@ module Section : sig
 
   val root : t (** Default section, with no parent *)
 
-  val make : ?parent:t -> ?inheriting:t list -> ?stats:int array -> string -> t
+  val make : ?parent:t -> ?inheriting:t list -> string -> t
   (** [make ?parent ?inheriting name] makes a new section with the given name.
       It has a parent (default [root]), used to give it a name. It can
       also have a list of sections it inherits from.
@@ -62,17 +62,7 @@ module Section : sig
 
   val set_profile_depth : int -> unit
   (** Set maximum depth for profiling *)
-
-  val stats : t -> int array
-  (** Return the stat array (of length determinadby the section creation) *)
-
-  val set_stats :t -> int array -> unit
-  (** Allows to set the array to be used to record statistics *)
-
 end
-
-val incr : ?k:int -> Section.t -> int -> unit
-(** [incr ?k section i] increases the i-th cell of stats of [section] by [k] (default [k=1]). *)
 
 val set_debug : int -> unit     (** Set debug level of [Section.root] *)
 val get_debug : unit -> int     (** Current debug level for [Section.root] *)
@@ -84,23 +74,28 @@ val debug : ?section:Section.t -> int ->
     The message might be dropped if its level is too high.
     {b NOTE}: non-thread safe *)
 
-(** {2 profiling facilities} *)
+(** {2 Statistics} *)
+module Stats : sig
+  type t
 
-val enable_profiling : unit -> unit   (** Enable profiling (disabled by default) *)
+  val mk : string -> t
+
+  val get : t -> Section.t -> int
+  val set : t -> Section.t -> int -> unit
+  val incr : ?k:int -> t -> Section.t -> unit
+
+  type group
+  val bundle : t list -> group
+  val attach : Section.t -> group -> unit
+end
+
+(** {2 profiling facilities} *)
 
 val enter_prof : Section.t -> unit                (** Enter the profiler *)
 val exit_prof : Section.t -> unit                 (** Exit the profiler *)
 
 val csv_prof_data : Format.formatter -> unit
 
-(** {2 LogtkOrdering utils} *)
-
-val lexicograph : ('a -> 'b -> int) -> 'a list -> 'b list -> int
-(** lexicographic order on lists l1,l2 which elements are ordered by f *)
-
-(** {2 List misc} *)
-
-val list_iteri2 : (int -> 'a -> 'b -> unit) -> 'a list -> 'b list -> unit
-(** Same as List.iteri but on 2 lists at the same time.
-    @raise Invalid_argument "list_iteri2" if lists have different lengths *)
+val enable_profiling : unit -> unit   (** Enable printing of profiling info (disabled by default) *)
+val enable_statistics : unit -> unit  (** Enable printing of statistices (disabled by default) *)
 

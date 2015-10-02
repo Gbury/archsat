@@ -45,6 +45,7 @@ let clear_line () =
 module Section = struct
 
   let null_level = -1 (* absence of level *)
+  let max_stats = 100
 
   type t = {
     descr : descr;
@@ -64,13 +65,10 @@ module Section = struct
     | Root
     | Sub of string * t * t list  (* name, parent, inheriting *)
 
-  let stats t = t.stats
-  let set_stats t a = t.stats <- a
-
   let root = {
     descr = Root;
-    stats = [| |];
     level = 0;
+    stats = Array.make max_stats 0;
     profile = false;
     prof_in = false;
     prof_enter = 0.;
@@ -116,12 +114,12 @@ module Section = struct
   let get_debug s =
     if s.level=null_level then None else Some s.level
 
-  let make ?(parent=root) ?(inheriting=[]) ?(stats=[||]) name =
+  let make ?(parent=root) ?(inheriting=[]) name =
     if name = "" then invalid_arg "Section.make: empty name";
     let sec = {
       descr = Sub (name, parent, inheriting);
-      stats = stats;
       level = null_level;
+      stats = Array.make max_stats 0;
       profile = false;
       prof_in = false;
       prof_enter = 0.;
@@ -206,10 +204,41 @@ module Section = struct
     else profile_depth d root
 end
 
-(* Stat increase function *)
-let incr ?(k=1) section i =
-  let a = Section.stats section in
-  a.(i) <- a.(i) + k
+module Stats = struct
+
+  type t = {
+    name : string;
+    index : int;
+  }
+
+  let mk =
+    let curr = ref ~-1 in
+    (fun name -> incr curr; { name; index = !curr })
+
+  let get t s = s.Section.stats.(t.index)
+  let set t s v = s.Section.stats.(t.index) <- v
+
+  let incr ?(k=1) t s = set t s (get t s + k)
+
+  type group = {
+    stats : t list;
+    mutable sections : Section.t list;
+  }
+
+  let all_groups = ref []
+
+  let bundle stats =
+    let res = { stats; sections = [] } in
+    all_groups := res :: !all_groups;
+    res
+
+  let attach t group =
+    group.sections <-
+      CCList.sort_uniq ~cmp:(fun t t' ->
+        compare (Section.full_name t) (Section.full_name t'))
+        (t :: group.sections)
+
+end
 
 (* Debug output functions *)
 let set_debug = Section.set_debug Section.root
@@ -234,10 +263,7 @@ let debug ?(section=Section.root) l format =
   else
     Printf.ifprintf debug_buf_ format
 
-(** {2 profiling facilities} *)
-
-
-(** Global switch for profiling *)
+(* Profiling *)
 let active = ref []
 
 let curr () = match !active with
@@ -261,8 +287,7 @@ let enter_prof section =
         ignore (CCOpt.map prof_exit (curr ()));
       prof_enter section;
       active := section :: !active
-  end else
-    debug 0 ~section "not entering"
+  end
 
 (** Exit the profiler *)
 let exit_prof section =
@@ -311,60 +336,48 @@ let print_profiler () =
   end;
   let total_time = get_total_time () in
   let s_tree = section_tree (fun s -> s.Section.prof_total > (parent_time s) /. 100.) Section.root in
-  let tree_box = Containers_misc.PrintBox.(
+  let tree_box = PrintBox.(
       Simple.to_box (map_tree (fun s -> `Text (Section.short_name s)) s_tree)) in
-  let stats_box = Containers_misc.PrintBox.(vlist ~bars:false (flatten (
-      map_tree (fun s ->
-          let a = s.Section.stats in text (
-            if Array.length a = 0 then "N/A"
-            else begin
-              CCPrint.(to_string (array ~start:"" ~stop:"" ~sep:"/" (
-                  fun b i -> Printf.bprintf b "%9d" i)) a)
-            end)) s_tree))) in
-  let call_box = Containers_misc.PrintBox.(vlist ~bars:false (flatten (
+  let call_box = PrintBox.(vlist ~bars:false (flatten (
       map_tree (fun s -> text (Format.sprintf "%10d" s.Section.nb_calls)) s_tree))) in
-  let time_box = Containers_misc.PrintBox.(vlist ~bars:false (flatten (
+  let time_box = PrintBox.(vlist ~bars:false (flatten (
       map_tree (fun s -> text (Format.sprintf "%13.3f" s.Section.prof_total)) s_tree))) in
-  let rate_box = Containers_misc.PrintBox.(vlist ~bars:false (flatten (
+  let rate_box = PrintBox.(vlist ~bars:false (flatten (
       map_tree (fun s -> text (Format.sprintf "%6.2f%%" (
           s.Section.prof_total /. total_time *. 100.))) s_tree))) in
-  let b = Containers_misc.PrintBox.(
+  let b = PrintBox.(
       grid ~pad:(hpad 3) ~bars:true [|
-        [| text "Section name"; text "Time profiled"; text "Profiled rate"; text "Calls"; text "Statistics" |];
-        [| text "Total Time"; text (Format.sprintf "%13.3f" total_time); text "100.00%"; text "N/A"; text "N/A" |];
-        [| tree_box; time_box; rate_box; call_box; stats_box |];
+        [| text "Section name"; text "Time profiled"; text "Profiled rate"; text "Calls" |];
+        [| text "Total Time"; text (Format.sprintf "%13.3f" total_time); text "100.00%"; text "N/A" |];
+        [| tree_box; time_box; rate_box; call_box |];
       |]) in
-  Containers_misc.PrintBox.output stdout b
+  print_newline ();
+  PrintBox.output stdout b
+
+let print_stats_group g =
+  let l = "Sections" :: (List.map (fun s -> s.Stats.name) g.Stats.stats) in
+  let sections = PrintBox.(vlist ~bars:false (
+      List.map (fun s -> text (Section.full_name s)) g.Stats.sections)) in
+  let stats = List.map (fun t -> PrintBox.(vlist ~bars:false (
+      List.map (fun s -> int_ @@ Stats.get t s) g.Stats.sections))) g.Stats.stats in
+  let b = PrintBox.(
+      grid ~pad:(hpad 3) ~bars:true [|
+        Array.of_list (List.map (fun s -> text s) l);
+        Array.of_list (sections :: stats);
+      |]) in
+  print_newline ();
+  PrintBox.output stdout b
+
+let print_stats () = List.iter print_stats_group !(Stats.all_groups)
 
 let csv_prof_data fmt =
   let tree = section_tree (fun _ -> true) Section.root in
   List.iter (fun s ->
       let open Section in
       let name = match full_name s with "" -> "root" | s -> s in
-      Format.fprintf fmt "%s,%f,%s@." name s.prof_total
-        CCPrint.(to_string (array ~start:"" ~stop:"" ~sep:"/" int) s.Section.stats)
+      Format.fprintf fmt "%s,%f@." name s.prof_total
     ) (flatten tree)
 
 let enable_profiling () = at_exit print_profiler
+let enable_statistics () = at_exit print_stats
 
-(** {2 LogtkOrdering utils} *)
-
-let rec lexicograph f l1 l2 =
-  match l1, l2 with
-  | [], [] -> 0
-  | x::xs, y::ys ->
-    let c = f x y in
-    if c <> 0 then c else lexicograph f xs ys
-  | [],_ -> (-1)
-  | _,[] -> 1
-
-(** {2 List util} *)
-
-let list_iteri2 f l l' =
-  let rec aux i f l l' = match l, l' with
-    | x :: r, y :: r' ->
-      f i x y; aux (i + 1) f r r'
-    | [], [] -> ()
-    | _ -> invalid_arg "list_iteri2"
-  in
-  aux 0 f l l'

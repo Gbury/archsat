@@ -11,12 +11,13 @@ type lemma = private {
   proof_formula_args : Expr.formula list;
 }
 
-(** Solver modules *)
+(** {2 Solver modules} *)
 
 module SolverExpr : Msat.Expr_intf.S
   with type Term.t = Expr.term
    and type Formula.t = Expr.formula
    and type proof = lemma
+
 
 module SolverTypes : Msat.Solver_types.S
   with type term = Expr.term

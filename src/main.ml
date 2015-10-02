@@ -128,6 +128,8 @@ let () =
       Util.Section.set_profile_depth (CCOpt.get 0 opt.profile.max_depth);
       List.iter Util.Section.profile_section opt.profile.sections
     end;
+    if opt.profile.print_stats then
+      Util.enable_statistics ();
 
     (* Io options *)
     Io.set_input_file opt.input_file;

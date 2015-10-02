@@ -51,7 +51,7 @@ module Arith : sig
     | Val of value
     | Op of op
 
-  (** {5 Operations on builtins *)
+  (** {5 Operations on builtins} *)
   val cmp_types : ty -> ty -> int
 
   val add : value -> value -> value

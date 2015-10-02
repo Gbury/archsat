@@ -3,6 +3,15 @@
    Currently only discrimnates according to the head symbol.
 *)
 
+(* Statistics *)
+(* ************************************************************************ *)
+
+let s_tries = Util.Stats.mk "tries"
+let s_found = Util.Stats.mk "found"
+let s_success = Util.Stats.mk "success"
+
+let s_group = Util.Stats.bundle [s_success; s_found; s_tries]
+
 (* Fingerprint index *)
 (* ************************************************************************ *)
 
@@ -50,7 +59,7 @@ module Make(T: Set.OrderedType) = struct
   let master_key = List.map of_list [[]; [1]; [2]; [3]; [1; 1]; [1; 2]]
 
   let empty section =
-    Util.Section.set_stats section [|0;0;0|];
+    Util.Stats.attach section s_group;
     {
       key = master_key;
       trie = Empty;
@@ -120,28 +129,28 @@ module Make(T: Set.OrderedType) = struct
 
   let find_unify e t =
     Util.enter_prof t.section;
-    Util.incr t.section 2;
+    Util.Stats.incr s_tries t.section;
     let l = find compat_unif [] (fp t.key e) t.trie in
-    Util.incr ~k:(List.length l) t.section 1;
+    Util.Stats.incr ~k:(List.length l) s_found t.section;
     let res = CCList.filter_map (fun (e', s) ->
         match Unif.Robinson.find ~section:t.unif_section e e' with
         | Some u -> Some (e', u, S.elements s) | None -> None
       ) l in
-    Util.incr ~k:(List.length res) t.section 0;
+    Util.Stats.incr ~k:(List.length res) s_success t.section;
     Util.exit_prof t.section;
     res
 
   let find_match e t =
     Util.enter_prof t.section;
-    Util.incr t.section 2;
+    Util.Stats.incr s_tries t.section;
     let l = find compat_match [] (fp t.key e) t.trie in
-    Util.incr ~k:(List.length l) t.section 1;
+    Util.Stats.incr ~k:(List.length l) s_found t.section;
     let res =
       CCList.filter_map (fun (e', s) ->
           match Unif.Match.find ~section:t.unif_section e e' with
           | Some m -> Some (e', m, S.elements s) | None -> None
         ) l in
-    Util.incr ~k:(List.length res) t.section 0;
+    Util.Stats.incr ~k:(List.length res) s_success t.section;
     Util.exit_prof t.section;
     res
 

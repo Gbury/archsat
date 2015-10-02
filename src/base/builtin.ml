@@ -246,7 +246,7 @@ module Arith = struct
 
   (* Parsing arithmetic input *)
   let rec parse_int s pos base =
-    let rec aux s pos acc =
+    let aux s pos acc =
       if pos >= 0 && pos < String.length s then begin
         match s.[pos] with
         | '0' .. '9' as c ->
@@ -300,8 +300,10 @@ module Arith = struct
       try Some (parse_number s 0)
       with Invalid_argument _ -> None
 
+  (*
   let q_of_val = function Int z -> Q.of_bigint z | Rat q -> q | Real r -> Lazy.force r
   let ty_of_val = function Int _ -> type_int | Rat _ -> type_rat | Real _ -> type_real
+  *)
 
   let int_const = Hashtbl.create 42
   let rat_const = Hashtbl.create 42

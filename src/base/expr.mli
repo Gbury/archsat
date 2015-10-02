@@ -101,15 +101,18 @@ and ty = private {
 
 type term_descr = private
   | Var of ty id
+  (** bound variables (i.e should only appear under a quantifier) *)
   | Meta of ty meta
+  (** meta-variables *)
   | App of ty function_descr id * ty list * term list
+  (** application of a constant to some arguments *)
 
 and term = private {
   term     : term_descr;
   t_type   : ty;
   t_tags   : tag_map;
   t_status : status;
-  mutable t_hash : hash; (** Use Term.hash instead *)
+  mutable t_hash : hash; (** Do not use this filed, call Term.hash instead *)
 }
 
 (** Types defining terms in the solver. The definition is vary similar to that
