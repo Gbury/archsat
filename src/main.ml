@@ -106,7 +106,8 @@ let () =
   let info = Cmdliner.Term.(info ~sdocs:Options.copts_sect ~man ~version:"0.1" "tabsat") in
   let opts = Semantics.Addon.add_opts (Dispatcher.Plugin.add_opts (Options.copts_t ())) in
   let opt = match Cmdliner.Term.eval (opts, info) with
-    | `Version | `Help | `Error `Parse | `Error `Term | `Error `Exn -> raise Exit
+    | `Version | `Help -> exit 0
+    | `Error `Parse | `Error `Term | `Error `Exn -> exit 1
     | `Ok opt -> opt
   in
   (* Gc alarm for limits *)
