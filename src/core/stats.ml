@@ -2,6 +2,8 @@
 let section = Util.Section.make ~parent:Dispatcher.section "stats"
 
 (* Statistics record & manipulations *)
+let max_rounds = ref 0
+
 type t = {
   mutable cur_round : int;
   instanciations : ((int * int), CCVector.rw) CCVector.t;
@@ -38,10 +40,28 @@ let inst_remaining r =
 (* Print stats and prep for next round *)
 let clock _ =
   print_state state;
+  if !max_rounds >= 0 && state.cur_round >= !max_rounds then
+    raise (Extension.Abort (
+        "stats", Format.sprintf "Maximum number of rounds reached (%d)" !max_rounds));
   init_round state
 
+(* Extension registering *)
+(* ************************************************************************ *)
+
+let options t =
+  let docs = Options.ext_sect in
+  let stop =
+    let doc = "Stop at the given round" in
+    Cmdliner.Arg.(value & opt int (-1) & info ["stats.stop"] ~docv:"N" ~docs ~doc)
+  in
+  let set_opts n t =
+    max_rounds := n;
+    t
+  in
+  Cmdliner.Term.(pure set_opts $ stop $ t)
+
 ;;
-Dispatcher.Plugin.register "stats" ~prio:0
+Dispatcher.Plugin.register "stats" ~prio:0 ~options
   ~descr:"Handles delayed printing of statistics for each round of solving"
   (Dispatcher.mk_ext
      ~section

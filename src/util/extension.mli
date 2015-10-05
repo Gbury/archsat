@@ -1,4 +1,5 @@
 
+exception Abort of string * string
 exception Extension_not_found of string * string * string list
 
 module type K = sig

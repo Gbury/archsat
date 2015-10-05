@@ -193,6 +193,8 @@ let () =
     exit 2
 
   (* Extension error *)
+  | Extension.Abort (ext, reason) ->
+    Format.fprintf Format.std_formatter "Extension '%s' aborted the proof search:@\n%s@." ext reason
   | Extension.Extension_not_found (sect, ext, l) ->
     Format.fprintf Format.std_formatter "Extension '%s/%s' not found. Available extensions are :@\n%a@."
       sect ext (fun fmt -> List.iter (fun s -> Format.fprintf fmt "%s " s)) l;
