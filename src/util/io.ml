@@ -34,7 +34,7 @@ let format_of_filename s =
     try String.sub s (String.length s - n) n
     with Invalid_argument _ -> ""
   in
-  if last 2 = ".p" then
+  if last 2 = ".p" || last 2 = ".t" then
     Tptp
   else if last 4 = ".cnf" then
     Dimacs
