@@ -60,10 +60,6 @@ module Make(T : Key) = struct
     repr = H.create s;
   }
 
-  let debug_tag b = function
-    | None -> Printf.bprintf b "_"
-    | Some (y, v) -> Printf.bprintf b "%a : %a" T.debug y T.debug v
-
   (* Union-find algorithm with path compression *)
   let self_repr = Repr { rank = 0; tag = None; forbidden = M.empty }
 
