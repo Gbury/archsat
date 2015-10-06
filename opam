@@ -13,6 +13,7 @@ depends: [
   "ocamlfind" {build}
   "base-unix"
   "ocamlgraph"
+  "cmdliner"
   "msat"
 ]
 available: [
