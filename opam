@@ -15,6 +15,7 @@ depends: [
   "ocamlgraph"
   "cmdliner"
   "msat"
+  "containers"
 ]
 available: [
   ocaml-version >= "4.02.1"
