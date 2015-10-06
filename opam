@@ -1,0 +1,21 @@
+opam-version: "1.2"
+name:"archsat"
+license: ""
+version: "dev"
+author: ["Guillaume Bury <guillaume.bury@gmail.com>"]
+maintainer: ["Guillaume Bury <guillaume.bury@gmail.com>"]
+build: [
+  [make]
+]
+install: [make "MANDIR=%{man}%" "BINDIR=%{bin}%" "install"]
+remove: [make "MANDIR=%{man}%" "BINDIR=%{bin}%" "uninstall"]
+depends: [
+  "ocamlfind" {build}
+  "base-unix"
+  "ocamlgraph"
+  "msat"
+]
+available: [
+  ocaml-version >= "4.02.1"
+]
+tags: ["smt"]
