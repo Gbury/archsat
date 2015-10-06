@@ -17,6 +17,7 @@ depends: [
   "msat"
   "zarith"
   "containers"
+  "menhir"
 ]
 available: [
   ocaml-version >= "4.02.1"
