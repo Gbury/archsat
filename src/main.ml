@@ -156,51 +156,61 @@ let () =
     Options.clean opt
 
   with
-  (* Normal exit (return code 0) *)
-  | Out_of_time ->
-    delete_alarm ();
-    Io.print_timeout Format.std_formatter
-  | Out_of_space ->
-    delete_alarm ();
-    Io.print_spaceout Format.std_formatter
-
-  (* User interrupt *)
-  | Sigint ->
-    if Printexc.backtrace_status () then
-      Printexc.print_backtrace stdout;
-    exit 1
-
-  (* Parsing/Typing errors *)
-  | Io.Parsing_error (l, msg) ->
-    Format.fprintf Format.std_formatter "%a:@\n%s@." ParseLocation.fmt l msg;
-    exit 2
-  | Type.Typing_error (msg, t) ->
+  | e ->
     let s = Printexc.get_backtrace () in
-    let loc = CCOpt.maybe CCFun.id (ParseLocation.mk opt.input_file 0 0 0 0) Ast.(t.loc) in
-    Format.fprintf Format.std_formatter "While typing : %s@\n%a:@\n%s@."
-      (Ast.s_term t) ParseLocation.fmt loc msg;
+    let retcode = match e with
+      | Out_of_time ->
+        delete_alarm ();
+        Io.print_timeout Format.std_formatter;
+        0
+      | Out_of_space ->
+        delete_alarm ();
+        Io.print_spaceout Format.std_formatter;
+        0
+
+      (* User interrupt *)
+      | Sigint ->
+        if Printexc.backtrace_status () then
+          Printexc.print_backtrace stdout;
+        1
+
+      (* Parsing/Typing errors *)
+      | Io.Parsing_error (l, msg) ->
+        Format.fprintf Format.std_formatter "%a:@\n%s@." ParseLocation.fmt l msg;
+        2
+      | Type.Typing_error (msg, t) ->
+        let loc = CCOpt.maybe CCFun.id (ParseLocation.mk opt.input_file 0 0 0 0) Ast.(t.loc) in
+        Format.fprintf Format.std_formatter "While typing : %s@\n%a:@\n%s@."
+          (Ast.s_term t) ParseLocation.fmt loc msg;
+        2
+
+      (* Extension error *)
+      | Extension.Abort (ext, reason) ->
+        Format.fprintf Format.std_formatter "Extension '%s' aborted the proof search:@\n%s@." ext reason;
+        (* No particuler exit code, because it most likely is the desired behavior *)
+        0
+
+      | Extension.Extension_not_found (sect, ext, l) ->
+        Format.fprintf Format.std_formatter "Extension '%s/%s' not found. Available extensions are :@\n%a@."
+          sect ext (fun fmt -> List.iter (fun s -> Format.fprintf fmt "%s " s)) l;
+        3
+
+      (* Internal errors. Should not happen *)
+      | Dispatcher.Bad_assertion msg ->
+        let s = Printexc.get_backtrace () in
+        Format.fprintf Format.std_formatter "%s@\n%s@." msg s;
+        4
+      | Expr.Type_mismatch (t, ty1, ty2) ->
+        let s = Printexc.get_backtrace () in
+        Format.fprintf Format.std_formatter "Term %a has type %a but an expression of type %a was expected@\n%s@."
+          Expr.Print.term t Expr.Print.ty ty1 Expr.Print.ty ty2 s;
+        4
+
+      | _ ->
+        Format.fprintf Format.std_formatter "Unknown exception";
+        5
+    in
     if Printexc.backtrace_status () then
       Format.fprintf Format.std_formatter "%s" s;
-    exit 2
-
-  (* Extension error *)
-  | Extension.Abort (ext, reason) ->
-    (* No particuler exit code, because it most likely is the desired behavior *)
-    Format.fprintf Format.std_formatter "Extension '%s' aborted the proof search:@\n%s@." ext reason
-  | Extension.Extension_not_found (sect, ext, l) ->
-    Format.fprintf Format.std_formatter "Extension '%s/%s' not found. Available extensions are :@\n%a@."
-      sect ext (fun fmt -> List.iter (fun s -> Format.fprintf fmt "%s " s)) l;
-    exit 3
-
-  (* Internal errors. Should not happen *)
-  | Dispatcher.Bad_assertion msg ->
-    let s = Printexc.get_backtrace () in
-    Format.fprintf Format.std_formatter "%s@\n%s@." msg s;
-    exit 4
-  | Expr.Type_mismatch (t, ty1, ty2) ->
-    let s = Printexc.get_backtrace () in
-    Format.fprintf Format.std_formatter "Term %a has type %a but an expression of type %a was expected@\n%s@."
-      Expr.Print.term t Expr.Print.ty ty1 Expr.Print.ty ty2 s;
-    exit 4
-
+    exit retcode
 
