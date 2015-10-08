@@ -60,7 +60,12 @@ let rec parse_input file = match !input with
       with Tptp.Parse_error (loc, msg) ->
         raise (Parsing_error (loc, msg))
     end
-  | Smtlib -> Smtlib.parse_file file
+  | Smtlib ->
+    begin try
+        Smtlib.parse_file file
+      with Smtlib.Parse_error (loc, msg) ->
+        raise (Parsing_error (loc, msg))
+    end
 
 let input_env () = Semantics.type_env !input
 

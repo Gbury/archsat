@@ -206,9 +206,7 @@ let () =
           Expr.Print.term t Expr.Print.ty ty1 Expr.Print.ty ty2 s;
         4
 
-      | _ ->
-        Format.fprintf Format.std_formatter "Unknown exception";
-        5
+      | _ -> raise e
     in
     if Printexc.backtrace_status () then
       Format.fprintf Format.std_formatter "%s" s;

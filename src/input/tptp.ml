@@ -1,4 +1,3 @@
-
 (*
 Copyright (c) 2013, Simon Cruanes
 All rights reserved.
@@ -144,8 +143,8 @@ let parse_file ~recursive f =
       let decls =
         try Parsetptp.parse_declarations Lextptp.token buf
         with
-        | Parsetptp.Error -> _raise_error "parse error at " buf
-        | Ast_tptp.ParseError loc -> raise (Parse_error (loc, "parse error"))
+        | Parsetptp.Error -> _raise_error "Parse error" buf
+        | Ast_tptp.ParseError loc -> raise (Parse_error (loc, "Parse error"))
       in
       List.iter
         (fun decl -> match decl, names with
