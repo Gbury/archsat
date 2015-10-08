@@ -1,0 +1,19 @@
+opam-version: "1.2"
+license: ""
+version: "dev"
+author: ["Guillaume Bury"]
+maintainer: ["guillaume.bury@gmail.com"]
+build: [
+    [make "all"]
+]
+install: [
+  [make "BINDIR=%{bin}%" "MANDIR=%{man}%" "install"]
+]
+remove: [
+  [make "BINDIR=%{bin}%" "MANDIR=%{man}%" "uninstall"]
+]
+depends: ["ocamlfind" {build} "base-unix" "cmdliner" "msat"]
+tags: [ "sat" "smt" ]
+homepage: ""
+dev-repo: ""
+bug-reports: ""
