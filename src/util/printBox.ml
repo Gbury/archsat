@@ -52,7 +52,6 @@ module Output = struct
 
   let put_char out pos c = out.put_char pos c
   let put_string out pos s = out.put_string pos s
-  let put_sub_string out pos s s_i s_len = out.put_sub_string pos s s_i s_len
 
   (** An internal buffer, suitable for writing efficiently, then
       convertable into a list of lines *)

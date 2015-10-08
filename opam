@@ -1,18 +1,27 @@
 opam-version: "1.2"
+name:"archsat"
 license: ""
 version: "dev"
-author: ["Guillaume Bury"]
-maintainer: ["guillaume.bury@gmail.com"]
+author: ["Guillaume Bury <guillaume.bury@gmail.com>"]
+maintainer: ["Guillaume Bury <guillaume.bury@gmail.com>"]
 build: [
-    [make "all"]
+  [make "all"]
 ]
-install: [
-  [make "BINDIR=%{bin}%" "MANDIR=%{man}%" "install"]
+install: [make "MANDIR=%{man}%" "BINDIR=%{bin}%" "install"]
+remove: [make "MANDIR=%{man}%" "BINDIR=%{bin}%" "uninstall"]
+depends: [
+  "ocamlfind" {build}
+  "base-unix"
+  "ocamlgraph"
+  "cmdliner"
+  "msat"
+  "zarith"
+  "containers"
+  "menhir"
 ]
-remove: [
-  [make "BINDIR=%{bin}%" "MANDIR=%{man}%" "uninstall"]
+available: [
+  ocaml-version >= "4.02.1"
 ]
-depends: ["ocamlfind" {build} "base-unix" "cmdliner" "msat"]
 tags: [ "sat" "smt" ]
 homepage: ""
 dev-repo: ""

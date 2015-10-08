@@ -1,5 +1,5 @@
 
-BIN=tabsat
+BIN=archsat
 MAIN=src/main.native
 
 all :
@@ -7,7 +7,7 @@ all :
 	cp $(MAIN) $(BIN)
 
 install: all
-	$(BIN) --help=groff > $(MANDIR)/man1/$(BIN).1
+	./$(BIN) --help=groff > $(MANDIR)/man1/$(BIN).1
 	cp $(BIN) $(BINDIR)/
 
 uninstall:

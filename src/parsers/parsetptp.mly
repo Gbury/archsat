@@ -291,7 +291,7 @@ defined_atom:
   | n=INTEGER { T.int n }
   | n=RATIONAL { T.rat n }
   | n=REAL { T.real n }
-  | s=DISTINCT_OBJECT { T.distinct }
+  | DISTINCT_OBJECT { T.distinct }
 
 defined_atomic_term:
   | t=defined_plain_term { t }
