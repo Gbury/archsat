@@ -31,10 +31,3 @@ val print_spaceout : Format.formatter -> unit
 val print_error : Format.formatter -> ('a, Format.formatter, unit) format -> 'a
 (** Print the given error format string ot output. *)
 
-val print_model : Format.formatter -> (Expr.term * Expr.term) list -> unit
-(** Prints the assignemnts in the model, one by line. *)
-
-val print_proof : (Format.formatter -> Solver.proof -> unit) ->
-  Format.formatter -> Solver.proof -> unit
-(** Wrapper around a proof printer. *)
-

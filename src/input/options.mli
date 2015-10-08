@@ -21,13 +21,13 @@ type profile_options = {
   enabled : bool;
   max_depth : int option;
   sections : Util.Section.t list;
-  raw_data : out_channel option;
+  raw_data : Format.formatter;
   print_stats : bool;
 }
 
 type copts = {
   (* Input/Output option *)
-  out : out_channel;
+  out : Format.formatter;
   input_file : string;
   input_format : input;
   output_format : output;
@@ -39,8 +39,8 @@ type copts = {
   plugins : string list;
 
   (* Printing options *)
-  dot_proof : out_channel option;
-  model_out : out_channel option;
+  dot_proof : Format.formatter;
+  model_out : Format.formatter;
 
   (* Time/Memory options *)
   profile : profile_options;

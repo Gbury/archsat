@@ -76,26 +76,19 @@ let do_command opt = function
       begin match res with
         (* Model found *)
         | Solver.Sat ->
-          Io.print_sat (Format.formatter_of_out_channel opt.out);
-          begin match opt.model_out with
-            | None -> ()
-            | Some out ->
-              Io.print_model (Format.formatter_of_out_channel out) (get_model ())
-          end
+          Io.print_sat opt.out;
+          (* Io.print_model opt.model_out (get_model ()); *)
+          ()
         (* Proof found *)
         | Solver.Unsat ->
-          Io.print_unsat (Format.formatter_of_out_channel opt.out);
+          Io.print_unsat opt.out;
           if opt.proof then begin
             let proof = Solver.get_proof () in
-            begin match opt.dot_proof with
-            | Some out ->
-              Io.print_proof Solver.print_dot_proof (Format.formatter_of_out_channel out) proof
-            | None -> ()
-            end
+            Solver.print_dot_proof opt.dot_proof proof
           end
       end
   | c ->
-    Io.print_error (Format.formatter_of_out_channel opt.out)
+    Io.print_error opt.out
       "%a : operation not supported yet" Ast.print_command_name c;
     exit 2
 
@@ -157,7 +150,7 @@ let () =
     (* Commands execution *)
     Queue.iter (do_command opt) commands;
 
-    CCOpt.iter (fun out -> Util.csv_prof_data (Format.formatter_of_out_channel out)) opt.profile.raw_data;
+    Util.csv_prof_data opt.profile.raw_data;
 
     (* Clean up *)
     Options.clean opt
@@ -170,9 +163,6 @@ let () =
   | Out_of_space ->
     delete_alarm ();
     Io.print_spaceout Format.std_formatter
-
-  (* Bad usage of command line *)
-  | Exit -> exit 1
 
   (* User interrupt *)
   | Sigint ->
@@ -195,6 +185,7 @@ let () =
 
   (* Extension error *)
   | Extension.Abort (ext, reason) ->
+    (* No particuler exit code, because it most likely is the desired behavior *)
     Format.fprintf Format.std_formatter "Extension '%s' aborted the proof search:@\n%s@." ext reason
   | Extension.Extension_not_found (sect, ext, l) ->
     Format.fprintf Format.std_formatter "Extension '%s/%s' not found. Available extensions are :@\n%a@."

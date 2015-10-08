@@ -23,13 +23,13 @@ type profile_options = {
   enabled : bool;
   max_depth : int option;
   sections : Util.Section.t list;
-  raw_data : out_channel option;
+  raw_data : Format.formatter;
   print_stats : bool;
 }
 
 type copts = {
   (* Input/Output option *)
-  out : out_channel;
+  out : Format.formatter;
   input_file : string;
   input_format : input;
   output_format : output;
@@ -41,8 +41,8 @@ type copts = {
   plugins : string list;
 
   (* Printing options *)
-  dot_proof : out_channel option;
-  model_out : out_channel option;
+  dot_proof : Format.formatter;
+  model_out : Format.formatter;
 
   (* Time/Memory options *)
   profile : profile_options;
@@ -50,24 +50,32 @@ type copts = {
   size_limit : float;
 }
 
+(* Misc *)
+(* ************************************************************************ *)
+
+let formatter_of_descr = function
+  | "" -> Format.make_formatter (fun _ _ _ -> ()) (fun () -> ())
+  | "stdout" -> Format.std_formatter
+  | s -> Format.formatter_of_out_channel (open_out s)
+
 (* Option values *)
 (* ************************************************************************ *)
 
 let mk_opts () file input output proof type_only plugins addons
     dot_proof model_out time size profile =
   {
-    out = stdout;
+    out = Format.std_formatter;
     input_file = file;
     input_format = input;
     output_format = output;
 
     solve = not type_only;
-    proof = proof || (dot_proof <> None);
+    proof = proof || dot_proof <> "";
     addons = List.concat addons;
     plugins = List.concat plugins;
 
-    model_out = model_out;
-    dot_proof = dot_proof;
+    model_out = formatter_of_descr model_out;
+    dot_proof = formatter_of_descr dot_proof;
 
     profile = profile;
     time_limit = time;
@@ -75,10 +83,10 @@ let mk_opts () file input output proof type_only plugins addons
   }
 
 let profile_opts enable depth l out stats = {
-  enabled = enable || depth <> None || l <> [] || out <> None;
+  enabled = enable || depth <> None || l <> [] || out <> "";
   max_depth = depth;
   sections = l;
-  raw_data = out;
+  raw_data = formatter_of_descr out;
   print_stats = stats;
 }
 
@@ -97,9 +105,7 @@ let set_opts gc bt quiet log debug =
     List.iter (fun (s, lvl) -> Util.Section.set_debug s lvl) debug
   end
 
-let clean opt =
-  CCOpt.iter close_out opt.dot_proof;
-  CCOpt.iter close_out opt.model_out
+let clean opt = ()
 
 (* Argument converter for integer with multiplier suffix *)
 (* ************************************************************************ *)
@@ -217,13 +223,20 @@ let parse_section arg =
 
 let section = parse_section, print_section
 
-(* Converter for out_channels *)
-let print_out fmt _ = Format.fprintf fmt "<out_channel>"
-let parse_out = function
-  | "stdout" -> `Ok stdout
-  | f -> `Ok (open_out f)
+(* Converter for output file descriptor (with stdout as special case) *)
+let print_descr fmt = function
+  | "" -> Format.fprintf fmt "<none>"
+  | s -> Format.fprintf fmt "%s" s
 
-let out_ch = parse_out, print_out
+let parse_descr = function
+  | "stdout" -> `Ok "stdout"
+  | f ->
+    if Sys.is_directory f then
+      `Error (Format.sprintf "File %s is a directory" f)
+    else
+      `Ok f
+
+let out_descr = parse_descr, print_descr
 
 (* Argument parsing *)
 (* ************************************************************************ *)
@@ -267,7 +280,7 @@ let profile_t =
   let raw_data =
     let doc = "Set a file to which output the raw profiling data.
                A special 'stdout' value can be used to use standard output." in
-    Arg.(value & opt (some out_ch) None & info ["pdata"] ~docs ~doc)
+    Arg.(value & opt out_descr "" & info ["pdata"] ~docs ~doc)
   in
   let stats =
     let doc = "Print statistics" in
@@ -341,13 +354,13 @@ let copts_t () =
   let dot_proof =
     let doc = "Set the file to which the program sould output a proof in dot format.
                A special 'stdout' value can be used to use standard output." in
-    Arg.(value & opt (some out_ch) None & info ["dot"] ~docs ~doc)
+    Arg.(value & opt out_descr "" & info ["dot"] ~docs ~doc)
   in
   let model_out =
     let doc = CCPrint.sprintf
         "Set the file to which output a model (if found). A special value
         'stdout' can be used to output on standard output." in
-    Arg.(value & opt (some out_ch) None & info ["m"; "model"] ~docs ~docv:"MODEL" ~doc)
+    Arg.(value & opt out_descr "" & info ["m"; "model"] ~docs ~docv:"MODEL" ~doc)
   in
   let time =
     let doc = "Stop the program after a time lapse of $(docv).

@@ -69,10 +69,6 @@ let input_env () = Semantics.type_env !input
 
 let flush fmt = Format.fprintf fmt "@."
 
-let print_model _ _ = ()
-
-let print_proof _ _ _ = ()
-
 let print_szs_status fmt status =
   Format.fprintf fmt "%% SZS status %s for %s" status !input_file
 
@@ -92,7 +88,7 @@ let print_error fmt format = match !output with
     Format.fprintf fmt "%a@\n" print_res "Error";
     Format.kfprintf flush fmt format
   | SZS ->
-    Format.fprintf fmt "%a : " print_res "Error";
+    Format.fprintf fmt "%a : " print_szs_status "Error";
     Format.kfprintf flush fmt format
 
 let print_timeout fmt = match !output with
