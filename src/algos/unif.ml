@@ -65,6 +65,47 @@ let inverse s =
       | _ -> bind_ty s m ty
     ) s.ty_map empty)
 
+(* Occurs check *)
+(* ************************************************************************ *)
+
+let rec follow_ty subst = function
+  | { Expr.ty = Expr.TyMeta m } as t ->
+    begin match get_ty_opt subst m with
+      | Some t' -> follow_ty subst t'
+      | None -> t
+    end
+  | t -> t
+
+let rec follow_term subst = function
+  | { Expr.term = Expr.Meta m } as t ->
+    begin match get_term_opt subst m with
+      | Some t' -> follow_term subst t'
+      | None -> t
+    end
+  | t -> t
+
+let rec occurs_ty subst m = function
+  | { Expr.ty = Expr.TyMeta m' } ->
+    begin match get_ty subst m' with
+      | exception Not_found -> Expr.Meta.equal m m'
+      | e -> occurs_ty subst m e
+    end
+  | { Expr.ty = Expr.TyApp (_, l) } -> List.exists (occurs_ty subst m) l
+  | _ -> false
+
+let rec occurs_term subst m = function
+  | { Expr.term = Expr.Meta m' } ->
+    begin match get_term subst m' with
+      | exception Not_found -> Expr.Meta.equal m m'
+      | e -> occurs_term subst m e
+    end
+  | { Expr.term = Expr.App (_, _, l) } -> List.exists (occurs_term subst m) l
+  | _ -> false
+
+let occurs_check t =
+  Expr.Subst.for_all (fun v e -> occurs_ty t v e) t.ty_map &&
+  Expr.Subst.for_all (fun v e -> occurs_term t v e) t.t_map
+
 (* Manipulation over meta substitutions *)
 (* ************************************************************************ *)
 
@@ -123,38 +164,6 @@ module Robinson = struct
   exception Impossible_ty of Expr.ty * Expr.ty
   exception Impossible_term of Expr.term * Expr.term
 
-  let rec follow_ty subst = function
-    | { Expr.ty = Expr.TyMeta m } as t ->
-      begin match get_ty_opt subst m with
-        | Some t' -> follow_ty subst t'
-        | None -> t
-      end
-    | t -> t
-
-  let rec follow_term subst = function
-    | { Expr.term = Expr.Meta m } as t ->
-      begin match get_term_opt subst m with
-        | Some t' -> follow_term subst t'
-        | None -> t
-      end
-    | t -> t
-
-  let rec occurs_check_ty subst v = function
-    | { Expr.ty = Expr.TyMeta m } as v' ->
-      begin match get_ty subst m with
-        | exception Not_found -> Expr.Ty.equal v v'
-        | m' -> occurs_check_ty subst v m'
-      end
-    | { Expr.ty = Expr.TyApp (_, l) } -> List.exists (occurs_check_ty subst v) l
-    | _ -> false
-
-  let rec occurs_check_term subst v = function
-    | { Expr.term = Expr.Meta m } as v' ->
-      begin try occurs_check_term subst v (get_term subst m)
-        with Not_found -> Expr.Term.equal v v' end
-    | { Expr.term = Expr.App (_, _, l) } -> List.exists (occurs_check_term subst v) l
-    | _ -> false
-
   let rec ty subst s t =
     let s = follow_ty subst s in
     let t = follow_ty subst t in
@@ -162,7 +171,7 @@ module Robinson = struct
     | _ when Expr.Ty.equal s t -> subst
     | ({ Expr.ty = Expr.TyMeta v } as m), u
     | u, ({ Expr.ty = Expr.TyMeta v } as m) ->
-      if occurs_check_ty subst m u then
+      if occurs_ty subst v u then
         raise (Impossible_ty (m, u))
       else
         bind_ty subst v u
@@ -181,7 +190,7 @@ module Robinson = struct
     | _ when Expr.Term.equal s t -> subst
     | ({ Expr.term = Expr.Meta v } as m), u
     | u, ({ Expr.term = Expr.Meta v } as m) ->
-      if occurs_check_term subst m u then
+      if occurs_term subst v u then
         raise (Impossible_term (m, u))
       else
         let subst' = ty subst Expr.(m.t_type) Expr.(u.t_type) in
@@ -232,7 +241,7 @@ module Match = struct
   let to_subst (_, u) = u
 
   let rec ty (stable, subst) s t =
-    let t = Robinson.follow_ty subst t in
+    let t = follow_ty subst t in
     match s, t with
     | { Expr.ty = Expr.TyMeta v },
       { Expr.ty = Expr.TyMeta v' } ->
@@ -243,7 +252,7 @@ module Match = struct
          if Expr.Ty.equal s t then subst
          else bind_ty subst v' s)
     | _, { Expr.ty = Expr.TyMeta v } ->
-      if Robinson.occurs_check_ty subst t s then
+      if occurs_ty subst v s then
         raise (Impossible_ty (s, t))
       else if mem_ty stable v then
         raise (Impossible_ty (s, t))
@@ -258,7 +267,7 @@ module Match = struct
     | _ -> raise (Impossible_ty (s, t))
 
   let rec term (stable, subst) s t =
-    let t = Robinson.follow_term subst t in
+    let t = follow_term subst t in
     match s, t with
     | { Expr.term = Expr.Meta v },
       { Expr.term = Expr.Meta v' } ->
@@ -269,7 +278,7 @@ module Match = struct
          if Expr.Term.equal s t then subst
          else bind_term subst v' s)
     | _, { Expr.term = Expr.Meta v } ->
-      if Robinson.occurs_check_term subst t s then
+      if occurs_term subst v s then
         raise (Impossible_term (s, t))
       else if mem_term stable v then
         raise (Impossible_term (s, t))

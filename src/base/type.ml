@@ -242,7 +242,9 @@ let default_cst_ty n ret = (CCList.replicate n Expr.Ty.base, ret)
 
 let parse_cst env ty_args t_args ret s =
   match env.builtins s ty_args t_args with
-  | Some `Term res -> res
+  | Some `Term ((cst, _, _) as res) ->
+    log 10 "Builtin constant: %a" Expr.Debug.const_ty cst;
+    res
   | _ ->
     let nargs = List.length t_args in
     (find_cst (default_cst_ty nargs ret) s), ty_args, t_args

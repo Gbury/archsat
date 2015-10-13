@@ -35,6 +35,16 @@ val bind_ty : t -> Expr.ttype Expr.meta -> Expr.ty -> t
 val bind_term : t -> Expr.ty Expr.meta -> Expr.term -> t
 (** Add new bindings. *)
 
+val follow_ty : t -> Expr.ty -> Expr.ty
+val follow_term : t -> Expr.term -> Expr.term
+(** Applies bindings in the substitution until either
+    a non-meta variable if found, or the meta-variable is not in the substitution.
+    Pseudo-code examples :
+    {ul
+      {li [follow_term \[x -> y; y -> f(a)\] x = f(a)]}
+      {li [follow_term \[x -> f(y); y -> a\] x = f(y)]}
+    } *)
+
 val inverse : t -> t
 (** [inverse s] returns a substitution with the same bindings as [s] except
     for bindings of [s] which binds a meta-variable [m] to another meta-variable [m'],
@@ -45,9 +55,18 @@ val term_subst : t -> Expr.term -> Expr.term
 (** Subsitutions of meta-variables, given a unifier. May not terminate if the substitution
     contains cycles. *)
 
+val occurs_ty : t -> Expr.ttype Expr.meta -> Expr.ty -> bool
+val occurs_term : t -> Expr.ty Expr.meta -> Expr.term -> bool
+(** Occurs check on terms and types, expected return result should be false (i.e no cycles detected). *)
+
+val occurs_check : t -> bool
+(** Returns true if no bindings of the substitution violates the usual occurs check criterion
+    (used for instance in Robinson unifiction). *)
+
 val fixpoint : t -> t
 (** Computes the fixpoint of the substitution. May not terminate if the substitution
-    contains cylces. Consequently, occurs_check should return false on all bindings of the substitution. *)
+    contains cylces. Consequently, occurs_check should return true on any subsitution
+    used with this function. *)
 
 val saturate : t -> t
 (** Binds all metavariables occuring in terms but not bound, to a constant of the correct type.
@@ -107,20 +126,6 @@ module Robinson : sig
 
   exception Impossible_ty of Expr.ty * Expr.ty
   exception Impossible_term of Expr.term * Expr.term
-
-  val occurs_check_ty : t -> Expr.ty -> Expr.ty -> bool
-  val occurs_check_term : t -> Expr.term -> Expr.term -> bool
-  (** Occurs check on terms and types. *)
-
-  val follow_ty : t -> Expr.ty -> Expr.ty
-  val follow_term : t -> Expr.term -> Expr.term
-  (** Applies bindings in the substitution until either
-      a non-meta variable if found, or the meta-variable is not in the substitution.
-      Pseudo-code examples :
-      {ul
-      {li [follow_term \[x -> y; y -> f(a)\] x = f(a)]}
-      {li [follow_term \[x -> f(y); y -> a\] x = f(y)]}
-      } *)
 
   val ty : t -> Expr.ty -> Expr.ty -> t
   val term : t -> Expr.term -> Expr.term -> t

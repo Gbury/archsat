@@ -186,14 +186,22 @@ let valid_cl c = MS.fold (count c) true check_occ
 
 let push_cl c acc = if valid_cl c then c :: acc else acc
 
-let valid_subst u = (* Check that only meta-var of infinite multiplicity are instantiated *)
+let rec ty_is_linear = function
+  | { Expr.ty = Expr.TyVar _ } -> false
+  | { Expr.ty = Expr.TyMeta m } -> m.Expr.meta_mult = Expr.Linear
+  | { Expr.ty = Expr.TyApp (f, args) } -> List.exists ty_is_linear args
+
+let rec t_is_linear = function
+  | { Expr.term = Expr.Var _ } -> false
+  | { Expr.term = Expr.Meta m } -> m.Expr.meta_mult = Expr.Linear
+  | { Expr.term = Expr.App (f, ty_args, args) } ->
+        List.exists ty_is_linear ty_args || List.exists t_is_linear args
+
+let valid_simpl u = (* Check that only meta-var of infinite multiplicity are instantiated *)
   Expr.Subst.for_all (fun m e -> match m.Expr.meta_mult with
       | Expr.Linear -> false
-      | Expr.Infinite -> begin match e with
-          | { Expr.term = Expr.Meta m' } when m'.Expr.meta_mult = Expr.Linear -> false
-          | _ -> true
-        end
-    ) u.Unif.t_map
+      | Expr.Infinite -> not (t_is_linear e))
+    u.Unif.t_map
 
 (* Help functions *)
 (* ************************************************************************ *)
@@ -225,7 +233,7 @@ let do_supp acc sigma active inactive =
 
 let do_rewrite sigma active inactive =
   assert (active.clause.eq && active.pos = Position.root);
-  if inactive.clause.eq || not (List.for_all valid_subst (sigma :: active.clause.acc)) then
+  if inactive.clause.eq || not (List.for_all valid_simpl (sigma :: active.clause.acc)) then
     None
   else begin
     let aux = Unif.term_subst sigma in
@@ -261,7 +269,7 @@ let rec make_eq p_set a b =
     `Equal
   else
     match find_subst_eq p_set.root_pos_index a b with
-    | Some u when valid_subst u -> `Unifiable u
+    | Some u when valid_simpl u -> `Unifiable u
     | _ ->
       begin match a, b with
         | { Expr.term = Expr.App (f, _, f_args) }, { Expr.term = Expr.App (g, _, g_args) }
@@ -351,7 +359,7 @@ let add_inactive_rewrite p_set clause side pos u =
   let inactive = { clause; side; pos } in
   CCList.find_map (fun (_, m, l') ->
       let sigma = Unif.Match.to_subst m in
-      if valid_subst sigma then
+      if valid_simpl sigma then
         CCList.find_map (fun active ->
             do_rewrite sigma active inactive) l'
       else None) l

@@ -4,10 +4,10 @@ LOG=build.log
 COMP=ocamlbuild -log $(LOG) # -classic-display
 FLAGS=-use-ocamlfind -use-menhir -yaccflag '--explain'
 DIRS=-Is util,base,core,input,parsers,algos
-DOC=tabsat.docdir/index.html
+DOC=archsat.docdir/index.html
 BIN=main.native
 
-NAME=tabsat
+NAME=archsat
 LIB=$(addprefix $(NAME), .cma .cmxa .cmxs)
 
 all: bin

@@ -7,12 +7,12 @@ base/Ast
 base/Lpo
 base/Expr
 base/Type
-base/Index
 base/Position
 base/Builtin
 
 # Standard Algorithms
 algos/Unif
+algos/Index
 algos/Eclosure
 algos/Heuristic
 algos/Rigid
