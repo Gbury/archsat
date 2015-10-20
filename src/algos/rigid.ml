@@ -279,8 +279,8 @@ let rec add_eq sf s t =
   let t = Unif.follow_term sf.solved t in
   match s, t with
   | _ when Expr.Term.equal s t -> sf_singleton sf
-  | ({ Expr.term = Expr.Meta m} as v), w
-  | w, ({ Expr.term = Expr.Meta m} as v) ->
+  | ({ Expr.term = Expr.Meta m}), w
+  | w, ({ Expr.term = Expr.Meta m}) ->
     if Unif.occurs_term sf.solved m w then empty_sf_list
     else add_subst sf m w
   | { Expr.term = Expr.App (f, f_ty_args, f_args) },

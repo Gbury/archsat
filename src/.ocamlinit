@@ -5,9 +5,9 @@
 #require "cmdliner";;
 #require "ocamlgraph";;
 #directory "_build";;
-#load "tabsat.cma";;
+#load "archsat.cma";;
 
-open Tabsat;;
+open Archsat;;
 
 #install_printer Z.pp_print;;
 #install_printer Expr.Print.ty;;

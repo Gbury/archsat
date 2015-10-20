@@ -24,11 +24,12 @@ core/Solver
 
 # Extensions
 core/Inst
-#core/Meta
-#core/Skolem
-#core/Tab
-core/Eq
-#core/Functions
+core/Ext_meta
+core/Ext_skolem
+core/Ext_logic
+core/Ext_eq
+core/Ext_functions
+core/Ext_prop
 core/Stats
 
 ##### Misc modules #####

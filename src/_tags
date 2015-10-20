@@ -1,12 +1,12 @@
 # Compilation options
 <**/*>: package(containers)
 
-<base/*.cm*>: for-pack(Tabsat)
-<algos/*.cm*>: for-pack(Tabsat)
-<core/*.cm*>: for-pack(Tabsat)
-<parsers/*.cm*>: for-pack(Tabsat)
-<input/*.cm*>: for-pack(Tabsat)
-<util/*.cm*>: for-pack(Tabsat)
+<base/*.cm*>: for-pack(Archsat)
+<algos/*.cm*>: for-pack(Archsat)
+<core/*.cm*>: for-pack(Archsat)
+<parsers/*.cm*>: for-pack(Archsat)
+<input/*.cm*>: for-pack(Archsat)
+<util/*.cm*>: for-pack(Archsat)
 
 <base/*>: package(zarith)
 <algos/*>: package(ocamlgraph)
