@@ -9,13 +9,14 @@
 <util/*.cm*>: for-pack(Archsat)
 
 <base/*>: package(zarith)
-<algos/*>: package(ocamlgraph)
+<algos/*>: package(ocamlgraph), package(gen)
 <core/*>: package(msat), package(cmdliner), package(zarith)
 <input/*>: package(cmdliner)
 <util/*>: package(cmdliner), package(zarith)
 
-<main.*>: package(msat), package(cmdliner), package(ocamlgraph),  \
-          package(containers), package(containers.data), package(zarith)
+<main.*>: package(msat), package(cmdliner), package(ocamlgraph),          \
+          package(containers), package(containers.data), package(zarith), \
+          package(gen)
 
 # more warnings
 <**/*.ml>: warn_K, warn_Y, warn_X

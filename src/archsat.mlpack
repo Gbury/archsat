@@ -12,13 +12,14 @@ Position
 Builtin
 Semantics
 
-# Standard Algorithms
+# Algorithms
 Index
 Unif
 Eclosure
 Heuristic
 Rigid
 Superposition
+Constraints
 
 # Core modules
 Dispatcher

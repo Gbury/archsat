@@ -16,7 +16,8 @@ algos/Index
 algos/Eclosure
 algos/Heuristic
 algos/Rigid
-algos/Supperposition
+algos/Superposition
+algos/Constraints
 
 # Core modules
 core/Dispatcher
