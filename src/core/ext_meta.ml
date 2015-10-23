@@ -3,7 +3,7 @@ module H = Hashtbl.Make(Expr.Formula)
 
 exception Found_unif
 
-(* Extension parameters *)
+(* Logging sections *)
 (* ************************************************************************ *)
 
 let section = Util.Section.make ~parent:Dispatcher.section "meta"
