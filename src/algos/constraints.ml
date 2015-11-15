@@ -24,7 +24,7 @@ let add_constraint t l =
 (* ************************************************************************ *)
 
 let from_merger gen m =
-  let f g l = Gen.filter_map m (Gen.product g (gen l)) in
+  let f g l = Gen.merge (Gen.map m (Gen.product g (gen l))) in
   match make (gen []) f with
   | None -> raise (Invalid_argument "Constraints.from_merger")
   | Some t -> t
