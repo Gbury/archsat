@@ -1,3 +1,4 @@
+% #expect: unsat
 
 fof(ax1, axiom, ! [X] : ((f(X) | g(X)) => ~ h(X))).
 

@@ -1,3 +1,4 @@
+% #expect: unsat
 
 % who killed aunt Agatha?
 

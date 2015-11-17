@@ -1,3 +1,4 @@
+% #expect: unsat
 
 include('ax_a.ax').
 include('ax_b.ax').

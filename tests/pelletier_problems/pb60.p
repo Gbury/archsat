@@ -1,3 +1,4 @@
+% #expect: unsat
 
 fof(goal, conjecture, ! [X] : (
   f(X,g(X))

@@ -1,3 +1,4 @@
+% #expect: unsat
 
 % not a theorem (SPASS finds a completion)
 

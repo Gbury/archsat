@@ -1,0 +1,8 @@
+prover = "archsat"
+problems = ".*\\.p"
+
+[archsat]
+cmd = "/home/guigui/build/archsat/archsat -t ${timeout}s -s ${memory}M $file"
+sat = "Sat"
+unsat = "Unsat"
+

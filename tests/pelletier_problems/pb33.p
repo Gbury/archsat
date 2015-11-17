@@ -1,3 +1,4 @@
+% #expect: unsat
 
 fof(goal, conjecture,
   ! [X] : ((p(a) & (p(X) => p(b))) => p(c)) <=>

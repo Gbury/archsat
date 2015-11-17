@@ -1,3 +1,4 @@
+% #expect: unsat
 
 fof(ax1, axiom, ~ ? [X] : (s(X) & q(X))).
 

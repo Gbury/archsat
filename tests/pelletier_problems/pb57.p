@@ -1,3 +1,4 @@
+% #expect: unsat
 
 fof(ax1, axiom, f(g(a,b), g(b,c))).
 

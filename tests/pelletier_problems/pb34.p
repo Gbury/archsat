@@ -1,3 +1,4 @@
+% #expect: unsat
 
 % Andrew`s Challenge
 

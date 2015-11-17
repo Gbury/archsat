@@ -1,3 +1,4 @@
+% #expect: unsat
 
 fof(ax1, axiom, ! [Z] : ? [W] : ! [X] : ? [Y] :
   ((p(X,Z) => p(Y,W)) &

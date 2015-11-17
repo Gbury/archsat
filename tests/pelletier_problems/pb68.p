@@ -1,3 +1,4 @@
+% #expect: unsat
 
 % hard one!
 

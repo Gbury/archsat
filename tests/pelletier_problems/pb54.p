@@ -1,3 +1,4 @@
+% #expect: unsat
 
 
 % not theorem, bad retranscription?

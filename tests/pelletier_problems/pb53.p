@@ -1,3 +1,4 @@
+% #expect: unsat
 
 fof(ax1, axiom, ? [X,Y] : (
   X != Y &

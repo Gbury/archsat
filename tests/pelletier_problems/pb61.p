@@ -1,3 +1,4 @@
+% #expect: unsat
 
 fof(ax1, axiom, ! [X,Y,Z] :
   f(X, f(Y,Z)) = f(f(X,Y),Z)).
