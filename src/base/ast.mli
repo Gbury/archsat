@@ -34,9 +34,9 @@ and term = {
 (** The commands used in the main loop of the solver. *)
 
 type command =
-  | Sat of Expr.Formula.t list list         (** Special case for dimacs input *)
   | Push                                    (** Push *)
   | Pop                                     (** Pop *)
+  | Cnf of Expr.Formula.t list list         (** Special case for dimacs input *)
   | NewType of string * symbol * int        (** New type constructor *)
   | TypeDef of string * symbol * term       (** Type definition *)
   | TypeAlias of symbol * term list * term  (** Type alias (smtlib style) *)

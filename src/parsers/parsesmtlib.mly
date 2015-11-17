@@ -28,9 +28,6 @@
       end
     | s -> s
 
-    let sort_symbol = function
-    | Ast.String "Bool" -> Ast.sym "$o"
-    | s -> s
 %}
 
 %token EOF
@@ -48,10 +45,9 @@
 DEFINE_FUN PUSH POP ASSERT CHECK_SAT GET_ASSERTIONS GET_PROOF GET_UNSAT_CORE 
 GET_VALUE GET_ASSIGNMENT GET_OPTION GET_INFO EXIT
 
-%start commands command term
-%type <Ast.command list> command
-%type <Ast.command list> commands
-%type <Ast.term> term
+%start <Ast.term> term
+%start <Ast.command list> command
+%start <Ast.command list> commands
 
 %%
 
@@ -91,8 +87,8 @@ identifier:
 ;
 
 sort:
-  | identifier                         { let loc = L.mk_pos $startpos $endpos in Ast.const ~loc (sort_symbol $1) }
-  | OPEN identifier sort_plus CLOSE    { let loc = L.mk_pos $startpos $endpos in Ast.app ~loc (Ast.const (sort_symbol $2)) $3 }
+  | identifier                         { let loc = L.mk_pos $startpos $endpos in Ast.const ~loc $1 }
+  | OPEN identifier sort_plus CLOSE    { let loc = L.mk_pos $startpos $endpos in Ast.app ~loc (Ast.const $2) $3 }
 ;
 
 sort_star:

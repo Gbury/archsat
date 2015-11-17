@@ -18,8 +18,6 @@ let sat_assign = function
   | _ -> assert false
 
 let rec sat_eval = function
-  | { Expr.formula = Expr.Pred {Expr.term = Expr.App (p, [], [])}} ->
-    None
   | { Expr.formula = Expr.Pred ({Expr.term = Expr.App (p, _, _)} as t)} ->
     begin try
         let b, lvl = Dispatcher.get_assign t in

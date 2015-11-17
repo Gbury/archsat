@@ -141,7 +141,7 @@ let parse_file ~recursive f =
       Loc.set_file buf filename;
       (* parse declarations from file *)
       let decls =
-        try Parsetptp.parse_declarations Lextptp.token buf
+        try Parsetptp.file Lextptp.token buf
         with
         | Parsetptp.Error -> _raise_error "Parse error" buf
         | Ast_tptp.ParseError loc -> raise (Parse_error (loc, "Parse error"))

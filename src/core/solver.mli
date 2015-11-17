@@ -7,6 +7,8 @@
 
 (** {2 Core solver} *)
 
+type level
+
 type proof
 (** The abstract type of proofs given by the solver. *)
 
@@ -20,6 +22,13 @@ val solve : unit -> res
 
 val assume : Expr.formula list list -> unit
 (** Add a list of assumptions as cnf formulas. *)
+
+val push : unit -> level
+(** Stores the current set of assumptions and returns the associated level *)
+
+val pop : level -> unit
+(** Restore the solver to a stat equivalent to the one it was at the moment
+    [push] returned the level. *)
 
 val model : unit -> (Expr.term * Expr.term) list
 (** Returns the current model of the sat solver.

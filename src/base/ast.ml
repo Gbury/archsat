@@ -26,9 +26,9 @@ and term = {
 }
 
 type command =
-  | Sat of Expr.Formula.t list list         (** Special case for dimacs input *)
   | Push                                    (** Push *)
   | Pop                                     (** Pop *)
+  | Cnf of Expr.Formula.t list list         (** Special case for dimacs input *)
   | NewType of string * symbol * int        (** New type constructor *)
   | TypeDef of string * symbol * term       (** Type definition *)
   | TypeAlias of symbol * term list * term  (** Type alias (smtlib style) *)
@@ -81,7 +81,7 @@ let rec debug_term b t = match t.term with
 let s_term t = CCPrint.to_string debug_term t
 
 let print_command_name fmt = function
-  | Sat _ -> Format.fprintf fmt "Cnf-assume (dimacs)"
+  | Cnf _ -> Format.fprintf fmt "Cnf-assume (dimacs)"
   | Push -> Format.fprintf fmt "Push"
   | Pop -> Format.fprintf fmt "Pop"
   | NewType _ -> Format.fprintf fmt "New type"

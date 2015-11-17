@@ -12,10 +12,14 @@ let parse_tptp s args _ = match s with
   | "$i" -> Some (`Ty (Expr.Id.base, args))
   | _ -> None
 
+let parse_smtlib s args _ = match s with
+  | "Bool" -> Some (`Ty (Expr.Id.prop, args))
+  | _ -> None
+
 ;;
 Semantics.Addon.register "base"
   ~descr:"Defines the base types/builtins of languages (such as tptp's $i and $o)"
-  (Semantics.mk_ext ~tptp:parse_tptp ())
+  (Semantics.mk_ext ~tptp:parse_tptp ~smtlib:parse_smtlib ())
 ;;
 
 (* Misc builtins *)

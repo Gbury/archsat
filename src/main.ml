@@ -3,7 +3,7 @@
 
 open Options
 
-(* Dummy module renaming for extensions *)
+(* Module inclusion for extensions to ensure they are linked *)
 include Ext_eq
 include Ext_meta
 include Ext_prop
@@ -59,9 +59,16 @@ let wrap l s f x =
   end_section ();
   res
 
+(* Level stack for push/pop operations *)
+let level_stack = Stack.create ()
+
 (* Execute given command *)
 let do_command opt = function
-  | Ast.Sat cnf ->
+  | Ast.Push ->
+    wrap 0 "Push" (Stack.push (Solver.push ())) level_stack
+  | Ast.Pop ->
+    wrap 0 "Pop" Solver.pop (Stack.pop level_stack)
+  | Ast.Cnf cnf ->
     if opt.solve then wrap 0 "assume" Solver.assume cnf
   | Ast.NewType (name, s, n) ->
     wrap 1 ("typing " ^ name) Type.new_type_def (s, n)
@@ -90,7 +97,7 @@ let do_command opt = function
   | c ->
     Io.print_error opt.out
       "%a : operation not supported yet" Ast.print_command_name c;
-    exit 2
+    exit 42
 
 (* Main function *)
 let () =
@@ -169,10 +176,7 @@ let () =
         0
 
       (* User interrupt *)
-      | Sigint ->
-        if Printexc.backtrace_status () then
-          Printexc.print_backtrace stdout;
-        1
+      | Sigint -> 1
 
       (* Parsing/Typing errors *)
       | Io.Parsing_error (l, msg) ->
@@ -197,16 +201,16 @@ let () =
 
       (* Internal errors. Should not happen *)
       | Dispatcher.Bad_assertion msg ->
-        let s = Printexc.get_backtrace () in
-        Format.fprintf Format.std_formatter "%s@\n%s@." msg s;
+        Format.fprintf Format.std_formatter "%s@." msg;
         4
       | Expr.Type_mismatch (t, ty1, ty2) ->
-        let s = Printexc.get_backtrace () in
-        Format.fprintf Format.std_formatter "Term %a has type %a but an expression of type %a was expected@\n%s@."
-          Expr.Print.term t Expr.Print.ty ty1 Expr.Print.ty ty2 s;
+        Format.fprintf Format.std_formatter "Term %a has type %a but an expression of type %a was expected@."
+          Expr.Print.term t Expr.Print.ty ty1 Expr.Print.ty ty2;
         4
 
-      | _ -> raise e
+      | _ ->
+        Format.fprintf Format.std_formatter "Unexpected exception : %s@." (Printexc.to_string e);
+        -1
     in
     if Printexc.backtrace_status () then
       Format.fprintf Format.std_formatter "%s" s;

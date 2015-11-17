@@ -98,21 +98,14 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 %nonassoc NOTVLINE
 %nonassoc NOTAND
 
-%start <Ast.term> parse_term
-%start <Ast.term> parse_formula
-%start <Ast_tptp.Untyped.declaration> parse_declaration
-%start <Ast_tptp.Untyped.declaration list> parse_declarations
-%start <Ast.term list list> parse_answer_tuple
+%start <Ast_tptp.Untyped.declaration> declaration
+%start <Ast_tptp.Untyped.declaration list> file
 
 %%
 
-/* top-level */
+/* Complete file, i.e Top-level declarations */
 
-parse_term: t=term EOI { t }
-parse_formula: f=fof_formula EOI { f }
-parse_declaration: d=declaration EOI { d }
-parse_declarations: l=declarations EOI { l }
-parse_answer_tuple: t=answer_tuples EOI { t }
+file: l=declarations EOI { l }
 
 /* TTP grammar */
 
@@ -147,16 +140,6 @@ declaration:
     }
 
 role: w=LOWER_WORD { Ast_tptp.role_of_string w }
-
-answer_tuples:
-  | LEFT_BRACKET l=separated_nonempty_list(VLINE,answer_tuple) RIGHT_BRACKET
-    { List.fold_left  (* remove underscores *)
-        (fun acc opt -> match opt with | None -> acc | Some tup -> tup :: acc)
-        [] l  }
-
-answer_tuple:
-  | LEFT_BRACKET l=separated_nonempty_list(COMMA,term) RIGHT_BRACKET { Some l }
-  | UNDERSCORE { None }
 
 type_decl:
   | LEFT_PAREN tydecl=type_decl RIGHT_PAREN { tydecl }
@@ -342,6 +325,7 @@ tff_type:
     { T.mk_fun_ty args r }
 
 tff_atom_type:
+  | UNDERSCORE { let loc = L.mk_pos $startpos $endpos in T.const ~loc T.wildcard }
   | v=tff_ty_var { let loc = L.mk_pos $startpos $endpos in T.at_loc ~loc v }
   | w=type_const { let loc = L.mk_pos $startpos $endpos in T.const ~loc w }
   | w=type_const LEFT_PAREN l=separated_nonempty_list(COMMA, tff_type) RIGHT_PAREN
