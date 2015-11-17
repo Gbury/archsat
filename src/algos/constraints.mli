@@ -26,7 +26,7 @@ val add_constraint : t -> Expr.formula list -> t option
 
 (** {2 Helpers} *)
 
-val from_merger : (Expr.formula list -> 'a gen) -> ('a * 'a -> 'a option) -> t
+val from_merger : (Expr.formula list -> 'a gen) -> ('a * 'a -> 'a gen) -> t
 (** [from_merger gen m] returns a fold function, given a function [gen] which generates
     an enumeration of constraints for invalidating a conjunction of formulas, and a function
     [m] which computes the intersection of two constraints. As a special case, [gen] will be
