@@ -46,8 +46,8 @@ DEFINE_FUN PUSH POP ASSERT CHECK_SAT GET_ASSERTIONS GET_PROOF GET_UNSAT_CORE
 GET_VALUE GET_ASSIGNMENT GET_OPTION GET_INFO EXIT
 
 %start <Ast.term> term
-%start <Ast.command list> command
-%start <Ast.command list> commands
+%start <Ast.command list> file
+%start <Ast.command list option> input
 
 %%
 
@@ -190,9 +190,13 @@ command:
   | OPEN EXIT CLOSE                                                     { [] }
 ;
 
-commands:
+file:
   | EOF { [] }
-  | command commands { $1 @ $2 }
+  | command file { $1 @ $2 }
 ;
+
+input:
+  | EOF { None }
+  | command { Some $1 }
 
 %%

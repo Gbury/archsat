@@ -11,7 +11,7 @@ val set_output : Options.output -> unit
 val set_input_file : string -> unit
 (** Sets the input, output, or input file to the given value. *)
 
-val parse_input : string -> Ast.command Queue.t
+val parse_input : string -> Ast.command Gen.t
 (** Parse the given input file according to the current input options.
     @raise Parsing_error if there is there is an error while parsing the given file. *)
 

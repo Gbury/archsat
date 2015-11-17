@@ -9,15 +9,23 @@ let _raise_error msg lexbuf =
   raise (Parse_error (loc, msg))
 
 let parse_file f =
-  let input = open_in f in
+  let input = match f with
+    | "stdin" -> stdin
+    | _ -> open_in f
+  in
   let buf = Lexing.from_channel input in
   ParseLocation.set_file buf f;
-  let commands =
-    try
-      Parsesmtlib.commands Lexsmtlib.token buf
-    with Parsesmtlib.Error -> _raise_error "Parse error" buf
+  let supplier = Parsesmtlib.MenhirInterpreter.lexer_lexbuf_to_supplier Lexsmtlib.token buf in
+  let curr = ref [] in
+  let rec aux () =
+     match !curr with
+     | x :: r -> curr := r; Some (translate x)
+     | [] -> begin match Parsesmtlib.MenhirInterpreter.loop supplier
+                           (Parsesmtlib.Incremental.input buf.Lexing.lex_curr_p) with
+       | None -> None
+       | Some l -> curr := l; aux ()
+       | exception Parsesmtlib.Error -> _raise_error "Parsing error" buf
+       end
   in
-  let res = Queue.create () in
-  List.iter (fun c -> Queue.push (translate c) res) commands;
-  res
+  aux
 

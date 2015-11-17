@@ -11,12 +11,13 @@
 <base/*>: package(zarith)
 <algos/*>: package(ocamlgraph), package(gen)
 <core/*>: package(msat), package(cmdliner), package(zarith)
-<input/*>: package(cmdliner)
-<util/*>: package(cmdliner), package(zarith)
+<input/*>: package(cmdliner), package(gen)
+<util/*>: package(cmdliner), package(zarith), package(gen)
+<parsers/*>: package(menhirLib)
 
 <main.*>: package(msat), package(cmdliner), package(ocamlgraph),          \
           package(containers), package(containers.data), package(zarith), \
-          package(gen)
+          package(gen), package(menhirLib)
 
 # more warnings
 <**/*.ml>: warn_K, warn_Y, warn_X

@@ -145,7 +145,7 @@ let () =
     Dispatcher.Plugin.set_exts "+eq,+uf,+logic,+prop,+skolem,+meta,+inst,+stats";
     List.iter Dispatcher.Plugin.set_ext opt.plugins;
 
-    (* Print options *)
+    (* Print the current options *)
     wrap 0 "Options" (fun () ->
         Options.log_opts opt;
         Semantics.Addon.log_active 0;
@@ -155,7 +155,14 @@ let () =
     let commands = wrap 1 "parsing" Io.parse_input opt.input_file in
 
     (* Commands execution *)
-    Queue.iter (do_command opt) commands;
+    try
+      while true do
+        match commands () with
+        | Some c -> do_command opt c
+        | None -> raise Exit
+      done;
+      assert false
+    with Exit -> ();
 
     Util.csv_prof_data opt.profile.raw_data;
 

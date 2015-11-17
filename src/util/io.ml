@@ -41,7 +41,7 @@ let format_of_filename s =
   else if last 5 = ".smt2" then
     Smtlib
   else (* Default choice *)
-    Dimacs
+    Smtlib
 
 let rec parse_input file = match !input with
   | Auto ->
@@ -56,7 +56,9 @@ let rec parse_input file = match !input with
     end
   | Tptp ->
     begin try
-        Tptp.parse_file ~recursive:true file
+        let q = Tptp.parse_file ~recursive:true file in
+        let l = Queue.fold (fun acc x -> x :: acc) [] q in
+        Gen.of_list (List.rev l)
       with Tptp.Parse_error (loc, msg) ->
         raise (Parsing_error (loc, msg))
     end

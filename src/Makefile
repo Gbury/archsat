@@ -2,7 +2,7 @@
 
 LOG=build.log
 COMP=ocamlbuild -log $(LOG) # -classic-display
-FLAGS=-use-ocamlfind -use-menhir -yaccflag '--explain'
+FLAGS=-use-ocamlfind -use-menhir -yaccflag '--explain' -yaccflag '--table'
 DIRS=-Is util,base,core,input,parsers,algos
 DOC=archsat.docdir/index.html
 BIN=main.native
