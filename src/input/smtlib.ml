@@ -1,6 +1,4 @@
 
-exception Parse_error of ParseLocation.t * string
-
 let translate c = c
 
 let parse_file f =
@@ -17,7 +15,7 @@ let parse_file f =
       (fun _ ->
          let loc = ParseLocation.of_lexbuf buf in
          Input.consume_line buf;
-         raise (Parse_error (loc, "Parsing error"))
+         raise (Input.Parsing_error (loc, "Parsing error"))
       ) supplier
   in
   let rec aux () =
@@ -27,6 +25,10 @@ let parse_file f =
        begin match loop (Parsesmtlib.Incremental.input buf.Lexing.lex_curr_p) with
        | None -> None
        | Some l -> curr := l; aux ()
+       | exception Lexsmtlib.Lexer_error ->
+         let loc = ParseLocation.of_lexbuf buf in
+         Input.consume_line buf;
+         raise (Input.Lexing_error loc)
        end
   in
   aux
