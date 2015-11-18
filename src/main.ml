@@ -79,8 +79,8 @@ let do_command opt = function
     if opt.solve then wrap 1 "assume" Solver.assume [[f]]
   | Ast.CheckSat ->
     if opt.solve then
-      let res = wrap 0 "solve" Solver.solve () in
       Io.set_start ();
+      let res = wrap 0 "solve" Solver.solve () in
       begin match res with
         (* Model found *)
         | Solver.Sat ->
