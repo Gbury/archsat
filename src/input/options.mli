@@ -31,6 +31,7 @@ type copts = {
   input_file : string;
   input_format : input;
   output_format : output;
+  interactive : bool;
 
   (* Proving options *)
   solve : bool;

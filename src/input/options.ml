@@ -33,6 +33,7 @@ type copts = {
   input_file : string;
   input_format : input;
   output_format : output;
+  interactive : bool;
 
   (* Proving options *)
   solve : bool;
@@ -61,13 +62,14 @@ let formatter_of_descr = function
 (* Option values *)
 (* ************************************************************************ *)
 
-let mk_opts () file input output proof type_only plugins addons
+let mk_opts () file input output interactive proof type_only plugins addons
     dot_proof model_out time size profile =
   {
     out = Format.std_formatter;
     input_file = file;
     input_format = input;
     output_format = output;
+    interactive = interactive || file = "stdin";
 
     solve = not type_only;
     proof = proof || dot_proof <> "";
@@ -302,6 +304,10 @@ let copts_t () =
     let doc = "Supress all output but the result status of the problem" in
     Arg.(value & flag & info ["q"; "quiet"] ~docs ~doc)
   in
+  let interactive =
+    let doc = "Use archsat in interactive mode (equivalent to using 'stdin' as input file)" in
+    Arg.(value & flag & info ["interactive"] ~docs ~doc)
+  in
   let log =
     let doc = "Set the global level for debug outpout." in
     Arg.(value & opt int 0 & info ["v"; "verbose"] ~docs ~docv:"LVL" ~doc)
@@ -313,8 +319,8 @@ let copts_t () =
     Arg.(value & opt_all (pair section int) [] & info ["debug"] ~docs:ext_sect ~docv:"NAME,LVL" ~doc)
   in
   let file =
-    let doc = "Input problem file." in
-    Arg.(required & pos 0 (some non_dir_file) None & info [] ~docv:"FILE" ~doc)
+    let doc = "Input problem file, 'stdin' can be used for interactive mode" in
+    Arg.(value & pos 0 non_dir_file "stdin" & info [] ~docv:"FILE" ~doc)
   in
   let input =
     let doc = CCPrint.sprintf
@@ -375,5 +381,5 @@ let copts_t () =
     Arg.(value & opt c_size 1_000_000_000. & info ["s"; "size"] ~docs ~docv:"SIZE" ~doc)
   in
   Term.(pure mk_opts $ (pure set_opts $ gc $ bt $ quiet $ log $ debug) $
-        file $ input $ output $ check_proof $ type_only $ plugins $ addons $ dot_proof $ model_out $ time $ size $ profile_t)
+        file $ input $ output $ interactive $ check_proof $ type_only $ plugins $ addons $ dot_proof $ model_out $ time $ size $ profile_t)
 

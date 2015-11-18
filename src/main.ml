@@ -80,6 +80,7 @@ let do_command opt = function
   | Ast.CheckSat ->
     if opt.solve then
       let res = wrap 0 "solve" Solver.solve () in
+      Io.set_start ();
       begin match res with
         (* Model found *)
         | Solver.Sat ->
@@ -99,6 +100,35 @@ let do_command opt = function
       "%a : operation not supported yet" Ast.print_command_name c;
     exit 42
 
+let rec do_commands opt commands =
+  match wrap 1 "parsing" commands () with
+  | None -> ()
+  | Some c ->
+    begin try
+        if opt.interactive then
+          setup_alarm opt.time_limit opt.size_limit;
+        do_command opt c;
+        if opt.interactive then
+          delete_alarm ()
+      with
+      | Out_of_time ->
+        delete_alarm ();
+        Io.print_timeout Format.std_formatter
+      | Type.Typing_error (msg, t) ->
+        let loc = CCOpt.maybe CCFun.id (ParseLocation.mk opt.input_file 0 0 0 0) Ast.(t.loc) in
+        Format.fprintf Format.std_formatter "While typing : %s@\n%a:@\n%s@."
+          (Ast.s_term t) ParseLocation.fmt loc msg
+    end;
+    do_commands opt commands
+  | exception Input.Lexing_error l ->
+    Format.fprintf Format.std_formatter "%a@\n%a:@\nLexing error: invalid character@."
+      ParseLocation.fmt_hint l ParseLocation.fmt l;
+    do_commands opt commands
+  | exception Input.Parsing_error (l, msg) ->
+    Format.fprintf Format.std_formatter "%a@\n%a:@\n%s@."
+      ParseLocation.fmt_hint l ParseLocation.fmt l msg;
+    do_commands opt commands
+
 (* Main function *)
 let () =
   (* Argument parsing *)
@@ -111,7 +141,8 @@ let () =
     | `Ok opt -> opt
   in
   (* Gc alarm for limits *)
-  setup_alarm opt.time_limit opt.size_limit;
+  if not opt.interactive then
+    setup_alarm opt.time_limit opt.size_limit;
 
   (* Signal handlers *)
   Sys.set_signal Sys.sigint (Sys.Signal_handle (fun _ ->
@@ -119,6 +150,7 @@ let () =
       Util.debug 0 "Interrupted by user";
       raise Sigint));
   Sys.set_signal Sys.sigalrm (Sys.Signal_handle (fun _ ->
+      Util.need_cleanup := true;
       Util.debug 0 "Alarm clock";
       raise Out_of_time));
 
@@ -151,19 +183,12 @@ let () =
         Semantics.Addon.log_active 0;
         Dispatcher.Plugin.log_active 0) ();
 
-    (* Input file parsing *)
-    let commands = wrap 1 "parsing" Io.parse_input opt.input_file in
+    let commands = Io.parse_input opt.input_file in
 
     (* Commands execution *)
-    try
-      while true do
-        match commands () with
-        | Some c -> do_command opt c
-        | None -> raise Exit
-      done;
-      assert false
-    with Exit -> ();
+    do_commands opt commands;
 
+    (* Output raw profiling data *)
     Util.csv_prof_data opt.profile.raw_data;
 
     (* Clean up *)
@@ -186,7 +211,10 @@ let () =
       | Sigint -> 1
 
       (* Parsing/Typing errors *)
-      | Io.Parsing_error (l, msg) ->
+      | Input.Lexing_error l ->
+        Format.fprintf Format.std_formatter "%a:@\nLexing error: invalid character@." ParseLocation.fmt l;
+        2
+      | Input.Parsing_error (l, msg) ->
         Format.fprintf Format.std_formatter "%a:@\n%s@." ParseLocation.fmt l msg;
         2
       | Type.Typing_error (msg, t) ->

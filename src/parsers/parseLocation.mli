@@ -57,6 +57,7 @@ val smaller : t -> t -> bool
 
 val pp : Buffer.t -> t -> unit
 val fmt : Format.formatter -> t -> unit
+val fmt_hint : Format.formatter -> t -> unit
 val to_string : t -> string
 
 val pp_opt : Buffer.t -> t option -> unit

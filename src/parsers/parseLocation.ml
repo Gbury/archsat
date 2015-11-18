@@ -106,6 +106,11 @@ let to_string pos =
 let fmt fmt pos =
   Format.pp_print_string fmt (to_string pos)
 
+let fmt_hint fmt pos =
+  Format.fprintf fmt "%s%s"
+    (String.make (pos.start_column) ' ')
+    (String.make (pos.stop_column - pos.start_column) '^')
+
 let pp_opt buf o = match o with
   | None -> Printf.bprintf buf "<no location>"
   | Some pos -> pp buf pos

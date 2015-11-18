@@ -2,11 +2,6 @@
 let section = Util.Section.make ~parent:Options.misc_section "IO"
 let log i fmt = Util.debug ~section i fmt
 
-(* Type definitions *)
-(* ************************************************************************ *)
-
-exception Parsing_error of ParseLocation.t * string
-
 (* IO settings *)
 (* ************************************************************************ *)
 
@@ -52,7 +47,7 @@ let rec parse_input file = match !input with
     begin try
         Dimacs.parse_file file
       with Dimacs.Parse_error l ->
-        raise (Parsing_error (ParseLocation.mk file l 0 l 0, "Dimacs parsing error"))
+        raise (Input.Parsing_error (ParseLocation.mk file l 0 l 0, "Dimacs parsing error"))
     end
   | Tptp ->
     begin try
@@ -60,19 +55,24 @@ let rec parse_input file = match !input with
         let l = Queue.fold (fun acc x -> x :: acc) [] q in
         Gen.of_list (List.rev l)
       with Tptp.Parse_error (loc, msg) ->
-        raise (Parsing_error (loc, msg))
+        raise (Input.Parsing_error (loc, msg))
     end
   | Smtlib ->
-    begin try
-        Smtlib.parse_file file
-      with Smtlib.Parse_error (loc, msg) ->
-        raise (Parsing_error (loc, msg))
-    end
+    let g = Smtlib.parse_file file in
+    (fun () ->
+       try g ()
+       with Smtlib.Parse_error (loc, msg) ->
+         raise (Input.Parsing_error (loc, msg))
+    )
 
 let input_env () = Semantics.type_env !input
 
 (* Output functions *)
 (* ************************************************************************ *)
+
+let start = ref 0.
+
+let set_start () = start := Util.get_total_time ()
 
 let flush fmt = Format.fprintf fmt "@."
 
@@ -80,7 +80,7 @@ let print_szs_status fmt status =
   Format.fprintf fmt "%% SZS status %s for %s" status !input_file
 
 let print_res fmt status =
-  Format.fprintf fmt "%s (%.3f)" status (Util.get_total_time ())
+  Format.fprintf fmt "%s (%.3f)" status (Util.get_total_time () -. !start)
 
 let print_sat fmt = match !output with
   | Standard -> Format.fprintf fmt "%a@." print_res "Sat"

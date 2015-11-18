@@ -1,9 +1,6 @@
 
 (** Module for Input/Output operations *)
 
-exception Parsing_error of ParseLocation.t * string
-(** Syntax error with loaction and error message. *)
-
 (** {2 IO Wrappers} *)
 
 val set_input : Options.input -> unit
@@ -21,6 +18,9 @@ val input_env : unit -> Type.builtin_symbols
 (** {2 Printing wrappers} *)
 
 (** Wrapper around Format.fprintf to print inside comments according to the output format. *)
+
+val set_start : unit -> unit
+(** Sets the starting time for printing the next result *)
 
 val print_sat : Format.formatter -> unit
 val print_unsat : Format.formatter -> unit
