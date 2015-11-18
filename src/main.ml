@@ -102,7 +102,7 @@ let do_command opt = function
     exit 42
 
 let rec do_commands opt commands =
-  match wrap 1 "parsing" commands () with
+  match wrap 5 "Parsing" commands () with
   | None -> ()
   | Some c ->
     begin try

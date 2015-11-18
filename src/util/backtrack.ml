@@ -15,7 +15,7 @@ module Stack = struct
   type t = {
     section : Util.Section.t;
     mutable stack : op;
-    mutable level : int;
+    mutable last : int;
   }
 
   type level = int
@@ -24,8 +24,8 @@ module Stack = struct
 
   let create section = {
     section;
-    level = 0;
     stack = Nil;
+    last = dummy_level;
   }
 
   let register_set t ref value = t.stack <- Set(ref, value, t.stack)
@@ -34,23 +34,28 @@ module Stack = struct
   let register2 t f x y = t.stack <- Call2 (f, x, y, t.stack)
   let register3 t f x y z = t.stack <- Call3 (f, x, y, z, t.stack)
 
-  let push t =
-    Util.debug ~section:t.section 5 "Push (%d)" t.level;
-    t.stack <- Level (t.stack, t.level);
-    t.level <- t.level + 1
+  let curr = ref 0
 
-  let level t =
-    let res = t.level in
-    push t;
-    res
+  let push t =
+    let level = !curr in
+    Util.debug ~section:t.section 5 "Push (#%d)" level;
+    t.stack <- Level (t.stack, level);
+    t.last <- level;
+    incr curr
+
+  let rec level t =
+    match t.stack with
+    | Level (_, lvl) -> lvl
+    | _ -> push t; level t
 
   let backtrack t lvl =
     let rec pop = function
       | Nil -> assert false
       | Level (op, level) as current ->
-        if level = lvl then
-          (t.stack <- current; t.level <- lvl)
-        else
+        if level = lvl then begin
+          t.stack <- current;
+          t.last <- level
+        end else
           pop op
       | Set (ref, x, op) -> ref := x; pop op
       | CallUnit (f, op) -> f (); pop op
@@ -59,11 +64,11 @@ module Stack = struct
       | Call3 (f, x, y, z, op) -> f x y z; pop op
     in
     Util.enter_prof t.section;
-    Util.debug ~section:t.section 3 "Backtracking to level %d" lvl;
+    Util.debug ~section:t.section 3 "Backtracking to point #%d" lvl;
     pop t.stack;
     Util.exit_prof t.section
 
-  let pop t = backtrack t (t.level - 1)
+  let pop t = backtrack t (t.last)
 
 end
 

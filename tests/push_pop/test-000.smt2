@@ -10,4 +10,3 @@
 (check-sat) ; expect UNSAT
 (pop 1)
 (check-sat) ; expect SAT
-bla ! ; fail !!
