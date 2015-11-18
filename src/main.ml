@@ -95,6 +95,7 @@ let do_command opt = function
             Solver.print_dot_proof opt.dot_proof proof
           end
       end
+  | Ast.Exit -> raise Exit
   | c ->
     Io.print_error opt.out
       "%a : operation not supported yet" Ast.print_command_name c;
@@ -105,28 +106,29 @@ let rec do_commands opt commands =
   | None -> ()
   | Some c ->
     begin try
-        if opt.interactive then
-          setup_alarm opt.time_limit opt.size_limit;
+        if opt.interactive then setup_alarm opt.time_limit opt.size_limit;
         do_command opt c;
-        if opt.interactive then
-          delete_alarm ()
+        if opt.interactive then delete_alarm ()
       with
       | Out_of_time ->
         delete_alarm ();
         Io.print_timeout Format.std_formatter
       | Type.Typing_error (msg, t) ->
         let loc = CCOpt.maybe CCFun.id (ParseLocation.mk opt.input_file 0 0 0 0) Ast.(t.loc) in
-        Format.fprintf Format.std_formatter "While typing : %s@\n%a:@\n%s@."
-          (Ast.s_term t) ParseLocation.fmt loc msg
+        if opt.interactive then
+          Format.fprintf Format.std_formatter "%a@\n" ParseLocation.fmt_hint loc
+        else
+          Format.fprintf Format.std_formatter "While typing %s@\n" (Ast.s_term t);
+        Format.fprintf Format.std_formatter "%a:@\n%s@."ParseLocation.fmt loc msg
     end;
     do_commands opt commands
   | exception Input.Lexing_error l ->
-    Format.fprintf Format.std_formatter "%a@\n%a:@\nLexing error: invalid character@."
-      ParseLocation.fmt_hint l ParseLocation.fmt l;
+    if opt.interactive then Format.fprintf Format.std_formatter "%a@\n" ParseLocation.fmt_hint l;
+    Format.fprintf Format.std_formatter "%a:@\nLexing error: invalid character@." ParseLocation.fmt l;
     do_commands opt commands
   | exception Input.Parsing_error (l, msg) ->
-    Format.fprintf Format.std_formatter "%a@\n%a:@\n%s@."
-      ParseLocation.fmt_hint l ParseLocation.fmt l msg;
+    if opt.interactive then Format.fprintf Format.std_formatter "%a@\n" ParseLocation.fmt_hint l;
+    Format.fprintf Format.std_formatter "%a:@\n%s@." ParseLocation.fmt l msg;
     do_commands opt commands
 
 (* Main function *)
@@ -198,6 +200,7 @@ let () =
   | e ->
     let s = Printexc.get_backtrace () in
     let retcode = match e with
+      | Exit -> 0
       | Out_of_time ->
         delete_alarm ();
         Io.print_timeout Format.std_formatter;

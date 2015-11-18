@@ -35,7 +35,7 @@ type command =
   | Alias of symbol * term list * term      (** Alias (smtlib style) *)
   | Assert of string * term * bool          (** Add term to the assertions *)
   | CheckSat                                (** Check-sat *)
-  | Unknown                                 (** For non-implemented smtlib commands *)
+  | Exit                                    (** Exit the prover *)
 
 
 (* Printing *)
@@ -90,7 +90,7 @@ let print_command_name fmt = function
   | Alias _ -> Format.fprintf fmt "Alias binding"
   | Assert _ -> Format.fprintf fmt "Assert"
   | CheckSat -> Format.fprintf fmt "Check-sat"
-  | Unknown -> Format.fprintf fmt "Unknown ?"
+  | Exit -> Format.fprintf fmt "Exit"
 
 (* Symbol making *)
 (* ************************************************************************ *)

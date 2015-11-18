@@ -43,7 +43,7 @@ type command =
   | Alias of symbol * term list * term      (** Alias (smtlib style) *)
   | Assert of string * term * bool          (** Add term to the assertions *)
   | CheckSat                                (** Check-sat *)
-  | Unknown                                 (** For non-implemented smtlib commands *)
+  | Exit                                    (** Exit the prover *)
 
 (** {2 Printing} *)
 

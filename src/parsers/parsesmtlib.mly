@@ -187,7 +187,7 @@ command:
   | OPEN GET_ASSIGNMENT CLOSE                                           { [] }
   | OPEN GET_OPTION KEYWORD CLOSE                                       { [] }
   | OPEN GET_INFO info_flag CLOSE                                       { [] }
-  | OPEN EXIT CLOSE                                                     { [] }
+  | OPEN EXIT CLOSE                                                     { [Ast.Exit] }
 ;
 
 file:
