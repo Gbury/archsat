@@ -11,6 +11,6 @@ exception Parsing_error of ParseLocation.t * string
 
 let rec consume_line lexbuf =
   match Lex.token lexbuf with
-  | Lex.CHAR '\n' -> ()
+  | Lex.CHAR '\n' -> Lexing.new_line lexbuf
   | _ -> consume_line lexbuf
 
