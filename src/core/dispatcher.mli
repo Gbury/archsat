@@ -1,6 +1,18 @@
 
 (** Plugin Manager *)
 
+(** {2 Type for message} *)
+
+type msg = ..
+(** Messages are arbitrary data that can be sent to extensions.
+    Note that since it is an extensible type, extensions will most likely
+    ignore most messages *)
+
+type msg += If_sat of ((Expr.formula -> unit) -> unit)
+(** This message contains a function to iter over current assumptions.
+    It is sent at the end of each round of solving, i.e whenever the sat solver
+    returns a model. *)
+
 (** {2 Type for lemmas} *)
 
 type lemma = private {
@@ -64,15 +76,18 @@ type ext
 val mk_ext :
   section:Util.Section.t ->
   ?peek:(Expr.formula -> unit) ->
-  ?if_sat:(((Expr.formula -> unit) -> unit) -> unit) ->
   ?assume:(Expr.formula * int -> unit) ->
   ?eval_pred:(Expr.formula -> (bool * int) option) ->
+  ?handle:(msg -> unit) ->
   ?preprocess:(Expr.formula -> (Expr.formula * lemma) option) -> unit -> ext
 (** Generate a new extension with defaults values. *)
 
 module Plugin : Extension.S with type ext = ext
 
 (** {2 Solver functions} *)
+
+val send : msg -> unit
+(** Send the given message to all extensions *)
 
 val pre_process : Expr.formula -> Expr.formula
 (** Give the formula to extensions for pre-processing. *)

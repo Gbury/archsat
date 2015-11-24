@@ -297,21 +297,24 @@ let rec unif_f st = function
     else
       unif_f st SuperAll
 
-let find_all_insts iter =
-  (* Create new metas *)
-  if !meta_incr then
-    H.iter (fun f _ -> do_meta_inst f) metas;
-  (* Look at instanciation settings *)
-  match !unif_setting with
-  | No_unif -> ()
-  | _ ->
-    (* Analysing assummed formulas *)
-    log 5 "Parsing input formulas";
-    let st = parse_slice iter in
-    debug_st 30 st;
-    (* Search for instanciations *)
-    log 5 "Applying unification";
-    unif_f st !unif_setting
+let find_all_insts = function
+  | Dispatcher.If_sat iter ->
+    (* Create new metas *)
+    if !meta_incr then
+      H.iter (fun f _ -> do_meta_inst f) metas;
+    (* Look at instanciation settings *)
+    begin match !unif_setting with
+      | No_unif -> ()
+      | _ ->
+        (* Analysing assummed formulas *)
+        log 5 "Parsing input formulas";
+        let st = parse_slice iter in
+        debug_st 30 st;
+        (* Search for instanciations *)
+        log 5 "Applying unification";
+        unif_f st !unif_setting
+    end
+  | _ -> ()
 
 (* Extension registering *)
 (* ************************************************************************ *)
@@ -379,6 +382,6 @@ Dispatcher.Plugin.register "meta" ~options:opts
   (Dispatcher.mk_ext
      ~section
      ~assume:meta_assume
-     ~if_sat:find_all_insts
+     ~handle:find_all_insts
      ())
 

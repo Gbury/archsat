@@ -232,11 +232,13 @@ let rec decr_delay () =
       decr_delay ()
   end
 
-let inst_sat _ =
-  decr_delay ();
-  take push !inst_incr;
-  Stats.inst_remaining (Q.size !heap);
-  Inst.clock ()
+let inst_sat = function
+  | Dispatcher.If_sat _ ->
+    decr_delay ();
+    take push !inst_incr;
+    Stats.inst_remaining (Q.size !heap);
+    Inst.clock ()
+  | _ -> ()
 
 (* Extension registering *)
 (* ************************************************************************ *)
@@ -260,5 +262,5 @@ let opts t =
 Dispatcher.Plugin.register "inst" ~prio:5 ~options:opts
   ~descr:"Handles the pushing of clauses corresponding to instanciations. This plugin does not
           do anything by itself, but rather is called by other plugins when doing instanciations."
-  (Dispatcher.mk_ext ~section ~if_sat:inst_sat ())
+  (Dispatcher.mk_ext ~section ~handle:inst_sat ())
 

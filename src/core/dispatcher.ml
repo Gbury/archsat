@@ -81,6 +81,12 @@ let profile section f = fun x ->
     Util.exit_prof section;
     raise e
 
+(* Messages for extensions *)
+(* ************************************************************************ *)
+
+type msg = ..
+type msg += If_sat of ((Expr.formula -> unit) -> unit)
+
 (* Extensions *)
 (* ************************************************************************ *)
 
@@ -91,27 +97,27 @@ type ext = {
   (* Called once on each new formula *)
   peek : (Expr.formula -> unit) option;
 
-  (* Called at the end of each round of solving *)
-  if_sat : (((Expr.formula -> unit) -> unit) -> unit) option;
-
   (* Called on each formula that the solver assigns to true *)
   assume : (Expr.formula * int -> unit) option;
 
   (* Evaluate a formula with the current assignments *)
   eval_pred : (Expr.formula -> (bool * int) option) option;
 
+  (* Handle messages *)
+  handle : (msg -> unit) option;
+
   (* Pre-process input formulas *)
   preprocess : (Expr.formula -> (Expr.formula * lemma) option) option;
 }
 
-let mk_ext ~section ?peek ?if_sat ?assume ?eval_pred ?preprocess () =
+let mk_ext ~section ?peek ?assume ?eval_pred ?handle ?preprocess () =
   Util.Stats.attach section stats_group;
   {
     section;
     peek = CCOpt.map (profile section) peek;
-    if_sat = CCOpt.map (profile section) if_sat;
     assume = CCOpt.map (profile section) assume;
     eval_pred =CCOpt.map (profile section) eval_pred;
+    handle = CCOpt.map (profile section) handle;
     preprocess = CCOpt.map (profile section) preprocess;
   }
 
@@ -141,11 +147,11 @@ let merge_preprocess f p =
 
 let merge_exts l =
   let peek = List.fold_left (fun f r -> merge_iter f r.peek) None l in
-  let if_sat = List.fold_left (fun f r -> merge_iter f r.if_sat) None l in
   let assume = List.fold_left (fun f r -> merge_iter f r.assume) None l in
   let eval_pred = List.fold_left (fun f r -> merge_first f r.eval_pred) None l in
+  let handle = List.fold_left (fun f r -> merge_iter f r.handle) None l in
   let preprocess = List.fold_left (fun f r -> merge_preprocess f r.preprocess) None l in
-  { section = dummy_section; peek; if_sat; assume; eval_pred; preprocess; }
+  { section = dummy_section; peek; assume; eval_pred; handle; preprocess; }
 
 module Plugin = Extension.Make(struct
     type t = ext
@@ -153,6 +159,36 @@ module Plugin = Extension.Make(struct
     let merge = merge_exts
     let section = Util.Section.make ~parent:section "plugins"
   end)
+
+let plugin_peek f =
+  match (Plugin.get_res ()).peek with
+  | Some peek -> peek f
+  | None -> ()
+
+let plugin_preprocess f =
+  match (Plugin.get_res ()).preprocess with
+  | Some p -> p f
+  | None -> None
+
+let plugin_assume () =
+  match (Plugin.get_res ()).assume with
+  | Some assume -> assume
+  | None -> (fun _ -> ())
+
+let plugin_handle msg =
+  match (Plugin.get_res ()).handle with
+  | Some handle -> handle msg
+  | None -> ()
+
+let plugin_eval_pred f =
+  match (Plugin.get_res ()).eval_pred with
+  | Some eval_pred -> eval_pred f
+  | None -> None
+
+(* Sending messages *)
+(* ************************************************************************ *)
+
+let send = plugin_handle
 
 (* Proof management *)
 (* ************************************************************************ *)
@@ -222,20 +258,18 @@ let check = function
     check_term p
   | _ -> ()
 
-let peek_at f = match (Plugin.get_res ()).peek with
-  | Some peek -> peek f; check f
-  | None -> ()
+let peek_at f =
+  plugin_peek f;
+  check f
 
 let pre_process f =
   Util.enter_prof section;
   Util.debug ~section 5 "  %a" Expr.Debug.formula f;
   Util.debug ~section 5 "Pre-processing :";
-  let f' = match (Plugin.get_res ()).preprocess with
+  let f' =
+    match plugin_preprocess f with
     | None -> f
-    | Some processor -> begin match processor f with
-        | None -> f
-        | Some (f', _) -> f'
-      end
+    | Some (f', _) -> f'
   in
   Util.debug ~section 5 "  %a" Expr.Debug.formula f';
   Util.exit_prof section;
@@ -439,14 +473,12 @@ module SolverTheory = struct
     Util.enter_prof section;
     Util.debug ~section 5 "New slice of length %d" s.length;
     try
+      let assume_aux = plugin_assume () in
       for i = s.start to s.start + s.length - 1 do
         match s.get i with
         | Lit f, lvl ->
           Util.debug ~section 1 " Assuming (%d) %a" lvl Expr.Debug.formula f;
-          begin match (Plugin.get_res ()).assume with
-            | Some assume -> assume (f, lvl)
-            | None -> ()
-          end
+          assume_aux (f, lvl)
         | Assign (t, v), lvl ->
           Util.debug ~section 1 " Assuming (%d) %a -> %a" lvl Expr.Debug.term t Expr.Debug.term v;
           set_assign t v lvl
@@ -473,9 +505,7 @@ module SolverTheory = struct
     Util.enter_prof section;
     Util.debug ~section 0 "Iteration with complete model";
     begin try
-        match (Plugin.get_res ()).if_sat with
-        | Some if_sat -> if_sat (if_sat_iter s)
-        | None -> ()
+        plugin_handle (If_sat (if_sat_iter s))
       with Absurd _ -> assert false
     end;
     Util.exit_prof section;
@@ -511,12 +541,9 @@ module SolverTheory = struct
     Util.exit_prof section
 
   let eval_aux f =
-    match (Plugin.get_res ()).eval_pred with
+    match plugin_eval_pred f with
     | None -> Unknown
-    | Some eval_pred -> begin match eval_pred f with
-        | None -> Unknown
-        | Some (b, lvl) -> Valued (b, lvl)
-      end
+    | Some (b, lvl) -> Valued (b, lvl)
 
   let eval formula =
     Util.enter_prof section;
