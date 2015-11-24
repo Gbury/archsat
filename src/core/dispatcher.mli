@@ -50,7 +50,8 @@ val mk_proof : string ->
   ?term_args : Expr.term list ->
   ?formula_args : Expr.formula list ->
   string -> lemma
-(** Returns the associated proof. Optional arguments not specified are assumed ot be empty lists. *)
+(** Returns the associated proof. Optional arguments not specified are assumed ot be empty lists.
+    First argument is plugin name, last is proof name *)
 
 val proof_debug : lemma -> string * string option * Expr.term list * Expr.formula list
 (** Some debug output for lemmas (used for dot output). *)
