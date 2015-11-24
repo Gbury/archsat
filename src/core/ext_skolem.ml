@@ -83,7 +83,7 @@ let tau lvl = function
 
 let tau_assume (f, i) = tau i f
 
-let opts t =
+let opts =
   let docs = Options.ext_sect in
   let kind =
     let doc = CCPrint.sprintf
@@ -91,11 +91,10 @@ let opts t =
          $(docv) may be %s" (Cmdliner.Arg.doc_alts_enum ~quoted:false kind_list) in
     Cmdliner.Arg.(value & opt kind_conv Skolem & info ["skolem.kind"] ~docv:"KIND" ~docs ~doc)
   in
-  let set_opts kind t =
-    inst := kind;
-    t
+  let set_opts kind =
+    inst := kind
   in
-  Cmdliner.Term.(pure set_opts $ kind $ t)
+  Cmdliner.Term.(pure set_opts $ kind)
 ;;
 Dispatcher.Plugin.register "skolem" ~options:opts
   ~descr:"Generate skolem or tau for existencially quantified formulas (see options)."

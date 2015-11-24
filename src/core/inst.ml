@@ -243,7 +243,7 @@ let inst_sat = function
 (* Extension registering *)
 (* ************************************************************************ *)
 
-let opts t =
+let opts =
   let docs = Options.ext_sect in
   let n_of_inst =
     let doc = "Decides how many instanciations are pushed to the solver each round.
@@ -252,11 +252,10 @@ let opts t =
                    but the $(docv) least promising instanciations are pushed." in
     Cmdliner.Arg.(value & opt int 0 & info ["inst.nb"] ~docv:"N" ~docs ~doc)
   in
-  let set_opts nb t =
-    inst_incr := nb;
-    t
+  let set_opts nb =
+    inst_incr := nb
   in
-  Cmdliner.Term.(pure set_opts $ n_of_inst $ t)
+  Cmdliner.Term.(pure set_opts $ n_of_inst)
 
 ;;
 Dispatcher.Plugin.register "inst" ~prio:5 ~options:opts

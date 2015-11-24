@@ -50,17 +50,16 @@ let clock = function
 (* Extension registering *)
 (* ************************************************************************ *)
 
-let options t =
+let options =
   let docs = Options.ext_sect in
   let stop =
     let doc = "Stop at the given round" in
     Cmdliner.Arg.(value & opt int (-1) & info ["stats.stop"] ~docv:"N" ~docs ~doc)
   in
-  let set_opts n t =
-    max_rounds := n;
-    t
+  let set_opts n =
+    max_rounds := n
   in
-  Cmdliner.Term.(pure set_opts $ stop $ t)
+  Cmdliner.Term.(pure set_opts $ stop)
 
 ;;
 Dispatcher.Plugin.register "stats" ~prio:0 ~options

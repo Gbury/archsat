@@ -319,7 +319,7 @@ let find_all_insts = function
 (* Extension registering *)
 (* ************************************************************************ *)
 
-let opts t =
+let opts =
   let docs = Options.ext_sect in
   let inst =
     let doc = CCPrint.sprintf
@@ -361,7 +361,7 @@ let opts t =
     let doc = "Number of round to wait before increasing the depth of rigid unification." in
     Cmdliner.Arg.(value & opt int 3 & info ["meta.rigid.incr"] ~docv:"N" ~docs ~doc)
   in
-  let set_opts heur start inst incr delay s_coef s_const rigid_depth rigid_incr t =
+  let set_opts heur start inst incr delay s_coef s_const rigid_depth rigid_incr =
     heuristic_setting := heur;
     unif_setting := inst;
     meta_start := start;
@@ -370,10 +370,9 @@ let opts t =
     sup_max_coef := s_coef;
     sup_max_const := s_const;
     rigid_max_depth := rigid_depth;
-    rigid_round_incr := rigid_incr;
-    t
+    rigid_round_incr := rigid_incr
   in
-  Cmdliner.Term.(pure set_opts $ heuristic $ start $ inst $ incr $ delay $ sup_coef $ sup_const $ rigid_depth $ rigid_incr $ t)
+  Cmdliner.Term.(pure set_opts $ heuristic $ start $ inst $ incr $ delay $ sup_coef $ sup_const $ rigid_depth $ rigid_incr)
 ;;
 
 Dispatcher.Plugin.register "meta" ~options:opts

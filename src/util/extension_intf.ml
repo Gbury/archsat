@@ -1,15 +1,15 @@
 
 module type S = sig
-  type id = private int
+
   type ext
-  type opt = Options.copts
+  type id = private int
 
   type t = {
-    id :id;
+    id : id;
     prio : int;
     name : string;
     descr : string;
-    options : opt Cmdliner.Term.t -> opt Cmdliner.Term.t;
+    options : unit Cmdliner.Term.t;
 
     ext : ext;
   }
@@ -18,7 +18,7 @@ module type S = sig
 
   (* Registering and setting extensions *)
   val register : string -> ?descr:string -> ?prio:int ->
-    ?options:(opt Cmdliner.Term.t -> opt Cmdliner.Term.t) -> ext -> id
+    ?options:(unit Cmdliner.Term.t) -> ext -> id
 
   val activate : string -> unit
   val deactivate : string -> unit
@@ -35,6 +35,6 @@ module type S = sig
   val list : unit -> t list
 
   (* Cmdliner doc & options *)
-  val add_opts : opt Cmdliner.Term.t -> opt Cmdliner.Term.t
+  val add_opts : 'a Cmdliner.Term.t -> 'a Cmdliner.Term.t
   val ext_doc : unit -> Cmdliner.Manpage.block list
 end

@@ -18,14 +18,13 @@ module Make(E: K) : S with type ext = E.t = struct
 
   type id = int
   type ext = E.t
-  type opt = Options.copts
 
   type t = {
     id :id;
     prio : int;
     name : string;
     descr : string;
-    options : opt Cmdliner.Term.t -> opt Cmdliner.Term.t;
+    options : unit Cmdliner.Term.t;
 
     ext : E.t;
   }
@@ -46,7 +45,7 @@ module Make(E: K) : S with type ext = E.t = struct
     | Some x -> x
     | None -> _not_found name
 
-  let register name ?(descr="think hard !") ?(prio=10) ?(options=(fun x -> x)) ext =
+  let register name ?(descr="think hard !") ?(prio=10) ?(options=(Cmdliner.Term.pure ())) ext =
     assert (not (CCVector.exists (fun r -> r.name = name) exts));
     if prio < 0 then log 0 "WARNING: %s - extensions should have positive priority" name;
     let id = CCVector.length exts in
@@ -106,6 +105,9 @@ module Make(E: K) : S with type ext = E.t = struct
     List.sort (fun r r' -> match compare r'.prio r.prio with
         | 0 -> compare r.name r'.name | x -> x) @@ list ()
 
-  let add_opts t = CCVector.fold (fun t r -> r.options t) t exts
+  let add_opts t =
+    let combine = Cmdliner.Term.pure (fun x () -> x) in
+    CCVector.fold (fun t r ->
+      Cmdliner.Term.(combine $ t $ r.options)) t exts
 
 end
