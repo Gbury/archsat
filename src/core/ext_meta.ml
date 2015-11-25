@@ -297,7 +297,7 @@ let rec unif_f st = function
     else
       unif_f st SuperAll
 
-let find_all_insts = function
+let find_all_insts : type ret. ret Dispatcher.msg -> ret option = function
   | Dispatcher.If_sat iter ->
     (* Create new metas *)
     if !meta_incr then
@@ -313,8 +313,9 @@ let find_all_insts = function
         (* Search for instanciations *)
         log 5 "Applying unification";
         unif_f st !unif_setting
-    end
-  | _ -> ()
+    end;
+    Some ()
+  | _ -> None
 
 (* Extension registering *)
 (* ************************************************************************ *)
@@ -379,8 +380,7 @@ Dispatcher.Plugin.register "meta" ~options:opts
   ~descr:"Generate meta variables for universally quantified formulas, and use unification to push
               possible instanciations to the 'inst' module."
   (Dispatcher.mk_ext
-     ~section
+     ~handle:{Dispatcher.handle=find_all_insts}
      ~assume:meta_assume
-     ~handle:find_all_insts
-     ())
+     ~section ())
 

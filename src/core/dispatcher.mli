@@ -3,12 +3,12 @@
 
 (** {2 Type for message} *)
 
-type msg = ..
+type 'ret msg = ..
 (** Messages are arbitrary data that can be sent to extensions.
     Note that since it is an extensible type, extensions will most likely
     ignore most messages *)
 
-type msg += If_sat of ((Expr.formula -> unit) -> unit)
+type 'ret msg += If_sat : ((Expr.formula -> unit) -> unit) -> unit msg
 (** This message contains a function to iter over current assumptions.
     It is sent at the end of each round of solving, i.e whenever the sat solver
     returns a model. *)
@@ -73,12 +73,15 @@ val proof_debug : lemma -> string * string option * Expr.term list * Expr.formul
 type ext
 (** Type of plugins/extensions *)
 
+type handle = { handle : 'ret. 'ret msg -> 'ret option; }
+(** Type for message handlers. Enclosed in a record to ensure full polymorphism *)
+
 val mk_ext :
   section:Util.Section.t ->
   ?peek:(Expr.formula -> unit) ->
   ?assume:(Expr.formula * int -> unit) ->
   ?eval_pred:(Expr.formula -> (bool * int) option) ->
-  ?handle:(msg -> unit) ->
+  ?handle:handle ->
   ?preprocess:(Expr.formula -> (Expr.formula * lemma) option) -> unit -> ext
 (** Generate a new extension with defaults values. *)
 
@@ -86,8 +89,11 @@ module Plugin : Extension.S with type ext = ext
 
 (** {2 Solver functions} *)
 
-val send : msg -> unit
+val send : unit msg -> unit
 (** Send the given message to all extensions *)
+
+val handle : ('ret -> 'acc -> 'acc) -> 'acc -> 'ret msg -> 'acc
+(** Fold over the results of handlers for a given message *)
 
 val pre_process : Expr.formula -> Expr.formula
 (** Give the formula to extensions for pre-processing. *)

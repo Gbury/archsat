@@ -117,7 +117,7 @@ declaration:
     { A.FOF (name, role, f, info) }
   | TFF LEFT_PAREN name=name COMMA role=role COMMA f=fof_formula info=annotations RIGHT_PAREN DOT
     { A.TFF (name, role, f, info) }
-  | TFF LEFT_PAREN name=name COMMA role COMMA tydecl=type_decl info=annotations RIGHT_PAREN DOT
+  | TFF LEFT_PAREN name=name COMMA role COMMA tydecl=type_decl annotations RIGHT_PAREN DOT
     { let s, ty = tydecl in
       match ty.T.term with
       | T.Const T.Ttype

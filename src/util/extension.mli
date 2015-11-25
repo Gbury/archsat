@@ -5,10 +5,12 @@ exception Extension_not_found of string * string * string list
 module type K = sig
   type t
 
-  val dummy : t
-  val merge : t list -> t
+  val neutral : t
+
+  val merge : t -> t -> t
 
   val section : Util.Section.t
+
 end
 
 module type S = Extension_intf.S

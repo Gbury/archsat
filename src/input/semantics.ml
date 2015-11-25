@@ -14,13 +14,15 @@ let mk_ext ?(tptp=default) ?(smtlib=default) () =
 
 module Addon = Extension.Make(struct
     type t = ext
-    let dummy = mk_ext ()
+    let neutral = mk_ext ()
     let section = Util.Section.make ~parent:Type.section "addons"
-    let merge l = {
+    let merge l r = {
       builtins = (fun input_format s args arg' ->
           Util.enter_prof section;
-          let aux ext = ext.builtins input_format s args arg' in
-          let res = CCList.find_map aux l in
+          let res = match l.builtins input_format s args arg' with
+            | Some x -> Some x
+            | None -> r.builtins input_format s args arg'
+          in
           Util.exit_prof section;
           res);
     }

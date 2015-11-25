@@ -84,8 +84,13 @@ let profile section f = fun x ->
 (* Messages for extensions *)
 (* ************************************************************************ *)
 
-type msg = ..
-type msg += If_sat of ((Expr.formula -> unit) -> unit)
+type 'ret msg = ..
+type 'ret msg +=
+  | If_sat : ((Expr.formula -> unit) -> unit) -> unit msg
+
+type handle = {
+  handle : 'ret. 'ret msg -> ('ret option);
+}
 
 (* Extensions *)
 (* ************************************************************************ *)
@@ -104,21 +109,31 @@ type ext = {
   eval_pred : (Expr.formula -> (bool * int) option) option;
 
   (* Handle messages *)
-  handle : (msg -> unit) option;
+  handle :
+    'ret 'acc. (('ret -> 'acc -> 'acc) -> ('ret msg -> 'acc -> 'acc)) option;
 
   (* Pre-process input formulas *)
   preprocess : (Expr.formula -> (Expr.formula * lemma) option) option;
 }
 
-let mk_ext ~section ?peek ?assume ?eval_pred ?handle ?preprocess () =
+let mk_ext ~section ?peek ?assume ?eval_pred ?(handle: handle option) ?preprocess () =
   Util.Stats.attach section stats_group;
   {
     section;
     peek = CCOpt.map (profile section) peek;
     assume = CCOpt.map (profile section) assume;
-    eval_pred =CCOpt.map (profile section) eval_pred;
-    handle = CCOpt.map (profile section) handle;
+    eval_pred = CCOpt.map (profile section) eval_pred;
     preprocess = CCOpt.map (profile section) preprocess;
+    handle = match handle with
+      | None -> None
+      | Some h ->
+        Some (fun (type ret) (type acc)
+          (fold : ret -> acc -> acc)
+          (msg : ret msg) (acc: acc) ->
+            match profile section h.handle msg with
+            | None -> acc
+            | Some x -> fold x acc
+             );
   }
 
 let merge_opt merge o1 o2 = match o1, o2 with
@@ -145,17 +160,28 @@ let merge_preprocess f p =
         | None -> p' formula
         | Some (formula', _) -> p' formula')
 
-let merge_exts l =
-  let peek = List.fold_left (fun f r -> merge_iter f r.peek) None l in
-  let assume = List.fold_left (fun f r -> merge_iter f r.assume) None l in
-  let eval_pred = List.fold_left (fun f r -> merge_first f r.eval_pred) None l in
-  let handle = List.fold_left (fun f r -> merge_iter f r.handle) None l in
-  let preprocess = List.fold_left (fun f r -> merge_preprocess f r.preprocess) None l in
-  { section = dummy_section; peek; assume; eval_pred; handle; preprocess; }
+let merge_exts l r =
+  {
+    section = dummy_section;
+    peek = merge_iter l.peek r.peek;
+    assume = merge_iter l.assume r.assume;
+    eval_pred = merge_first l.eval_pred r.eval_pred;
+    preprocess = merge_preprocess l.preprocess r.preprocess;
+    handle = begin match l.handle, r.handle with
+      | None, res | res, None -> res
+      | Some h, Some h' ->
+        Some (fun (type ret) (type acc)
+               (fold : ret -> acc -> acc)
+               (msg : ret msg) (acc: acc) ->
+               let acc' : acc = h fold msg acc in
+               h' fold msg acc'
+             )
+    end;
+  }
 
 module Plugin = Extension.Make(struct
     type t = ext
-    let dummy = mk_ext ~section ()
+    let neutral = mk_ext ~section ()
     let merge = merge_exts
     let section = Util.Section.make ~parent:section "plugins"
   end)
@@ -175,10 +201,10 @@ let plugin_assume () =
   | Some assume -> assume
   | None -> (fun _ -> ())
 
-let plugin_handle msg =
+let plugin_handle fold acc msg =
   match (Plugin.get_res ()).handle with
-  | Some handle -> handle msg
-  | None -> ()
+  | Some handle -> handle fold msg acc
+  | None -> acc
 
 let plugin_eval_pred f =
   match (Plugin.get_res ()).eval_pred with
@@ -188,7 +214,9 @@ let plugin_eval_pred f =
 (* Sending messages *)
 (* ************************************************************************ *)
 
-let send = plugin_handle
+let handle = plugin_handle
+
+let send = plugin_handle (fun () () -> ()) ()
 
 (* Proof management *)
 (* ************************************************************************ *)
@@ -505,7 +533,7 @@ module SolverTheory = struct
     Util.enter_prof section;
     Util.debug ~section 0 "Iteration with complete model";
     begin try
-        plugin_handle (If_sat (if_sat_iter s))
+        send (If_sat (if_sat_iter s))
       with Absurd _ -> assert false
     end;
     Util.exit_prof section;
