@@ -160,20 +160,20 @@ let merge_preprocess f p =
         | None -> p' formula
         | Some (formula', _) -> p' formula')
 
-let merge_exts l r =
+let merge_exts ~high ~low =
   {
     section = dummy_section;
-    peek = merge_iter l.peek r.peek;
-    assume = merge_iter l.assume r.assume;
-    eval_pred = merge_first l.eval_pred r.eval_pred;
-    preprocess = merge_preprocess l.preprocess r.preprocess;
-    handle = begin match l.handle, r.handle with
+    peek = merge_iter high.peek low.peek;
+    assume = merge_iter high.assume low.assume;
+    eval_pred = merge_first high.eval_pred low.eval_pred;
+    preprocess = merge_preprocess high.preprocess low.preprocess;
+    handle = begin match high.handle, low.handle with
       | None, res | res, None -> res
       | Some h, Some h' ->
         Some (fun (type ret) (type acc)
                (fold : ret -> acc -> acc)
                (msg : ret msg) (acc: acc) ->
-               let acc' : acc = h fold msg acc in
+               let acc' = h fold msg acc in
                h' fold msg acc'
              )
     end;

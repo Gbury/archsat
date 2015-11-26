@@ -5,7 +5,7 @@ exception Extension_not_found of string * string* string list
 module type K = sig
   type t
   val neutral : t
-  val merge : t -> t -> t
+  val merge : high:t -> low:t -> t
   val section : Util.Section.t
 end
 
@@ -36,8 +36,8 @@ module Make(E: K) : S with type ext = E.t = struct
   let get_res () = !actual
 
   let _not_found ext_name =
-    raise (Extension_not_found (log_name, ext_name,
-                                List.map (fun r -> r.name) (CCVector.to_list exts)))
+    raise (Extension_not_found (
+        log_name, ext_name, List.map (fun r -> r.name) (CCVector.to_list exts)))
 
   let get id = CCVector.get exts id
 
@@ -52,8 +52,10 @@ module Make(E: K) : S with type ext = E.t = struct
     CCVector.push exts { id; prio; name; descr; options; ext };
     id
 
+  let merge high low = E.merge ~high ~low
+
   let refresh () =
-    actual := List.fold_left E.merge E.neutral (List.map (fun t -> t.ext) !active)
+    actual := List.fold_left merge E.neutral (List.map (fun t -> t.ext) !active)
 
   let activate ext =
     let aux r = r.name = ext in

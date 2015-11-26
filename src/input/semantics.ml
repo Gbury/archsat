@@ -16,12 +16,12 @@ module Addon = Extension.Make(struct
     type t = ext
     let neutral = mk_ext ()
     let section = Util.Section.make ~parent:Type.section "addons"
-    let merge l r = {
+    let merge ~high ~low = {
       builtins = (fun input_format s args arg' ->
           Util.enter_prof section;
-          let res = match l.builtins input_format s args arg' with
+          let res = match high.builtins input_format s args arg' with
             | Some x -> Some x
-            | None -> r.builtins input_format s args arg'
+            | None -> low.builtins input_format s args arg'
           in
           Util.exit_prof section;
           res);
