@@ -109,8 +109,9 @@ type ext = {
   eval_pred : (Expr.formula -> (bool * int) option) option;
 
   (* Handle messages *)
-  handle :
-    'ret 'acc. (('ret -> 'acc -> 'acc) -> ('ret msg -> 'acc -> 'acc)) option;
+  handle : 'ret 'acc. (
+      ('ret -> 'acc -> 'acc) -> ('ret msg -> 'acc -> 'acc)
+    ) option;
 
   (* Pre-process input formulas *)
   preprocess : (Expr.formula -> (Expr.formula * lemma) option) option;
