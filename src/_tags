@@ -1,4 +1,11 @@
 # Compilation options
+true: use_menhir, explain
+
+# Some warnings
+<**/*.ml>: warn_K, warn_Y, warn_X
+<**/*.cm*>: debug
+
+# Package management
 <**/*>: package(containers)
 
 <base/*.cm*>: for-pack(Archsat)
@@ -18,8 +25,4 @@
 <main.*>: package(msat), package(cmdliner), package(ocamlgraph),          \
           package(containers), package(containers.data), package(zarith), \
           package(gen), package(menhirLib)
-
-# more warnings
-<**/*.ml>: warn_K, warn_Y, warn_X
-<**/*.cm*>: debug
 

@@ -83,17 +83,20 @@ let do_command opt = function
       let res = wrap 0 "solve" Solver.solve () in
       begin match res with
         (* Model found *)
-        | Solver.Sat ->
+        | Some Solver.Sat ->
           Io.print_sat opt.out;
           (* Io.print_model opt.model_out (get_model ()); *)
           ()
         (* Proof found *)
-        | Solver.Unsat ->
+        | Some Solver.Unsat ->
           Io.print_unsat opt.out;
           if opt.proof then begin
             let proof = Solver.get_proof () in
             Solver.print_dot_proof opt.dot_proof proof
           end
+        (* Extensions got a bit confused... *)
+        | None ->
+          Io.print_unknown opt.out
       end
   | Ast.Exit -> raise Exit
   | c ->
@@ -109,7 +112,7 @@ let rec do_commands opt commands =
   let prelude, pre_space = prelude_strings () in
   if opt.interactive then
     Format.printf "%s@?" prelude;
-  match wrap 5 "Parsing" commands () with
+  match commands () with
   | None -> ()
   | Some c ->
     if not opt.interactive then do_command opt c

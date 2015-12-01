@@ -305,7 +305,7 @@ let copts_t () =
     Arg.(value & flag & info ["q"; "quiet"] ~docs ~doc)
   in
   let interactive =
-    let doc = "Use archsat in interactive mode (equivalent to using 'stdin' as input file)" in
+    let doc = "Use archsat in interactive mode (equivalent to using 'stdin' as input file)." in
     Arg.(value & flag & info ["interactive"] ~docs ~doc)
   in
   let log =

@@ -93,6 +93,10 @@ let print_unsat fmt = match !output with
   | Standard -> Format.fprintf fmt "%a@." print_res "Unsat"
   | SZS -> Format.fprintf fmt "%a@." print_szs_status "Theorem"
 
+let print_unknown fmt = match !output with
+  | Standard -> Format.fprintf fmt "%a@." print_res "Unknown"
+  | SZS -> Format.fprintf fmt "%a@." print_szs_status "Unknown"
+
 let print_error fmt format = match !output with
   | Standard ->
     Format.fprintf fmt "%a@\n" print_res "Error";

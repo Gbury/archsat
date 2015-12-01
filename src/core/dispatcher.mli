@@ -4,11 +4,12 @@
 (** {2 Type for message} *)
 
 type 'ret msg = ..
-(** Messages are arbitrary data that can be sent to extensions.
+(** Messages are arbitrary data that can be sent to extensions, and expect
+    an answer of type ['ret option].
     Note that since it is an extensible type, extensions will most likely
     ignore most messages *)
 
-type 'ret msg += If_sat : ((Expr.formula -> unit) -> unit) -> unit msg
+type _ msg += If_sat : ((Expr.formula -> unit) -> unit) -> unit msg
 (** This message contains a function to iter over current assumptions.
     It is sent at the end of each round of solving, i.e whenever the sat solver
     returns a model. *)

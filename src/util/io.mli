@@ -33,6 +33,7 @@ val set_start : unit -> unit
 
 val print_sat : Format.formatter -> unit
 val print_unsat : Format.formatter -> unit
+val print_unknown : Format.formatter -> unit
 val print_timeout : Format.formatter -> unit
 val print_spaceout : Format.formatter -> unit
 (** Prints the resulton the formatter according to the output format set. *)

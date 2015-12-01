@@ -28,6 +28,7 @@ let parse_file f =
        | None -> None
        | Some l ->
          curr := l;
+         Input.consume_line buf;
          aux ()
        | exception Parsesmtlib.Error ->
          let loc = curr_p line buf in

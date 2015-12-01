@@ -1,6 +1,27 @@
 
 let section = Dispatcher.solver_section
 
+type res = Sat | Unsat
+
+(* Proof replay helpers *)
+(* ************************************************************************ *)
+
+exception Restart
+
+type ret =
+  | Ok
+  | Toggle of string
+
+type _ Dispatcher.msg += Found : res option -> ret Dispatcher.msg
+
+let do_pre = function
+  | Ok -> ()
+  | Toggle ext -> Dispatcher.Plugin.deactivate ext
+
+let do_post = function
+  | Ok -> ()
+  | Toggle ext -> Dispatcher.Plugin.activate ext
+
 (* Solving module *)
 (* ************************************************************************ *)
 
@@ -20,16 +41,29 @@ module Dot = Msat.Dot.Make(Smt.Proof)(struct
 (* Solving *)
 type level = Smt.level
 
-type res = Sat | Unsat
+let solve_aux () =
+  match Smt.solve () with
+  | () -> Some Sat
+  | exception Smt.Unsat -> Some Unsat
+  | exception Restart -> None
 
-let solve () =
+let rec solve () =
   Util.enter_prof section;
-  let res = match Smt.solve () with
-    | () -> Sat
-    | exception Smt.Unsat -> Unsat
+  let lvl = Smt.push () in
+  let res = solve_aux () in
+  let s = Stack.create () in
+  Dispatcher.handle (fun ret () -> Stack.push ret s) () (Found res);
+  let res' =
+    if not (Stack.is_empty s) then begin
+      Smt.pop lvl;
+      Stack.iter do_pre s;
+      let tmp = solve () in
+      Stack.iter do_post s;
+      tmp
+    end else res
   in
   Util.exit_prof section;
-  res
+  res'
 
 let assume l =
   Util.enter_prof section;

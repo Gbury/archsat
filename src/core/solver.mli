@@ -17,7 +17,7 @@ type res =
   | Unsat
   (** Type of results returned by the solver *)
 
-val solve : unit -> res
+val solve : unit -> res option
 (** Try and solve the current set of assumptions *)
 
 val assume : Expr.formula list list -> unit
@@ -42,4 +42,21 @@ val get_proof : unit -> proof
 
 val print_dot_proof : Format.formatter -> proof -> unit
 (** Prints the proof on the given formatter. *)
+
+(** {2 Restart & Replay} *)
+
+exception Restart
+
+type ret =
+  | Ok
+  | Toggle of string
+
+type _ Dispatcher.msg += Found : res option -> ret Dispatcher.msg
+(** Once an Unsat result has been found, this message is sent to all
+    extensions. If an extension answers something different than [None],
+    then the sat solver is rolled back, and the solving restarts.
+    The goal of this message is for isntance, to allow extensions to do some smart
+    on the first try, and then replay the solving so that a correct proof might
+    be output. *)
+
 
