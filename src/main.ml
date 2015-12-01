@@ -101,14 +101,23 @@ let do_command opt = function
       "%a : operation not supported yet" Ast.print_command_name c;
     exit 42
 
+let prelude_strings () =
+  let s = Format.asprintf "(%a)# @?" Io.print_input (Io.curr_input ()) in
+  s, String.make (String.length s) ' '
+
 let rec do_commands opt commands =
+  let prelude, pre_space = prelude_strings () in
+  if opt.interactive then
+    Format.printf "%s@?" prelude;
   match wrap 5 "Parsing" commands () with
   | None -> ()
   | Some c ->
-    begin try
-        if opt.interactive then setup_alarm opt.time_limit opt.size_limit;
+    if not opt.interactive then do_command opt c
+    else begin
+      try
+        setup_alarm opt.time_limit opt.size_limit;
         do_command opt c;
-        if opt.interactive then delete_alarm ()
+        delete_alarm ()
       with
       | Out_of_time ->
         delete_alarm ();
@@ -123,11 +132,15 @@ let rec do_commands opt commands =
     end;
     do_commands opt commands
   | exception Input.Lexing_error l ->
-    if opt.interactive then Format.fprintf Format.std_formatter "%a@\n" ParseLocation.fmt_hint l;
+    if opt.interactive then
+      Format.fprintf Format.std_formatter "%s%a@\n"
+        (if ParseLocation.(l.start_line = 1) then pre_space else "") ParseLocation.fmt_hint l;
     Format.fprintf Format.std_formatter "%a:@\nLexing error: invalid character@." ParseLocation.fmt l;
     do_commands opt commands
   | exception Input.Parsing_error (l, msg) ->
-    if opt.interactive then Format.fprintf Format.std_formatter "%a@\n" ParseLocation.fmt_hint l;
+    if opt.interactive then
+      Format.fprintf Format.std_formatter "%s%a@\n"
+        (if ParseLocation.(l.start_line = 1) then pre_space else "") ParseLocation.fmt_hint l;
     Format.fprintf Format.std_formatter "%a:@\n%s@." ParseLocation.fmt l msg;
     do_commands opt commands
 

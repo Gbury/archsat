@@ -11,6 +11,9 @@ let input = ref Auto
 let output = ref Standard
 let input_file = ref ""
 
+let curr_input () = !input
+let curr_output () = !output
+
 let set_input i = input := i
 let set_output o = output := o
 let set_input_file f = input_file := f
@@ -20,6 +23,12 @@ let pp_input b = function
   | Dimacs -> Printf.bprintf b "dimacs"
   | Tptp -> Printf.bprintf b "tptp"
   | Smtlib -> Printf.bprintf b "smtlib"
+
+let print_input fmt = function
+  | Auto -> Format.fprintf fmt "auto"
+  | Dimacs -> Format.fprintf fmt "dimacs"
+  | Tptp -> Format.fprintf fmt "tptp"
+  | Smtlib -> Format.fprintf fmt "smtlib"
 
 (* Input functions *)
 (* ************************************************************************ *)

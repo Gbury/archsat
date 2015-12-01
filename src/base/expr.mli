@@ -36,7 +36,7 @@ type 'a tag = 'a Tag.t
 type builtin = ..
 type builtin += Base
 
-(** Builtin tags, TODO. *)
+(** Builtin tags, used to assign semantic meaning to symbols. *)
 
 type 'ty id = private {
   id_type : 'ty;
@@ -163,7 +163,7 @@ exception Type_mismatch of term * ty * ty
 
 exception Bad_arity of ty function_descr id * ty list * term list
 exception Bad_ty_arity of ttype function_descr id * ty list
-(** Raised when trying to buld a term that does not typecheck *)
+(** Raised when trying to build an application with wrong arity *)
 
 exception Cannot_assign of term
 exception Cannot_interpret of term
@@ -241,7 +241,8 @@ module Id : sig
 
   val prop : ttype function_descr id
   val base : ttype function_descr id
-  (** Constants representing the type for propositions and individuals *)
+  (** Constants representing the type for propositions and a default type
+      for term, respectively. *)
 
   val ttype : ?builtin:builtin -> string -> ttype id
   (** Create a fresh type variable with the given name. *)
@@ -253,7 +254,7 @@ module Id : sig
   (** Create a fresh type constructor with given name and arity *)
 
   val term_fun : ?builtin:builtin -> string -> ttype id list -> ty list -> ty -> ty function_descr id
-  (** [ty_fun name type_vars arg_types return_type] returns a new constant symbol,
+  (** [ty_fun name type_vars arg_types return_type] returns a fresh constant symbol,
       possibly polymorphic with respect to the variables in [type_vars] (which may appear in the
       types in [arg_types] and in [return_type]). *)
 
@@ -265,7 +266,7 @@ module Id : sig
 
   val occurs_in_term : ty id -> term -> bool
   (** Returns [true] if the given variable occurs in the term.
-      WARNING: since meta-variables are wrapped variables, it can yield unexpected results. *)
+      WARNING: this function looks inside meta-variables, so it can yield unexpected results. *)
 
   val set_eval : 'a id -> int -> (term -> unit) -> unit
   val set_assign : 'a id -> int -> (term -> term) -> unit
@@ -424,7 +425,7 @@ module Ty : sig
       Here, the [ty id list] is guaranteed to be empty. *)
 
   val tag : ty -> 'a tag -> 'a -> ty
-  (** Insert a local type in the given type. Does not change the semantic
+  (** Insert a local tag in the given type. Does not change the semantic
       value of the type. Can be used to store some additional user-defined
       information. *)
 

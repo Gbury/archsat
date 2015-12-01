@@ -3,6 +3,15 @@
 
 (** {2 IO Wrappers} *)
 
+val pp_input : Buffer.t -> Options.input -> unit
+val print_input : Format.formatter -> Options.input -> unit
+
+(** {2 IO Wrappers} *)
+
+val curr_input : unit -> Options.input
+val curr_output : unit -> Options.output
+(* Current values for input/output format *)
+
 val set_input : Options.input -> unit
 val set_output : Options.output -> unit
 val set_input_file : string -> unit
