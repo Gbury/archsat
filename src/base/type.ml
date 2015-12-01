@@ -43,8 +43,8 @@ let add_type name c =
   try
     let c' = H.find types name in
     if not (Expr.Id.equal c c') then
-      log 0 "Incoherent type decl for '%s' : %a <> %a" name
-        Expr.Debug.fun_ttype Expr.(c.id_type) Expr.Debug.fun_ttype Expr.(c'.id_type)
+      log 0 "Type constructor (%a) has already been defined, skipping delcaration (%a)"
+        Expr.Debug.const_ttype c' Expr.Debug.const_ttype c
   with Not_found ->
     log 1 "New type constructor : %a" Expr.Debug.const_ttype c;
     H.add types name c
@@ -57,8 +57,8 @@ let add_cst name c =
   try
     let c' = H.find constants name in
     if not (Expr.Id.equal c c') then
-      log 0 "Incoherent type decl for '%s' : %a <> %a" name
-        Expr.Debug.fun_ty Expr.(c.id_type) Expr.Debug.fun_ty Expr.(c'.id_type)
+      log 0 "Function (%a) has already been defined, skipping declaration (%a)"
+        Expr.Debug.const_ty c Expr.Debug.const_ty c'
   with Not_found ->
     log 1 "New constant : %a" Expr.Debug.const_ty c;
     H.add constants name c

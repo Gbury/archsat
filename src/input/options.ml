@@ -62,7 +62,7 @@ let formatter_of_descr = function
 (* Option values *)
 (* ************************************************************************ *)
 
-let mk_opts () file input output interactive proof type_only plugins addons
+let mk_opts file input output interactive proof type_only plugins addons
     dot_proof model_out time size profile =
   {
     out = Format.std_formatter;
@@ -93,7 +93,7 @@ let profile_opts enable depth l out stats = {
 }
 
 (* Side-effects options *)
-let set_opts gc bt quiet log debug =
+let set_opts gc bt quiet log debug opt =
   if gc then
     at_exit (fun () -> Gc.print_stat stdout;);
   (* Backtrace printing *)
@@ -103,9 +103,10 @@ let set_opts gc bt quiet log debug =
   if quiet then
     Util.Section.clear_debug Util.Section.root
   else begin
-    Util.set_debug log;
+    Util.set_debug (if opt.interactive then max 1 log else log);
     List.iter (fun (s, lvl) -> Util.Section.set_debug s lvl) debug
-  end
+  end;
+  opt
 
 let clean opt = ()
 
@@ -380,6 +381,6 @@ let copts_t () =
               "Without suffix, default to a size in octet." in
     Arg.(value & opt c_size 1_000_000_000. & info ["s"; "size"] ~docs ~docv:"SIZE" ~doc)
   in
-  Term.(pure mk_opts $ (pure set_opts $ gc $ bt $ quiet $ log $ debug) $
-        file $ input $ output $ interactive $ check_proof $ type_only $ plugins $ addons $ dot_proof $ model_out $ time $ size $ profile_t)
+  Term.(pure set_opts $ gc $ bt $ quiet $ log $ debug $ (pure mk_opts $
+        file $ input $ output $ interactive $ check_proof $ type_only $ plugins $ addons $ dot_proof $ model_out $ time $ size $ profile_t))
 
