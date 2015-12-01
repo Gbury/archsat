@@ -103,7 +103,8 @@ let rec set_handler t =
 
 let rec eq_pre = function
   | { Expr.formula = Expr.Equal (a, b) } as f when Expr.Term.equal a b ->
-    D.push [f] (D.mk_proof "ext_eq" "trivial")
+    D.push [f] (D.mk_proof "ext_eq" "trivial");
+    set_handler a
   | { Expr.formula = Expr.Equal (a, b) } as f ->
     watch 1 [a; b] (f_eval f);
     set_handler a;
