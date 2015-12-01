@@ -314,7 +314,7 @@ system_functor: s=atomic_system_word { s }
 tff_quantified_type:
   | ty=tff_type { ty }
   | FORALL_TY LEFT_BRACKET vars=tff_ty_vars RIGHT_BRACKET COLUMN ty=tff_quantified_type
-    { T.forall_ty vars ty }
+    { T.forall vars ty }
 
 /* general type, without quantifiers */
 tff_type:

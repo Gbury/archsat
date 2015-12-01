@@ -222,7 +222,7 @@ let rec parse_ty ~infer ~status env = function
   | t -> _expected "type" t
 
 let rec parse_sig ~status env = function
-  | { Ast.term = Ast.Binding (Ast.AllTy, vars, t) } ->
+  | { Ast.term = Ast.Binding (Ast.All, vars, t) } ->
     let typed_vars = List.map parse_ttype_var vars in
     let typed_vars, env' = add_type_vars ~status env typed_vars in
     let params, args, ret = parse_sig ~status env' t in

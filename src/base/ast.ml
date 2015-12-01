@@ -9,7 +9,7 @@ type symbol =
   | Ttype | Wildcard
   | True | False
   | Eq | Distinct | Ite | Arrow
-  | All | AllTy | Ex | Let
+  | All | Ex | Let
   | And | Or | Xor
   | Imply | Equiv | Not
 
@@ -43,24 +43,23 @@ type command =
 
 let debug_symbol b = function
   | String s -> Printf.bprintf b "%s" s
-  | Ttype -> Printf.bprintf b "tType"
+  | Ttype -> Printf.bprintf b "Type"
   | Wildcard -> Printf.bprintf b "_"
-  | True -> Printf.bprintf b "True"
-  | False -> Printf.bprintf b "False"
+  | True -> Printf.bprintf b "⊤"
+  | False -> Printf.bprintf b "⊥"
   | Eq -> Printf.bprintf b "="
   | Distinct -> Printf.bprintf b "Distinct"
   | Ite -> Printf.bprintf b "Ite"
   | Arrow -> Printf.bprintf b "->"
-  | All -> Printf.bprintf b "Forall"
-  | AllTy -> Printf.bprintf b "ForallTy"
-  | Ex -> Printf.bprintf b "Exists"
+  | All -> Printf.bprintf b "∀"
+  | Ex -> Printf.bprintf b "∃"
   | Let -> Printf.bprintf b "Let"
-  | And -> Printf.bprintf b "/\\"
-  | Or -> Printf.bprintf b "\\/"
+  | And -> Printf.bprintf b "∧"
+  | Or -> Printf.bprintf b "∨"
   | Xor -> Printf.bprintf b "xor"
-  | Imply -> Printf.bprintf b "=>"
-  | Equiv -> Printf.bprintf b "<=>"
-  | Not -> Printf.bprintf b "Not"
+  | Imply -> Printf.bprintf b "⇒"
+  | Equiv -> Printf.bprintf b "⇔"
+  | Not -> Printf.bprintf b "¬"
 
 let rec print_list_pre f sep b = function
   | [] -> ()
@@ -72,8 +71,10 @@ let rec debug_term b t = match t.term with
   | Var s -> Printf.bprintf b "%s" s
   | Column (t1, t2) -> Printf.bprintf b "%a:%a" debug_term t1 debug_term t2
   | Const sym -> Printf.bprintf b "%a" debug_symbol sym
-  | App (f, []) ->
-    Printf.bprintf b "%a" debug_term f
+  | App ({term = Var s}, []) ->
+    Printf.bprintf b "%s" s
+  | App ({term = Const sym}, []) ->
+    Printf.bprintf b "%a" debug_symbol sym
   | App (f, l) ->
     Printf.bprintf b "(%a%a)" debug_term f (print_list_pre debug_term " ") l
   | Binding (sym, l, p) ->
@@ -149,8 +150,6 @@ let equiv ?loc p q = app ?loc (const Equiv) [p; q]
 let letin ?loc bindings t = make ?loc (Binding (Let, bindings, t))
 
 let forall ?loc vars f = make ?loc (Binding (All, vars, f))
-
-let forall_ty ?loc vars f = make ?loc (Binding (AllTy, vars, f))
 
 let exists ?loc vars f = make ?loc (Binding (Ex, vars, f))
 

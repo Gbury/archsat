@@ -13,7 +13,7 @@ type symbol =
   | Ttype | Wildcard
   | True | False
   | Eq | Distinct | Ite | Arrow
-  | All | AllTy | Ex | Let
+  | All | Ex | Let
   | And | Or | Xor
   | Imply | Equiv | Not
 
@@ -95,7 +95,6 @@ val xor : ?loc:location -> term -> term -> term
 val imply : ?loc:location -> term -> term -> term
 val equiv : ?loc:location -> term -> term -> term
 val forall : ?loc:location -> term list -> term -> term
-val forall_ty : ?loc:location -> term list -> term -> term
 val exists : ?loc:location -> term list -> term -> term
 val letin : ?loc:location -> term list -> term -> term
 
