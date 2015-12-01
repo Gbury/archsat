@@ -71,7 +71,9 @@ let rec print_list_pre f sep b = function
 let rec debug_term b t = match t.term with
   | Var s -> Printf.bprintf b "%s" s
   | Column (t1, t2) -> Printf.bprintf b "%a:%a" debug_term t1 debug_term t2
-  | Const sym -> Printf.bprintf b "{%a}" debug_symbol sym
+  | Const sym -> Printf.bprintf b "%a" debug_symbol sym
+  | App (f, []) ->
+    Printf.bprintf b "%a" debug_term f
   | App (f, l) ->
     Printf.bprintf b "(%a%a)" debug_term f (print_list_pre debug_term " ") l
   | Binding (sym, l, p) ->

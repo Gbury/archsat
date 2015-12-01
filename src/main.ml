@@ -126,11 +126,9 @@ let rec do_commands opt commands =
         delete_alarm ();
         Io.print_timeout Format.std_formatter
       | Type.Typing_error (msg, t) ->
+        delete_alarm ();
         let loc = CCOpt.maybe CCFun.id (ParseLocation.mk opt.input_file 0 0 0 0) Ast.(t.loc) in
-        if opt.interactive then
-          Format.fprintf Format.std_formatter "%a@\n" ParseLocation.fmt_hint loc
-        else
-          Format.fprintf Format.std_formatter "While typing %s@\n" (Ast.s_term t);
+        Format.fprintf Format.std_formatter "While typing %s@\n" (Ast.s_term t);
         Format.fprintf Format.std_formatter "%a:@\n%s@."ParseLocation.fmt loc msg
     end;
     do_commands opt commands
