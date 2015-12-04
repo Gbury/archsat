@@ -39,5 +39,5 @@ let evaluate t = CCOpt.map evaluate_aux @@ Arith.Lit.parse_num t
 
 ;;
 Dispatcher.Plugin.register "arith"
-  ~descr:"Handles satisfiability of arithmetic formulas."
+  ~descr:"Handles satisfiability of arithmetic formulas (work in progress, DO NOT USE)."
   (Dispatcher.mk_ext ~section ())

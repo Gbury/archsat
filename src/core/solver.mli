@@ -15,9 +15,10 @@ type proof
 type res =
   | Sat
   | Unsat
+  | Unknown
   (** Type of results returned by the solver *)
 
-val solve : unit -> res option
+val solve : unit -> res
 (** Try and solve the current set of assumptions *)
 
 val assume : Expr.formula list list -> unit
@@ -51,7 +52,7 @@ type ret =
   | Ok
   | Toggle of string
 
-type _ Dispatcher.msg += Found : res option -> ret Dispatcher.msg
+type _ Dispatcher.msg += Found : res -> ret Dispatcher.msg
 (** Once an Unsat result has been found, this message is sent to all
     extensions. If an extension answers something different than [None],
     then the sat solver is rolled back, and the solving restarts.

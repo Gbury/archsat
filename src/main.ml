@@ -83,19 +83,19 @@ let do_command opt = function
       let res = wrap 0 "solve" Solver.solve () in
       begin match res with
         (* Model found *)
-        | Some Solver.Sat ->
+        | Solver.Sat ->
           Io.print_sat opt.out;
           (* Io.print_model opt.model_out (get_model ()); *)
           ()
         (* Proof found *)
-        | Some Solver.Unsat ->
+        | Solver.Unsat ->
           Io.print_unsat opt.out;
           if opt.proof then begin
             let proof = Solver.get_proof () in
             Solver.print_dot_proof opt.dot_proof proof
           end
-        (* Extensions got a bit confused... *)
-        | None ->
+        (* No concrete result *)
+        | Solver.Unknown ->
           Io.print_unknown opt.out
       end
   | Ast.Exit -> raise Exit

@@ -1,7 +1,7 @@
 
 let section = Dispatcher.solver_section
 
-type res = Sat | Unsat
+type res = Sat | Unsat | Unknown
 
 (* Proof replay helpers *)
 (* ************************************************************************ *)
@@ -12,7 +12,7 @@ type ret =
   | Ok
   | Toggle of string
 
-type _ Dispatcher.msg += Found : res option -> ret Dispatcher.msg
+type _ Dispatcher.msg += Found : res -> ret Dispatcher.msg
 
 let do_pre = function
   | Ok -> ()
@@ -43,9 +43,9 @@ type level = Smt.level
 
 let solve_aux () =
   match Smt.solve () with
-  | () -> Some Sat
-  | exception Smt.Unsat -> Some Unsat
-  | exception Restart -> None
+  | () -> Sat
+  | exception Smt.Unsat -> Unsat
+  | exception Restart -> Unknown
 
 let rec solve () =
   Util.enter_prof section;
