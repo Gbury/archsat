@@ -12,6 +12,7 @@ include Ext_arith
 include Ext_prenex
 include Ext_skolem
 include Ext_functions
+include Ext_constraints
 
 (* Exceptions *)
 exception Sigint
