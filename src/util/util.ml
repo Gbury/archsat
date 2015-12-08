@@ -29,10 +29,14 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 (** Time elapsed since initialization of the program, and time of start *)
 let get_total_time =
-  let start = Unix.gettimeofday () in
+  let start = Oclock.gettime Oclock.realtime in
   (function () ->
-    let stop = Unix.gettimeofday () in
-    stop -. start)
+    let stop = Oclock.gettime Oclock.realtime in
+    Int64.to_float (Int64.sub stop start) /. (10. ** 9.))
+
+let ckid = match Oclock.process_cputime with
+  | Some c -> c
+  | None -> Oclock.realtime
 
 (** {2 Misc} *)
 
@@ -54,8 +58,8 @@ module Section = struct
 
     mutable profile : bool; (* should this section be profiled *)
     mutable prof_in : bool; (* are we currently inside the profiler of this section *)
-    mutable prof_enter : float; (* time of last entry of the profiler *)
-    mutable prof_total : float; (* total time elasped inside the profiler *)
+    mutable prof_enter : Int64.t; (* time of last entry of the profiler *)
+    mutable prof_total : Int64.t; (* total time elasped inside the profiler *)
 
     mutable nb_calls : int;
     mutable full_name : string;
@@ -71,8 +75,8 @@ module Section = struct
     stats = Array.make max_stats 0;
     profile = false;
     prof_in = false;
-    prof_enter = 0.;
-    prof_total = 0.;
+    prof_enter = 0L;
+    prof_total = 0L;
     nb_calls = 0;
     full_name = "";
   }
@@ -122,8 +126,8 @@ module Section = struct
       stats = Array.make max_stats 0;
       profile = false;
       prof_in = false;
-      prof_enter = 0.;
-      prof_total = 0.;
+      prof_enter = 0L;
+      prof_total = 0L;
       nb_calls= 0;
       full_name="";
     } in
@@ -167,13 +171,13 @@ module Section = struct
 
   (* Entering a profiler *)
   let prof_enter s =
-    s.prof_enter <- get_total_time ();
+    s.prof_enter <- Oclock.gettime ckid;
     s.nb_calls <- s.nb_calls + 1;
     s.prof_in <- true
 
   let rec prof_exit_aux s time =
     if not s.prof_in then begin
-      s.prof_total <- s.prof_total +. time;
+      s.prof_total <- Int64.add s.prof_total time;
       begin match s.descr with
         | Root -> true
         | Sub (_, s', _) -> prof_exit_aux s' time
@@ -182,9 +186,9 @@ module Section = struct
       false
 
   let prof_exit s =
-    let time = get_total_time () in
+    let time = Oclock.gettime ckid in
     if s.prof_in then begin
-      let increment = time -. s.prof_enter in
+      let increment = Int64.sub time s.prof_enter in
       s.prof_in <- false;
       prof_exit_aux s increment
     end else
@@ -334,21 +338,23 @@ let print_profiler () =
       exit_prof (List.hd !active)
     done;
   end;
-  let total_time = get_total_time () in
-  let s_tree = section_tree (fun s -> s.Section.prof_total > (parent_time s) /. 100.) Section.root in
+  let total_time = Int64.to_float @@ Oclock.gettime ckid in
+  let s_tree = section_tree (fun s ->
+      Int64.to_float s.Section.prof_total > (Int64.to_float @@ parent_time s) /. 100.
+    ) Section.root in
   let tree_box = PrintBox.(
       Simple.to_box (map_tree (fun s -> `Text (Section.short_name s)) s_tree)) in
   let call_box = PrintBox.(vlist ~bars:false (flatten (
       map_tree (fun s -> text (Format.sprintf "%10d" s.Section.nb_calls)) s_tree))) in
   let time_box = PrintBox.(vlist ~bars:false (flatten (
-      map_tree (fun s -> text (Format.sprintf "%13.3f" s.Section.prof_total)) s_tree))) in
+      map_tree (fun s -> text (Format.sprintf "%13.3f" (Int64.to_float s.Section.prof_total /. (10. ** 9.)))) s_tree))) in
   let rate_box = PrintBox.(vlist ~bars:false (flatten (
       map_tree (fun s -> text (Format.sprintf "%6.2f%%" (
-          s.Section.prof_total /. total_time *. 100.))) s_tree))) in
+          (Int64.to_float s.Section.prof_total) /. total_time *. 100.))) s_tree))) in
   let b = PrintBox.(
       grid ~pad:(hpad 3) ~bars:true [|
         [| text "Section name"; text "Time profiled"; text "Profiled rate"; text "Calls" |];
-        [| text "Total Time"; text (Format.sprintf "%13.3f" total_time); text "100.00%"; text "N/A" |];
+        [| text "Total Time"; text (Format.sprintf "%13.3f" (total_time /. (10. ** 9.))); text "100.00%"; text "N/A" |];
         [| tree_box; time_box; rate_box; call_box |];
       |]) in
   print_newline ();
@@ -375,7 +381,7 @@ let csv_prof_data fmt =
   List.iter (fun s ->
       let open Section in
       let name = match full_name s with "" -> "root" | s -> s in
-      Format.fprintf fmt "%s,%f@." name s.prof_total
+      Format.fprintf fmt "%s,%f@." name (Int64.to_float s.prof_total)
     ) (flatten tree)
 
 let enable_profiling () = at_exit print_profiler

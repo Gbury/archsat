@@ -20,10 +20,10 @@ true: use_menhir, explain
 <core/*>: package(msat), package(cmdliner), package(zarith), \
           package(gen)
 <input/*>: package(cmdliner), package(gen)
-<util/*>: package(cmdliner), package(zarith), package(gen)
+<util/*>: package(cmdliner), package(zarith), package(gen), package(oclock)
 <parsers/*>: package(menhirLib)
 
 <main.*>: package(msat), package(cmdliner), package(ocamlgraph),          \
           package(containers), package(containers.data), package(zarith), \
-          package(gen), package(menhirLib)
+          package(gen), package(oclock), package(menhirLib)
 

@@ -148,8 +148,6 @@ let get_nb_metas f =
     H.add metas f i;
     i
 
-let has_been_seen f = !(get_nb_metas f) > 0
-
 let mark f =
   let i = get_nb_metas f in
   let j = !i + 1 in
@@ -228,7 +226,7 @@ let meta_assume (f, lvl) = match f with
   | ({ Expr.formula = Expr.Not { Expr.formula = Expr.Ex _ } } as f)
   | ({ Expr.formula = Expr.AllTy _ } as f)
   | ({ Expr.formula = Expr.All _ } as f) ->
-    if not (has_been_seen f) then for _ = 1 to !meta_start do do_formula f done
+    while !(get_nb_metas f) < !meta_start do do_formula f done
   | _ -> ()
 
 (* Finding instanciations *)

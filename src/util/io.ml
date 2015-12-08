@@ -110,6 +110,6 @@ let print_timeout fmt = match !output with
   | SZS -> Format.fprintf fmt "%a@." print_szs_status "Timeout"
 
 let print_spaceout fmt = match !output with
-  | Standard -> Format.fprintf fmt "%a@." print_res "Outof Memory"
+  | Standard -> Format.fprintf fmt "%a@." print_res "Out of Memory"
   | SZS -> Format.fprintf fmt "%a@." print_szs_status "MemoryOut"
 

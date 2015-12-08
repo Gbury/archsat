@@ -59,6 +59,7 @@ let unif_empty =
     | l ->
       let open Ext_meta in
       let st = parse_slice (fun f -> List.iter f l) in
+      debug_st 80 st;
       let gen = Gen.(
           append
             (of_list st.inequalities)
@@ -99,6 +100,8 @@ let parse iter =
   let acc = ref None in
   let exprs = ref [] in
   let aux = function
+    | { Expr.formula = Expr.Not { Expr.formula = Expr.Pred { Expr.term = Expr.App ({ Expr.builtin = Acc t }, _, _) } } } ->
+      ()
     | { Expr.formula = Expr.Pred { Expr.term = Expr.App ({ Expr.builtin = Acc t }, _, _) } } ->
       begin match !acc with
         | None -> acc := Some t
@@ -125,8 +128,11 @@ let handle_aux iter acc l =
     ]
   | None ->
     Util.debug ~section 2 "Couldn't find a satisfiable constraint";
-    iter Ext_meta.do_formula;
-    need_restart := true;
+    if !Ext_meta.meta_start + 1 < !Ext_meta.meta_max then begin
+      need_restart := true;
+      incr Ext_meta.meta_start;
+      Util.debug ~section 2 "Adding new meta (total: %d)" !Ext_meta.meta_start
+    end;
     raise Solver.Restart
 
 let handle : type ret. ret Dispatcher.msg -> ret option = function
@@ -141,13 +147,24 @@ let handle : type ret. ret Dispatcher.msg -> ret option = function
     end;
     Some ()
   | Solver.Found _ ->
-    if !need_restart then
+    if !need_restart then begin
+      need_restart := false;
       Some Solver.Ok
-    else
+    end else
       None
+  | _ -> None
+
+(* Evaluating *)
+(* ************************************************************************ *)
+
+let eval = function
+  | { Expr.formula = Expr.Pred { Expr.term = Expr.App ({ Expr.builtin = Acc _ }, _, _) } } -> Some (false, 0)
   | _ -> None
 
 ;;
 Dispatcher.Plugin.register "constraints"
   ~descr:"Handles instanciation using constraints to close multiple branches at the same time"
-  (Dispatcher.mk_ext ~section ~handle:{Dispatcher.handle=handle} ())
+  (Dispatcher.mk_ext ~section
+     ~handle:{Dispatcher.handle=handle}
+     ~eval_pred:eval ())
+

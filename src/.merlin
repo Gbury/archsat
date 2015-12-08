@@ -17,6 +17,7 @@ B _build/parsers
 PKG gen
 PKG msat
 PKG zarith
+PKG oclock
 PKG cmdliner
 PKG ocamlgraph
 PKG containers

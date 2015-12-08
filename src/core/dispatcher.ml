@@ -293,14 +293,14 @@ let peek_at f =
 
 let pre_process f =
   Util.enter_prof section;
-  Util.debug ~section 5 "  %a" Expr.Debug.formula f;
-  Util.debug ~section 5 "Pre-processing :";
+  Util.debug ~section 10 "  %a" Expr.Debug.formula f;
+  Util.debug ~section 10 "Pre-processing :";
   let f' =
     match plugin_preprocess f with
     | None -> f
     | Some (f', _) -> f'
   in
-  Util.debug ~section 5 "  %a" Expr.Debug.formula f';
+  Util.debug ~section 10 "  %a" Expr.Debug.formula f';
   Util.exit_prof section;
   f'
 
@@ -506,10 +506,10 @@ module SolverTheory = struct
       for i = s.start to s.start + s.length - 1 do
         match s.get i with
         | Lit f, lvl ->
-          Util.debug ~section 1 " Assuming (%d) %a" lvl Expr.Debug.formula f;
+          Util.debug ~section 5 " Assuming (%d) %a" lvl Expr.Debug.formula f;
           assume_aux (f, lvl)
         | Assign (t, v), lvl ->
-          Util.debug ~section 1 " Assuming (%d) %a -> %a" lvl Expr.Debug.term t Expr.Debug.term v;
+          Util.debug ~section 5 " Assuming (%d) %a -> %a" lvl Expr.Debug.term t Expr.Debug.term v;
           set_assign t v lvl
       done;
       Util.exit_prof section;

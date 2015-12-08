@@ -191,7 +191,7 @@ let () =
     List.iter Semantics.Addon.set_ext opt.addons;
 
     (* Extensions options *)
-    Dispatcher.Plugin.set_exts "+eq,+uf,+logic,+prop,+skolem,+meta,+inst,+stats";
+    Dispatcher.Plugin.set_exts "+eq,+uf,+logic,+prop,+skolem,+meta,+inst,+stats,+constraints";
     List.iter Dispatcher.Plugin.set_ext opt.plugins;
 
     (* Print the current options *)
