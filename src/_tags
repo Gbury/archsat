@@ -17,7 +17,8 @@ true: use_menhir, explain
 
 <base/*>: package(zarith)
 <algos/*>: package(ocamlgraph), package(gen)
-<core/*>: package(msat), package(cmdliner), package(zarith)
+<core/*>: package(msat), package(cmdliner), package(zarith), \
+          package(gen)
 <input/*>: package(cmdliner), package(gen)
 <util/*>: package(cmdliner), package(zarith), package(gen)
 <parsers/*>: package(menhirLib)

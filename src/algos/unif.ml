@@ -226,6 +226,16 @@ module Robinson = struct
 
 end
 
+(* Combine substitutions *)
+(* ************************************************************************ *)
+
+let combine t t' =
+  try
+    Some (
+      Expr.Subst.fold (fun key value s -> Robinson.term s (Expr.Term.of_meta key) value) t'.t_map (
+        Expr.Subst.fold (fun key value s -> Robinson.ty s (Expr.Ty.of_meta key) value) t'.ty_map t))
+  with Robinson.Impossible_ty _ | Robinson.Impossible_term _ -> None
+
 (* Matching of types and terms *)
 (* ************************************************************************ *)
 

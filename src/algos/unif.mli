@@ -74,6 +74,8 @@ val saturate : t -> t
 
 val debug : Buffer.t -> t -> unit
 
+val combine : t -> t -> t option
+
 (** {2 Unification caching} *)
 
 module Cache : sig

@@ -1,7 +1,16 @@
 
 let section = Dispatcher.solver_section
 
+
+(* Proof replay helpers *)
+(* ************************************************************************ *)
+
 type res = Sat | Unsat | Unknown
+
+let pp_res b = function
+  | Sat -> Printf.bprintf b "Sat"
+  | Unsat -> Printf.bprintf b "Unsat"
+  | Unknown -> Printf.bprintf b "Unknown"
 
 (* Proof replay helpers *)
 (* ************************************************************************ *)
@@ -51,10 +60,12 @@ let rec solve () =
   Util.enter_prof section;
   let lvl = Smt.push () in
   let res = solve_aux () in
+  Util.debug ~section 0 "Solution found : %a" pp_res res;
   let s = Stack.create () in
   Dispatcher.handle (fun ret () -> Stack.push ret s) () (Found res);
   let res' =
     if not (Stack.is_empty s) then begin
+      Util.debug ~section 0 "Restarting...";
       Smt.pop lvl;
       Stack.iter do_pre s;
       let tmp = solve () in

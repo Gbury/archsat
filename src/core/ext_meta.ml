@@ -189,7 +189,7 @@ let do_formula = function
     let subst = List.fold_left2 (fun s v t -> Expr.Subst.Id.bind v t s) Expr.Subst.empty l metas in
     let q = Expr.Formula.subst subst Expr.Subst.empty p in
     Dispatcher.push [Expr.Formula.neg f; Expr.Formula.neg q] (mk_proof_ty f metas)
-  | _ -> assert false
+  | _ -> ()
 
 let do_meta_inst = function
   | { Expr.formula = Expr.All (l, _, p) } as f ->
@@ -326,7 +326,7 @@ let opts =
     let doc = CCPrint.sprintf
         "Select unification method to use in order to find instanciations
        $(docv) may be %s." (Cmdliner.Arg.doc_alts_enum ~quoted:false unif_list) in
-    Cmdliner.Arg.(value & opt unif_conv Auto & info ["meta.find"] ~docv:"METHOD" ~docs ~doc)
+    Cmdliner.Arg.(value & opt unif_conv No_unif & info ["meta.find"] ~docv:"METHOD" ~docs ~doc)
   in
   let start =
     let doc = "Initial number of metavariables to generate for new formulas" in
@@ -334,7 +334,7 @@ let opts =
   in
   let incr =
     let doc = "Set wether to generate new metas at each round (with delay)" in
-    Cmdliner.Arg.(value & opt bool true & info ["meta.incr"] ~docs ~doc)
+    Cmdliner.Arg.(value & opt bool false & info ["meta.incr"] ~docs ~doc)
   in
   let delay =
     let doc = "Delay before introducing new metas" in
