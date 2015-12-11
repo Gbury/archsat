@@ -340,6 +340,10 @@ let opts =
     let doc = "Initial number of metavariables to generate for new formulas" in
     Cmdliner.Arg.(value & opt int 1 & info ["meta.start"] ~docv:"N" ~docs ~doc)
   in
+  let max =
+    let doc = "Maximum number of metas to generate" in
+    Cmdliner.Arg.(value & opt int 10 & info ["meta.max"] ~docv:"N" ~docs ~doc)
+  in
   let incr =
     let doc = "Set wether to generate new metas at each round (with delay)" in
     Cmdliner.Arg.(value & opt bool false & info ["meta.incr"] ~docs ~doc)
@@ -370,10 +374,11 @@ let opts =
     let doc = "Number of round to wait before increasing the depth of rigid unification." in
     Cmdliner.Arg.(value & opt int 3 & info ["meta.rigid.incr"] ~docv:"N" ~docs ~doc)
   in
-  let set_opts heur start inst incr delay s_coef s_const rigid_depth rigid_incr =
+  let set_opts heur start max inst incr delay s_coef s_const rigid_depth rigid_incr =
     heuristic_setting := heur;
     unif_setting := inst;
     meta_start := start;
+    meta_max := max;
     meta_incr := incr;
     meta_delay := delay;
     sup_max_coef := s_coef;
@@ -381,7 +386,7 @@ let opts =
     rigid_max_depth := rigid_depth;
     rigid_round_incr := rigid_incr
   in
-  Cmdliner.Term.(pure set_opts $ heuristic $ start $ inst $ incr $ delay $ sup_coef $ sup_const $ rigid_depth $ rigid_incr)
+  Cmdliner.Term.(pure set_opts $ heuristic $ start $ max $ inst $ incr $ delay $ sup_coef $ sup_const $ rigid_depth $ rigid_incr)
 ;;
 
 Dispatcher.Plugin.register "meta" ~options:opts

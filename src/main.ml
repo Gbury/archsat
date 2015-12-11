@@ -1,5 +1,5 @@
 
-(* TabSat *)
+(* ArchSat *)
 
 open Options
 
@@ -150,7 +150,7 @@ let rec do_commands opt commands =
 let () =
   (* Argument parsing *)
   let man = Options.help_secs (Dispatcher.Plugin.ext_doc ()) (Semantics.Addon.ext_doc ()) in
-  let info = Cmdliner.Term.(info ~sdocs:Options.copts_sect ~man ~version:"0.1" "tabsat") in
+  let info = Cmdliner.Term.(info ~sdocs:Options.copts_sect ~man ~version:"0.1" "archsat") in
   let opts = Semantics.Addon.add_opts (Dispatcher.Plugin.add_opts (Options.copts_t ())) in
   let opt = match Cmdliner.Term.eval (opts, info) with
     | `Version | `Help -> exit 0

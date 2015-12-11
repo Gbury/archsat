@@ -1,8 +1,13 @@
 
 let section = Util.Section.make ~parent:Dispatcher.section "stats"
 
-(* Statistics record & manipulations *)
+(* Options *)
+(* ************************************************************************ *)
+
 let max_rounds = ref 0
+
+(* Statistics accumulator *)
+(* ************************************************************************ *)
 
 type t = {
   mutable cur_round : int;
@@ -25,6 +30,8 @@ let state = {
   }
 
 (* Exported functions *)
+(* ************************************************************************ *)
+
 let current_round () = state.cur_round
 
 let inst_done () =

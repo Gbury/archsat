@@ -237,10 +237,12 @@ let print_descr fmt = function
 let parse_descr = function
   | "stdout" -> `Ok "stdout"
   | f ->
-    if Sys.is_directory f then
-      `Error (Format.sprintf "File %s is a directory" f)
-    else
-      `Ok f
+    try
+      if Sys.is_directory f then
+        `Error (Format.sprintf "File %s is a directory" f)
+      else
+        `Ok f
+    with Sys_error _ -> `Ok f
 
 let out_descr = parse_descr, print_descr
 
