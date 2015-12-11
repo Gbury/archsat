@@ -88,6 +88,7 @@ type state = {
   mutable false_preds : Expr.term list;
   mutable equalities : (Expr.term * Expr.term) list;
   mutable inequalities : (Expr.term * Expr.term) list;
+  mutable formulas : Expr.formula list;
 }
 
 let empty_st () = {
@@ -95,6 +96,7 @@ let empty_st () = {
   false_preds = [];
   equalities = [];
   inequalities = [];
+  formulas = [];
 }
 
 let top = function
@@ -119,20 +121,26 @@ let debug_st n st =
   List.iter (fun (a, b) -> log n " |- %a == %a" Expr.Debug.term a Expr.Debug.term b) st.equalities;
   fold_diff (fun () a b -> log n " |- %a <> %a" Expr.Debug.term a Expr.Debug.term b) () st
 
+let parse_aux res = function
+  | { Expr.formula = Expr.Pred p } as f ->
+    res.formulas <- f :: res.formulas;
+    res.true_preds <- p :: res.true_preds
+  | { Expr.formula = Expr.Not { Expr.formula = Expr.Pred p } } as f ->
+    res.formulas <- f :: res.formulas;
+    res.false_preds <- p :: res.false_preds
+  | { Expr.formula = Expr.Equal (a, b) } as f ->
+    if not (Expr.Term.equal a b) then begin
+      res.formulas <- f :: res.formulas;
+      res.equalities <- (a, b) :: res.equalities
+    end
+  | { Expr.formula = Expr.Not { Expr.formula = Expr.Equal (a, b) } } as f ->
+    res.formulas <- f :: res.formulas;
+    res.inequalities <- (a, b) :: res.inequalities
+  | _ -> ()
+
 let parse_slice iter =
   let res = empty_st () in
-  iter (function
-      | { Expr.formula = Expr.Pred p } ->
-        res.true_preds <- p :: res.true_preds
-      | { Expr.formula = Expr.Not { Expr.formula = Expr.Pred p } } ->
-        res.false_preds <- p :: res.false_preds
-      | { Expr.formula = Expr.Equal (a, b) } ->
-        if not (Expr.Term.equal a b) then
-          res.equalities <- (a, b) :: res.equalities
-      | { Expr.formula = Expr.Not { Expr.formula = Expr.Equal (a, b) } } ->
-        res.inequalities <- (a, b) :: res.inequalities
-      | _ -> ()
-    );
+  iter (parse_aux res);
   res
 
 (* Meta variables *)
@@ -153,6 +161,8 @@ let mark f =
   let j = !i + 1 in
   i := j;
   j
+
+let iter f = H.iter (fun e _ -> f e) metas
 
 (* Proofs *)
 let mk_proof_ty f metas =

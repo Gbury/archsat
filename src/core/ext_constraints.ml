@@ -12,9 +12,11 @@ let need_restart = ref false
 type zero
 type succ
 
+type constraints = (Unif.t, Ext_meta.state) Constraints.t
+
 type _ acc =
   | Empty : zero acc
-  | Acc : _ acc * Expr.formula list * Constraints.t -> succ acc
+  | Acc : _ acc * constraints -> succ acc
 (* A type for constraints accumulators. the type parameter indicates wether
    the constraint is empty or not.
    Acc(acc, l, c) is so that c is the enumeration of constraints
@@ -30,7 +32,7 @@ type t = {
 let rec belong : type l. succ acc -> l acc -> bool =
   fun a b -> match b with
     | Empty -> false
-    | Acc (a', _, _) -> a == b || belong a a'
+    | Acc (a', _) -> a == b || belong a a'
 (* We test wether a non-empty acc is a sub-accumulator of another accumulator
    (which can possibly be empty). *)
 
@@ -54,12 +56,8 @@ let make_builtin acc =
 
 let unif_empty =
   let gen = function
-    | [] ->
-      Gen.singleton Unif.empty
-    | l ->
+    | st ->
       let open Ext_meta in
-      let st = parse_slice (fun f -> List.iter f l) in
-      debug_st 80 st;
       let gen = Gen.(
           append
             (of_list st.inequalities)
@@ -87,18 +85,18 @@ let unif_empty =
       Util.debug ~section 50 "New merged: %a" Unif.debug s'';
       Gen.singleton s''
   in
-  Constraints.from_merger gen map
+  Constraints.from_merger gen map (Gen.singleton Unif.empty)
 
-let gen_of_acc : type a. a acc -> Constraints.t = function
+let gen_of_acc : type a. a acc -> constraints = function
   | Empty -> unif_empty
-  | Acc (_, _, g) -> g
+  | Acc (_, g) -> g
 
 (* Parsing entry formulas *)
 (* ************************************************************************ *)
 
 let parse iter =
   let acc = ref None in
-  let exprs = ref [] in
+  let st = Ext_meta.empty_st () in
   let aux = function
     | { Expr.formula = Expr.Not { Expr.formula = Expr.Pred { Expr.term = Expr.App ({ Expr.builtin = Acc t }, _, _) } } } ->
       ()
@@ -112,25 +110,26 @@ let parse iter =
           in
           acc := Some new_acc
       end
-    | e -> exprs := e :: !exprs
+    | f -> Ext_meta.parse_aux st f
   in
   let () = iter aux in
-  !acc, !exprs
+  !acc, st
 
-let handle_aux iter acc l =
+let handle_aux iter acc st =
   let c = gen_of_acc acc in
-  match Constraints.add_constraint c l with
+  Ext_meta.debug_st 30 st;
+  match Constraints.add_constraint c st with
   | Some c' ->
     Util.debug ~section 5 "New constraint";
     Solver.assume [
-      List.map Expr.Formula.neg l;
-      [make_builtin (make (Acc (acc, l, c')))];
+      List.map Expr.Formula.neg st.Ext_meta.formulas;
+      [make_builtin (make (Acc (acc, c')))];
     ]
   | None ->
     Util.debug ~section 2 "Couldn't find a satisfiable constraint";
     if !Ext_meta.meta_start + 1 < !Ext_meta.meta_max then begin
       need_restart := true;
-      incr Ext_meta.meta_start;
+      Ext_meta.iter Ext_meta.do_formula;
       Util.debug ~section 2 "Adding new meta (total: %d)" !Ext_meta.meta_start
     end;
     raise Solver.Restart

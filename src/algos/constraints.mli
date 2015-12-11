@@ -1,32 +1,30 @@
 
 (** Axiomatic Constraints accumulators *)
 
-type 'a fold = 'a Gen.t -> Expr.formula list -> 'a Gen.t
-(** Given an enumeration of constraints (of type 'a), and a list of formulas,
+type ('a, 'b) fold = 'a Gen.t -> 'b -> 'a Gen.t
+(** Given an enumeration of constraints (of type 'a), and a value [t] of type ['b],
     functions of this type should return an enumeration of constraints which rafines
-    the given enumeration so that it also contradicts the conjunction of the given formulas *)
+    the given enumeration so that it also contradicts the formulas in [t] *)
 
 (** {2 Axiomatic constraints}
     Taken from a paper from FroCos 2015. TODO: insert correct reference. *)
 
-type t
+type ('a, 'b) t
 (** A type for accumulating constraints *)
 
-val make : 'a Gen.t -> 'a fold -> t option
+val make : 'a Gen.t -> ('a, 'b) fold -> ('a, 'b) t option
 (** Given a generator and a fold function, returns the associated constraint.
     Forces evaluation of the first element of the generator, and returns [None]
     is the given generator is empty. *)
 
-val add_constraint : t -> Expr.formula list -> t option
+val add_constraint : ('a, 'b) t -> 'b -> ('a, 'b) t option
 (** Add a new set of constraints, see the definition of the fold type. This function
     forces the evaluation of the first element of the resulting enumeration of constraints. *)
 
 (** {2 Helpers} *)
 
-val from_merger : (Expr.formula list -> 'a Gen.t) -> ('a * 'a -> 'a Gen.t) -> t
-(** [from_merger gen m] returns a fold function, given a function [gen] which generates
+val from_merger : ('b -> 'a Gen.t) -> ('a * 'a -> 'a Gen.t) -> 'a Gen.t -> ('a, 'b) t
+(** [from_merger gen m start] returns a fold function, given a function [gen] which generates
     an enumeration of constraints for invalidating a conjunction of formulas, and a function
-    [m] which computes the intersection of two constraints. As a special case, [gen] will be
-    called on the empty list to generate the 'empty' constraint.
-    @raise [Invalid_argument "Constraints.from_merger"] if the generator [gen \[\]] is empty. *)
+    [m] which computes the intersection of two constraints. *)
 

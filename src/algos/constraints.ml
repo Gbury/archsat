@@ -4,28 +4,29 @@
 
 type 'a gen = unit -> 'a option
 
-type 'a fold = 'a gen ->  Expr.formula list -> 'a gen
+type ('a, 'b) fold = 'a gen -> 'b -> 'a gen
 
-type t =
-  | Stream : 'a Gen.Restart.t * 'a fold -> t
+type ('a, 'b) t = {
+  fold : ('a, 'b) fold;
+  stream : 'a Gen.Restart.t;
+}
 
 let make g fold =
-  let e = Gen.persistent_lazy ~caching:false g in
-  match e () () with
-  | Some _ -> Some (Stream (e, fold))
+  let stream = Gen.persistent_lazy ~caching:false g in
+  match stream () () with
   | None -> None
+  | Some _ -> Some { stream; fold }
 
 let add_constraint t l =
-  match t with Stream (s, f) ->
-    let g = f (s ()) l in
-    make g f
+  let g = t.fold (t.stream ()) l in
+  make g t.fold
 
 (* Helpers *)
 (* ************************************************************************ *)
 
-let from_merger gen m =
-  let f g l = Gen.merge (Gen.map m (Gen.product g (gen l))) in
-  match make (gen []) f with
-  | None -> raise (Invalid_argument "Constraints.from_merger")
+let from_merger gen merger start =
+  let fold g b = Gen.merge (Gen.map merger (Gen.product g (gen b))) in
+  match make start fold with
+  | None -> raise (Invalid_argument "Constraints.from_merger: start gern should be non-empty")
   | Some t -> t
 

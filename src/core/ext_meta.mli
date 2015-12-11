@@ -3,6 +3,9 @@
 
 (** {2 Metavariables helpers}*)
 
+val iter : (Expr.formula -> unit) -> unit
+(** Iter over all formulas that potentially generate metas *)
+
 val do_formula : Expr.formula -> unit
 (** Generate a meta variable associated with the given formula, and push
     the corresponding instantiation clause ot the solver.
@@ -15,8 +18,15 @@ type state = {
   mutable false_preds : Expr.term list;
   mutable equalities : (Expr.term * Expr.term) list;
   mutable inequalities : (Expr.term * Expr.term) list;
+  mutable formulas : Expr.formula list;
 }
 (** A type to separate formulas in order to facilitate unification *)
+
+val empty_st : unit -> state
+(** Returns a fresh empty state *)
+
+val parse_aux : state -> Expr.formula -> unit
+(** Modifies state in place to add the terms in the given formula *)
 
 val parse_slice : ((Expr.formula -> unit) -> unit) -> state
 (** Create a slice from the iterator on formulas *)
