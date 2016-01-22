@@ -129,10 +129,11 @@ val set_assign : Expr.term -> Expr.term -> int -> unit
     May erase previous assignment of [t]. *)
 
 val watch : ?formula:Expr.formula -> string -> int -> Expr.term list -> (unit -> unit) -> unit
-(** [watch tag k l f] sets up a k-watching among the terms in l, calling f once there is fewer
-    than k terms not assigned in l. The pair [(l, tag)] is used as a key to eliminate duplicates.
-    @param formula attach the watcher to a formula, so that the callback will onlybe called
-      if the given formula is among the current assumption when the watcher triggers. *)
+(** [watch section k l f] sets up a k-watching among the terms in l, calling f once there is fewer
+    than k terms not assigned in l. [section] should be a registered section, and together with
+    the list [l], it is used as a key to prevent duplicates watches.
+    @param formula attach the watcher to a formula, so that the callback will only be called
+      if the given formula is among the current assumption when the watcher triggers (i.e if the formula is true). *)
 
 val model : unit -> (Expr.term * Expr.term) list
 (** Returns the full assignment in the current model. *)
