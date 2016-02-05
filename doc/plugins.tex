@@ -1,0 +1,22 @@
+
+\section{Main Plugins in Archsat}
+
+Here we will describe how the main plugins of archsat works. Together,
+they handle classical first-order logic.
+
+\subsection{Logic translation}
+
+Archsat does not compute conjunctive normal forms before adding the relevant
+clauses to the McSat solver. Instead we use some form of lazy transformation,
+that works by adding clauses to the compiler step by step. This works
+because expressions in Archsat are opaque to the solver. Whenever a
+expression with a boolean combinator at the top is assigned (to $\top$
+or $\bot$), this plugin adds to the solver clauses that represents the
+translation of the boolean combinator used.
+TODO: add table for rules.
+
+For instance, let's consider the following expression: $A \land (B \lor C)$.
+The starting point of the solver will be to have one clause containing a single
+expression which will be $[A \land (B \lor C)]$, let's call it $f_1$.
+$f_1$ will naturally be set to $\top$, and propagated.
+
