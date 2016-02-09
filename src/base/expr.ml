@@ -5,11 +5,6 @@
 (* Type definitions *)
 (* ************************************************************************ *)
 
-(* Type for meta-variable multiplicity *)
-type multiplicity =
-  | Linear (* var should only be instantied once *)
-  | Infinite (* you can do what you want *)
-
 (* Private aliases *)
 type hash = int
 type index = int
@@ -34,7 +29,6 @@ type 'ty id = {
 (* Metavariables, basically, wrapped variables *)
 type 'ty meta = {
   meta_id : 'ty id;
-  meta_mult : multiplicity;
   meta_index : 'ty meta_index;
 }
 
@@ -531,26 +525,9 @@ module Meta = struct
   let meta_ty_index = CCVector.make 37 (dummy_formula, [])
   let meta_term_index = CCVector.make 37 (dummy_formula, [])
 
-  let rec mult_of_f f = match f.formula with
-    | Pred _ | Equal _ -> Infinite
-    | Not { formula = Ex (_, _, f') } | All (_, _, f')
-    | Not { formula = ExTy (_, _, f') } | AllTy (_, _, f') ->
-      mult_of_f f'
-    | Not { formula = Imply (p, q) } ->
-      if mult_of_f p = Infinite && mult_of_f q = Infinite then
-        Infinite
-      else Linear
-    | Not { formula = Or l } | And l ->
-      if List.for_all (fun f' -> mult_of_f f'  = Infinite) l then
-        Infinite
-      else
-        Linear
-    | _ -> Linear
-
   (* Metas *)
-  let mk_meta v i m = {
+  let mk_meta v i = {
     meta_id = v;
-    meta_mult = m;
     meta_index = i;
   }
 
@@ -559,13 +536,13 @@ module Meta = struct
 
   let mk_metas l f =
     let i = CCVector.size meta_term_index in
-    let metas = List.map (fun v -> mk_meta v i (mult_of_f f)) l in
+    let metas = List.map (fun v -> mk_meta v i) l in
     CCVector.push meta_term_index (f, metas);
     metas
 
   let mk_ty_metas l f =
     let i = CCVector.size meta_ty_index in
-    let metas = List.map (fun v -> mk_meta v i (mult_of_f f)) l in
+    let metas = List.map (fun v -> mk_meta v i) l in
     CCVector.push meta_ty_index (f, metas);
     metas
 

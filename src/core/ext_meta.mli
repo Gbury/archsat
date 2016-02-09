@@ -39,7 +39,7 @@ val debug_st : int -> state -> unit
 (** {3 Meta variable generation] *)
 
 val meta_start : int ref
-(** Number of meta to generate onthe first try *)
+(** Number of meta to generate on the first try *)
 
 val meta_incr : bool ref
 (** Sets wether new meta should be generated at each round *)

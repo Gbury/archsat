@@ -41,8 +41,14 @@ val full_model : unit -> (Expr.term * Expr.term) list
 val get_proof : unit -> proof
 (** Returns a proof of unsatisfiability of the current assumptions. *)
 
+val unsat_core : proof -> Expr.formula list list
+(** Returns the list of hypothesis used in the proof, as a list of clauses *)
+
 val print_dot_proof : Format.formatter -> proof -> unit
 (** Prints the proof on the given formatter. *)
+
+val print_unsat_core : Format.formatter -> Expr.formula list list -> unit
+(** Prints the unsat core explanation on the given formatter. *)
 
 (** {2 Restart & Replay} *)
 

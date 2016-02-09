@@ -59,9 +59,7 @@ module SolverExpr = struct
     | f -> f, false
 end
 
-module SolverTypes = Msat.Solver_types.McMake(struct
-    let debug i format = Util.debug ~section:solver_section i format
-  end)(SolverExpr)
+module SolverTypes = Msat.Solver_types.McMake(SolverExpr)
 
 (* Exceptions *)
 (* ************************************************************************ *)
@@ -518,8 +516,8 @@ module SolverTheory = struct
       do_push s.push;
       Sat
     with Absurd (l, p) ->
-      Util.debug ~section 3 "Conflict '%s'" p.proof_name;
-      List.iter (fun f -> Util.debug ~section 1 " |- %a" Expr.Debug.formula f) l;
+      Util.debug ~section 5 "Conflict '%s'" p.proof_name;
+      List.iter (fun f -> Util.debug ~section 5 " |- %a" Expr.Debug.formula f) l;
       Util.exit_prof section;
       Unsat (l, p)
 

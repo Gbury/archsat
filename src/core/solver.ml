@@ -1,7 +1,6 @@
 
 let section = Dispatcher.solver_section
 
-
 (* Proof replay helpers *)
 (* ************************************************************************ *)
 
@@ -34,9 +33,7 @@ let do_post = function
 (* Solving module *)
 (* ************************************************************************ *)
 
-module Smt = Msat.Internal.Make(struct
-    let debug i format = Util.debug ~section i format
-  end)(Dispatcher.SolverTypes)(Dispatcher.SolverTheory)
+module Smt = Msat.Internal.Make(Dispatcher.SolverTypes)(Dispatcher.SolverTheory)
 
 module Dot = Msat.Dot.Make(Smt.Proof)(struct
     let print_atom = Dispatcher.SolverTypes.print_atom
@@ -107,4 +104,17 @@ let get_proof () =
 
 let print_dot_proof = Dot.print
 
+let unsat_core p =
+  Smt.Proof.(
+    fold (fun l node ->
+        match node.step with
+        | Hypothesis ->
+          List.map (fun a -> Dispatcher.SolverTypes.(a.lit))
+            (Smt.Proof.to_list node.conclusion) :: l
+        | _ -> l) [] p)
+
+let print_unsat_core fmt l =
+  List.iter (fun c ->
+      Format.fprintf fmt "%a\n"
+        Expr.Print.formula (Expr.Formula.f_or c)) l
 

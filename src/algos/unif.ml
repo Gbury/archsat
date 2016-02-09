@@ -168,11 +168,12 @@ module Robinson = struct
     let s = follow_ty subst s in
     let t = follow_ty subst t in
     match s, t with
-    | _ when Expr.Ty.equal s t -> subst
     | ({ Expr.ty = Expr.TyMeta v } as m), u
     | u, ({ Expr.ty = Expr.TyMeta v } as m) ->
       if occurs_ty subst v u then
         raise (Impossible_ty (m, u))
+      else if Expr.Ty.equal m u then
+        subst
       else
         bind_ty subst v u
     | { Expr.ty = Expr.TyApp (f, f_args) },
@@ -187,11 +188,12 @@ module Robinson = struct
     let s = follow_term subst s in
     let t = follow_term subst t in
     match s, t with
-    | _ when Expr.Term.equal s t -> subst
     | ({ Expr.term = Expr.Meta v } as m), u
     | u, ({ Expr.term = Expr.Meta v } as m) ->
       if occurs_term subst v u then
         raise (Impossible_term (m, u))
+      else if Expr.Term.equal m u then
+        subst
       else
         let subst' = ty subst Expr.(m.t_type) Expr.(u.t_type) in
         bind_term subst' v u

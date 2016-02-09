@@ -5,8 +5,7 @@
 
 val pp_input : Buffer.t -> Options.input -> unit
 val print_input : Format.formatter -> Options.input -> unit
-
-(** {2 IO Wrappers} *)
+(** Print the input type value *)
 
 val curr_input : unit -> Options.input
 val curr_output : unit -> Options.output

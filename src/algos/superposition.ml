@@ -10,26 +10,27 @@
 
 (* Type for unit clauses, i.e clauses with at most one equation *)
 type clause = {
-  eq : bool; (* is it an equality clause ? *)
-  size : int;
+  eq : bool;                (* is it an equality clause ? *)
+  weight : int;             (* weight of the clause (clauses with lesser wieght are selected first) *)
   lit : (Expr.Term.t * Expr.Term.t) option;
-  acc : Unif.t list;
-  reason : string;
-  parents : clause list;
+                            (* Pair of terms that constitutes the clause *)
+  map : Unif.t;             (* Current mapping for linear variables *)
+  reason : string;          (* Name of the inference that created the clause *)
+  parents : clause list;    (* Clauses involved in the inference that created the clause *)
 }
 
 let compare_cl c c' =
   match c.lit, c'.lit with
   | None, Some _ -> -1
   | Some _, None -> 1
-  | None, None -> CCOrd.list_ Unif.compare c.acc c'.acc
+  | None, None -> Unif.compare c.map c'.map
   | Some (a, b), Some (a', b') ->
     match c.eq, c'.eq with
     | true, false -> -1
     | false, true -> 1
     | _ -> begin match Expr.Term.compare a a' with
         | 0 -> begin match Expr.Term.compare b b' with
-            | 0 ->  CCOrd.list_ Unif.compare c.acc c'.acc
+            | 0 ->  Unif.compare c.map c'.map
             | x -> x
           end
         | x -> x
@@ -37,11 +38,11 @@ let compare_cl c c' =
 
 let rec debug_cl ?(full=false) buf c =
   match c.lit with
-  | None -> Printf.bprintf buf "%s:[](%d)" c.reason (List.length c.acc)
+  | None -> Printf.bprintf buf "%s:[]" c.reason
   | Some (a, b) ->
-    Printf.bprintf buf "%s:[%a %s %a](%d)"
+    Printf.bprintf buf "%s:[%a %s %a]"
       c.reason Expr.Debug.term a
-      (if c.eq then "=" else "<>") Expr.Debug.term b (List.length c.acc);
+      (if c.eq then "=" else "<>") Expr.Debug.term b;
     if full then
       Printf.bprintf buf " ||%a||"
         CCPrint.(list ~start:" " ~stop:" " ~sep:", " (debug_cl ~full:false)) c.parents
@@ -54,17 +55,11 @@ let rec term_size = function
 let tsize a b = term_size a + term_size b
 
 (* TODO: better heuristic for clause selection. *)
-let c_leq c c' = c.size <= c'.size
-
-let add_acc x l = CCList.sorted_merge_uniq ~cmp:Unif.compare l [x]
-let merge_acc = CCList.sorted_merge_uniq ~cmp:Unif.compare
+let c_leq c c' = c.weight <= c'.weight
 
 (* Clauses *)
-let mk_cl reason p lit size acc parents = {
-  eq = p; lit; size;
-  acc = List.sort Unif.compare acc;
-  reason; parents;
-}
+let mk_cl reason p lit weight map parents =
+  { eq = p; lit; weight; reason; parents; map; }
 
 let ord a b = if Expr.Term.compare a b <= 0 then a, b else b, a
 
@@ -112,7 +107,7 @@ type t = {
   root_pos_index : I.t;
   root_neg_index : I.t;
   inactive_index : I.t;
-  continuation : Unif.t list -> unit;
+  continuation : Unif.t -> unit;
   section : Util.Section.t;
 }
 
@@ -168,6 +163,7 @@ let rm_clause = change_state S.remove I.remove
 (* Instanciations constraints *)
 (* ************************************************************************ *)
 
+(*
 module MS = CCMultiSet.Make(struct
     type t = Expr.Ty.t Expr.Meta.t let compare = Expr.Meta.compare end)
 
@@ -183,8 +179,6 @@ let check_occ b n m =
   | Expr.Infinite -> b
 
 let valid_cl c = MS.fold (count c) true check_occ
-
-let push_cl c acc = if valid_cl c then c :: acc else acc
 
 let rec ty_is_linear = function
   | { Expr.ty = Expr.TyVar _ } -> false
@@ -202,6 +196,7 @@ let valid_simpl u = (* Check that only meta-var of infinite multiplicity are ins
       | Expr.Linear -> false
       | Expr.Infinite -> not (t_is_linear e))
     u.Unif.t_map
+*)
 
 (* Help functions *)
 (* ************************************************************************ *)
@@ -224,16 +219,19 @@ let do_supp acc sigma active inactive =
     match Position.Term.substitute inactive.pos ~by:t u with
     | Some tmp ->
       let u' = aux tmp in
-      let c = mk_cl "supp" inactive.clause.eq (Some (ord u' v')) (tsize u' v')
-          (add_acc sigma (merge_acc inactive.clause.acc active.clause.acc))
-          [active.clause; inactive.clause]
+      begin match Unif.combine inactive.clause.map active.clause.map with
+      | None -> acc
+      | Some map ->
+        let c = mk_cl "supp" inactive.clause.eq (Some (ord u' v')) (tsize u' v') map
+            [active.clause; inactive.clause]
       in
-      push_cl c acc
+      c :: acc
+      end
     | None -> acc
 
 let do_rewrite sigma active inactive =
   assert (active.clause.eq && active.pos = Position.root);
-  if inactive.clause.eq || not (List.for_all valid_simpl (sigma :: active.clause.acc)) then
+  if inactive.clause.eq then
     None
   else begin
     let aux = Unif.term_subst sigma in
@@ -243,11 +241,12 @@ let do_rewrite sigma active inactive =
     let t' = aux t in
     match Lpo.compare s' t' with
     | Comparison.Gt when (not inactive.clause.eq) || Lpo.compare u v <> Comparison.Gt ->
-      CCOpt.(Position.Term.substitute inactive.pos ~by:t' u >|=
+      CCOpt.(Position.Term.substitute inactive.pos ~by:t' u >>=
              (fun u' ->
-                mk_cl "rewrite" inactive.clause.eq (Some (ord u' v)) (tsize u' v)
-                  (add_acc sigma (merge_acc inactive.clause.acc active.clause.acc))
-                  (active.clause :: inactive.clause.parents)))
+                Unif.combine active.clause.map inactive.clause.map >>= Unif.combine sigma >|=
+                (fun map ->
+                   mk_cl "rewrite" inactive.clause.eq (Some (ord u' v)) (tsize u' v) map
+                     (active.clause :: inactive.clause.parents))))
     | _ -> None
   end
 
@@ -269,7 +268,7 @@ let rec make_eq p_set a b =
     `Equal
   else
     match find_subst_eq p_set.root_pos_index a b with
-    | Some u when valid_simpl u -> `Unifiable u
+    | Some u -> `Unifiable u
     | _ ->
       begin match a, b with
         | { Expr.term = Expr.App (f, _, f_args) }, { Expr.term = Expr.App (g, _, g_args) }
@@ -300,7 +299,11 @@ let equality_resolution ~section c =
     match c.lit with
     | Some (a, b) ->
       begin match Unif.Robinson.find ~section a b with
-        | Some u -> [mk_none ("ER:" ^ c.reason) (u :: c.acc) [c]]
+        | Some u ->
+          begin match Unif.combine u c.map with
+            | Some map -> [mk_none ("ER:" ^ c.reason) map [c]]
+            | None -> []
+          end
         | None -> []
       end
     | _ -> []
@@ -359,10 +362,8 @@ let add_inactive_rewrite p_set clause side pos u =
   let inactive = { clause; side; pos } in
   CCList.find_map (fun (_, m, l') ->
       let sigma = Unif.Match.to_subst m in
-      if valid_simpl sigma then
-        CCList.find_map (fun active ->
-            do_rewrite sigma active inactive) l'
-      else None) l
+      CCList.find_map (fun active ->
+          do_rewrite sigma active inactive) l') l
 
 let rewrite_lit p_set c =
   match c.lit with
@@ -389,10 +390,14 @@ let positive_simplify_reflect p_set c =
     match c.lit with
     | Some (a, b) ->
       begin match make_eq p_set a b with
-        | `Equal -> Some (mk_none ("PS_eq:" ^ c.reason) c.acc c.parents)
+        | `Equal -> Some (mk_none ("PS_eq:" ^ c.reason) c.map c.parents)
         | `Unifiable u ->
-          Util.debug ~section:p_set.section 50 "Found unif : %a" Unif.debug u;
-          Some (mk_none ("PS_unif:" ^ c.reason) (add_acc u c.acc) c.parents)
+          begin match Unif.combine u c.map with
+            | Some map ->
+              Util.debug ~section:p_set.section 50 "Found unif : %a" Unif.debug u;
+              Some (mk_none ("PS_unif:" ^ c.reason) map c.parents)
+            | None -> None
+          end
         | `Impossible -> None
       end
     | None -> None
@@ -405,7 +410,11 @@ let negative_simplify_reflect p_set c =
     match c.lit with
     | Some (a, b) ->
       begin match find_subst_eq p_set.root_neg_index a b with
-        | Some u -> Some (mk_none ("NS:" ^ c.reason) (add_acc u c.acc) c.parents)
+        | Some u ->
+          begin match Unif.combine u c.map with
+            | Some map -> Some (mk_none ("NS:" ^ c.reason) map c.parents)
+            | None -> None
+          end
         | None -> None
       end
     | None -> None
@@ -428,7 +437,7 @@ let fix arg f =
 (* Applies: RP, RN, PS, NS *)
 let simplify_clause c p =
   fix c (chain [
-      rewrite_lit p;
+      (* rewrite_lit p; *)
       positive_simplify_reflect p;
       negative_simplify_reflect p;
     ])
@@ -444,10 +453,12 @@ let cheap_simplify_aux c p =
       rewrite_lit p;
     ])
 
-let cheap_simplify c p =
+let cheap_simplify c p = c
+  (*
   match cheap_simplify_aux c p with
   | Some c' -> c'
   | None -> c
+     *)
 
 (* Applies: ES *)
 let redundant c p = equality_subsumption c p
@@ -483,7 +494,7 @@ let rec discount_loop p_set =
       Util.debug ~section:p_set.section 15 "Adding clause : %a" (debug_cl ~full:false) c;
       if c.lit = None then begin
         Util.debug ~section:p_set.section 10 "Inst reached, %d clauses in state" (S.cardinal p_set.clauses);
-        p_set.continuation c.acc;
+        p_set.continuation c.map;
         discount_loop { p_set with queue = u }
       end else begin
         let p_set = add_clause c p_set in
@@ -513,11 +524,11 @@ let rec discount_loop p_set =
 (* ************************************************************************ *)
 
 let add_eq t a b =
-  let c = mk_eq "init_eq" a b [] [] in
+  let c = mk_eq "init_eq" a b Unif.empty [] in
   if trivial c t then t
   else { t with queue = Q.insert c t.queue }
 
-let add_neq t a b = { t with queue = Q.insert (mk_neq "init_neq" a b [] []) t.queue }
+let add_neq t a b = { t with queue = Q.insert (mk_neq "init_neq" a b Unif.empty []) t.queue }
 
 let solve t = discount_loop t
 

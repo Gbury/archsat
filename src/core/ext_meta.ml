@@ -21,7 +21,7 @@ let () = ignore (Superposition.empty (fun _ -> assert false) sup_section)
 
 (* To see the actual default values, see the cmd line options *)
 let meta_start = ref 0
-let meta_incr= ref false
+let meta_incr = ref false
 let meta_delay = ref (0, 0)
 let meta_max = ref 10
 
@@ -156,12 +156,6 @@ let get_nb_metas f =
     H.add metas f i;
     i
 
-let mark f =
-  let i = get_nb_metas f in
-  let j = !i + 1 in
-  i := j;
-  j
-
 let iter f = H.iter (fun e _ -> f e) metas
 
 (* Proofs *)
@@ -172,72 +166,78 @@ let mk_proof_term f metas =
   Dispatcher.mk_proof "meta" ~term_args:([]) "term"
 
 (* Meta generation & predicates storing *)
-let do_formula = function
-  | { Expr.formula = Expr.All (l, _, p) } as f ->
-    let _ = mark f in
-    let metas = List.map Expr.Term.of_meta (Expr.Meta.of_all f) in
-    let subst = List.fold_left2 (fun s v t -> Expr.Subst.Id.bind v t s) Expr.Subst.empty l metas in
-    let q = Expr.Formula.subst Expr.Subst.empty subst p in
-    Dispatcher.push [Expr.Formula.neg f; q] (mk_proof_term f metas)
-  | { Expr.formula = Expr.Not { Expr.formula = Expr.Ex (l, _, p) } } as f ->
-    let _ = mark f in
-    let metas = List.map Expr.Term.of_meta (Expr.Meta.of_all f) in
-    let subst = List.fold_left2 (fun s v t -> Expr.Subst.Id.bind v t s) Expr.Subst.empty l metas in
-    let q = Expr.Formula.subst Expr.Subst.empty subst p in
-    Dispatcher.push [Expr.Formula.neg f; Expr.Formula.neg q] (mk_proof_term f metas)
-  | { Expr.formula = Expr.AllTy (l, _, p) } as f ->
-    let _ = mark f in
-    let metas = List.map Expr.Ty.of_meta (Expr.Meta.of_all_ty f) in
-    let subst = List.fold_left2 (fun s v t -> Expr.Subst.Id.bind v t s) Expr.Subst.empty l metas in
-    let q = Expr.Formula.subst subst Expr.Subst.empty p in
-    Dispatcher.push [Expr.Formula.neg f; q] (mk_proof_ty f metas)
-  | { Expr.formula = Expr.Not { Expr.formula = Expr.ExTy (l, _, p) } } as f ->
-    let _ = mark f in
-    let metas = List.map Expr.Ty.of_meta (Expr.Meta.of_all_ty f) in
-    let subst = List.fold_left2 (fun s v t -> Expr.Subst.Id.bind v t s) Expr.Subst.empty l metas in
-    let q = Expr.Formula.subst subst Expr.Subst.empty p in
-    Dispatcher.push [Expr.Formula.neg f; Expr.Formula.neg q] (mk_proof_ty f metas)
-  | _ -> ()
+let do_formula =
+  let aux = function
+    | { Expr.formula = Expr.All (l, _, p) } as f ->
+      let metas = List.map Expr.Term.of_meta (Expr.Meta.of_all f) in
+      let subst = List.fold_left2 (fun s v t -> Expr.Subst.Id.bind v t s) Expr.Subst.empty l metas in
+      let q = Expr.Formula.subst Expr.Subst.empty subst p in
+      Dispatcher.push [Expr.Formula.neg f; q] (mk_proof_term f metas)
+    | { Expr.formula = Expr.Not { Expr.formula = Expr.Ex (l, _, p) } } as f ->
+      let metas = List.map Expr.Term.of_meta (Expr.Meta.of_all f) in
+      let subst = List.fold_left2 (fun s v t -> Expr.Subst.Id.bind v t s) Expr.Subst.empty l metas in
+      let q = Expr.Formula.subst Expr.Subst.empty subst p in
+      Dispatcher.push [Expr.Formula.neg f; Expr.Formula.neg q] (mk_proof_term f metas)
+    | { Expr.formula = Expr.AllTy (l, _, p) } as f ->
+      let metas = List.map Expr.Ty.of_meta (Expr.Meta.of_all_ty f) in
+      let subst = List.fold_left2 (fun s v t -> Expr.Subst.Id.bind v t s) Expr.Subst.empty l metas in
+      let q = Expr.Formula.subst subst Expr.Subst.empty p in
+      Dispatcher.push [Expr.Formula.neg f; q] (mk_proof_ty f metas)
+    | { Expr.formula = Expr.Not { Expr.formula = Expr.ExTy (l, _, p) } } as f ->
+      let metas = List.map Expr.Ty.of_meta (Expr.Meta.of_all_ty f) in
+      let subst = List.fold_left2 (fun s v t -> Expr.Subst.Id.bind v t s) Expr.Subst.empty l metas in
+      let q = Expr.Formula.subst subst Expr.Subst.empty p in
+      Dispatcher.push [Expr.Formula.neg f; Expr.Formula.neg q] (mk_proof_ty f metas)
+    | _ -> ()
+  in function
+    | ({ Expr.formula = Expr.Not { Expr.formula = Expr.ExTy _ } } as f)
+    | ({ Expr.formula = Expr.Not { Expr.formula = Expr.Ex _ } } as f)
+    | ({ Expr.formula = Expr.AllTy _ } as f)
+    | ({ Expr.formula = Expr.All _ } as f) ->
+      let i = get_nb_metas f in
+      while !i <= !meta_start do
+        aux f;
+        incr i
+      done
+    | _ -> ()
 
 let do_meta_inst = function
   | { Expr.formula = Expr.All (l, _, p) } as f ->
-    let i = mark f in
-    if i <= !meta_max then begin
+    let i = get_nb_metas f in
+    if !i < !meta_max then begin
+      incr i;
       let metas = Expr.Meta.of_all f in
       let u = List.fold_left (fun s m -> Unif.bind_term s m (Expr.Term.of_meta m)) Unif.empty metas in
-      ignore (Inst.add ~delay:(delay i) u)
+      ignore (Inst.add ~delay:(delay !i) u)
     end
   | { Expr.formula = Expr.Not { Expr.formula = Expr.Ex (l, _, p) } } as f ->
-    let i = mark f in
-    if i <= !meta_max then begin
+    let i = get_nb_metas f in
+    if !i < !meta_max then begin
+      incr i;
       let metas = Expr.Meta.of_all f in
       let u = List.fold_left (fun s m -> Unif.bind_term s m (Expr.Term.of_meta m)) Unif.empty metas in
-      ignore (Inst.add ~delay:(delay i) u)
+      ignore (Inst.add ~delay:(delay !i) u)
     end
   | { Expr.formula = Expr.AllTy (l, _, p) } as f ->
-    let i = mark f in
-    if i <= !meta_max then begin
+    let i = get_nb_metas f in
+    if !i < !meta_max then begin
+      incr i;
       let metas = Expr.Meta.of_all_ty f in
       let u = List.fold_left (fun s m -> Unif.bind_ty s m (Expr.Ty.of_meta m)) Unif.empty metas in
-      ignore (Inst.add ~delay:(delay i) u)
+      ignore (Inst.add ~delay:(delay !i) u)
     end
   | { Expr.formula = Expr.Not { Expr.formula = Expr.ExTy (l, _, p) } } as f ->
-    let i = mark f in
-    if i <= !meta_max then begin
+    let i = get_nb_metas f in
+    if !i < !meta_max then begin
+      incr i;
       let metas = Expr.Meta.of_all_ty f in
       let u = List.fold_left (fun s m -> Unif.bind_ty s m (Expr.Ty.of_meta m)) Unif.empty metas in
-      ignore (Inst.add ~delay:(delay i) u)
+      ignore (Inst.add ~delay:(delay !i) u)
     end
   | _ -> assert false
 
 (* Assuming function *)
-let meta_assume (f, lvl) = match f with
-  | ({ Expr.formula = Expr.Not { Expr.formula = Expr.ExTy _ } } as f)
-  | ({ Expr.formula = Expr.Not { Expr.formula = Expr.Ex _ } } as f)
-  | ({ Expr.formula = Expr.AllTy _ } as f)
-  | ({ Expr.formula = Expr.All _ } as f) ->
-    while !(get_nb_metas f) < !meta_start do do_formula f done
-  | _ -> ()
+let meta_assume (f, _) = do_formula f
 
 (* Finding instanciations *)
 (* ************************************************************************ *)
@@ -281,7 +281,7 @@ let rec unif_f st = function
     Util.exit_prof rigid_section
   | SuperEach ->
     Util.enter_prof sup_section;
-    let t = Superposition.empty (insts (ref 1)) sup_section in
+    let t = Superposition.empty single_inst sup_section in
     let t = List.fold_left (fun acc (a, b) -> Superposition.add_eq acc a b) t st.equalities in
     let t = Superposition.solve t in
     fold_diff (fun () a b ->
@@ -291,7 +291,7 @@ let rec unif_f st = function
     Util.exit_prof sup_section
   | SuperAll ->
     Util.enter_prof sup_section;
-    let t = Superposition.empty (insts (ref (sup_limit st))) sup_section in
+    let t = Superposition.empty (fun u -> insts (ref (sup_limit st)) [u]) sup_section in
     let t = List.fold_left (fun acc (a, b) -> Superposition.add_eq acc a b) t st.equalities in
     let t = fold_diff (fun acc a b -> Superposition.add_neq acc a b) t st in
     begin try
@@ -306,17 +306,16 @@ let rec unif_f st = function
       unif_f st SuperAll
 
 let find_all_insts : type ret. ret Dispatcher.msg -> ret option = function
-  | Dispatcher.If_sat iter ->
+  | Dispatcher.If_sat model ->
     (* Create new metas *)
-    if !meta_incr then
-      H.iter (fun f _ -> do_meta_inst f) metas;
+    if !meta_incr then (Util.debug 1 "New metas to generate"; iter do_meta_inst);
     (* Look at instanciation settings *)
     begin match !unif_setting with
       | No_unif -> ()
       | _ ->
         (* Analysing assummed formulas *)
         log 5 "Parsing input formulas";
-        let st = parse_slice iter in
+        let st = parse_slice model in
         debug_st 30 st;
         (* Search for instanciations *)
         log 5 "Applying unification";

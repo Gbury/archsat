@@ -1,5 +1,5 @@
 
-let section = Util.Section.make ~parent:Dispatcher.section "constraints"
+let section = Util.Section.make ~parent:Dispatcher.section "cstr"
 
 (* Options *)
 (* ************************************************************************ *)
@@ -24,36 +24,17 @@ let parse_kind = Cmdliner.Arg.enum kind_list
 (* Accumulators for constraints *)
 (* ************************************************************************ *)
 
-type zero
-type succ
-
 type constraints = (Unif.t, Ext_meta.state) Constraints.t
-
-type _ acc =
-  | Empty : zero acc
-  | Acc : _ acc * constraints -> succ acc
-(* A type for constraints accumulators. the type parameter indicates wether
-   the constraint is empty or not.
-   Acc(acc, l, c) is so that c is the enumeration of constraints
-   that satisfy acc, and induce a contradiction in some formuylas of l *)
 
 type t = {
   id : int;
-  acc : succ acc;
+  acc : constraints;
+  level : Solver.level;
 }
-(* Accumulators are tagged with an increasing id in order to know which accumulator
-   is more recent when comparing two *)
-
-let rec belong : type l. succ acc -> l acc -> bool =
-  fun a b -> match b with
-    | Empty -> false
-    | Acc (a', _) -> a == b || belong a a'
-(* We test wether a non-empty acc is a sub-accumulator of another accumulator
-   (which can possibly be empty). *)
 
 let make =
   let c = ref 0 in
-  (fun acc -> incr c; { id = !c; acc })
+  (fun acc level -> { id = !c; acc; level; })
 
 (* Builtin symbol *)
 (* ************************************************************************ *)
@@ -64,7 +45,6 @@ let make_builtin acc =
   let builtin = Acc acc in
   let p = Expr.Id.term_fun ~builtin (Format.sprintf "acc#%d" acc.id) [] [] Expr.Ty.prop in
   Expr.Formula.pred (Expr.Term.apply p [] [])
-
 
 (* Accumulators *)
 (* ************************************************************************ *)
@@ -87,8 +67,10 @@ let unif_depth =
   let fold g st =
     Gen.flat_map (fun s ->
         Gen.filter_map (fun (t, t') ->
-            try Some (Unif.Robinson.term s t t')
-            with Unif.Robinson.Impossible_ty _ | Unif.Robinson.Impossible_term _ -> None
+            match Unif.Robinson.term s t t' with
+            | x -> Some x
+            | exception Unif.Robinson.Impossible_ty _ -> None
+            | exception Unif.Robinson.Impossible_term _ -> None
           ) (gen_of_state st)) g
   in
   match Constraints.make (Gen.singleton Unif.empty) fold with
@@ -105,13 +87,12 @@ let unif_breadth =
   in
   Constraints.from_merger gen merger (Gen.singleton Unif.empty)
 
-let gen_of_acc : type a. a acc -> constraints = function
-  | Acc (_, g) -> g
-  | Empty -> begin match !unif_algo with
-      | Nope -> empty
-      | Unif_depth -> unif_depth
-      | Unif_breadth -> unif_breadth
-    end
+
+let empty_cst () =
+  match !unif_algo with
+  | Nope -> empty
+  | Unif_depth -> unif_depth
+  | Unif_breadth -> unif_breadth
 
 (* Parsing entry formulas *)
 (* ************************************************************************ *)
@@ -125,37 +106,25 @@ let parse iter =
     | { Expr.formula = Expr.Pred { Expr.term = Expr.App ({ Expr.builtin = Acc t }, _, _) } } ->
       begin match !acc with
         | None -> acc := Some t
-        | Some t' ->
-          let new_acc =
-            if t.id > t'.id then (assert (belong t'.acc t.acc); t)
-            else                 (assert (belong t.acc t'.acc); t')
-          in
-          acc := Some new_acc
+        | Some t' -> assert false
       end
     | f -> Ext_meta.parse_aux st f
   in
   let () = iter aux in
   !acc, st
 
-module H = Hashtbl.Make(Expr.Formula)
-
-let tmp = H.create 2500
 
 let handle_aux iter acc st =
-  let c = gen_of_acc acc in
   Ext_meta.debug_st 30 st;
-  match Constraints.add_constraint c st with
+  match Constraints.add_constraint acc st with
   | Some c' ->
-    Util.debug ~section 5 "New constraint";
-    Util.debug ~section 10 "Clause :";
-    List.iter (fun f -> Util.debug ~section 10 "  - %a" Expr.Debug.formula (Expr.Formula.neg f)) st.Ext_meta.formulas;
-    let f = Expr.Formula.f_or (List.map Expr.Formula.neg st.Ext_meta.formulas) in
-    if H.mem tmp f then assert false
-    else H.add tmp f 0;
-    Solver.assume [
-      List.map Expr.Formula.neg st.Ext_meta.formulas;
-      [make_builtin (make (Acc (acc, c')))];
-    ]
+    let level = Solver.push () in
+    let s = match Constraints.gen c' () with Some c -> c | None -> assert false in
+    Util.debug ~section 10 "New Constraint with subst : %a" Unif.debug s;
+    let acc = [make_builtin (make c' level)] in
+    let l = Expr.Subst.fold (fun m t acc ->
+        [Expr.Formula.eq (Expr.Term.of_meta m) t] :: acc) s.Unif.t_map [] in
+    Solver.assume (acc :: l)
   | None ->
     Util.debug ~section 2 "Couldn't find a satisfiable constraint";
     if !Ext_meta.meta_start + 1 < !Ext_meta.meta_max then begin
@@ -175,9 +144,10 @@ let handle : type ret. ret Dispatcher.msg -> ret option = function
     begin match parse iter with
       | None, st ->
         Util.debug ~section 5 "Generating empty constraint";
-        handle_aux iter Empty st
+        handle_aux iter (empty_cst ()) st
       | Some t, st ->
         Util.debug ~section 10 "Found previous constraint";
+        Solver.pop t.level;
         handle_aux iter t.acc st
     end;
     incr branches_closed;

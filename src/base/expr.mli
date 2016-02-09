@@ -5,16 +5,6 @@
 
 (** These are custom types used in functions later. *)
 
-type multiplicity =
-  | Linear
-  | Infinite
-
-(** The type for the multiplicity of a variable. Currently used mainly
-    in the supperposition module to restrain the search for instanciation.
-    It is automatically generated when creating meta-variables, but is
-    only there to provide information to the user, i.e no functions in this module
-    will discriminate meta-variables based on their multiplicity. *)
-
 (** {3 Identifiers} *)
 
 (** Identifiers are the basic building blocks used to build types terms and expressions
@@ -53,7 +43,6 @@ type 'ty id = private {
 
 type 'ty meta = private {
   meta_id : 'ty id;
-  meta_mult : multiplicity;
   meta_index : 'ty meta_index;
 }
 

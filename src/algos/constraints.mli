@@ -21,6 +21,11 @@ val add_constraint : ('a, 'b) t -> 'b -> ('a, 'b) t option
 (** Add a new set of constraints, see the definition of the fold type. This function
     forces the evaluation of the first element of the resulting enumeration of constraints. *)
 
+(** {2 Getters} *)
+
+val gen  : ('a, _) t -> 'a Gen.t
+(** Returns the generator associated to a constraint *)
+
 (** {2 Helpers} *)
 
 val from_merger : ('b -> 'a Gen.t) -> ('a * 'a -> 'a Gen.t) -> 'a Gen.t -> ('a, 'b) t
