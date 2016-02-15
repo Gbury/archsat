@@ -81,7 +81,7 @@ the theory for a possible assignment. Like in usual SMT Solvers, a McSat solver
 only exchange information with one theory, but, as we will see, combination
 of theories into one becomes easier in this framework.
 
-Since terms have assignments, the theory can now easily do useful and efficient
+Using the assignments on terms, the theory can very easily do efficient
 propagation of formulas implied by the current assignments.
 The information flow then looks like fig~\ref{fig:mcsat_flow}.
 For a more detailed presentation, see~\cite{FMCAD13} and~\cite{VMCAI13}.
@@ -122,23 +122,54 @@ For a more detailed presentation, see~\cite{FMCAD13} and~\cite{VMCAI13}.
   \caption{Simplified McSat Solver architecture}\label{fig:mcsat_flow}
 \end{figure}
 
+\subsection{Decisions and propagations}
+
+In this document, semantic propagations are a bit different from the propagations
+used in traditional SMT Solvers. In the case of McSat (or at least the version presented here),
+semantic propagations strictly correspond to the evaluation of formulas in the
+current assignment. Moreover, in order to be able to correctly handle these semantic
+propagations during backtrack, they are assigned a level: each decision is given a level
+(typically, it is the number of previous decisions in in the scope when a decision is made),
+and a formula is propagated at the maximum level of decision used to evaluate it.
+
+For instance, if the current trail is $\{x \mapsto_1 0, x + y + z = 0 \mapsto_2 \top, y\mapsto_3 0\}$,
+then $x + y = 0$ can be propagated at level $3$, but $z = 0$ can not be propagated (at least not
+given to the sat solver, however nothing prevents the theory from propagating and using it internally).
+
 \subsection{Expected theory invariants}
 
-In the following, we write $\mathbb{E}$ for the (infinite) set of first-order
-expressions.
+In the following, we use the following notations:
+\begin{itemize}
+  \item $\mathbb{V}$ is an infinite set of variables
+  \item $\mathbb{C}$ is a possibly infinite set of constants defined
+    by a problem's logic\footnote{For instance, the theory of arithmetic
+    defines the usual operators $+, -, *, /$ as well as the constants
+    $0, -5, \frac{1}{2}, -2.3, \ldots$}
+  \item $\mathbb{S}$ is a finite set of constants defined by a problem's type definitions
+  \item $\mathbb{T}(\mathbb{X})$ for the (infinite) set of first-order terms over $\mathbb{X}$
+    (for instance $a, f(0), x + y, \ldots$)
+  \item $\mathbb{F}(\mathbb{T})$ for the (infinite) set of first order quantified formulas
+    over the terms in $\mathbb{T}$
+\end{itemize}
 
 During proof search are maintained a set of assertions $\mathcal{S}$
-and a partial assignment $\sigma$ as a involution of $\mathbb{E}$,
-with only a finite number of $x \in \mathbb{E}$ such that $\sigma(x) \neq x$.
-We say that $\mathcal{S}$ is coherent with $\sigma$ iff for every $\varphi \in \mathcal{S}$,
+and a partial assignment $\sigma$ as a partial function from $\mathbb{T}(\mathbb{V, C, S})$
+to $\mathbb{T}(\mathbb{C})$. $\sigma$ is easily extended to a complete involution of
+$\mathbb{T}(\mathbb{V, C, S})$.
+
+We say that an assignment $\sigma$ is coherent iff $\bigcup_{e\mapsto t \in \sigma} e = t$ is satisfiable
+in the current theory (for instance, $\{x\mapsto 1; y \mapsto 2; x + y \mapsto 0\}$ is not coherent).
+
+We say that $\sigma$ is compatible with $\mathcal{S}$ iff for every $\varphi \in \mathcal{S}$,
 $\varphi\sigma$ is satisfiable (independently from the rest of the formulas in $\mathcal{S}$).
 Intuitively, this represents the fact that the substitution $\sigma$ does not imply any
 ground contradictions.
 
-A theory then has to ensure that for every expression $e \in \mathbb{E}$
-there exists $v \in \mathbb{E}$ such that $\mathcal{S}$ is coherent with
-$\sigma \cup \{ e \rightarrow v \}$\footnote{Note that in particular, this implies
-that $\mathcal{S}$ is coherent with $\sigma$}. As soon as that is not the case, the theory
+A theory then has to ensure that for every expression $e \in \mathbb{T}(\mathbb{V,C,S})$
+there exists $v \in \mathbb{T}(\mathbb{C})$ such that $\sigma' = \sigma \cup \{ e \rightarrow v \}$
+is coherent, and compatible with $\mathcal{S}$\footnote{Note that in particular, this implies
+that $\sigma$ is coherent with $\mathcal{S}$}. As soon as the current assignment is not coherent,
+compatible with the current assertions, or that there is a term $e$ with no viable assignment, the theory
 should inform the SAT Solver to backtrack, since the current branch is clearly not satisfiable.
 If we reach the point where all expressions of the problem have been assigned, then we
 have a ground model for the current set of assertions, which is then also a model
@@ -147,6 +178,6 @@ of the input problem.
 Of interest if the fact that theories that respect this invariant can easily be combined
 to create a theory that also respect this invariant, as long as for any expression $e$,
 there is exactly one theory responsible for finding an assignement for $e$\footnote{this
-correspond to the usual criterion for combining SMT theories which is that they do not
+is similar to the usual criterion for combining SMT theories which is that they do not
 share symbols other than equality.}.
 
