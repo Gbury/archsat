@@ -18,6 +18,6 @@ module Make(T: Set.OrderedType) : sig
 
   val find_unify : Expr.term -> t -> (Expr.term * Unif.t * T.t list) list
 
-  val find_match : Expr.term -> t -> (Expr.term * Unif.Match.tt * T.t list) list
+  val find_match : Expr.term -> t -> (Expr.term * Unif.t * T.t list) list
 
 end

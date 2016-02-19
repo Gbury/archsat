@@ -195,44 +195,49 @@ let do_formula =
     | ({ Expr.formula = Expr.AllTy _ } as f)
     | ({ Expr.formula = Expr.All _ } as f) ->
       let i = get_nb_metas f in
-      while !i <= !meta_start do
-        aux f;
-        incr i
+      while !i < !meta_start do
+        incr i;
+        Util.debug ~section 5 "start meta (%d/%d) %a" !i !meta_start Expr.Debug.formula f;
+        aux f
       done
     | _ -> ()
 
 let do_meta_inst = function
   | { Expr.formula = Expr.All (l, _, p) } as f ->
     let i = get_nb_metas f in
+    Util.debug ~section 5 "new_meta (%d/%d) : %a" !i !meta_max Expr.Debug.formula f;
     if !i < !meta_max then begin
       incr i;
       let metas = Expr.Meta.of_all f in
       let u = List.fold_left (fun s m -> Unif.bind_term s m (Expr.Term.of_meta m)) Unif.empty metas in
-      ignore (Inst.add ~delay:(delay !i) u)
+      if not (Inst.add ~delay:(delay !i) u) then assert false
     end
   | { Expr.formula = Expr.Not { Expr.formula = Expr.Ex (l, _, p) } } as f ->
     let i = get_nb_metas f in
+    Util.debug ~section 5 "new_meta (%d/%d) : %a" !i !meta_max Expr.Debug.formula f;
     if !i < !meta_max then begin
       incr i;
       let metas = Expr.Meta.of_all f in
       let u = List.fold_left (fun s m -> Unif.bind_term s m (Expr.Term.of_meta m)) Unif.empty metas in
-      ignore (Inst.add ~delay:(delay !i) u)
+      if not (Inst.add ~delay:(delay !i) u) then assert false
     end
   | { Expr.formula = Expr.AllTy (l, _, p) } as f ->
     let i = get_nb_metas f in
+    Util.debug ~section 5 "new_meta (%d/%d) : %a" !i !meta_max Expr.Debug.formula f;
     if !i < !meta_max then begin
       incr i;
       let metas = Expr.Meta.of_all_ty f in
       let u = List.fold_left (fun s m -> Unif.bind_ty s m (Expr.Ty.of_meta m)) Unif.empty metas in
-      ignore (Inst.add ~delay:(delay !i) u)
+      if not (Inst.add ~delay:(delay !i) u) then assert false
     end
   | { Expr.formula = Expr.Not { Expr.formula = Expr.ExTy (l, _, p) } } as f ->
     let i = get_nb_metas f in
+    Util.debug ~section 5 "new_meta (%d/%d) : %a" !i !meta_max Expr.Debug.formula f;
     if !i < !meta_max then begin
       incr i;
       let metas = Expr.Meta.of_all_ty f in
       let u = List.fold_left (fun s m -> Unif.bind_ty s m (Expr.Ty.of_meta m)) Unif.empty metas in
-      ignore (Inst.add ~delay:(delay !i) u)
+      if not (Inst.add ~delay:(delay !i) u) then assert false
     end
   | _ -> assert false
 
@@ -308,7 +313,10 @@ let rec unif_f st = function
 let find_all_insts : type ret. ret Dispatcher.msg -> ret option = function
   | Dispatcher.If_sat model ->
     (* Create new metas *)
-    if !meta_incr then (Util.debug 1 "New metas to generate"; iter do_meta_inst);
+    if !meta_incr then begin
+      Util.debug 1 "New metas to generate (%d formulas to inspect)" (H.length metas);
+      iter do_meta_inst
+    end;
     (* Look at instanciation settings *)
     begin match !unif_setting with
       | No_unif -> ()
@@ -375,9 +383,9 @@ let opts =
   in
   let set_opts heur start max inst incr delay s_coef s_const rigid_depth rigid_incr =
     heuristic_setting := heur;
-    unif_setting := inst;
     meta_start := start;
     meta_max := max;
+    unif_setting := inst;
     meta_incr := incr;
     meta_delay := delay;
     sup_max_coef := s_coef;

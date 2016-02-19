@@ -111,16 +111,10 @@ module Match : sig
   exception Impossible_ty of Expr.ty * Expr.ty
   exception Impossible_term of Expr.term * Expr.term
 
-  type tt
+  val ty : t -> Expr.ty -> Expr.ty -> t
+  val term : t -> Expr.term -> Expr.term -> t
 
-  val empty : tt
-
-  val to_subst : tt -> t
-
-  val ty : tt -> Expr.ty -> Expr.ty -> tt
-  val term : tt -> Expr.term -> Expr.term -> tt
-
-  val find : section:Util.Section.t -> Expr.term -> Expr.term -> tt option
+  val find : section:Util.Section.t -> Expr.term -> Expr.term -> t option
 
 end
 

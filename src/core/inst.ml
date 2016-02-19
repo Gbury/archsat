@@ -129,6 +129,7 @@ let soft_subst f ty_subst term_subst =
 module Inst = struct
   type t = {
     age : int;
+    hash : int;
     score : int;
     formula : Expr.formula;
     ty_subst : Expr.Ty.subst;
@@ -140,33 +141,34 @@ module Inst = struct
   let clock () = incr age
 
   (* Constructor *)
-  let mk u k =
-    let f, s = partition u in
+  let mk u score =
+    let formula, s = partition u in
+    let ty_subst = to_var Unif.(s.ty_map) in
+    let term_subst = to_var Unif.(s.t_map) in
+    let hash = Hashtbl.hash (
+        Expr.Subst.hash Expr.Ty.hash ty_subst,
+        Expr.Subst.hash Expr.Term.hash term_subst)
+    in
     {
-    age = !age;
-    score = k;
-    formula = f;
-    ty_subst = to_var Unif.(s.ty_map);
-    term_subst = to_var Unif.(s.t_map);
+      age = !age;
+      hash; score; formula;
+      ty_subst; term_subst;
     }
 
   (* debug printing *)
   let debug b t =
-    Printf.bprintf b "%a%a" Expr.Ty.debug_subst t.ty_subst Expr.Term.debug_subst t.term_subst
+    Printf.bprintf b "(%d) %a%a" t.hash Expr.Ty.debug_subst t.ty_subst Expr.Term.debug_subst t.term_subst
 
   (* Comparison for the Heap *)
   let leq t1 t2 = t1.score + t1.age <= t2.score + t2.age
 
   (* Hash and equality for the hashtbl. *)
-  let hash t =
-    Hashtbl.hash (Expr.Formula.hash t.formula,
-                  Expr.Subst.hash Expr.Ty.hash t.ty_subst,
-                  Expr.Subst.hash Expr.Term.hash t.term_subst)
+  let hash t = t.hash
 
   let equal t t' =
-    Expr.Formula.equal t.formula t'.formula &&
     Expr.Subst.equal Expr.Ty.equal t.ty_subst t'.ty_subst &&
     Expr.Subst.equal Expr.Term.equal t.term_subst t'.term_subst
+
 end
 
 module Q = CCHeap.Make(Inst)
@@ -181,7 +183,7 @@ let add ?(delay=0) ?(score=0) u =
   let t = Inst.mk u score in
   if not (H.mem inst_set t) then begin
     H.add inst_set t false;
-    Util.debug ~section 10 "New inst : %a" Inst.debug t;
+    Util.debug ~section 10 "New inst (%d) : %a" delay Inst.debug t;
     if delay <= 0 then
       heap := Q.add !heap t
     else

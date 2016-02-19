@@ -255,8 +255,7 @@ let find_subst_eq index v w =
       CCList.find_map (fun pos_cl ->
           let s, t = extract pos_cl in
           try
-            let m = Unif.Match.term sigma w t in
-            let u = Unif.Match.to_subst m in
+            let u = Unif.Match.term sigma w t in
             assert (Expr.Term.equal v (Unif.term_subst u s));
             assert (Expr.Term.equal w (Unif.term_subst u t));
             Some u
@@ -360,8 +359,7 @@ let supp_lit c p_set acc =
 let add_inactive_rewrite p_set clause side pos u =
   let l = I.find_match u p_set.root_pos_index in
   let inactive = { clause; side; pos } in
-  CCList.find_map (fun (_, m, l') ->
-      let sigma = Unif.Match.to_subst m in
+  CCList.find_map (fun (_, sigma, l') ->
       CCList.find_map (fun active ->
           do_rewrite sigma active inactive) l') l
 
