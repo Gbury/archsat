@@ -119,7 +119,9 @@ let debug_st ~section n st =
   Util.debug ~section n "Found : %d true preds, %d false preds, %d equalities, %d inequalities"
     (List.length st.true_preds) (List.length st.false_preds) (List.length st.equalities) (List.length st.inequalities);
   List.iter (fun (a, b) -> Util.debug ~section n " |- %a == %a" Expr.Debug.term a Expr.Debug.term b) st.equalities;
-  fold_diff (fun () a b -> Util.debug ~section n " |- %a <> %a" Expr.Debug.term a Expr.Debug.term b) () st
+  List.iter (fun (a, b) -> Util.debug ~section n " |- %a <> %a" Expr.Debug.term a Expr.Debug.term b) st.inequalities;
+  List.iter (fun p -> Util.debug ~section n " |- %a: %a" Expr.Debug.formula Expr.Formula.f_true Expr.Debug.term p) st.true_preds;
+  List.iter (fun p -> Util.debug ~section n " |- %a: %a" Expr.Debug.formula Expr.Formula.f_false Expr.Debug.term p) st.false_preds
 
 let parse_aux res = function
   | { Expr.formula = Expr.Pred p } as f ->

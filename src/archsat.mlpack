@@ -38,6 +38,7 @@ Ext_functions
 ########################
 
 # Utilities modules
+Sig
 Util
 Arith
 Backtrack

@@ -56,24 +56,23 @@ let gen_of_state st =
   )
 
 let unif_depth =
-  let fold g st =
-    Gen.flat_map (fun s ->
-        Gen.filter_map (fun (t, t') ->
-            match Unif.Robinson.term s t t' with
-            | x -> Some x
-            | exception Unif.Robinson.Impossible_ty _ -> None
-            | exception Unif.Robinson.Impossible_term _ -> None
-          ) (gen_of_state st)) g
+  let refine st =
+    let gen = gen_of_state st in
+    (function s ->
+      Gen.filter_map (fun (t, t') ->
+          match Unif.Robinson.term s t t' with
+          | x -> Some x
+          | exception Unif.Robinson.Impossible_ty _ -> None
+          | exception Unif.Robinson.Impossible_term _ -> None
+        ) gen)
   in
-  match Constraints.make (Gen.singleton Unif.empty) fold with
+  match Constraints.make (Gen.singleton Unif.empty) refine with
   | Some x -> x
   | None -> assert false
 
 let unif_breadth =
-  let gen st =
-    Gen.filter_map (fun (t, t') -> Unif.Robinson.find ~section t t') (gen_of_state st)
-  in
-  let merger (t, t') = match Unif.combine t t' with
+  let gen st = Gen.filter_map (fun (t, t') -> Unif.Robinson.find ~section t t') (gen_of_state st) in
+  let merger t t' = match Unif.combine t t' with
     | Some s -> Gen.singleton s
     | None -> (fun () -> None)
   in
@@ -130,18 +129,22 @@ let branches_closed = ref 0
 
 let handle : type ret. ret Dispatcher.msg -> ret Dispatcher.result = function
   | Dispatcher.If_sat iter ->
-    let res = match parse iter with
+    let cstr, st = match parse iter with
       | None, st ->
         Util.debug ~section 5 "Generating empty constraint";
-        handle_aux iter (empty_cst ()) st
+        empty_cst (), st
       | Some t, st ->
         Util.debug ~section 10 "Found previous constraint";
         Solver.pop t.level;
-        handle_aux iter t.acc st
+        t.acc, st
     in
-    incr branches_closed;
-    Util.debug ~section 0 "Closed %d branches" !branches_closed;
-    res
+    begin match handle_aux iter cstr st with
+      | Dispatcher.Ret () as ret ->
+        incr branches_closed;
+        Util.debug ~section 0 "Closed %d branches" !branches_closed;
+        ret
+      | ret -> ret
+    end
   | Solver.Found _ ->
     branches_closed := 0;
     if !need_restart then begin
