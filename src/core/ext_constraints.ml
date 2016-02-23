@@ -5,16 +5,14 @@ let section = Util.Section.make ~parent:Dispatcher.section "cstr"
 (* ************************************************************************ *)
 
 type unif_algo =
-  | Nope
   | Unif_depth
   | Unif_breadth
 
-let unif_algo = ref Nope
+let unif_algo = ref Unif_depth
 
 let need_restart = ref false
 
 let kind_list = [
-    "none", Nope;
     "unif_d", Unif_depth;
     "unif_b", Unif_breadth;
   ]
@@ -49,12 +47,6 @@ let make_builtin acc =
 (* Accumulators *)
 (* ************************************************************************ *)
 
-let empty =
-  let fold g _ = g in
-  match Constraints.make (Gen.singleton Unif.empty) fold with
-  | Some c -> c
-  | None -> assert false
-
 let gen_of_state st =
   let open Ext_meta in
   Gen.(
@@ -87,10 +79,8 @@ let unif_breadth =
   in
   Constraints.from_merger gen merger (Gen.singleton Unif.empty)
 
-
 let empty_cst () =
   match !unif_algo with
-  | Nope -> empty
   | Unif_depth -> unif_depth
   | Unif_breadth -> unif_breadth
 
@@ -115,7 +105,7 @@ let parse iter =
 
 
 let handle_aux iter acc st =
-  Ext_meta.debug_st 30 st;
+  Ext_meta.debug_st ~section 30 st;
   match Constraints.add_constraint acc st with
   | Some c' ->
     let level = Solver.push () in
@@ -124,24 +114,23 @@ let handle_aux iter acc st =
     let acc = [make_builtin (make c' level)] in
     let l = Expr.Subst.fold (fun m t acc ->
         [Expr.Formula.eq (Expr.Term.of_meta m) t] :: acc) s.Unif.t_map [] in
-    Solver.assume (acc :: l)
+    Solver.assume (acc :: l);
+    Dispatcher.Ret ()
   | None ->
     Util.debug ~section 2 "Couldn't find a satisfiable constraint";
-    if !Ext_meta.meta_start + 1 < !Ext_meta.meta_max then begin
+    if !Ext_meta.meta_start < !Ext_meta.meta_max then begin
+      Util.debug ~section 2 "Adding new meta (total: %d)" !Ext_meta.meta_start;
       need_restart := true;
-      if !Ext_meta.meta_start < !Ext_meta.meta_max then begin
-        incr Ext_meta.meta_start;
-        Ext_meta.iter Ext_meta.do_formula
-      end;
-      Util.debug ~section 2 "Adding new meta (total: %d)" !Ext_meta.meta_start
+      incr Ext_meta.meta_start;
+      Ext_meta.iter Ext_meta.do_formula
     end;
-    raise Solver.Restart
+    Dispatcher.(Directive Restart)
 
 let branches_closed = ref 0
 
-let handle : type ret. ret Dispatcher.msg -> ret option = function
+let handle : type ret. ret Dispatcher.msg -> ret Dispatcher.result = function
   | Dispatcher.If_sat iter ->
-    begin match parse iter with
+    let res = match parse iter with
       | None, st ->
         Util.debug ~section 5 "Generating empty constraint";
         handle_aux iter (empty_cst ()) st
@@ -149,18 +138,18 @@ let handle : type ret. ret Dispatcher.msg -> ret option = function
         Util.debug ~section 10 "Found previous constraint";
         Solver.pop t.level;
         handle_aux iter t.acc st
-    end;
+    in
     incr branches_closed;
     Util.debug ~section 0 "Closed %d branches" !branches_closed;
-    Some ()
+    res
   | Solver.Found _ ->
     branches_closed := 0;
     if !need_restart then begin
       need_restart := false;
-      Some Solver.Ok
+      Dispatcher.Ret Solver.Ok
     end else
-      None
-  | _ -> None
+      Dispatcher.Ok
+  | _ -> Dispatcher.Ok
 
 (* Evaluating *)
 (* ************************************************************************ *)
@@ -174,7 +163,7 @@ let options =
   let kind =
     let doc = CCPrint.sprintf "The constraint generation method to use,
     $(docv) may be %s" (Cmdliner.Arg.doc_alts_enum ~quoted:false kind_list) in
-    Cmdliner.Arg.(value & opt parse_kind Nope & info ["cstr.kind"] ~docv:"METHOD" ~docs ~doc)
+    Cmdliner.Arg.(value & opt parse_kind Unif_depth & info ["cstr.kind"] ~docv:"METHOD" ~docs ~doc)
   in
   let aux kind =
     unif_algo := kind

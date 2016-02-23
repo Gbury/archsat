@@ -115,11 +115,11 @@ let fold_diff f start st =
         ) acc' st.false_preds
     ) acc st.true_preds
 
-let debug_st n st =
-  log n "Found : %d true preds, %d false preds, %d equalities, %d inequalities"
+let debug_st ~section n st =
+  Util.debug ~section n "Found : %d true preds, %d false preds, %d equalities, %d inequalities"
     (List.length st.true_preds) (List.length st.false_preds) (List.length st.equalities) (List.length st.inequalities);
-  List.iter (fun (a, b) -> log n " |- %a == %a" Expr.Debug.term a Expr.Debug.term b) st.equalities;
-  fold_diff (fun () a b -> log n " |- %a <> %a" Expr.Debug.term a Expr.Debug.term b) () st
+  List.iter (fun (a, b) -> Util.debug ~section n " |- %a == %a" Expr.Debug.term a Expr.Debug.term b) st.equalities;
+  fold_diff (fun () a b -> Util.debug ~section n " |- %a <> %a" Expr.Debug.term a Expr.Debug.term b) () st
 
 let parse_aux res = function
   | { Expr.formula = Expr.Pred p } as f ->
@@ -310,7 +310,7 @@ let rec unif_f st = function
     else
       unif_f st SuperAll
 
-let find_all_insts : type ret. ret Dispatcher.msg -> ret option = function
+let find_all_insts : type ret. ret Dispatcher.msg -> ret Dispatcher.result = function
   | Dispatcher.If_sat model ->
     (* Create new metas *)
     if !meta_incr then begin
@@ -324,13 +324,13 @@ let find_all_insts : type ret. ret Dispatcher.msg -> ret option = function
         (* Analysing assummed formulas *)
         log 5 "Parsing input formulas";
         let st = parse_slice model in
-        debug_st 30 st;
+        debug_st ~section 30 st;
         (* Search for instanciations *)
         log 5 "Applying unification";
         unif_f st !unif_setting
     end;
-    Some ()
-  | _ -> None
+    Dispatcher.Ret ()
+  | _ -> Dispatcher.Ok
 
 (* Extension registering *)
 (* ************************************************************************ *)

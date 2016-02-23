@@ -64,8 +64,9 @@ module SolverTypes = Msat.Solver_types.McMake(SolverExpr)
 (* Exceptions *)
 (* ************************************************************************ *)
 
-exception Absurd of Expr.formula list * lemma
+exception Unknown
 exception Bad_assertion of string
+exception Absurd of Expr.formula list * lemma
 
 let _fail s = raise (Bad_assertion s)
 
@@ -82,12 +83,21 @@ let profile section f = fun x ->
 (* Messages for extensions *)
 (* ************************************************************************ *)
 
+type directive = ..
+type directive +=
+  | Restart
+
 type 'ret msg = ..
 type 'ret msg +=
   | If_sat : ((Expr.formula -> unit) -> unit) -> unit msg
 
+type 'ret result =
+  | Ok
+  | Ret of 'ret
+  | Directive of directive
+
 type handle = {
-  handle : 'ret. 'ret msg -> ('ret option);
+  handle : 'ret. 'ret msg -> 'ret result;
 }
 
 (* Extensions *)
@@ -108,7 +118,7 @@ type ext = {
 
   (* Handle messages *)
   handle : 'ret 'acc. (
-      ('ret -> 'acc -> 'acc) -> ('ret msg -> 'acc -> 'acc)
+      ('ret result -> 'acc -> 'acc) -> ('ret msg -> 'acc -> 'acc)
     ) option;
 
   (* Pre-process input formulas *)
@@ -127,11 +137,9 @@ let mk_ext ~section ?peek ?assume ?eval_pred ?(handle: handle option) ?preproces
       | None -> None
       | Some h ->
         Some (fun (type ret) (type acc)
-          (fold : ret -> acc -> acc)
+          (fold : ret result -> acc -> acc)
           (msg : ret msg) (acc: acc) ->
-            match profile section h.handle msg with
-            | None -> acc
-            | Some x -> fold x acc
+            fold (profile section h.handle msg) acc
              );
   }
 
@@ -170,7 +178,7 @@ let merge_exts ~high ~low =
       | None, res | res, None -> res
       | Some h, Some h' ->
         Some (fun (type ret) (type acc)
-               (fold : ret -> acc -> acc)
+               (fold : ret result -> acc -> acc)
                (msg : ret msg) (acc: acc) ->
                let acc' = h fold msg acc in
                h' fold msg acc'
@@ -215,7 +223,7 @@ let plugin_eval_pred f =
 
 let handle = plugin_handle
 
-let send = plugin_handle (fun () () -> ()) ()
+let send = plugin_handle (fun _ () -> ()) ()
 
 (* Proof management *)
 (* ************************************************************************ *)
@@ -242,8 +250,9 @@ let proof_debug p =
 let push_stack = Stack.create ()
 let propagate_stack = Stack.create ()
 
-let push clause ext_name =
-  Stack.push (clause, ext_name) push_stack
+let push clause p  =
+  Util.debug ~section 50 "New clause to push (%s) : %a" p.proof_name (CCPrint.list ~sep:" || " Expr.Debug.formula) clause;
+  Stack.push (clause, p) push_stack
 
 let propagate f lvl =
   Stack.push (f, lvl) propagate_stack
@@ -528,15 +537,19 @@ module SolverTheory = struct
       | _ -> ()
     done
 
+  let if_sat_aux ret acc =
+    match ret with
+    | Ok | Ret () -> acc
+    | Directive Restart -> true
+    | Directive _ -> acc
+
   let if_sat s =
     Util.enter_prof section;
     Util.debug ~section 0 "Iteration with complete model";
-    begin try
-        send (If_sat (if_sat_iter s))
-      with Absurd _ -> assert false
-    end;
+    let b = handle if_sat_aux false (If_sat (if_sat_iter s)) in
     Util.exit_prof section;
-    do_push s.push
+    do_push s.push;
+    if b then raise Unknown
 
   let assign t =
     Util.enter_prof section;

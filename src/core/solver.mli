@@ -52,8 +52,6 @@ val print_unsat_core : Format.formatter -> Expr.formula list list -> unit
 
 (** {2 Restart & Replay} *)
 
-exception Restart
-
 type ret =
   | Ok
   | Toggle of string

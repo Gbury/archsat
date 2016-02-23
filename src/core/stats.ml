@@ -45,20 +45,15 @@ let inst_remaining r =
   CCVector.set state.instanciations s (i, r)
 
 (* Print stats and prep for next round *)
-let handler =
-  { Dispatcher.handle =
-      fun (type ret) (msg : ret Dispatcher.msg) ->
-        match msg with
-        | Dispatcher.If_sat _ ->
-          print_state state;
-          if !max_rounds >= 0 && state.cur_round >= !max_rounds then
-            raise (Extension.Abort (
-                "stats", Format.sprintf "Maximum number of rounds reached (%d)" !max_rounds));
-          init_round state;
-          (Some () : ret option)
-        | _ -> (None : ret option)
-          ;
-  }
+let handle : type ret. ret Dispatcher.msg -> ret Dispatcher.result = function
+  | Dispatcher.If_sat _ ->
+    print_state state;
+    if !max_rounds >= 0 && state.cur_round >= !max_rounds then
+      raise (Extension.Abort (
+          "stats", Format.sprintf "Maximum number of rounds reached (%d)" !max_rounds));
+    init_round state;
+    Dispatcher.Ret ()
+  | _ -> Dispatcher.Ok
 
 (* Extension registering *)
 (* ************************************************************************ *)
@@ -78,7 +73,7 @@ let options =
 Dispatcher.Plugin.register "stats" ~prio:0 ~options
   ~descr:"Handles delayed printing of statistics for each round of solving"
   (Dispatcher.mk_ext
-     ~handle:handler
+     ~handle:{Dispatcher.handle = handle }
      ~section ()
   )
 

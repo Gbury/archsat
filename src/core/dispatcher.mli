@@ -1,7 +1,15 @@
 
 (** Plugin Manager *)
 
-(** {2 Type for message} *)
+(** {2 Types for message} *)
+
+type directive = ..
+(** Directives are used in the return values of message handlers to
+    pass generic information. *)
+
+type directive += Restart
+(** This directive instructs the dispatcher and the solver that a restart is
+    needed. *)
 
 type 'ret msg = ..
 (** Messages are arbitrary data that can be sent to extensions, and expect
@@ -13,6 +21,13 @@ type _ msg += If_sat : ((Expr.formula -> unit) -> unit) -> unit msg
 (** This message contains a function to iter over current assumptions.
     It is sent at the end of each round of solving, i.e whenever the sat solver
     returns a model. *)
+
+type 'ret result =
+  | Ok
+  | Ret of 'ret
+  | Directive of directive
+  (** The type that should be returned by extension upon reception
+      of a ['ret msg]. *)
 
 (** {2 Type for lemmas} *)
 
@@ -56,6 +71,10 @@ exception Absurd of Expr.formula list * lemma
 (** To be raised by extensions in their 'assume' function
     when an unsatisfiable set of formulas as been assumed. *)
 
+exception Unknown
+(** Raised by this module to force a restart of the solver.
+    Should *NOT* be used by extensions. *)
+
 (** {2 Proof management} *)
 
 val mk_proof : string ->
@@ -74,7 +93,7 @@ val proof_debug : lemma -> string * string option * Expr.term list * Expr.formul
 type ext
 (** Type of plugins/extensions *)
 
-type handle = { handle : 'ret. 'ret msg -> 'ret option; }
+type handle = { handle : 'ret. 'ret msg -> 'ret result; }
 (** Type for message handlers. Enclosed in a record to ensure full polymorphism *)
 
 val mk_ext :
@@ -91,9 +110,10 @@ module Plugin : Extension.S with type ext = ext
 (** {2 Solver functions} *)
 
 val send : unit msg -> unit
-(** Send the given message to all extensions *)
+(** Send the given message to all extensions, ignoring any exception raised
+    during the handling of the message. *)
 
-val handle : ('ret -> 'acc -> 'acc) -> 'acc -> 'ret msg -> 'acc
+val handle : ('ret result -> 'acc -> 'acc) -> 'acc -> 'ret msg -> 'acc
 (** Fold over the results of handlers for a given message *)
 
 val pre_process : Expr.formula -> Expr.formula
