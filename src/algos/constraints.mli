@@ -33,3 +33,9 @@ val from_merger : ('b -> 'a Gen.t) -> ('a -> 'a -> 'a Gen.t) -> 'a Gen.t -> ('a,
     an enumeration of constraints for invalidating a conjunction of formulas, and a function
     [m] which computes the intersection of two constraints. *)
 
+val dumps :
+  (Format.formatter -> 'a -> unit) ->
+  (Format.formatter -> 'b -> unit) ->
+  Format.formatter -> ('a, 'b) t list -> unit
+(** Return a dot graph of the succesive accumulators. *)
+

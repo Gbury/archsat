@@ -19,6 +19,33 @@ let kind_list = [
 
 let parse_kind = Cmdliner.Arg.enum kind_list
 
+(* Dumping dot graphs *)
+(* ************************************************************************ *)
+
+let to_dump = ref []
+
+let dump t = match !to_dump with
+  | (t' :: r) as l when t == t' ->
+    to_dump := t :: l
+  | [] -> to_dump := [t]
+  | t' :: r -> to_dump := t :: r
+
+let pp_unif fmt u =
+  if Unif.(equal u empty) then Format.fprintf fmt "\\<empty\\>";
+  Expr.Subst.iter (fun m ty ->
+      Format.fprintf fmt "%a --\\> %a\\n" Expr.Print.meta m Expr.Print.ty ty)
+    u.Unif.ty_map;
+  Expr.Subst.iter (fun m t ->
+      Format.fprintf fmt "%a --\\> %a\\n" Expr.Print.meta m Expr.Print.term t)
+    u.Unif.t_map
+
+let pp_st fmt st =
+  let open Ext_meta in
+  List.iter (fun (t, t') -> Format.fprintf fmt "%a == %a\\n" Expr.Print.term t Expr.Print.term t') st.equalities;
+  List.iter (fun (t, t') -> Format.fprintf fmt "%a <> %a\\n" Expr.Print.term t Expr.Print.term t') st.inequalities;
+  List.iter (fun t -> Format.fprintf fmt "( true) %a\\n" Expr.Print.term t) st.true_preds;
+  List.iter (fun t -> Format.fprintf fmt "(false) %a\\n" Expr.Print.term t) st.true_preds
+
 (* Accumulators for constraints *)
 (* ************************************************************************ *)
 
@@ -107,6 +134,7 @@ let handle_aux iter acc st =
   Ext_meta.debug_st ~section 30 st;
   match Constraints.add_constraint acc st with
   | Some c' ->
+    dump c';
     let level = Solver.push () in
     let s = match Constraints.gen c' () with Some c -> c | None -> assert false in
     Util.debug ~section 10 "New Constraint with subst : %a" Unif.debug s;
@@ -116,6 +144,7 @@ let handle_aux iter acc st =
     Solver.assume (acc :: l);
     Dispatcher.Ret ()
   | None ->
+    dump acc;
     Util.debug ~section 2 "Couldn't find a satisfiable constraint";
     if !Ext_meta.meta_start < !Ext_meta.meta_max then begin
       Util.debug ~section 2 "Adding new meta (total: %d)" !Ext_meta.meta_start;
@@ -145,7 +174,7 @@ let handle : type ret. ret Dispatcher.msg -> ret Dispatcher.result = function
         ret
       | ret -> ret
     end
-  | Solver.Found _ ->
+  | Solver.Found Solver.Sat ->
     branches_closed := 0;
     if !need_restart then begin
       need_restart := false;
@@ -168,10 +197,19 @@ let options =
     $(docv) may be %s" (Cmdliner.Arg.doc_alts_enum ~quoted:false kind_list) in
     Cmdliner.Arg.(value & opt parse_kind Unif_depth & info ["cstr.kind"] ~docv:"METHOD" ~docs ~doc)
   in
-  let aux kind =
-    unif_algo := kind
+  let dot =
+    let doc = "Dump a dot graph of the accumulators to the given file" in
+    Cmdliner.Arg.(value & opt string "" & info ["cstr.dot"] ~docv:"FILE" ~docs ~doc)
   in
-  Cmdliner.Term.(pure aux $ kind)
+  let aux kind dot =
+    unif_algo := kind;
+    if not (dot = "") then begin
+      let fmt = Format.formatter_of_out_channel (open_out dot) in
+      at_exit (fun () ->
+          Constraints.dumps pp_unif pp_st fmt (List.tl !to_dump))
+    end
+  in
+  Cmdliner.Term.(pure aux $ kind $ dot)
 
 ;;
 Dispatcher.Plugin.register "constraints" ~options
