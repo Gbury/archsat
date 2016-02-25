@@ -170,10 +170,10 @@ module Robinson = struct
     match s, t with
     | ({ Expr.ty = Expr.TyMeta v } as m), u
     | u, ({ Expr.ty = Expr.TyMeta v } as m) ->
-      if occurs_ty subst v u then
-        raise (Impossible_ty (m, u))
-      else if Expr.Ty.equal m u then
+      if Expr.Ty.equal m u then
         subst
+      else if occurs_ty subst v u then
+        raise (Impossible_ty (m, u))
       else
         bind_ty subst v u
     | { Expr.ty = Expr.TyApp (f, f_args) },
@@ -190,10 +190,10 @@ module Robinson = struct
     match s, t with
     | ({ Expr.term = Expr.Meta v } as m), u
     | u, ({ Expr.term = Expr.Meta v } as m) ->
-      if occurs_term subst v u then
-        raise (Impossible_term (m, u))
-      else if Expr.Term.equal m u then
+      if Expr.Term.equal m u then
         subst
+      else if occurs_term subst v u then
+        raise (Impossible_term (m, u))
       else
         let subst' = ty subst Expr.(m.t_type) Expr.(u.t_type) in
         bind_term subst' v u
@@ -237,6 +237,14 @@ let combine t t' =
       Expr.Subst.fold (fun key value s -> Robinson.term s (Expr.Term.of_meta key) value) t'.t_map (
         Expr.Subst.fold (fun key value s -> Robinson.ty s (Expr.Ty.of_meta key) value) t'.ty_map t))
   with Robinson.Impossible_ty _ | Robinson.Impossible_term _ -> None
+
+(* Export unifiers as formulas *)
+(* ************************************************************************ *)
+
+let to_formula t =
+  Expr.Subst.fold (fun m t f ->
+      Expr.(Formula.(f_and [f; eq (Term.of_meta m) t])))
+    t.t_map Expr.Formula.f_true
 
 (* Matching of types and terms *)
 (* ************************************************************************ *)

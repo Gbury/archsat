@@ -24,11 +24,12 @@ let parse_kind = Cmdliner.Arg.enum kind_list
 
 let to_dump = ref []
 
-let dump t = match !to_dump with
-  | (t' :: r) as l when t == t' ->
-    to_dump := t :: l
+let dump_acc t = match !to_dump with
   | [] -> to_dump := [t]
-  | t' :: r -> to_dump := t :: r
+  | _ :: r -> to_dump := t :: r
+
+let dump_new_acc t =
+  to_dump := t :: !to_dump
 
 let pp_unif fmt u =
   if Unif.(equal u empty) then Format.fprintf fmt "\\<empty\\>";
@@ -44,12 +45,12 @@ let pp_st fmt st =
   List.iter (fun (t, t') -> Format.fprintf fmt "%a == %a\\n" Expr.Print.term t Expr.Print.term t') st.equalities;
   List.iter (fun (t, t') -> Format.fprintf fmt "%a <> %a\\n" Expr.Print.term t Expr.Print.term t') st.inequalities;
   List.iter (fun t -> Format.fprintf fmt "( true) %a\\n" Expr.Print.term t) st.true_preds;
-  List.iter (fun t -> Format.fprintf fmt "(false) %a\\n" Expr.Print.term t) st.true_preds
+  List.iter (fun t -> Format.fprintf fmt "(false) %a\\n" Expr.Print.term t) st.false_preds
 
 (* Accumulators for constraints *)
 (* ************************************************************************ *)
 
-type constraints = (Unif.t, Ext_meta.state) Constraints.t
+type constraints = (Unif.t, Ext_meta.state, Expr.formula) Constraints.t
 
 type t = {
   id : int;
@@ -84,23 +85,23 @@ let gen_of_state st =
 
 let unif_depth =
   let refine st =
-    let gen = gen_of_state st in
+    let gen = Gen.persistent_lazy @@ gen_of_state st in
     (function s ->
-      Gen.filter_map (fun (t, t') ->
-          match Unif.Robinson.term s t t' with
-          | x -> Some x
-          | exception Unif.Robinson.Impossible_ty _ -> None
-          | exception Unif.Robinson.Impossible_term _ -> None
-        ) gen)
+      Gen.Restart.lift (
+        Gen.filter_map (fun (t, t') ->
+            match Unif.Robinson.term s t t' with
+            | x -> Some (x, Expr.Formula.(neg @@ eq t t'))
+            | exception Unif.Robinson.Impossible_ty _ -> None
+            | exception Unif.Robinson.Impossible_term _ -> None
+          )
+      ) gen)
   in
-  match Constraints.make (Gen.singleton Unif.empty) refine with
-  | Some x -> x
-  | None -> assert false
+  Constraints.make (Gen.singleton Unif.empty) refine
 
 let unif_breadth =
   let gen st = Gen.filter_map (fun (t, t') -> Unif.Robinson.find ~section t t') (gen_of_state st) in
   let merger t t' = match Unif.combine t t' with
-    | Some s -> Gen.singleton s
+    | Some s -> Gen.singleton (s, Unif.to_formula t')
     | None -> (fun () -> None)
   in
   Constraints.from_merger gen merger (Gen.singleton Unif.empty)
@@ -132,11 +133,11 @@ let parse iter =
 
 let handle_aux iter acc st =
   Ext_meta.debug_st ~section 30 st;
-  match Constraints.add_constraint acc st with
-  | Some c' ->
-    dump c';
+  let c' = Constraints.add_constraint acc st in
+  dump_acc c';
+  match Constraints.gen c' () with
+  | Some s ->
     let level = Solver.push () in
-    let s = match Constraints.gen c' () with Some c -> c | None -> assert false in
     Util.debug ~section 10 "New Constraint with subst : %a" Unif.debug s;
     let acc = [make_builtin (make c' level)] in
     let l = Expr.Subst.fold (fun m t acc ->
@@ -144,7 +145,6 @@ let handle_aux iter acc st =
     Solver.assume (acc :: l);
     Dispatcher.Ret ()
   | None ->
-    dump acc;
     Util.debug ~section 2 "Couldn't find a satisfiable constraint";
     if !Ext_meta.meta_start < !Ext_meta.meta_max then begin
       Util.debug ~section 2 "Adding new meta (total: %d)" !Ext_meta.meta_start;
@@ -161,11 +161,13 @@ let handle : type ret. ret Dispatcher.msg -> ret Dispatcher.result = function
     let cstr, st = match parse iter with
       | None, st ->
         Util.debug ~section 5 "Generating empty constraint";
-        empty_cst (), st
+        let t = empty_cst () in
+        dump_new_acc t;
+        (t, st)
       | Some t, st ->
         Util.debug ~section 10 "Found previous constraint";
         Solver.pop t.level;
-        t.acc, st
+        (t.acc, st)
     in
     begin match handle_aux iter cstr st with
       | Dispatcher.Ret () as ret ->
@@ -174,7 +176,7 @@ let handle : type ret. ret Dispatcher.msg -> ret Dispatcher.result = function
         ret
       | ret -> ret
     end
-  | Solver.Found Solver.Sat ->
+  | Solver.Found _ ->
     branches_closed := 0;
     if !need_restart then begin
       need_restart := false;
@@ -206,7 +208,7 @@ let options =
     if not (dot = "") then begin
       let fmt = Format.formatter_of_out_channel (open_out dot) in
       at_exit (fun () ->
-          Constraints.dumps pp_unif pp_st fmt (List.tl !to_dump))
+          Constraints.dumps pp_unif pp_st Expr.Print.formula fmt !to_dump)
     end
   in
   Cmdliner.Term.(pure aux $ kind $ dot)

@@ -76,6 +76,8 @@ val debug : Buffer.t -> t -> unit
 
 val combine : t -> t -> t option
 
+val to_formula : t -> Expr.formula
+
 (** {2 Unification caching} *)
 
 module Cache : sig
