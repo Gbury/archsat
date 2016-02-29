@@ -146,6 +146,7 @@ module Inst = struct
     let ty_subst = to_var Unif.(s.ty_map) in
     let term_subst = to_var Unif.(s.t_map) in
     let hash = Hashtbl.hash (
+        Expr.Formula.hash formula,
         Expr.Subst.hash Expr.Ty.hash ty_subst,
         Expr.Subst.hash Expr.Term.hash term_subst)
     in
@@ -166,6 +167,7 @@ module Inst = struct
   let hash t = t.hash
 
   let equal t t' =
+    Expr.Formula.equal t.formula t'.formula &&
     Expr.Subst.equal Expr.Ty.equal t.ty_subst t'.ty_subst &&
     Expr.Subst.equal Expr.Term.equal t.term_subst t'.term_subst
 
