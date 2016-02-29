@@ -137,6 +137,7 @@ let handle_aux iter acc st =
   dump_acc c';
   match Constraints.gen c' () with
   | Some s ->
+    (* Gen.iter (fun u -> ignore (Inst.add u)) (Constraints.gen c'); *)
     let level = Solver.push () in
     Util.debug ~section 10 "New Constraint with subst : %a" Unif.debug s;
     let acc = [make_builtin (make c' level)] in
@@ -214,7 +215,7 @@ let options =
   Cmdliner.Term.(pure aux $ kind $ dot)
 
 ;;
-Dispatcher.Plugin.register "constraints" ~options
+Dispatcher.Plugin.register "cstr" ~options
   ~descr:"Handles instanciation using constraints to close multiple branches at the same time"
   (Dispatcher.mk_ext ~section
      ~handle:{Dispatcher.handle=handle}
