@@ -36,7 +36,7 @@ let do_post = function
 (* Solving module *)
 (* ************************************************************************ *)
 
-module Smt = Msat.Internal.Make(Dispatcher.SolverTypes)(Dispatcher.SolverTheory)
+module Smt = Msat.Internal.Make(Dispatcher.SolverTypes)(Dispatcher.SolverTheory)()
 
 module Dot = Msat.Dot.Make(Smt.Proof)(struct
     let print_atom = Dispatcher.SolverTypes.print_atom
