@@ -338,7 +338,7 @@ tff_ty_args:
   | hd=tff_atom_type STAR tl=tff_ty_args { hd :: tl }
 
 tff_ty_vars:
-  | v=tff_ty_var COLUMN TYPE_TY {  [v] }
+  | v=tff_ty_var COLUMN TYPE_TY { [v] }
   | v=tff_ty_var COLUMN TYPE_TY COMMA l=tff_ty_vars { v::l }
 
 tff_ty_var: w=UPPER_WORD { let loc = L.mk_pos $startpos $endpos in T.var ~loc w }

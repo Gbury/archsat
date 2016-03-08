@@ -191,10 +191,11 @@ let scope t f arg =
   | None -> _scope_err t
 
 let parse_ttype_var = function
-  | { Ast.term = Ast.Column (
-      { Ast.term = Ast.Var s }, {Ast.term = Ast.Const Ast.Ttype}) } ->
+  | { Ast.term = Ast.Var s }
+  | { Ast.term = Ast.Column ({ Ast.term = Ast.Var s },
+                             {Ast.term = Ast.Const Ast.Ttype}) } ->
     Expr.Id.ttype s
-  | t -> _expected "a type variable" t
+  | t -> _expected "type variable" t
 
 let parse_ty_cstr ~infer env ty_args s =
   match env.builtins s ty_args [] with
