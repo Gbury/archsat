@@ -138,7 +138,10 @@ val push : Expr.formula list -> lemma -> unit
 val propagate : Expr.formula -> int -> unit
 (** Propagate the given formula at the given evaluation level. *)
 
-(** {2 Assignment functions} *)
+(** {2 Model operations} *)
+
+val get_truth : Expr.formula -> bool option
+(** Returns the current truth value of a given formula, if it is decided. *)
 
 val get_assign : Expr.term -> Expr.term * int
 (** [get_assign t] Returns the current assignment of [t] and its level, if it exists.

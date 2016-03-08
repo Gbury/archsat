@@ -196,38 +196,44 @@ let add ?(delay=0) ?(score=0) u =
     false
   end
 
-let push inst =
-  Stats.inst_done ();
+let push () inst =
   assert (not (H.find inst_set inst));
   H.replace inst_set inst true;
-  Util.debug ~section 5 "Pushed inst : %a" Inst.debug inst;
   let open Inst in
   let cl, p = soft_subst inst.formula inst.ty_subst inst.term_subst in
-  Dispatcher.push cl p
+  Util.debug ~section 5 "Pushed inst : %a" Inst.debug inst;
+  Dispatcher.push cl p;
+  Stats.inst_done ()
 
-let take f k =
-  let aux f i =
-    for _ = 1 to i do
-      match Q.take !heap with
-      | None -> ()
-      | Some (new_h, min) ->
-        heap := new_h;
-        f min;
-    done
+let fold f acc k =
+  let rec aux f acc i =
+    if i <= 0 then acc
+    else begin
+      let acc' =
+        match Q.take !heap with
+        | None -> acc
+        | Some (new_h, min) ->
+          heap := new_h;
+          f acc min
+      in
+      aux f acc' (i - 1)
+    end
   in
   if k > 0 then
-    aux f k
+    aux f acc k
   else
-    aux f (Q.size !heap + k)
+    aux f acc (Q.size !heap + k)
 
 let rec decr_delay () =
   if !delayed = [] then
     ()
   else begin
     delayed := CCList.filter_map (fun (u, d) ->
-        if d > 1 then
+        if d > 1 then begin
+          Util.debug ~section 20 "Decreased delay (%d) : %a" (d - 1) Inst.debug u;
           Some (u, d - 1)
-        else begin
+        end else begin
+          Util.debug ~section 10 "Promoted inst : %a" Inst.debug u;
           heap := Q.add !heap u;
           None
         end
@@ -236,13 +242,17 @@ let rec decr_delay () =
       decr_delay ()
   end
 
-let inst_sat : type ret. ret Dispatcher.msg -> ret Dispatcher.result = function
-  | Dispatcher.If_sat _ ->
+let rec inst_sat : type ret. ret Dispatcher.msg -> ret Dispatcher.result = function
+  | Dispatcher.If_sat _ as r ->
     decr_delay ();
-    take push !inst_incr;
-    Stats.inst_remaining (Q.size !heap);
-    Inst.clock ();
-    Dispatcher.Ret ()
+    fold push () !inst_incr;
+    if not (Q.is_empty !heap) then
+      inst_sat r
+    else begin
+      Stats.inst_remaining (Q.size !heap);
+      Inst.clock ();
+      Dispatcher.Ret ()
+    end
   | _ -> Dispatcher.Ok
 
 (* Extension registering *)

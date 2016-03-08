@@ -118,6 +118,8 @@ let set_opts gc bt quiet log debug opt =
   if quiet then
     Util.Section.clear_debug Util.Section.root
   else begin
+    Msat.Log.set_debug log;
+    Msat.Log.set_debug_out Format.std_formatter;
     Util.set_debug (if opt.interactive then max 1 log else log);
     List.iter (fun (s, lvl) -> Util.Section.set_debug s lvl) debug
   end;
@@ -161,7 +163,7 @@ let parse_time arg =
     | 'd' -> multiplier 86400.
     | '0'..'9' -> `Ok (float_of_string arg)
     | _ -> `Error "bad numeric argument"
-  with Failure "float_of_string" -> `Error "bad numeric argument"
+  with Failure _ -> `Error "bad numeric argument"
 
 let size_string f =
   let n = int_of_float f in
@@ -194,7 +196,7 @@ let parse_size arg =
     | 'T' -> multiplier 1e12
     | '0'..'9' -> `Ok (float_of_string arg)
     | _ -> `Error "bad numeric argument"
-  with Failure "float_of_string" -> `Error "bad numeric argument"
+  with Failure _ -> `Error "bad numeric argument"
 
 let c_time = parse_time, print_time
 let c_size = parse_size, print_size

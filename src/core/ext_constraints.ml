@@ -90,7 +90,9 @@ let unif_depth =
       Gen.Restart.lift (
         Gen.filter_map (fun (t, t') ->
             match Unif.Robinson.term s t t' with
-            | x -> Some (x, Expr.Formula.(neg @@ eq t t'))
+            | x ->
+              ignore (Inst.add x);
+              Some (x, Expr.Formula.(neg @@ eq t t'))
             | exception Unif.Robinson.Impossible_ty _ -> None
             | exception Unif.Robinson.Impossible_term _ -> None
           )
@@ -99,7 +101,10 @@ let unif_depth =
   Constraints.make (Gen.singleton Unif.empty) refine
 
 let unif_breadth =
-  let gen st = Gen.filter_map (fun (t, t') -> Unif.Robinson.find ~section t t') (gen_of_state st) in
+  let gen st = Gen.filter_map (fun (t, t') ->
+      let r = Unif.Robinson.find ~section t t' in
+      begin match r with Some x -> ignore (Inst.add x) | _ -> () end;
+      r) (gen_of_state st) in
   let merger t t' = match Unif.combine t t' with
     | Some s -> Gen.singleton (s, Unif.to_formula t')
     | None -> (fun () -> None)
@@ -137,7 +142,6 @@ let handle_aux iter acc st =
   dump_acc c';
   match Constraints.gen c' () with
   | Some s ->
-    (* Gen.iter (fun u -> ignore (Inst.add u)) (Constraints.gen c'); *)
     let level = Solver.push () in
     Util.debug ~section 10 "New Constraint with subst : %a" Unif.debug s;
     let acc = [make_builtin (make c' level)] in

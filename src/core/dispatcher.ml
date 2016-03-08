@@ -329,6 +329,8 @@ let eval_f f =
   else if a.neg.is_true then Some false
   else None
 
+let get_truth = eval_f
+
 (* Evaluation/Watching functions *)
 (* ************************************************************************ *)
 
@@ -580,6 +582,10 @@ module SolverTheory = struct
     end;
     Util.exit_prof section
 
+  let debug_eval_res buf = function
+    | Unknown -> Printf.bprintf buf "<unknown>"
+    | Valued (b, lvl) -> Printf.bprintf buf "%B (%d)" b lvl
+
   let eval_aux f =
     match plugin_eval_pred f with
     | None -> Unknown
@@ -589,6 +595,7 @@ module SolverTheory = struct
     Util.enter_prof section;
     Util.debug ~section 5 "Evaluating formula : %a" Expr.Debug.formula formula;
     let res = eval_aux formula in
+    Util.debug ~section 15 "Res : %a" debug_eval_res res;
     Util.exit_prof section;
     res
 

@@ -361,7 +361,7 @@ let mk_pb n l u v = {
     constr = sf_singleton sf_empty;
   }
 
-(* ER rule, simply try and unify the oals*)
+(* ER rule, simply try and unify the goals *)
 let rec apply_er k pb =
   let (s, t) = pb.goal in
   let res = add_eq_set pb.constr s t in
