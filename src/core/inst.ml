@@ -19,61 +19,44 @@ let free_args = function
   | { Expr.formula = Expr.Not { Expr.formula = Expr.ExTy (_, args, _) } } -> args
   | _ -> assert false
 
-let sub_quant p q = match p with
-  | { Expr.formula = Expr.All (l, _, _) }
-  | { Expr.formula = Expr.Ex (l, _, _) }
-  | { Expr.formula = Expr.Not { Expr.formula = Expr.All (l, _, _) } }
-  | { Expr.formula = Expr.Not { Expr.formula = Expr.Ex (l, _, _) } } ->
-    let _, tl = free_args q in
-    List.exists (fun v -> List.exists (function
-        | { Expr.term = Expr.Var v' } | { Expr.term = Expr.Meta { Expr.meta_id = v' } } ->
-          Expr.Id.equal v v'
-        | _ -> false) tl) l
-  | { Expr.formula = Expr.AllTy (l, _, _) }
-  | { Expr.formula = Expr.ExTy (l, _, _) }
-  | { Expr.formula = Expr.Not { Expr.formula = Expr.AllTy (l, _, _) } }
-  | { Expr.formula = Expr.Not { Expr.formula = Expr.ExTy (l, _, _) } } ->
-    let tyl, _ = free_args q in
-    List.exists (fun v -> List.exists (function
-        | { Expr.ty = Expr.TyVar v' } | { Expr.ty = Expr.TyMeta { Expr.meta_id = v' } } ->
-          Expr.Id.equal v v'
-        | _ -> false) tyl) l
-  | _ -> assert false
+let ty_sub m f =
+  let l, _ = free_args f in
+  List.exists Expr.Ty.(equal (of_meta m)) l
 
-let quant_compare p q =
-  if Expr.Formula.equal p q then
-    Some 0
-  else if sub_quant p q then
-    Some 1
-  else if sub_quant q p then
-    Some ~-1
-  else
-    None
-
-let quant_comparable p q = match quant_compare p q with
-  | Some _ -> true
-  | None -> false
+let term_sub m f =
+  let _, l = free_args f in
+  List.exists Expr.Term.(equal (of_meta m)) l
 
 (* Splits an arbitrary unifier (Unif.t) into a list of
  * unifiers such that all formula generating the metas in
  * a unifier are comparable according to compare_quant. *)
 let belong_ty m s =
   let f = Expr.Meta.ttype_def (index m) in
-  let aux m' _ =
+  let ty_aux m' _ =
     let f' = Expr.Meta.ttype_def (index m') in
     if Expr.Formula.equal f f' then index m = index m'
-    else quant_comparable f f'
+    else ty_sub m f' || ty_sub m' f
   in
-  Expr.Subst.exists aux Unif.(s.ty_map)
+  let term_aux m' _ =
+    let f' = Expr.Meta.ty_def (index m') in
+    ty_sub m f' || term_sub m' f
+  in
+  Expr.Subst.exists ty_aux Unif.(s.ty_map) ||
+  Expr.Subst.exists term_aux Unif.(s.t_map)
 
 let belong_term m s =
   let f = Expr.Meta.ty_def (index m) in
-  let aux m' _ =
+  let ty_aux m' _ =
+    let f' = Expr.Meta.ttype_def (index m') in
+    term_sub m f' || ty_sub m' f
+  in
+  let term_aux m' _ =
     let f' = Expr.Meta.ty_def (index m') in
     if Expr.Formula.equal f f' then index m = index m'
-    else quant_comparable f f'
+    else term_sub m f' || term_sub m' f
   in
-  Expr.Subst.exists aux Unif.(s.t_map)
+  Expr.Subst.exists ty_aux Unif.(s.ty_map) ||
+  Expr.Subst.exists term_aux Unif.(s.t_map)
 
 let split s =
   let rec aux bind belongs acc m t = function
@@ -200,8 +183,8 @@ let push () inst =
   assert (not (H.find inst_set inst));
   H.replace inst_set inst true;
   let open Inst in
+  Util.debug ~section 5 "Pushing inst : %a" Inst.debug inst;
   let cl, p = soft_subst inst.formula inst.ty_subst inst.term_subst in
-  Util.debug ~section 5 "Pushed inst : %a" Inst.debug inst;
   Dispatcher.push cl p;
   Stats.inst_done ()
 

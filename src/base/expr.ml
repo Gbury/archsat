@@ -380,18 +380,18 @@ module Id = struct
   let debug = Debug.id
 
   (* Internal state *)
-  let id_index = ref ~-1
-  let eval_vec = CCVector.make 107 None
-  let assign_vec = CCVector.make 107 None
+  let eval_vec = CCVector.create ()
+  let assign_vec = CCVector.create ()
   let ty_skolems = Hashtbl.create 17
   let term_skolems = Hashtbl.create 107
 
   (* Constructors *)
-  let mk_new ?(builtin=Base) name ty =
-    incr id_index;
+  let mk_new ?(builtin=Base) id_name id_type =
+    assert (CCVector.length eval_vec = CCVector.length assign_vec);
+    let index = CCVector.length eval_vec in
     CCVector.push eval_vec None;
     CCVector.push assign_vec None;
-    { id_name = name; index = !id_index; id_type = ty; builtin }
+    { index; id_name; id_type; builtin }
 
   let ttype ?builtin name = mk_new ?builtin name Type
   let ty ?builtin name ty = mk_new ?builtin name ty
@@ -521,9 +521,11 @@ module Meta = struct
   let in_term = term_free_metas ([], [])
 
   (* Metas refer to an index which stores the defining formula for the variable *)
-  let dummy_formula = { formula = True; f_hash = -1; f_vars = None; f_tags = Tag.empty; }
-  let meta_ty_index = CCVector.make 37 (dummy_formula, [])
-  let meta_term_index = CCVector.make 37 (dummy_formula, [])
+  type meta_def =
+    | Term of formula * ty meta list
+    | Ty of formula * ttype meta list
+
+  let meta_index = CCVector.create ()
 
   (* Metas *)
   let mk_meta v i = {
@@ -531,23 +533,37 @@ module Meta = struct
     meta_index = i;
   }
 
-  let ty_def i = fst (CCVector.get meta_term_index i)
-  let ttype_def i = fst (CCVector.get meta_ty_index i)
+  let ty_def i =
+    match CCVector.get meta_index i with
+    | Term (f, _) -> f
+    | Ty _ -> invalid_arg "ty_def"
+
+  let ttype_def i =
+    match CCVector.get meta_index i with
+    | Ty (f, _) -> f
+    | Term _ -> invalid_arg "ttype_def"
+
+  let of_ttype_index i =
+    match CCVector.get meta_index i with
+    | Ty (_, l) -> l
+    | Term _ -> invalid_arg "of_ttype_index"
+
+  let of_ty_index i =
+    match CCVector.get meta_index i with
+    | Term (_, l) -> l
+    | Ty _ -> invalid_arg "of_ty_index"
 
   let mk_metas l f =
-    let i = CCVector.size meta_term_index in
+    let i = CCVector.size meta_index in
     let metas = List.map (fun v -> mk_meta v i) l in
-    CCVector.push meta_term_index (f, metas);
+    CCVector.push meta_index (Term (f, metas));
     metas
 
   let mk_ty_metas l f =
-    let i = CCVector.size meta_ty_index in
+    let i = CCVector.size meta_index in
     let metas = List.map (fun v -> mk_meta v i) l in
-    CCVector.push meta_ty_index (f, metas);
+    CCVector.push meta_index (Ty (f, metas));
     metas
-
-  let of_ttype_index i = snd (CCVector.get meta_ty_index i)
-  let of_ty_index i = snd (CCVector.get meta_term_index i)
 
   let of_all_ty f = match f.formula with
     | Not { formula = ExTy(l, _, _) } | AllTy (l, _, _) -> mk_ty_metas l f
@@ -904,7 +920,9 @@ module Formula = struct
     | AllTy (l, _, p) | ExTy (l, _, p) ->
       Id.remove_fv (fv p) (l, [])
     | All (l, _, p) | Ex (l, _, p) ->
-      Id.remove_fv (fv p) ([], l)
+      let v = List.fold_left (fun acc x ->
+          Id.merge_fv acc (Ty.fv x.id_type)) (fv p) l in
+      Id.remove_fv v ([], l)
 
   and fv f = match f.f_vars with
     | Some res -> res
