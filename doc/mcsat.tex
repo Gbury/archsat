@@ -136,6 +136,65 @@ For instance, if the current trail is $\{x \mapsto_1 0, x + y + z = 0 \mapsto_2 
 then $x + y = 0$ can be propagated at level $3$, but $z = 0$ can not be propagated (at least not
 given to the sat solver, however nothing prevents the theory from propagating and using it internally).
 
+\subsection{Algorithm formalization}
+
+The SAT algorithm can be formalized as follows. During the search, the solver keeps
+a set of clauses, containing the problem hypotheses and the learnt clauses, and
+a trail, which is the current ordered list of assumptions and/or decisions made by
+the solver.
+
+Each element in the trail (decision or propagation) has a level, which is the number of decision
+appearing in the trail up to (and including) it. So for instance, propagations made before any
+decisions have level $0$, and the first decision has level $1$. Propagations are written
+$a \leadsto_C \top$, with $C$ the clause that caused the propagation, and decisions
+$a \mapsto_n \top$, with $n$ the level of the decision. Trails are read
+chronologically from left to right.
+
+In the following, given a trail $t$ and an atomic formula $a$, we will use the following notation:
+$a \in t$ if $a \mapsto_n \top$ or $a \leadsto_C \top$ is in $t$\footnote{Please note that, in
+this context, the negation $\neg$ is supposed to be involutive, i.e $\neg \neg a = a$}
+
+The SAT algorithm has two states: first, it staarts in the $\text{Solve}$ state, where propagations
+and decisions are made, until a conflict is detected, at which point it enters in the $\text{Analyse}$
+state, where it analyzes the conflict, backtracks, and re-enter the $\text{Solve}$ state.
+The $\text{Solve}$ state take as argument the set of hypotheses and the trail, while
+the $\text{Analyze}$ statealso take as argument the conflict clause.
+
+\begin{figure}
+  \begin{center}
+    Sat Solving
+    \begin{align*}
+      % Propagation
+      \text{Solve}(\mathbb{S}, t) &\rightarrow \text{Sove}(\mathbb{S}, t :: a \leadsto_C \top) \\
+      &\quad a \in C, C \in \mathbb{S}, \forall b \neq a \in C. \neg b \in t \\
+      % Decision
+      \text{Solve}(\mathbb{S}, t) &\rightarrow \text{Solve}(\mathbb{S}, t :: a \mapsto \top) \\
+      &\quad a \notin t, \neg a \notin t \\
+      % Conflict
+      \text{Solve}(\mathbb{S}, t) &\rightarrow \text{Analyze}(\mathbb{S}, t, C) \\
+      &\quad C \in \mathbb{S}, \forall a \in C. \neg a \in t \\
+    \end{align*}
+
+    Conflict Analysis
+    \begin{align*}
+      % Analyze (propagation)
+      \text{Analyze}(\mathbb{S}, t :: a \leadsto_C \top, D) &\rightarrow \text{Analyze}(\mathbb{S}, t, D) \\
+      &\quad \neg a \notin D \\
+      % Analyze (decision)
+      \text{Analyze}(\mathbb{S}, t :: a \mapsto_n \top, D) &\rightarrow \text{Analyze}(\mathbb{S}, t, D) \\
+      &\quad \neg a \notin D \\
+      % Resolution
+      \text{Analyze}(\mathbb{S}, t :: a \leadsto_C \top, D) &\rightarrow \text{Analyze}(\mathbb{S}, t, (C - \{a\}) \cup (D - \{ \neg a\})) \\
+      &\quad \neg a \in D \\
+      % Restart solving
+      \text{Analyze}(\mathbb{S}, t :: a \mapsto_d \top :: t', C) &\rightarrow \text{Solve}(\mathbb{S} \cup \{ C \}, t) \\
+      &\quad \text{is\_uip}(C), d = \text{uip\_level}(C) \\
+    \end{align*}
+
+  \end{center}
+  \caption{Transitions for the SAT, SMTand McSat algorithms}\label{fig:transitions}
+\end{figure}
+
 \subsection{Expected theory invariants}
 
 In the following, we use the following notations:
