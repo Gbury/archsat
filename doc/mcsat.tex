@@ -138,6 +138,8 @@ given to the sat solver, however nothing prevents the theory from propagating an
 
 \subsection{Algorithm formalization}
 
+\subsubsection{SAT}
+
 The SAT algorithm can be formalized as follows. During the search, the solver keeps
 a set of clauses, containing the problem hypotheses and the learnt clauses, and
 a trail, which is the current ordered list of assumptions and/or decisions made by
@@ -158,7 +160,17 @@ The SAT algorithm has two states: first, it staarts in the $\text{Solve}$ state,
 and decisions are made, until a conflict is detected, at which point it enters in the $\text{Analyse}$
 state, where it analyzes the conflict, backtracks, and re-enter the $\text{Solve}$ state.
 The $\text{Solve}$ state take as argument the set of hypotheses and the trail, while
-the $\text{Analyze}$ statealso take as argument the conflict clause.
+the $\text{Analyze}$ state also take as argument the current conflict clause.
+
+\paragraph{Invariants}
+
+The following invariants are maintained by the transition system:
+\begin{description}
+  \item[Trail Soundness] In $\text{Solve}(\mathbb{S}, t)$, if $a \in t$ then $\neg a \notin t$
+  \item[Conflict Analysis] In $\text{Analyze}(\mathbb{S}, t, C)$, $C$ is a clause impled by the
+    clauses in $\mathbb{S}$, and $\forall a \in C, \neg a \in t$ (i.e $C$ is not satsified in the
+    trail $t$).
+\end{description}
 
 \begin{figure}
   \begin{center}
@@ -169,7 +181,7 @@ the $\text{Analyze}$ statealso take as argument the conflict clause.
       &\quad a \in C, C \in \mathbb{S}, \forall b \neq a \in C. \neg b \in t \\
       % Decision
       \text{Solve}(\mathbb{S}, t) &\rightarrow \text{Solve}(\mathbb{S}, t :: a \mapsto \top) \\
-      &\quad a \notin t, \neg a \notin t \\
+      &\quad a \notin t, \neg a \notin t, a \in \mathbb{S} \\
       % Conflict
       \text{Solve}(\mathbb{S}, t) &\rightarrow \text{Analyze}(\mathbb{S}, t, C) \\
       &\quad C \in \mathbb{S}, \forall a \in C. \neg a \in t \\
