@@ -153,8 +153,9 @@ $a \mapsto_n \top$, with $n$ the level of the decision. Trails are read
 chronologically from left to right.
 
 In the following, given a trail $t$ and an atomic formula $a$, we will use the following notation:
-$a \in t$ if $a \mapsto_n \top$ or $a \leadsto_C \top$ is in $t$\footnote{Please note that, in
-this context, the negation $\neg$ is supposed to be involutive, i.e $\neg \neg a = a$}
+$a \in t$ if $a \mapsto_n \top$ or $a \leadsto_C \top$ is in $t$, i.e $a\ in t$ is $a$ is true
+in the trail $t$. In this context, the negation $\neg$ is supposed to be involutive (i.e $\neg \neg a = a$),
+so that, if $a \in t$ then $\neg \neg a = a \in t$.
 
 The SAT algorithm has two states: first, it staarts in the $\text{Solve}$ state, where propagations
 and decisions are made, until a conflict is detected, at which point it enters in the $\text{Analyse}$
@@ -162,32 +163,33 @@ state, where it analyzes the conflict, backtracks, and re-enter the $\text{Solve
 The $\text{Solve}$ state take as argument the set of hypotheses and the trail, while
 the $\text{Analyze}$ state also take as argument the current conflict clause.
 
-\paragraph{Invariants}
-
 The following invariants are maintained by the transition system:
 \begin{description}
+  \item[Equivalence] During transitions between states $s_1$ and $s_2$, the set of hypotheses
+    (usually written $\mathbb{S}$) in $s_1$ is equivalent to that of $s_2$.
   \item[Trail Soundness] In $\text{Solve}(\mathbb{S}, t)$, if $a \in t$ then $\neg a \notin t$
   \item[Conflict Analysis] In $\text{Analyze}(\mathbb{S}, t, C)$, $C$ is a clause impled by the
-    clauses in $\mathbb{S}$, and $\forall a \in C, \neg a \in t$ (i.e $C$ is not satsified in the
-    trail $t$).
+    clauses in $\mathbb{S}$, and $\forall a \in C, \neg a \in t$ (i.e $C$ is entailed, yet false
+    in the partial model formed by the trail $t$).
 \end{description}
 
 \begin{figure}
   \begin{center}
-    Sat Solving
+
+    \underline{Sat Solving}
     \begin{align*}
       % Propagation
       \text{Solve}(\mathbb{S}, t) &\rightarrow \text{Sove}(\mathbb{S}, t :: a \leadsto_C \top) \\
       &\quad a \in C, C \in \mathbb{S}, \forall b \neq a \in C. \neg b \in t \\
       % Decision
-      \text{Solve}(\mathbb{S}, t) &\rightarrow \text{Solve}(\mathbb{S}, t :: a \mapsto \top) \\
-      &\quad a \notin t, \neg a \notin t, a \in \mathbb{S} \\
+      \text{Solve}(\mathbb{S}, t) &\rightarrow \text{Solve}(\mathbb{S}, t :: a \mapsto_n \top) \\
+      &\quad a \notin t, \neg a \notin t, a \in \mathbb{S}, n = \text{max\_level}(t) + 1\\
       % Conflict
       \text{Solve}(\mathbb{S}, t) &\rightarrow \text{Analyze}(\mathbb{S}, t, C) \\
       &\quad C \in \mathbb{S}, \forall a \in C. \neg a \in t \\
     \end{align*}
 
-    Conflict Analysis
+    \underline{Conflict Analysis}
     \begin{align*}
       % Analyze (propagation)
       \text{Analyze}(\mathbb{S}, t :: a \leadsto_C \top, D) &\rightarrow \text{Analyze}(\mathbb{S}, t, D) \\
@@ -198,13 +200,26 @@ The following invariants are maintained by the transition system:
       % Resolution
       \text{Analyze}(\mathbb{S}, t :: a \leadsto_C \top, D) &\rightarrow \text{Analyze}(\mathbb{S}, t, (C - \{a\}) \cup (D - \{ \neg a\})) \\
       &\quad \neg a \in D \\
-      % Restart solving
+      % BackJump
       \text{Analyze}(\mathbb{S}, t :: a \mapsto_d \top :: t', C) &\rightarrow \text{Solve}(\mathbb{S} \cup \{ C \}, t) \\
       &\quad \text{is\_uip}(C), d = \text{uip\_level}(C) \\
     \end{align*}
 
+    \underline{SMT Solving}
+    \begin{align*}
+      % Conflict (theory)
+      \text{Solve}(\mathbb{S}, t) &\rightarrow \text{Analyze}(\mathbb{S}, t, C) \\
+      &\quad \mathcal{T} \vdash C, \forall a \in C, \neg a \in t \\
+    \end{align*}
+
+    \underline{McSat Solving}
+    \begin{align*}
+      \text{Solve}(\mathbb{S}, t) &\rightarrow \text{Solve}(\mathbb{S}, t :: a \mapsto_n v) \\
+      &\quad a \notin t, a \in \mathbb{S}, n = \text{max\_level}(t) + 1, \mathcal{T} \vDash t = v \land \bigwedge_{b \mapsto_k v' \in t} b = v' \\
+    \end{align*}
+
   \end{center}
-  \caption{Transitions for the SAT, SMTand McSat algorithms}\label{fig:transitions}
+  \caption{Transitions for the SAT, SMT and McSat algorithms}\label{fig:transitions}
 \end{figure}
 
 \subsection{Expected theory invariants}
