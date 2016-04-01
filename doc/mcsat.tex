@@ -174,52 +174,86 @@ The following invariants are maintained by the transition system:
 \end{description}
 
 \begin{figure}
+
+  Sat Solving
   \begin{center}
-
-    \underline{Sat Solving}
-    \begin{align*}
-      % Propagation
-      \text{Solve}(\mathbb{S}, t) &\rightarrow \text{Sove}(\mathbb{S}, t :: a \leadsto_C \top) \\
-      &\quad a \in C, C \in \mathbb{S}, \forall b \neq a \in C. \neg b \in t \\
-      % Decision
-      \text{Solve}(\mathbb{S}, t) &\rightarrow \text{Solve}(\mathbb{S}, t :: a \mapsto_n \top) \\
-      &\quad a \notin t, \neg a \notin t, a \in \mathbb{S}, n = \text{max\_level}(t) + 1\\
-      % Conflict
-      \text{Solve}(\mathbb{S}, t) &\rightarrow \text{Analyze}(\mathbb{S}, t, C) \\
-      &\quad C \in \mathbb{S}, \forall a \in C. \neg a \in t \\
-    \end{align*}
-
-    \underline{Conflict Analysis}
-    \begin{align*}
-      % Analyze (propagation)
-      \text{Analyze}(\mathbb{S}, t :: a \leadsto_C \top, D) &\rightarrow \text{Analyze}(\mathbb{S}, t, D) \\
-      &\quad \neg a \notin D \\
-      % Analyze (decision)
-      \text{Analyze}(\mathbb{S}, t :: a \mapsto_n \top, D) &\rightarrow \text{Analyze}(\mathbb{S}, t, D) \\
-      &\quad \neg a \notin D \\
-      % Resolution
-      \text{Analyze}(\mathbb{S}, t :: a \leadsto_C \top, D) &\rightarrow \text{Analyze}(\mathbb{S}, t, (C - \{a\}) \cup (D - \{ \neg a\})) \\
-      &\quad \neg a \in D \\
-      % BackJump
-      \text{Analyze}(\mathbb{S}, t :: a \mapsto_d \top :: t', C) &\rightarrow \text{Solve}(\mathbb{S} \cup \{ C \}, t) \\
-      &\quad \text{is\_uip}(C), d = \text{uip\_level}(C) \\
-    \end{align*}
-
-    \underline{SMT Solving}
-    \begin{align*}
-      % Conflict (theory)
-      \text{Solve}(\mathbb{S}, t) &\rightarrow \text{Analyze}(\mathbb{S}, t, C) \\
-      &\quad \mathcal{T} \vdash C, \forall a \in C, \neg a \in t \\
-    \end{align*}
-
-    \underline{McSat Solving}
-    \begin{align*}
-      \text{Solve}(\mathbb{S}, t) &\rightarrow \text{Solve}(\mathbb{S}, t :: a \mapsto_n v) \\
-      &\quad a \notin t, a \in \mathbb{S}, n = \text{max\_level}(t) + 1, \mathcal{T} \vDash t = v \land \bigwedge_{b \mapsto_k v' \in t} b = v' \\
-    \end{align*}
-
+    \begin{tabular}{c@{\hspace{1cm}}l}
+      % Propagation (boolean)
+      \AXC{$\text{Solve}(\mathbb{S}, t)$}
+      \UIC{$\text{Sove}(\mathbb{S}, t :: a \leadsto_C \top)$}
+      \DP{} &
+      $a \in C, C \in \mathbb{S}, \neg a \notin t, \forall b \neq a \in C. \neg b \in t $
+      \\ \\
+      % Decide (boolean)
+      \AXC{$\text{Solve}(\mathbb{S}, t)$}
+      \UIC{$\text{Solve}(\mathbb{S}, t :: a \mapsto_n \top)$}
+      \DP{} &
+      $a \notin t, \neg a \notin t, a \in \mathbb{S}, n = \text{max\_level}(t) + 1$
+      \\ \\
+      % Conflict (boolean)
+      \AXC{$\text{Solve}(\mathbb{S}, t)$}
+      \UIC{$\text{Analyze}(\mathbb{S}, t, C)$}
+      \DP{} &
+      $C \in \mathbb{S}, \forall a \in C. \neg a \in t$
+      \\ \\
+    \end{tabular}
   \end{center}
-  \caption{Transitions for the SAT, SMT and McSat algorithms}\label{fig:transitions}
+
+  Conflict Analysis
+  \begin{center}
+    \begin{tabular}{c@{\hspace{1cm}}l}
+      % Analyze (propagation)
+      \AXC{$\text{Analyze}(\mathbb{S}, t :: a \leadsto_C \top, D)$}
+      \UIC{$\text{Analyze}(\mathbb{S}, t, D)$}
+      \DP{} &
+      $\neg a \notin D$
+      \\ \\
+      % Analyze (decision)
+      \AXC{$\text{Analyze}(\mathbb{S}, t :: a \mapsto_n \top, D)$}
+      \UIC{$\text{Analyze}(\mathbb{S}, t, D)$}
+      \DP{} &
+      $\neg a \notin D$
+      \\ \\
+      % Resolution
+      \AXC{$\text{Analyze}(\mathbb{S}, t :: a \leadsto_C \top, D)$}
+      \UIC{$\text{Analyze}(\mathbb{S}, t, (C - \{a\}) \cup (D - \{ \neg a\}))$}
+      \DP{} &
+      $\neg a \in D$
+      \\ \\
+      % BackJump
+      \AXC{$\text{Analyze}(\mathbb{S}, t :: a \mapsto_d \top :: t', C)$}
+      \UIC{$\text{Solve}(\mathbb{S} \cup \{ C \}, t)$}
+      \DP{} &
+      $\text{is\_uip}(C), d = \text{uip\_level}(C)$
+      \\ \\
+    \end{tabular}
+  \end{center}
+
+  SMT Solving
+  \begin{center}
+    \begin{tabular}{c@{\hspace{1cm}}l}
+      % Conflict (theory)
+      \AXC{$\text{Solve}(\mathbb{S}, t)$}
+      \UIC{$\text{Analyze}(\mathbb{S}, t, C)$}
+      \DP{} &
+      $\mathcal{T} \vdash C, \forall a \in C, \neg a \in t$
+      \\ \\
+    \end{tabular}
+  \end{center}
+
+  McSat Solving
+  \begin{center}
+    \begin{tabular}{c@{\hspace{1cm}}l}
+      % Decide (assignment)
+      \AXC{$\text{Solve}(\mathbb{S}, t)$}
+      \UIC{$\text{Solve}(\mathbb{S}, t :: a \mapsto_n v)$}
+      \DP{} &
+      $a \notin t, a \in \mathbb{S}, n = \text{max\_level}(t) + 1, \mathcal{T} \vDash t = v \land \bigwedge_{b \mapsto_k v' \in t} b = v'$
+      \\ \\
+    \end{tabular}
+  \end{center}
+
+  \caption{SAT, SMT and McSat inference rules}\label{fig:transitions}
 \end{figure}
 
 \subsection{Expected theory invariants}
