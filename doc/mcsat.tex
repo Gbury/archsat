@@ -136,25 +136,6 @@ For instance, if the current trail is $\{x \mapsto_1 0, x + y + z = 0 \mapsto_2 
 then $x + y = 0$ can be propagated at level $3$, but $z = 0$ can not be propagated (at least not
 given to the sat solver, however nothing prevents the theory from propagating and using it internally).
 
-\subsection{Models}
-
-Before formalizing the SAT, SMT and McSat algorithms as inference rules, we need to formalize the notion
-of partial model. Indeed, during the proof search, the McSat algorithm maintains a partial mapping from
-expressions to model values. The intention of this mapping is to represent a partial model of the input
-problem, so that if the mapping is complete (i.e all variables are assigned), then it is a model of the
-input problem (quantified formula notwithstanding).
-
-More than simply an incomplete model, we also want to be able to give partial function as interpretation of
-constants with positive arity. Even further, we'd like to specify these partial interpretations in a somewhat
-abstract way, using mappings from expressions to model values instead of a function from model values to model
-values. For instance, given a function symbol $f$ of type
-$\text{int} \rightarrow \text{int}$ and an integer constant $a$, we'd like to specify that in our mapping,
-$f(a) \mapsto 0$, regardless of the values that $f$ takes on other argument, and also regardless
-of the value mapped to $a$. To that end we introduce a notion of partial abstract model.
-
-A partial abstract model $\sigma$ is a mapping from ground expressions to model values. To each partial abstract
-model correspond a set of models that realize it.
-
 \subsection{Algorithm formalization}
 
 \subsubsection{SAT}
@@ -191,6 +172,82 @@ The following invariants are maintained by the transition system:
     clauses in $\mathbb{S}$, and $\forall a \in C, \neg a \in t$ (i.e $C$ is entailed, yet false
     in the partial model formed by the trail $t$).
 \end{description}
+
+\subsection{First order terms}
+
+In the following, we use the following notations:
+\begin{itemize}
+  \item $\mathbb{V}$ is an infinite set of variables
+  \item $\mathbb{C}$ is a possibly infinite set of constants defined
+    by a problem's logic\footnote{For instance, the theory of arithmetic
+    defines the usual operators $+, -, *, /$ as well as the constants
+    $0, -5, \frac{1}{2}, -2.3, \ldots$}
+  \item $\mathbb{S}$ is a finite set of constants defined by a problem's type definitions
+  \item $\mathbb{T}(\mathbb{X})$ for the (infinite) set of first-order terms over $\mathbb{X}$
+    (for instance $a, f(0), x + y, \ldots$)
+  \item $\mathbb{F}(\mathbb{T})$ for the (infinite) set of first order quantified formulas
+    over the terms in $\mathbb{T}$
+\end{itemize}
+
+\subsection{Models}
+
+A model traditionally is a triplet which comprises a domain, a signature and an interpretation function.
+Most problems define their signature using type definitions, and builtin theories such as arithmetic
+usually have canonic models, so in the following we consider the domain and siganture constant, and
+talk about the interpretation, more specifically, about the interpretation of symbols not defined
+by the theory\footnote{Since theory-defined symbols, such as addition, already have an intepretation
+in the canonical domain.}, i.e non-interpreted functions. An intepretation $\mathcal{I}$ can easily
+be extended to a function from ground terms to model value by recursively applying it:
+\[
+  \mathcal{I}( f ( {(e_i)}_{1\leq i \leq n})) = \mathcal{I}_f ( {( \mathcal{I}(e_i) )}_{1 \leq i \leq n} )
+\]
+
+Before formalizing the SAT, SMT and McSat algorithms as inference rules, we need to formalize the notion
+of partial interpretation. Indeed, during the proof search, the McSat algorithm maintains a partial mapping from
+expressions to model values. The intention of this mapping is to represent a partial interpretation of the input
+problem, so that if the mapping is complete (i.e all variables are assigned), then it directly gives an interpretation
+of the input problem (quantified formula notwithstanding).
+
+More than simply an incomplete interpretation, we also want to be able to give partial function (instead of complete functions) as interpretation of
+constants with positive arity. And even further, we'd like to specify these partial interpretations in a somewhat
+abstract way, using mappings from expressions to model values instead of a function from model values to model
+values. For instance, given a function symbol $f$ of type $\text{int} \rightarrow \text{int}$ and an integer constant $a$, we'd like to specify that in our mapping,
+$f(a) \mapsto 0$, regardless of the values that $f$ takes on other argument, and also regardless
+of the value mapped to $a$. To that end we introduce a notion of abstract partial interpretation.
+
+An abstract partial interpretation $\sigma$ is a mapping from ground expressions to model values. To each abstract partial
+interpretation correspond a set of complete models that realize it. More precisely, any mapping $\sigma$ can be completed
+in various ways, leading to a set of potential interpretations:
+\[
+  \text{Complete}(\sigma) =
+    \left\{
+      \mathcal{I}
+      \; | \;
+      \forall f( {(e_i)}_{1 \leq i \leq n} ) \mapsto v \in \sigma ,
+        \mathcal{I}_f ( {( \mathcal{I}(e_i) )}_{1 \leq i \leq n} ) = v
+    \right\}
+\]
+
+We can then consider that the natural interpretation corresponding to a given mapping is the
+partial interpretation on which all completion of the mapping agrees, i.e the intersection of
+all potential candidates:
+\[
+  \sigma_\mathcal{I} = \bigcap_{ \mathcal{I} \in \text{Complete}(\sigma) } \mathcal{I}
+\]
+
+Of course, it might happen that a mapping does not admit any potential interpretation,
+and thus has no natural interpretation, for instance there is no possible completion of the
+following mapping:
+\[
+  \sigma = \left\{
+    \begin{matrix}
+      a \mapsto 0 \\
+      b \mapsto 0 \\
+      f(a) \mapsto 0 \\
+      f(b) \mapsto 1 \\
+    \end{matrix}
+  \right.
+\]
 
 \begin{figure}
 
@@ -267,7 +324,13 @@ The following invariants are maintained by the transition system:
       \AXC{$\text{Solve}(\mathbb{S}, t)$}
       \UIC{$\text{Solve}(\mathbb{S}, t :: a \mapsto_n v)$}
       \DP{} &
-      $a \notin t, a \in \mathbb{S}, n = \text{max\_level}(t) + 1, \mathcal{T} \vDash t = v \land \bigwedge_{b \mapsto_k v' \in t} b = v'$
+      $a \notin t, a \in \mathbb{S}, n = \text{max\_level}(t) + 1$
+      \\ \\
+      % Propagation (semantic)
+      \AXC{$\text{Solve}(\mathbb{S}, t)$}
+      \UIC{$\text{Solve}(\mathbb{S}, t :: a \leadsto_n \top)$}
+      \DP{} &
+      $ $
       \\ \\
     \end{tabular}
   \end{center}
@@ -277,27 +340,12 @@ The following invariants are maintained by the transition system:
 
 \subsection{Expected theory invariants}
 
-In the following, we use the following notations:
-\begin{itemize}
-  \item $\mathbb{V}$ is an infinite set of variables
-  \item $\mathbb{C}$ is a possibly infinite set of constants defined
-    by a problem's logic\footnote{For instance, the theory of arithmetic
-    defines the usual operators $+, -, *, /$ as well as the constants
-    $0, -5, \frac{1}{2}, -2.3, \ldots$}
-  \item $\mathbb{S}$ is a finite set of constants defined by a problem's type definitions
-  \item $\mathbb{T}(\mathbb{X})$ for the (infinite) set of first-order terms over $\mathbb{X}$
-    (for instance $a, f(0), x + y, \ldots$)
-  \item $\mathbb{F}(\mathbb{T})$ for the (infinite) set of first order quantified formulas
-    over the terms in $\mathbb{T}$
-\end{itemize}
+TODO: rewrite this section.
 
 During proof search are maintained a set of assertions $\mathcal{S}$
 and a partial assignment $\sigma$ as a partial function from $\mathbb{T}(\mathbb{V, C, S})$
 to $\mathbb{T}(\mathbb{C})$. $\sigma$ is easily extended to a complete substitution function of
 $\mathbb{T}(\mathbb{V, C, S})$.
-
-We say that an assignment $\sigma$ is coherent iff $\bigcup_{e\mapsto t \in \sigma} e = t$ is satisfiable
-in the current theory (for instance, $\{x\mapsto 1; y \mapsto 2; x + y \mapsto 0\}$ is not coherent).
 
 We say that $\sigma$ is compatible with $\mathcal{S}$ iff for every $\varphi \in \mathcal{S}$,
 $\varphi\sigma$ is satisfiable (independently from the rest of the formulas in $\mathcal{S}$).
