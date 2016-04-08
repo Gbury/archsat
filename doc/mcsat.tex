@@ -136,6 +136,25 @@ For instance, if the current trail is $\{x \mapsto_1 0, x + y + z = 0 \mapsto_2 
 then $x + y = 0$ can be propagated at level $3$, but $z = 0$ can not be propagated (at least not
 given to the sat solver, however nothing prevents the theory from propagating and using it internally).
 
+\subsection{Models}
+
+Before formalizing the SAT, SMT and McSat algorithms as inference rules, we need to formalize the notion
+of partial model. Indeed, during the proof search, the McSat algorithm maintains a partial mapping from
+expressions to model values. The intention of this mapping is to represent a partial model of the input
+problem, so that if the mapping is complete (i.e all variables are assigned), then it is a model of the
+input problem (quantified formula notwithstanding).
+
+More than simply an incomplete model, we also want to be able to give partial function as interpretation of
+constants with positive arity. Even further, we'd like to specify these partial interpretations in a somewhat
+abstract way, using mappings from expressions to model values instead of a function from model values to model
+values. For instance, given a function symbol $f$ of type
+$\text{int} \rightarrow \text{int}$ and an integer constant $a$, we'd like to specify that in our mapping,
+$f(a) \mapsto 0$, regardless of the values that $f$ takes on other argument, and also regardless
+of the value mapped to $a$. To that end we introduce a notion of partial abstract model.
+
+A partial abstract model $\sigma$ is a mapping from ground expressions to model values. To each partial abstract
+model correspond a set of models that realize it.
+
 \subsection{Algorithm formalization}
 
 \subsubsection{SAT}
@@ -157,7 +176,7 @@ $a \in t$ if $a \mapsto_n \top$ or $a \leadsto_C \top$ is in $t$, i.e $a\ in t$ 
 in the trail $t$. In this context, the negation $\neg$ is supposed to be involutive (i.e $\neg \neg a = a$),
 so that, if $a \in t$ then $\neg \neg a = a \in t$.
 
-The SAT algorithm has two states: first, it staarts in the $\text{Solve}$ state, where propagations
+The SAT algorithm has two states: first, it starts in the $\text{Solve}$ state, where propagations
 and decisions are made, until a conflict is detected, at which point it enters in the $\text{Analyse}$
 state, where it analyzes the conflict, backtracks, and re-enter the $\text{Solve}$ state.
 The $\text{Solve}$ state take as argument the set of hypotheses and the trail, while
@@ -168,7 +187,7 @@ The following invariants are maintained by the transition system:
   \item[Equivalence] During transitions between states $s_1$ and $s_2$, the set of hypotheses
     (usually written $\mathbb{S}$) in $s_1$ is equivalent to that of $s_2$.
   \item[Trail Soundness] In $\text{Solve}(\mathbb{S}, t)$, if $a \in t$ then $\neg a \notin t$
-  \item[Conflict Analysis] In $\text{Analyze}(\mathbb{S}, t, C)$, $C$ is a clause impled by the
+  \item[Conflict Analysis] In $\text{Analyze}(\mathbb{S}, t, C)$, $C$ is a clause implied by the
     clauses in $\mathbb{S}$, and $\forall a \in C, \neg a \in t$ (i.e $C$ is entailed, yet false
     in the partial model formed by the trail $t$).
 \end{description}
@@ -297,7 +316,7 @@ of the input problem.
 
 Of interest if the fact that theories that respect this invariant can easily be combined
 to create a theory that also respect this invariant, as long as for any expression $e$,
-there is exactly one theory responsible for finding an assignement for $e$\footnote{this
+there is exactly one theory responsible for finding an assignment for $e$\footnote{this
 is similar to the usual criterion for combining SMT theories which is that they do not
 share symbols other than equality.}.
 
