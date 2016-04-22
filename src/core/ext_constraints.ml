@@ -1,59 +1,66 @@
 
-let section = Util.Section.make ~parent:Dispatcher.section "constraints"
+let section = Util.Section.make ~parent:Dispatcher.section "cstr"
 
 (* Options *)
 (* ************************************************************************ *)
 
 type unif_algo =
-  | Nope
   | Unif_depth
   | Unif_breadth
 
-let unif_algo = ref Nope
+let unif_algo = ref Unif_depth
 
 let need_restart = ref false
 
 let kind_list = [
-    "none", Nope;
     "unif_d", Unif_depth;
     "unif_b", Unif_breadth;
   ]
 
 let parse_kind = Cmdliner.Arg.enum kind_list
 
+(* Dumping dot graphs *)
+(* ************************************************************************ *)
+
+let to_dump = ref []
+
+let dump_acc t = match !to_dump with
+  | [] -> to_dump := [t]
+  | _ :: r -> to_dump := t :: r
+
+let dump_new_acc t =
+  to_dump := t :: !to_dump
+
+let pp_unif fmt u =
+  if Unif.(equal u empty) then Format.fprintf fmt "\\<empty\\>";
+  Expr.Subst.iter (fun m ty ->
+      Format.fprintf fmt "%a --\\> %a\\n" Expr.Print.meta m Expr.Print.ty ty)
+    u.Unif.ty_map;
+  Expr.Subst.iter (fun m t ->
+      Format.fprintf fmt "%a --\\> %a\\n" Expr.Print.meta m Expr.Print.term t)
+    u.Unif.t_map
+
+let pp_st fmt st =
+  let open Ext_meta in
+  List.iter (fun (t, t') -> Format.fprintf fmt "%a == %a\\n" Expr.Print.term t Expr.Print.term t') st.equalities;
+  List.iter (fun (t, t') -> Format.fprintf fmt "%a <> %a\\n" Expr.Print.term t Expr.Print.term t') st.inequalities;
+  List.iter (fun t -> Format.fprintf fmt "( true) %a\\n" Expr.Print.term t) st.true_preds;
+  List.iter (fun t -> Format.fprintf fmt "(false) %a\\n" Expr.Print.term t) st.false_preds
+
 (* Accumulators for constraints *)
 (* ************************************************************************ *)
 
-type zero
-type succ
-
-type constraints = (Unif.t, Ext_meta.state) Constraints.t
-
-type _ acc =
-  | Empty : zero acc
-  | Acc : _ acc * constraints -> succ acc
-(* A type for constraints accumulators. the type parameter indicates wether
-   the constraint is empty or not.
-   Acc(acc, l, c) is so that c is the enumeration of constraints
-   that satisfy acc, and induce a contradiction in some formuylas of l *)
+type constraints = (Unif.t, Ext_meta.state, Expr.formula) Constraints.t
 
 type t = {
   id : int;
-  acc : succ acc;
+  acc : constraints;
+  level : Solver.level;
 }
-(* Accumulators are tagged with an increasing id in order to know which accumulator
-   is more recent when comparing two *)
-
-let rec belong : type l. succ acc -> l acc -> bool =
-  fun a b -> match b with
-    | Empty -> false
-    | Acc (a', _) -> a == b || belong a a'
-(* We test wether a non-empty acc is a sub-accumulator of another accumulator
-   (which can possibly be empty). *)
 
 let make =
   let c = ref 0 in
-  (fun acc -> incr c; { id = !c; acc })
+  (fun acc level -> { id = !c; acc; level; })
 
 (* Builtin symbol *)
 (* ************************************************************************ *)
@@ -65,15 +72,8 @@ let make_builtin acc =
   let p = Expr.Id.term_fun ~builtin (Format.sprintf "acc#%d" acc.id) [] [] Expr.Ty.prop in
   Expr.Formula.pred (Expr.Term.apply p [] [])
 
-
 (* Accumulators *)
 (* ************************************************************************ *)
-
-let empty =
-  let fold g _ = g in
-  match Constraints.make (Gen.singleton Unif.empty) fold with
-  | Some c -> c
-  | None -> assert false
 
 let gen_of_state st =
   let open Ext_meta in
@@ -84,34 +84,37 @@ let gen_of_state st =
   )
 
 let unif_depth =
-  let fold g st =
-    Gen.flat_map (fun s ->
+  let refine st =
+    let gen = Gen.persistent_lazy @@ gen_of_state st in
+    (function s ->
+      Gen.Restart.lift (
         Gen.filter_map (fun (t, t') ->
-            try Some (Unif.Robinson.term s t t')
-            with Unif.Robinson.Impossible_ty _ | Unif.Robinson.Impossible_term _ -> None
-          ) (gen_of_state st)) g
+            match Unif.Robinson.term s t t' with
+            | x ->
+              ignore (Inst.add x);
+              Some (x, Expr.Formula.(neg @@ eq t t'))
+            | exception Unif.Robinson.Impossible_ty _ -> None
+            | exception Unif.Robinson.Impossible_term _ -> None
+          )
+      ) gen)
   in
-  match Constraints.make (Gen.singleton Unif.empty) fold with
-  | Some x -> x
-  | None -> assert false
+  Constraints.make (Gen.singleton Unif.empty) refine
 
 let unif_breadth =
-  let gen st =
-    Gen.filter_map (fun (t, t') -> Unif.Robinson.find ~section t t') (gen_of_state st)
-  in
-  let merger (t, t') = match Unif.combine t t' with
-    | Some s -> Gen.singleton s
+  let gen st = Gen.filter_map (fun (t, t') ->
+      let r = Unif.Robinson.find ~section t t' in
+      begin match r with Some x -> ignore (Inst.add x) | _ -> () end;
+      r) (gen_of_state st) in
+  let merger t t' = match Unif.combine t t' with
+    | Some s -> Gen.singleton (s, Unif.to_formula t')
     | None -> (fun () -> None)
   in
   Constraints.from_merger gen merger (Gen.singleton Unif.empty)
 
-let gen_of_acc : type a. a acc -> constraints = function
-  | Acc (_, g) -> g
-  | Empty -> begin match !unif_algo with
-      | Nope -> empty
-      | Unif_depth -> unif_depth
-      | Unif_breadth -> unif_breadth
-    end
+let empty_cst () =
+  match !unif_algo with
+  | Unif_depth -> unif_depth
+  | Unif_breadth -> unif_breadth
 
 (* Parsing entry formulas *)
 (* ************************************************************************ *)
@@ -125,72 +128,67 @@ let parse iter =
     | { Expr.formula = Expr.Pred { Expr.term = Expr.App ({ Expr.builtin = Acc t }, _, _) } } ->
       begin match !acc with
         | None -> acc := Some t
-        | Some t' ->
-          let new_acc =
-            if t.id > t'.id then (assert (belong t'.acc t.acc); t)
-            else                 (assert (belong t.acc t'.acc); t')
-          in
-          acc := Some new_acc
+        | Some t' -> assert false
       end
     | f -> Ext_meta.parse_aux st f
   in
   let () = iter aux in
   !acc, st
 
-module H = Hashtbl.Make(Expr.Formula)
-
-let tmp = H.create 2500
 
 let handle_aux iter acc st =
-  let c = gen_of_acc acc in
-  Ext_meta.debug_st 30 st;
-  match Constraints.add_constraint c st with
-  | Some c' ->
-    Util.debug ~section 5 "New constraint";
-    Util.debug ~section 10 "Clause :";
-    List.iter (fun f -> Util.debug ~section 10 "  - %a" Expr.Debug.formula (Expr.Formula.neg f)) st.Ext_meta.formulas;
-    let f = Expr.Formula.f_or (List.map Expr.Formula.neg st.Ext_meta.formulas) in
-    if H.mem tmp f then assert false
-    else H.add tmp f 0;
-    Solver.assume [
-      List.map Expr.Formula.neg st.Ext_meta.formulas;
-      [make_builtin (make (Acc (acc, c')))];
-    ]
+  Ext_meta.debug_st ~section 30 st;
+  let c' = Constraints.add_constraint acc st in
+  dump_acc c';
+  match Constraints.gen c' () with
+  | Some s ->
+    let level = Solver.push () in
+    Util.debug ~section 10 "New Constraint with subst : %a" Unif.debug s;
+    let acc = [make_builtin (make c' level)] in
+    let l = Expr.Subst.fold (fun m t acc ->
+        [Expr.Formula.eq (Expr.Term.of_meta m) t] :: acc) s.Unif.t_map [] in
+    Solver.assume (acc :: l);
+    Dispatcher.Ret ()
   | None ->
     Util.debug ~section 2 "Couldn't find a satisfiable constraint";
-    if !Ext_meta.meta_start + 1 < !Ext_meta.meta_max then begin
+    if !Ext_meta.meta_start < !Ext_meta.meta_max then begin
+      Util.debug ~section 2 "Adding new meta (total: %d)" !Ext_meta.meta_start;
       need_restart := true;
-      if !Ext_meta.meta_start < !Ext_meta.meta_max then begin
-        incr Ext_meta.meta_start;
-        Ext_meta.iter Ext_meta.do_formula
-      end;
-      Util.debug ~section 2 "Adding new meta (total: %d)" !Ext_meta.meta_start
+      incr Ext_meta.meta_start;
+      Ext_meta.iter Ext_meta.do_formula
     end;
-    raise Solver.Restart
+    Dispatcher.(Directive Restart)
 
 let branches_closed = ref 0
 
-let handle : type ret. ret Dispatcher.msg -> ret option = function
+let handle : type ret. ret Dispatcher.msg -> ret Dispatcher.result = function
   | Dispatcher.If_sat iter ->
-    begin match parse iter with
+    let cstr, st = match parse iter with
       | None, st ->
         Util.debug ~section 5 "Generating empty constraint";
-        handle_aux iter Empty st
+        let t = empty_cst () in
+        dump_new_acc t;
+        (t, st)
       | Some t, st ->
         Util.debug ~section 10 "Found previous constraint";
-        handle_aux iter t.acc st
-    end;
-    incr branches_closed;
-    Util.debug ~section 0 "Closed %d branches" !branches_closed;
-    Some ()
+        Solver.pop t.level;
+        (t.acc, st)
+    in
+    begin match handle_aux iter cstr st with
+      | Dispatcher.Ret () as ret ->
+        incr branches_closed;
+        Util.debug ~section 0 "Closed %d branches" !branches_closed;
+        ret
+      | ret -> ret
+    end
   | Solver.Found _ ->
     branches_closed := 0;
     if !need_restart then begin
       need_restart := false;
-      Some Solver.Ok
+      Dispatcher.Ret Solver.Ok
     end else
-      None
-  | _ -> None
+      Dispatcher.Ok
+  | _ -> Dispatcher.Ok
 
 (* Evaluating *)
 (* ************************************************************************ *)
@@ -204,15 +202,24 @@ let options =
   let kind =
     let doc = CCPrint.sprintf "The constraint generation method to use,
     $(docv) may be %s" (Cmdliner.Arg.doc_alts_enum ~quoted:false kind_list) in
-    Cmdliner.Arg.(value & opt parse_kind Nope & info ["cstr.kind"] ~docv:"METHOD" ~docs ~doc)
+    Cmdliner.Arg.(value & opt parse_kind Unif_depth & info ["cstr.kind"] ~docv:"METHOD" ~docs ~doc)
   in
-  let aux kind =
-    unif_algo := kind
+  let dot =
+    let doc = "Dump a dot graph of the accumulators to the given file" in
+    Cmdliner.Arg.(value & opt string "" & info ["cstr.dot"] ~docv:"FILE" ~docs ~doc)
   in
-  Cmdliner.Term.(pure aux $ kind)
+  let aux kind dot =
+    unif_algo := kind;
+    if not (dot = "") then begin
+      let fmt = Format.formatter_of_out_channel (open_out dot) in
+      at_exit (fun () ->
+          Constraints.dumps pp_unif pp_st Expr.Print.formula fmt !to_dump)
+    end
+  in
+  Cmdliner.Term.(pure aux $ kind $ dot)
 
 ;;
-Dispatcher.Plugin.register "constraints" ~options
+Dispatcher.Plugin.register "cstr" ~options
   ~descr:"Handles instanciation using constraints to close multiple branches at the same time"
   (Dispatcher.mk_ext ~section
      ~handle:{Dispatcher.handle=handle}

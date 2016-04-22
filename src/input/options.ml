@@ -20,50 +20,59 @@ type output =
   | SZS
 
 type profile_options = {
-  enabled : bool;
-  max_depth : int option;
-  sections : Util.Section.t list;
-  raw_data : Format.formatter;
-  print_stats : bool;
+  enabled       : bool;
+  max_depth     : int option;
+  sections      : Util.Section.t list;
+  raw_data      : Format.formatter option;
+  print_stats   : bool;
+}
+
+type proof_options = {
+  active      : bool;
+  dot         : Format.formatter option;
+  unsat_core  : Format.formatter option;
 }
 
 type copts = {
   (* Input/Output option *)
-  out : Format.formatter;
-  input_file : string;
-  input_format : input;
+  out           : Format.formatter;
+  input_file    : string;
+  input_format  : input;
   output_format : output;
-  interactive : bool;
+  interactive   : bool;
 
-  (* Proving options *)
-  solve : bool;
-  proof : bool;
-  addons : string list;
+  (* Solving options *)
+  solve   : bool;
+  addons  : string list;
   plugins : string list;
 
+  (* Proof options *)
+  proof   : proof_options;
+
   (* Printing options *)
-  dot_proof : Format.formatter;
-  model_out : Format.formatter;
+  model_out : Format.formatter option;
 
   (* Time/Memory options *)
-  profile : profile_options;
-  time_limit : float;
-  size_limit : float;
+  time_limit  : float;
+  size_limit  : float;
+  profile     : profile_options;
 }
 
 (* Misc *)
 (* ************************************************************************ *)
 
 let formatter_of_descr = function
-  | "" -> Format.make_formatter (fun _ _ _ -> ()) (fun () -> ())
-  | "stdout" -> Format.std_formatter
-  | s -> Format.formatter_of_out_channel (open_out s)
+  | "" -> None
+  | "stdout" -> Some (Format.std_formatter)
+  | s -> Some (Format.formatter_of_out_channel (open_out s))
 
 (* Option values *)
 (* ************************************************************************ *)
 
-let mk_opts file input output interactive proof type_only plugins addons
-    dot_proof model_out time size profile =
+let mk_opts file
+    input output interactive type_only
+    plugins addons model_out time size
+    proof profile =
   {
     out = Format.std_formatter;
     input_file = file;
@@ -72,17 +81,23 @@ let mk_opts file input output interactive proof type_only plugins addons
     interactive = interactive || file = "stdin";
 
     solve = not type_only;
-    proof = proof || dot_proof <> "";
     addons = List.concat addons;
     plugins = List.concat plugins;
 
+    proof = proof;
+
     model_out = formatter_of_descr model_out;
-    dot_proof = formatter_of_descr dot_proof;
 
     profile = profile;
     time_limit = time;
     size_limit = size;
   }
+
+let proof_opts prove dot unsat_core =
+  let dot = formatter_of_descr dot in
+  let unsat_core = formatter_of_descr unsat_core in
+  let active = prove || dot <> None || unsat_core <> None in
+  { active; dot; unsat_core; }
 
 let profile_opts enable depth l out stats = {
   enabled = enable || depth <> None || l <> [] || out <> "";
@@ -103,6 +118,8 @@ let set_opts gc bt quiet log debug opt =
   if quiet then
     Util.Section.clear_debug Util.Section.root
   else begin
+    Msat.Log.set_debug log;
+    Msat.Log.set_debug_out Format.std_formatter;
     Util.set_debug (if opt.interactive then max 1 log else log);
     List.iter (fun (s, lvl) -> Util.Section.set_debug s lvl) debug
   end;
@@ -146,7 +163,7 @@ let parse_time arg =
     | 'd' -> multiplier 86400.
     | '0'..'9' -> `Ok (float_of_string arg)
     | _ -> `Error "bad numeric argument"
-  with Failure "float_of_string" -> `Error "bad numeric argument"
+  with Failure _ -> `Error "bad numeric argument"
 
 let size_string f =
   let n = int_of_float f in
@@ -179,7 +196,7 @@ let parse_size arg =
     | 'T' -> multiplier 1e12
     | '0'..'9' -> `Ok (float_of_string arg)
     | _ -> `Error "bad numeric argument"
-  with Failure "float_of_string" -> `Error "bad numeric argument"
+  with Failure _ -> `Error "bad numeric argument"
 
 let c_time = parse_time, print_time
 let c_size = parse_size, print_size
@@ -208,7 +225,7 @@ let log_opts opt =
   log 0 "Limits : %s / %s" (time_string opt.time_limit) (size_string opt.size_limit);
   log 0 "Options : %s%s%s%s[in: %s][out: %s]"
     (bool_opt "solve" opt.solve)
-    (bool_opt "check_proof" opt.proof)
+    (bool_opt "prove" opt.proof.active)
     (bool_opt "interactive" opt.interactive)
     (bool_opt "profile" opt.profile.enabled)
     (input_string opt.input_format) (output_string opt.output_format);
@@ -252,6 +269,8 @@ let out_descr = parse_descr, print_descr
 let copts_sect = "COMMON OPTIONS"
 let prof_sect = "PROFILING OPTIONS"
 let ext_sect = "ADVANCED OPTIONS"
+let proof_sect = "PROOF OPTIONS"
+
 let help_secs ext_doc sext_doc = [
   `S copts_sect; `P "Common options for the prover";
   `S "ADDONS"; `P "Addons are typing/semantic extensions that extend typing
@@ -295,6 +314,27 @@ let profile_t =
     Arg.(value & flag & info ["stats"] ~docs ~doc)
   in
   Term.(pure profile_opts $ profile $ depth $ sects $ raw_data $ stats)
+
+let proof_t =
+  let docs = proof_sect in
+  let check_proof =
+    let doc = "If set, compute and check the resolution proofs for unsat results. This option
+               does not trigger printing of the proof, for that a proof format printing option
+               (such as the $(b,--dot) option) must be used." in
+    Arg.(value & flag & info ["c"; "check"] ~docs ~doc)
+  in
+  let dot_proof =
+    let doc = "Set the file to which the program sould output a proof in dot format.
+               A special 'stdout' value can be used to use standard output." in
+    Arg.(value & opt out_descr "" & info ["dot"] ~docs ~doc)
+  in
+  let unsat_core =
+    let doc = "Set the file to which the program sould output theunsat core, i.e the list
+               of hypothesis used in the proof.
+               A special 'stdout' value can be used to use standard output." in
+    Arg.(value & opt out_descr "" & info ["core"] ~docs ~doc)
+  in
+  Term.(pure proof_opts $ check_proof $ dot_proof $ unsat_core)
 
 let copts_t () =
   let docs = copts_sect in
@@ -340,12 +380,6 @@ let copts_t () =
         (Arg.doc_alts_enum ~quoted:false  output_list) in
     Arg.(value & opt output Standard & info ["o"; "output"] ~docs ~docv:"OUTPUT" ~doc)
   in
-  let check_proof =
-    let doc = "If set, compute and check the resolution proofs for unsat results. This option
-               does not trigger printing of the proof, for that a proof format printing option
-               (such as the $(b,--dot) option) must be used." in
-    Arg.(value & flag & info ["c"; "check"] ~docs ~doc)
-  in
   let type_only =
     let doc = "Only parse and type the given problem. Do not attempt to solve." in
     Arg.(value & flag & info ["type-only"] ~docs ~doc)
@@ -362,11 +396,6 @@ let copts_t () =
     let doc = "Activate/deactivate syntax extensions. See the extension options
                for more documentation." in
     Arg.(value & opt_all (list string) [] & info ["semantics"] ~docs ~doc)
-  in
-  let dot_proof =
-    let doc = "Set the file to which the program sould output a proof in dot format.
-               A special 'stdout' value can be used to use standard output." in
-    Arg.(value & opt out_descr "" & info ["dot"] ~docs ~doc)
   in
   let model_out =
     let doc = CCPrint.sprintf
@@ -386,6 +415,7 @@ let copts_t () =
               "Without suffix, default to a size in octet." in
     Arg.(value & opt c_size 1_000_000_000. & info ["s"; "size"] ~docs ~docv:"SIZE" ~doc)
   in
-  Term.(pure set_opts $ gc $ bt $ quiet $ log $ debug $ (pure mk_opts $
-        file $ input $ output $ interactive $ check_proof $ type_only $ plugins $ addons $ dot_proof $ model_out $ time $ size $ profile_t))
+  Term.(pure set_opts $ gc $ bt $ quiet $ log $ debug $ (
+      pure mk_opts $ file $ input $ output $ interactive $ type_only $
+      plugins $ addons $ model_out $ time $ size $ proof_t $ profile_t))
 

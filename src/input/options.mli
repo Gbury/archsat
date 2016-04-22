@@ -21,8 +21,14 @@ type profile_options = {
   enabled : bool;
   max_depth : int option;
   sections : Util.Section.t list;
-  raw_data : Format.formatter;
+  raw_data : Format.formatter option;
   print_stats : bool;
+}
+
+type proof_options = {
+  active      : bool;
+  dot         : Format.formatter option;
+  unsat_core  : Format.formatter option;
 }
 
 type copts = {
@@ -33,20 +39,21 @@ type copts = {
   output_format : output;
   interactive : bool;
 
-  (* Proving options *)
+  (* Solving options *)
   solve : bool;
-  proof : bool;
   addons : string list;
   plugins : string list;
 
+  (* Proof options *)
+  proof   : proof_options;
+
   (* Printing options *)
-  dot_proof : Format.formatter;
-  model_out : Format.formatter;
+  model_out : Format.formatter option;
 
   (* Time/Memory options *)
-  profile : profile_options;
   time_limit : float;
   size_limit : float;
+  profile : profile_options;
 }
 
 
@@ -60,6 +67,7 @@ val clean : copts -> unit
 
 val ext_sect : string
 val copts_sect : string
+val proof_sect : string
 (** Section names for options in cmdliner. *)
 
 val help_secs : Cmdliner.Manpage.block list -> Cmdliner.Manpage.block list -> Cmdliner.Manpage.block list
@@ -67,3 +75,4 @@ val help_secs : Cmdliner.Manpage.block list -> Cmdliner.Manpage.block list -> Cm
 
 val copts_t : unit -> copts Cmdliner.Term.t
 (** A term to evaluate common options from the command line. *)
+

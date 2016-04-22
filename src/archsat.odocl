@@ -37,6 +37,7 @@ core/Stats
 ########################
 
 # Utilities modules
+util/Sig
 util/Util
 util/Backtrack
 util/Comparison

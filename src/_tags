@@ -2,7 +2,7 @@
 true: use_menhir, explain
 
 # Some warnings
-<**/*.ml>: warn_K, warn_Y, warn_X
+<**/*.ml>: warn_K, warn_Y, warn_X, warn(-58)
 <**/*.cm*>: debug
 
 # Package management
@@ -19,7 +19,7 @@ true: use_menhir, explain
 <algos/*>: package(ocamlgraph), package(gen)
 <core/*>: package(msat), package(cmdliner), package(zarith), \
           package(gen)
-<input/*>: package(cmdliner), package(gen)
+<input/*>: package(cmdliner), package(gen), package(msat)
 <util/*>: package(cmdliner), package(zarith), package(gen), package(oclock)
 <parsers/*>: package(menhirLib)
 

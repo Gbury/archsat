@@ -91,9 +91,12 @@ let do_command opt = function
         (* Proof found *)
         | Solver.Unsat ->
           Io.print_unsat opt.out;
-          if opt.proof then begin
+          if opt.proof.active then begin
             let proof = Solver.get_proof () in
-            Solver.print_dot_proof opt.dot_proof proof
+            CCOpt.iter (fun fmt ->
+                Solver.print_dot_proof fmt proof) opt.proof.dot;
+            CCOpt.iter (fun fmt ->
+                Solver.print_unsat_core fmt (Solver.unsat_core proof)) opt.proof.unsat_core;
           end
         (* No concrete result *)
         | Solver.Unknown ->
@@ -167,6 +170,7 @@ let () =
       Util.debug 0 "Interrupted by user";
       raise Sigint));
   Sys.set_signal Sys.sigalrm (Sys.Signal_handle (fun _ ->
+      delete_alarm ();
       Util.need_cleanup := true;
       Util.debug 0 "Alarm clock";
       raise Out_of_time));
@@ -191,7 +195,7 @@ let () =
     List.iter Semantics.Addon.set_ext opt.addons;
 
     (* Extensions options *)
-    Dispatcher.Plugin.set_exts "+eq,+uf,+logic,+prop,+skolem,+meta,+inst,+stats,+constraints";
+    Dispatcher.Plugin.set_exts "+eq,+uf,+logic,+prop,+skolem,+meta,+inst,+stats,+cstr";
     List.iter Dispatcher.Plugin.set_ext opt.plugins;
 
     (* Print the current options *)
@@ -206,22 +210,21 @@ let () =
     do_commands opt commands;
 
     (* Output raw profiling data *)
-    Util.csv_prof_data opt.profile.raw_data;
+    CCOpt.iter Util.csv_prof_data opt.profile.raw_data;
 
     (* Clean up *)
     Options.clean opt
 
   with
   | e ->
+    delete_alarm ();
     let s = Printexc.get_backtrace () in
     let retcode = match e with
       | Exit -> 0
       | Out_of_time ->
-        delete_alarm ();
         Io.print_timeout Format.std_formatter;
         0
       | Out_of_space ->
-        delete_alarm ();
         Io.print_spaceout Format.std_formatter;
         0
 

@@ -19,61 +19,44 @@ let free_args = function
   | { Expr.formula = Expr.Not { Expr.formula = Expr.ExTy (_, args, _) } } -> args
   | _ -> assert false
 
-let sub_quant p q = match p with
-  | { Expr.formula = Expr.All (l, _, _) }
-  | { Expr.formula = Expr.Ex (l, _, _) }
-  | { Expr.formula = Expr.Not { Expr.formula = Expr.All (l, _, _) } }
-  | { Expr.formula = Expr.Not { Expr.formula = Expr.Ex (l, _, _) } } ->
-    let _, tl = free_args q in
-    List.exists (fun v -> List.exists (function
-        | { Expr.term = Expr.Var v' } | { Expr.term = Expr.Meta { Expr.meta_id = v' } } ->
-          Expr.Id.equal v v'
-        | _ -> false) tl) l
-  | { Expr.formula = Expr.AllTy (l, _, _) }
-  | { Expr.formula = Expr.ExTy (l, _, _) }
-  | { Expr.formula = Expr.Not { Expr.formula = Expr.AllTy (l, _, _) } }
-  | { Expr.formula = Expr.Not { Expr.formula = Expr.ExTy (l, _, _) } } ->
-    let tyl, _ = free_args q in
-    List.exists (fun v -> List.exists (function
-        | { Expr.ty = Expr.TyVar v' } | { Expr.ty = Expr.TyMeta { Expr.meta_id = v' } } ->
-          Expr.Id.equal v v'
-        | _ -> false) tyl) l
-  | _ -> assert false
+let ty_sub m f =
+  let l, _ = free_args f in
+  List.exists Expr.Ty.(equal (of_meta m)) l
 
-let quant_compare p q =
-  if Expr.Formula.equal p q then
-    Some 0
-  else if sub_quant p q then
-    Some 1
-  else if sub_quant q p then
-    Some ~-1
-  else
-    None
-
-let quant_comparable p q = match quant_compare p q with
-  | Some _ -> true
-  | None -> false
+let term_sub m f =
+  let _, l = free_args f in
+  List.exists Expr.Term.(equal (of_meta m)) l
 
 (* Splits an arbitrary unifier (Unif.t) into a list of
  * unifiers such that all formula generating the metas in
  * a unifier are comparable according to compare_quant. *)
 let belong_ty m s =
   let f = Expr.Meta.ttype_def (index m) in
-  let aux m' _ =
+  let ty_aux m' _ =
     let f' = Expr.Meta.ttype_def (index m') in
     if Expr.Formula.equal f f' then index m = index m'
-    else quant_comparable f f'
+    else ty_sub m f' || ty_sub m' f
   in
-  Expr.Subst.exists aux Unif.(s.ty_map)
+  let term_aux m' _ =
+    let f' = Expr.Meta.ty_def (index m') in
+    ty_sub m f' || term_sub m' f
+  in
+  Expr.Subst.exists ty_aux Unif.(s.ty_map) ||
+  Expr.Subst.exists term_aux Unif.(s.t_map)
 
 let belong_term m s =
   let f = Expr.Meta.ty_def (index m) in
-  let aux m' _ =
+  let ty_aux m' _ =
+    let f' = Expr.Meta.ttype_def (index m') in
+    term_sub m f' || ty_sub m' f
+  in
+  let term_aux m' _ =
     let f' = Expr.Meta.ty_def (index m') in
     if Expr.Formula.equal f f' then index m = index m'
-    else quant_comparable f f'
+    else term_sub m f' || term_sub m' f
   in
-  Expr.Subst.exists aux Unif.(s.t_map)
+  Expr.Subst.exists ty_aux Unif.(s.ty_map) ||
+  Expr.Subst.exists term_aux Unif.(s.t_map)
 
 let split s =
   let rec aux bind belongs acc m t = function
@@ -129,6 +112,7 @@ let soft_subst f ty_subst term_subst =
 module Inst = struct
   type t = {
     age : int;
+    hash : int;
     score : int;
     formula : Expr.formula;
     ty_subst : Expr.Ty.subst;
@@ -140,33 +124,36 @@ module Inst = struct
   let clock () = incr age
 
   (* Constructor *)
-  let mk u k =
-    let f, s = partition u in
+  let mk u score =
+    let formula, s = partition u in
+    let ty_subst = to_var Unif.(s.ty_map) in
+    let term_subst = to_var Unif.(s.t_map) in
+    let hash = Hashtbl.hash (
+        Expr.Formula.hash formula,
+        Expr.Subst.hash Expr.Ty.hash ty_subst,
+        Expr.Subst.hash Expr.Term.hash term_subst)
+    in
     {
-    age = !age;
-    score = k;
-    formula = f;
-    ty_subst = to_var Unif.(s.ty_map);
-    term_subst = to_var Unif.(s.t_map);
+      age = !age;
+      hash; score; formula;
+      ty_subst; term_subst;
     }
 
   (* debug printing *)
   let debug b t =
-    Printf.bprintf b "%a%a" Expr.Ty.debug_subst t.ty_subst Expr.Term.debug_subst t.term_subst
+    Printf.bprintf b "(%d) %a%a" t.hash Expr.Ty.debug_subst t.ty_subst Expr.Term.debug_subst t.term_subst
 
   (* Comparison for the Heap *)
   let leq t1 t2 = t1.score + t1.age <= t2.score + t2.age
 
   (* Hash and equality for the hashtbl. *)
-  let hash t =
-    Hashtbl.hash (Expr.Formula.hash t.formula,
-                  Expr.Subst.hash Expr.Ty.hash t.ty_subst,
-                  Expr.Subst.hash Expr.Term.hash t.term_subst)
+  let hash t = t.hash
 
   let equal t t' =
     Expr.Formula.equal t.formula t'.formula &&
     Expr.Subst.equal Expr.Ty.equal t.ty_subst t'.ty_subst &&
     Expr.Subst.equal Expr.Term.equal t.term_subst t'.term_subst
+
 end
 
 module Q = CCHeap.Make(Inst)
@@ -181,7 +168,7 @@ let add ?(delay=0) ?(score=0) u =
   let t = Inst.mk u score in
   if not (H.mem inst_set t) then begin
     H.add inst_set t false;
-    Util.debug ~section 10 "New inst : %a" Inst.debug t;
+    Util.debug ~section 10 "New inst (%d) : %a" delay Inst.debug t;
     if delay <= 0 then
       heap := Q.add !heap t
     else
@@ -192,38 +179,44 @@ let add ?(delay=0) ?(score=0) u =
     false
   end
 
-let push inst =
-  Stats.inst_done ();
+let push () inst =
   assert (not (H.find inst_set inst));
   H.replace inst_set inst true;
-  Util.debug ~section 5 "Pushed inst : %a" Inst.debug inst;
   let open Inst in
+  Util.debug ~section 5 "Pushing inst : %a" Inst.debug inst;
   let cl, p = soft_subst inst.formula inst.ty_subst inst.term_subst in
-  Dispatcher.push cl p
+  Dispatcher.push cl p;
+  Stats.inst_done ()
 
-let take f k =
-  let aux f i =
-    for _ = 1 to i do
-      match Q.take !heap with
-      | None -> ()
-      | Some (new_h, min) ->
-        heap := new_h;
-        f min;
-    done
+let fold f acc k =
+  let rec aux f acc i =
+    if i <= 0 then acc
+    else begin
+      let acc' =
+        match Q.take !heap with
+        | None -> acc
+        | Some (new_h, min) ->
+          heap := new_h;
+          f acc min
+      in
+      aux f acc' (i - 1)
+    end
   in
   if k > 0 then
-    aux f k
+    aux f acc k
   else
-    aux f (Q.size !heap + k)
+    aux f acc (Q.size !heap + k)
 
 let rec decr_delay () =
   if !delayed = [] then
     ()
   else begin
     delayed := CCList.filter_map (fun (u, d) ->
-        if d > 1 then
+        if d > 1 then begin
+          Util.debug ~section 20 "Decreased delay (%d) : %a" (d - 1) Inst.debug u;
           Some (u, d - 1)
-        else begin
+        end else begin
+          Util.debug ~section 10 "Promoted inst : %a" Inst.debug u;
           heap := Q.add !heap u;
           None
         end
@@ -232,13 +225,18 @@ let rec decr_delay () =
       decr_delay ()
   end
 
-let inst_sat : type ret. ret Dispatcher.msg -> ret option = function
-  | Dispatcher.If_sat _ ->
+let rec inst_sat : type ret. ret Dispatcher.msg -> ret Dispatcher.result = function
+  | Dispatcher.If_sat _ as r ->
     decr_delay ();
-    take push !inst_incr;
-    Stats.inst_remaining (Q.size !heap);
-    Some (Inst.clock ())
-  | _ -> None
+    fold push () !inst_incr;
+    if not (Q.is_empty !heap) then
+      inst_sat r
+    else begin
+      Stats.inst_remaining (Q.size !heap);
+      Inst.clock ();
+      Dispatcher.Ret ()
+    end
+  | _ -> Dispatcher.Ok
 
 (* Extension registering *)
 (* ************************************************************************ *)

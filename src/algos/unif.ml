@@ -168,10 +168,11 @@ module Robinson = struct
     let s = follow_ty subst s in
     let t = follow_ty subst t in
     match s, t with
-    | _ when Expr.Ty.equal s t -> subst
     | ({ Expr.ty = Expr.TyMeta v } as m), u
     | u, ({ Expr.ty = Expr.TyMeta v } as m) ->
-      if occurs_ty subst v u then
+      if Expr.Ty.equal m u then
+        subst
+      else if occurs_ty subst v u then
         raise (Impossible_ty (m, u))
       else
         bind_ty subst v u
@@ -187,10 +188,11 @@ module Robinson = struct
     let s = follow_term subst s in
     let t = follow_term subst t in
     match s, t with
-    | _ when Expr.Term.equal s t -> subst
     | ({ Expr.term = Expr.Meta v } as m), u
     | u, ({ Expr.term = Expr.Meta v } as m) ->
-      if occurs_term subst v u then
+      if Expr.Term.equal m u then
+        subst
+      else if occurs_term subst v u then
         raise (Impossible_term (m, u))
       else
         let subst' = ty subst Expr.(m.t_type) Expr.(u.t_type) in
@@ -236,6 +238,14 @@ let combine t t' =
         Expr.Subst.fold (fun key value s -> Robinson.ty s (Expr.Ty.of_meta key) value) t'.ty_map t))
   with Robinson.Impossible_ty _ | Robinson.Impossible_term _ -> None
 
+(* Export unifiers as formulas *)
+(* ************************************************************************ *)
+
+let to_formula t =
+  Expr.Subst.fold (fun m t f ->
+      Expr.(Formula.(f_and [f; eq (Term.of_meta m) t])))
+    t.t_map Expr.Formula.f_true
+
 (* Matching of types and terms *)
 (* ************************************************************************ *)
 
@@ -244,61 +254,38 @@ module Match = struct
   exception Impossible_ty of Expr.ty * Expr.ty
   exception Impossible_term of Expr.term * Expr.term
 
-  type tt = t * t
-
-  let empty = empty, empty
-
-  let to_subst (_, u) = u
-
-  let rec ty (stable, subst) s t =
-    let t = follow_ty subst t in
+  let rec ty subst s t =
     match s, t with
-    | { Expr.ty = Expr.TyMeta v },
-      { Expr.ty = Expr.TyMeta v' } ->
-      if mem_ty subst v || mem_ty stable v' then
-        raise (Impossible_ty (s, t))
-      else
-        (bind_ty stable v s,
-         if Expr.Ty.equal s t then subst
-         else bind_ty subst v' s)
     | _, { Expr.ty = Expr.TyMeta v } ->
-      if occurs_ty subst v s then
-        raise (Impossible_ty (s, t))
-      else if mem_ty stable v then
-        raise (Impossible_ty (s, t))
-      else
-        (stable, bind_ty subst v s)
+      begin match get_ty_opt subst v with
+        | Some t' ->
+          if Expr.Ty.equal s t' then subst
+          else raise (Impossible_ty (s, t))
+        | None -> bind_ty subst v s
+      end
     | { Expr.ty = Expr.TyApp (f, f_args) },
       { Expr.ty = Expr.TyApp (g, g_args) } ->
       if Expr.Id.equal f g then
-        List.fold_left2 ty (stable, subst) f_args g_args
+        List.fold_left2 ty subst f_args g_args
       else
         raise (Impossible_ty (s, t))
     | _ -> raise (Impossible_ty (s, t))
 
-  let rec term (stable, subst) s t =
-    let t = follow_term subst t in
+  let rec term subst s t =
     match s, t with
-    | { Expr.term = Expr.Meta v },
-      { Expr.term = Expr.Meta v' } ->
-      if mem_term subst v || mem_term stable v' then
-        raise (Impossible_term (s, t))
-      else
-        (bind_term stable v s,
-         if Expr.Term.equal s t then subst
-         else bind_term subst v' s)
     | _, { Expr.term = Expr.Meta v } ->
-      if occurs_term subst v s then
-        raise (Impossible_term (s, t))
-      else if mem_term stable v then
-        raise (Impossible_term (s, t))
-      else
-        term (stable, bind_term subst v s) s s
+      begin match get_term_opt subst v with
+        | Some t' ->
+          if Expr.Term.equal s t' then subst
+          else raise (Impossible_term (s, t))
+        | None ->
+          bind_term (ty subst Expr.(s.t_type) Expr.(t.t_type)) v s
+      end
     | { Expr.term = Expr.App (f, f_ty_args, f_t_args) },
       { Expr.term = Expr.App (g, g_ty_args, g_t_args) } ->
       if Expr.Id.equal f g then
         List.fold_left2 term
-          (List.fold_left2 ty (stable, subst) f_ty_args g_ty_args)
+          (List.fold_left2 ty subst f_ty_args g_ty_args)
           f_t_args g_t_args
       else
         raise (Impossible_term (s, t))
@@ -307,9 +294,13 @@ module Match = struct
   let find ~section s t =
     Util.enter_prof section;
     let res = try
-        let m = term empty s t in
-        assert (Expr.Term.equal s (term_subst (snd m) t));
-        Some m
+        let u = term empty s t in
+        assert (Expr.Subst.for_all (fun m t ->
+            Expr.Ty.equal
+              (type_subst u Expr.(m.meta_id.id_type))
+              (type_subst u Expr.(t.t_type))) u.t_map);
+        assert (Expr.Term.equal s (term_subst u t));
+        Some u
       with Impossible_ty _ | Impossible_term _ -> None
     in
     Util.exit_prof section;

@@ -1,7 +1,6 @@
 
 let section = Dispatcher.solver_section
 
-
 (* Proof replay helpers *)
 (* ************************************************************************ *)
 
@@ -15,13 +14,16 @@ let pp_res b = function
 (* Proof replay helpers *)
 (* ************************************************************************ *)
 
-exception Restart
-
 type ret =
   | Ok
   | Toggle of string
 
 type _ Dispatcher.msg += Found : res -> ret Dispatcher.msg
+
+let push s = function
+  | Dispatcher.Ok -> ()
+  | Dispatcher.Ret ret -> Stack.push ret s
+  | Dispatcher.Directive _ -> ()
 
 let do_pre = function
   | Ok -> ()
@@ -52,7 +54,7 @@ let solve_aux () =
   match Smt.solve () with
   | () -> Sat
   | exception Smt.Unsat -> Unsat
-  | exception Restart -> Unknown
+  | exception Dispatcher.Unknown -> Unknown
 
 let rec solve () =
   Util.enter_prof section;
@@ -60,7 +62,7 @@ let rec solve () =
   let res = solve_aux () in
   Util.debug ~section 0 "Solution found : %a" pp_res res;
   let s = Stack.create () in
-  Dispatcher.handle (fun ret () -> Stack.push ret s) () (Found res);
+  Dispatcher.handle (fun ret () -> push s ret) () (Found res);
   let res' =
     if not (Stack.is_empty s) then begin
       Util.debug ~section 0 "Restarting...";
@@ -105,4 +107,17 @@ let get_proof () =
 
 let print_dot_proof = Dot.print
 
+let unsat_core p =
+  Smt.Proof.(
+    fold (fun l node ->
+        match node.step with
+        | Hypothesis ->
+          List.map (fun a -> Dispatcher.SolverTypes.(a.lit))
+            (Smt.Proof.to_list node.conclusion) :: l
+        | _ -> l) [] p)
+
+let print_unsat_core fmt l =
+  List.iter (fun c ->
+      Format.fprintf fmt "%a\n"
+        Expr.Print.formula (Expr.Formula.f_or c)) l
 

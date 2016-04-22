@@ -31,7 +31,7 @@ val parse_aux : state -> Expr.formula -> unit
 val parse_slice : ((Expr.formula -> unit) -> unit) -> state
 (** Create a slice from the iterator on formulas *)
 
-val debug_st : int -> state -> unit
+val debug_st : section:Util.Section.t -> int -> state -> unit
 (** Output some debug info on the output *)
 
 (** {2 Extension Options} *)
@@ -39,7 +39,7 @@ val debug_st : int -> state -> unit
 (** {3 Meta variable generation} *)
 
 val meta_start : int ref
-(** Number of meta to generate onthe first try *)
+(** Number of meta to generate on the first try *)
 
 val meta_incr : bool ref
 (** Sets wether new meta should be generated at each round *)
