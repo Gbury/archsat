@@ -29,6 +29,6 @@ let new_tag () =
 
 let empty = M.empty
 
-let get m k = M.get ~inj:k.inj m k.id
-let add m k v = M.add ~inj:k.inj m k.id v
+let get m k = M.get ~inj:k.inj k.id m
+let add m k v = M.add ~inj:k.inj k.id v m
 

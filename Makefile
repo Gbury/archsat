@@ -2,9 +2,12 @@
 BIN=archsat
 MAIN=src/main.native
 
-all :
+all:
 	cd src && $(MAKE)
 	cp $(MAIN) $(BIN)
+
+doc:
+	cd doc && $(MAKE)
 
 install: all
 	./$(BIN) --help=groff > $(MANDIR)/man1/$(BIN).1
@@ -17,3 +20,4 @@ clean:
 	cd src && $(MAKE) clean
 	rm -f $(BIN)
 
+.PHONY: doc

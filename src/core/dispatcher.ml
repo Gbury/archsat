@@ -59,9 +59,7 @@ module SolverExpr = struct
     | f -> f, false
 end
 
-module SolverTypes = Msat.Solver_types.McMake(struct
-    let debug i format = Util.debug ~section:solver_section i format
-  end)(SolverExpr)
+module SolverTypes = Msat.Solver_types.McMake(SolverExpr)()
 
 (* Exceptions *)
 (* ************************************************************************ *)

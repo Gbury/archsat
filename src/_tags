@@ -6,7 +6,7 @@ true: use_menhir, explain
 <**/*.cm*>: debug
 
 # Package management
-<**/*>: package(containers)
+<**/*>: package(containers), package(unix)
 
 <base/*.cm*>: for-pack(Archsat)
 <algos/*.cm*>: for-pack(Archsat)

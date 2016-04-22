@@ -1,7 +1,7 @@
 
 (** Extension to generate meta-variables *)
 
-(** {2 Metavariables helpers}*)
+(** {2 Metavariables helpers} *)
 
 val iter : (Expr.formula -> unit) -> unit
 (** Iter over all formulas that potentially generate metas *)
@@ -36,7 +36,7 @@ val debug_st : int -> state -> unit
 
 (** {2 Extension Options} *)
 
-(** {3 Meta variable generation] *)
+(** {3 Meta variable generation} *)
 
 val meta_start : int ref
 (** Number of meta to generate onthe first try *)
