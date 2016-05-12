@@ -5,6 +5,12 @@
 
 exception Typing_error of string * Ast.term
 
+val section : Util.Section.t
+(** Debug section used in typechecking. *)
+
+val stack : Backtrack.Stack.t
+(** The undo stack used for storing globals during typechecking. *)
+
 type builtin_symbols = string -> Expr.ty list -> Expr.term list ->
   [ `Ty of Expr.ttype Expr.function_descr Expr.id  * Expr.ty list |
     `Term of Expr.ty Expr.function_descr Expr.id * Expr.ty list * Expr.term list ] option
@@ -13,9 +19,6 @@ type builtin_symbols = string -> Expr.ty list -> Expr.term list ->
     Can be useful for extensions to define overloaded operators such as addition in arithmetic,
     since the exact function symbol returned can depend on the arguments (and even be different
     between two calls with the same arguments). *)
-
-val section : Util.Section.t
-(** Debug section used in typechecking. *)
 
 val new_type_def : Ast.symbol * int -> unit
 (** Register a new type constructor. Takes the name of the constructor and its arity,
