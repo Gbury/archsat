@@ -3,7 +3,7 @@
     This module provides functions to parse terms from the untyped syntax tree
     defined in Ast, and generate formulas as defined in the Expr module. *)
 
-exception Typing_error of string * Ast.term
+exception Typing_error of string * Dolmen.Term.t
 
 val section : Util.Section.t
 (** Debug section used in typechecking. *)

@@ -3,7 +3,6 @@
 LOG=build.log
 COMP=ocamlbuild -log $(LOG) # -classic-display
 FLAGS=-use-ocamlfind -yaccflag '--table'
-DIRS=-Is util,base,core,input,parsers,algos
 DOC=archsat.docdir/index.html
 BIN=main.native
 
@@ -13,15 +12,15 @@ LIB=$(addprefix $(NAME), .cma .cmxa .cmxs)
 all: bin
 
 doc:
-	$(COMP) $(FLAGS) $(DIRS) $(DOC)
+	$(COMP) $(FLAGS) $(DOC)
 
 build-bin:
-	$(COMP) $(FLAGS) $(DIRS) $(BIN)
+	$(COMP) $(FLAGS) $(BIN)
 
 bin: build-bin
 
 build-lib:
-	$(COMP) $(FLAGS) $(DIRS) $(LIB)
+	$(COMP) $(FLAGS) $(LIB)
 
 lib: build-lib
 	@echo "Lib compiled."

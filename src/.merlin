@@ -16,6 +16,7 @@ B _build/parsers
 
 PKG gen
 PKG msat
+PKG dolmen
 PKG zarith
 PKG oclock
 PKG cmdliner

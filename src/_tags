@@ -1,29 +1,20 @@
 # Compilation options
 true: use_menhir, explain
+<util>: include
+<base>: include
+<core>: include
+<input>: include
+<algos>: include
 
 # Some warnings
 <**/*.ml>: warn_K, warn_Y, warn_X, warn(-58)
 <**/*.cm*>: debug
 
 # Package management
-<**/*>: package(containers), package(unix)
+<**/*.cm*>: for-pack(Archsat)
 
-<base/*.cm*>: for-pack(Archsat)
-<algos/*.cm*>: for-pack(Archsat)
-<core/*.cm*>: for-pack(Archsat)
-<parsers/*.cm*>: for-pack(Archsat)
-<input/*.cm*>: for-pack(Archsat)
-<util/*.cm*>: for-pack(Archsat)
-
-<base/*>: package(zarith)
-<algos/*>: package(ocamlgraph), package(gen)
-<core/*>: package(msat), package(cmdliner), package(zarith), \
-          package(gen)
-<input/*>: package(cmdliner), package(gen), package(msat)
-<util/*>: package(cmdliner), package(zarith), package(gen), package(oclock)
-<parsers/*>: package(menhirLib)
-
-<main.*>: package(msat), package(cmdliner), package(ocamlgraph),          \
-          package(containers), package(containers.data), package(zarith), \
-          package(gen), package(oclock), package(menhirLib)
+<**/*>: package(unix), package(zarith), package(msat),     \
+        package(cmdliner), package(ocamlgraph),            \
+        package(containers), package(containers.data),     \
+        package(gen), package(oclock), package(menhirLib)
 
