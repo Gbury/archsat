@@ -9,12 +9,6 @@ open Cmdliner
 (* Type definitions for common options *)
 (* ************************************************************************ *)
 
-type input =
-  | Auto
-  | Dimacs
-  | Tptp
-  | Smtlib
-
 type output =
   | Standard
   | SZS
@@ -37,7 +31,7 @@ type copts = {
   (* Input/Output option *)
   out           : Format.formatter;
   input_file    : string;
-  input_format  : input;
+  input_format  : Parser.language;
   output_format : output;
   interactive   : bool;
 

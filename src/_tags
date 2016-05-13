@@ -16,5 +16,6 @@ true: use_menhir, explain
 <**/*>: package(unix), package(zarith), package(msat),     \
         package(cmdliner), package(ocamlgraph),            \
         package(containers), package(containers.data),     \
-        package(gen), package(oclock), package(menhirLib)
+        package(gen), package(oclock), package(menhirLib), \
+        package(dolmen)
 

@@ -2,81 +2,17 @@
 let section = Util.Section.make ~parent:Options.misc_section "IO"
 let log i fmt = Util.debug ~section i fmt
 
-(* Module initialization *)
-(* ************************************************************************ *)
-
-module P = Dolmen.Logic.Make
-    (Dolmen.ParseLocation)
-    (Dolmen.Term)
-    (Dolmen.Statement)
-
 (* IO settings *)
 (* ************************************************************************ *)
 
 open Options
 
-let input = ref Auto
 let output = ref Standard
 let input_file = ref ""
-
-let curr_input () = !input
 let curr_output () = !output
 
-let set_input i = input := i
 let set_output o = output := o
 let set_input_file f = input_file := f
-
-let pp_input b = function
-  | Auto -> Printf.bprintf b "auto"
-  | Dimacs -> Printf.bprintf b "dimacs"
-  | Tptp -> Printf.bprintf b "tptp"
-  | Smtlib -> Printf.bprintf b "smtlib"
-
-let print_input fmt = function
-  | Auto -> Format.fprintf fmt "auto"
-  | Dimacs -> Format.fprintf fmt "dimacs"
-  | Tptp -> Format.fprintf fmt "tptp"
-  | Smtlib -> Format.fprintf fmt "smtlib"
-
-(* Input functions *)
-(* ************************************************************************ *)
-
-let format_of_filename s =
-  let last n =
-    try String.sub s (String.length s - n) n
-    with Invalid_argument _ -> ""
-  in
-  if last 2 = ".p" || last 2 = ".t" then
-    Tptp
-  else if last 4 = ".cnf" then
-    Dimacs
-  else if last 5 = ".smt2" then
-    Smtlib
-  else (* Default choice *)
-    Smtlib
-
-let rec parse_input file = match !input with
-  | Auto ->
-    input := format_of_filename file;
-    log 1 "Detected input format : %a" pp_input !input;
-    parse_input file
-  | Dimacs ->
-    begin try
-        Dimacs.parse_file file
-      with Dimacs.Parse_error l ->
-        raise (Input.Parsing_error (ParseLocation.mk file l 0 l 0, "Dimacs parsing error"))
-    end
-  | Tptp ->
-    begin try
-        let q = Tptp.parse_file ~recursive:true file in
-        let l = Queue.fold (fun acc x -> x :: acc) [] q in
-        Gen.of_list (List.rev l)
-      with Tptp.Parse_error (loc, msg) ->
-        raise (Input.Parsing_error (loc, msg))
-    end
-  | Smtlib -> Smtlib.parse_file file
-
-let input_env () = Semantics.type_env !input
 
 (* Output functions *)
 (* ************************************************************************ *)

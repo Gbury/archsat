@@ -97,10 +97,10 @@ let find_global name =
 (* Builtin symbols, i.e symbols understood by some theories,
    but which do not have specific syntax, so end up as special
    cases of application. *)
-type builtin_symbols = string -> Ast.t list -> res option
+type builtin_symbols = env -> string -> Ast.t list -> res option
 
 (* The local environments used for type-checking. *)
-type env = {
+and env = {
 
   (* local variables (mostly quantified variables) *)
   type_vars : (Expr.ttype Expr.id)  M.t;
@@ -423,7 +423,7 @@ and parse_app env ast s args =
           | `Ty f -> parse_app_ty env ast f args
           | `Term f -> parse_app_term env ast f args
           | `Not_found ->
-            begin match env.builtins s args with
+            begin match env.builtins env s args with
               | Some res -> res
               | None ->
                 begin match infer env s args with
@@ -510,7 +510,7 @@ and parse_sig_arrow ttype_vars (ty_args: (Ast.t * res) list) env = function
       begin
         match List.fold_left aux [] ty_args with
         | exception Found err -> _expected "type" err
-        | l -> `Fun_ty (ttype_vars, List.rev l)
+        | l -> `Fun_ty (List.map snd ttype_vars, List.rev l, ret)
       end
     | _ -> _expected "Ttype of type" t
     end
@@ -524,28 +524,30 @@ and parse_sig_arg env = function
   | t ->
     [t, parse_expr env t]
 
+and parse_sig = parse_sig_quant
+
 (* High-level parsing functions *)
 (* ************************************************************************ *)
 
-(*
-let new_decl name ty =
+let new_decl ~builtin name t =
   Util.enter_prof section;
-  begin match parse_sig with
+  let env = empty_env builtin in
+  begin match parse_sig env t with
+    | `Ty_cstr n -> decl_ty_cstr name (Expr.Id.ty_fun name n)
+    | `Fun_ty (vars, args, ret) ->
+      decl_term name (Expr.Id.term_fun name vars args ret)
+  end;
+  Util.exit_prof section
+
+let new_def ~builtin name t =
+  Util.enter_prof section;
+  let env = empty_env builtin in
+  begin match parse_expr env t with
     | _ -> assert false
   end;
   Util.exit_prof section
 
-let new_const_def builtins (sym, t) =
-  Util.enter_prof section;
-  begin match sym with
-    | Ast.String s ->
-      let params, args, ret = parse_sig ~status:Expr.Status.hypothesis (empty_env builtins) t in
-      add_cst s (Expr.Id.term_fun s params args ret)
-    | _ ->
-      log 0 "Illicit type declaration for symbol : %a" Ast.debug_symbol sym
-  end;
-  Util.exit_prof section
-
+(*
 let parse ~goal builtins t =
   Util.enter_prof section;
   let status = if goal then Expr.Status.goal else Expr.Status.hypothesis in
