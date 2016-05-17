@@ -9,6 +9,8 @@ open Cmdliner
 (* Type definitions for common options *)
 (* ************************************************************************ *)
 
+type input = In.language
+
 type output =
   | Standard
   | SZS
@@ -28,11 +30,15 @@ type proof_options = {
 }
 
 type copts = {
-  (* Input/Output option *)
+
+  (* Input/Output *)
   out           : Format.formatter;
+  input_dir     : string;
   input_file    : string;
-  input_format  : Parser.language;
+
+  (* Input/Output options *)
   output_format : output;
+  input_format  : input option;
   interactive   : bool;
 
   (* Solving options *)
@@ -69,7 +75,8 @@ let mk_opts file
     proof profile =
   {
     out = Format.std_formatter;
-    input_file = file;
+    input_dir = Filename.dirname file;
+    input_file = Filename.basename file;
     input_format = input;
     output_format = output;
     interactive = interactive || file = "stdin";
@@ -198,19 +205,12 @@ let c_size = parse_size, print_size
 (* Printing function *)
 (* ************************************************************************ *)
 
-let input_string = function
-  | Auto -> "auto"
-  | Dimacs -> "dimacs"
-  | Tptp -> "tptp"
-  | Smtlib -> "smtlib"
-
 let output_string = function
   | Standard -> "standard"
   | SZS -> "SZS"
 
 let stringify f l = List.map (fun x -> (f x, x)) l
 
-let input_list = stringify input_string [Auto; Dimacs; Tptp; Smtlib]
 let output_list = stringify output_string [Standard; SZS]
 
 let bool_opt s bool = if bool then Printf.sprintf "[%s]" s else ""
@@ -222,14 +222,15 @@ let log_opts opt =
     (bool_opt "prove" opt.proof.active)
     (bool_opt "interactive" opt.interactive)
     (bool_opt "profile" opt.profile.enabled)
-    (input_string opt.input_format) (output_string opt.output_format);
+    (CCOpt.get "" @@ CCOpt.map In.string_of_language @@ opt.input_format)
+    (output_string opt.output_format);
   log 0 "Input file : %s" opt.input_file
 
 (* Other Argument converters *)
 (* ************************************************************************ *)
 
 (* Input/Output formats *)
-let input = Arg.enum input_list
+let input = Arg.enum In.enum
 let output = Arg.enum output_list
 
 (* Converter for sections *)
@@ -365,8 +366,8 @@ let copts_t () =
   let input =
     let doc = CCPrint.sprintf
         "Set the format for the input file to $(docv) (%s)."
-        (Arg.doc_alts_enum ~quoted:false input_list) in
-    Arg.(value & opt input Auto & info ["i"; "input"] ~docs ~docv:"INPUT" ~doc)
+        (Arg.doc_alts_enum ~quoted:false In.enum) in
+    Arg.(value & opt (some input) None & info ["i"; "input"] ~docs ~docv:"INPUT" ~doc)
   in
   let output =
     let doc = CCPrint.sprintf

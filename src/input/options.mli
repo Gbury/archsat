@@ -3,11 +3,7 @@
 
 val misc_section : Util.Section.t
 
-type input =
-  | Auto
-  | Dimacs
-  | Tptp
-  | Smtlib
+type input = In.language
 
 (** Type for input formats. *)
 
@@ -32,16 +28,20 @@ type proof_options = {
 }
 
 type copts = {
-  (* Input/Output option *)
-  out : Format.formatter;
-  input_file : string;
-  input_format : input;
+
+  (* Input/Output *)
+  out           : Format.formatter;
+  input_dir     : string;
+  input_file    : string;
+
+  (* Input/Output options *)
   output_format : output;
-  interactive : bool;
+  input_format  : input option;
+  interactive   : bool;
 
   (* Solving options *)
-  solve : bool;
-  addons : string list;
+  solve   : bool;
+  addons  : string list;
   plugins : string list;
 
   (* Proof options *)
@@ -51,11 +51,10 @@ type copts = {
   model_out : Format.formatter option;
 
   (* Time/Memory options *)
-  time_limit : float;
-  size_limit : float;
-  profile : profile_options;
+  time_limit  : float;
+  size_limit  : float;
+  profile     : profile_options;
 }
-
 
 (** Common options for theorem proving. *)
 

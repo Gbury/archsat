@@ -3,7 +3,6 @@
 ###########################
 
 # Base modules
-Ast
 Lpo
 Tag
 Expr
@@ -33,6 +32,7 @@ Ext_skolem
 Ext_logic
 Ext_eq
 Ext_functions
+Ext_constraints
 
 ##### Misc modules #####
 ########################
@@ -45,25 +45,10 @@ Backtrack
 Comparison
 Extension
 Extension_intf
-ParseLocation
 PrintBox
 
-# Input modules
-Io
+# Io modules
+In
+Out
 Options
-
-# Dimacs parsing
-Dimacs
-Parsedimacs
-
-# Tptp parsing
-Tptp
-Ast_tptp
-Parsetptp
-Lextptp
-
-# Smtlib parsing
-Smtlib
-Parsesmtlib
-Lexsmtlib
 

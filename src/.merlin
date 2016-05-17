@@ -23,3 +23,5 @@ PKG cmdliner
 PKG ocamlgraph
 PKG containers
 PKG containers.data
+
+FLG -w @K@Y@X

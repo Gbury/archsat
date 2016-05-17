@@ -9,12 +9,14 @@ let stack = Backtrack.Stack.create (
     Util.Section.make ~parent:section "backtrack")
 
 module Ast = Dolmen.Term
-module M = Map.Make(String)
-module H = Backtrack.HashtblBack(struct
-    type t = string
-    let hash = Hashtbl.hash
-    let equal = Pervasives.(=)
-  end)
+module Id = struct
+  type t = Ast.id
+  let hash = Hashtbl.hash
+  let equal = Pervasives.(=)
+  let compare = Pervasives.compare
+end
+module M = Map.Make(Id)
+module H = Backtrack.HashtblBack(Id)
 
 (* Types *)
 (* ************************************************************************ *)
@@ -50,46 +52,48 @@ let _type_mismatch t ty ty' ast = raise (Typing_error (
     Format.asprintf "Type Mismatch: '%a' has type %a, but an expression of type %a was expected"
       Expr.Print.term t Expr.Print.ty ty Expr.Print.ty ty', ast))
 let _fo_term s t = raise (Typing_error (
-    Format.asprintf "Let-bound variable '%s' is applied to terms" s, t))
+    Format.asprintf "Let-bound variable '%s' is applied to terms" s.Ast.name, t))
 
 (* Global Environment *)
 (* ************************************************************************ *)
 
-(* Global identifier table; stores declared types for strings.
-   Hashtable from symbol names to identifiers *)
-let declared_types = H.create stack
-let declared_terms = H.create stack
-
-(* Adding/finding *)
-let decl_ty_cstr name c =
-  try
-    let c' = H.find declared_types name in
-    if not (Expr.Id.equal c c') then
-      log 0 "Type constructor (%a) has already been defined, skipping delcaration (%a)"
-        Expr.Debug.const_ttype c' Expr.Debug.const_ttype c
-  with Not_found ->
-    log 1 "New type constructor : %a" Expr.Debug.const_ttype c;
-    H.add declared_types name c
-
-let decl_term name c =
-  try
-    let c' = H.find declared_terms name in
-    if not (Expr.Id.equal c c') then
-      log 0 "Function (%a) has already been defined, skipping declaration (%a)"
-        Expr.Debug.const_ty c Expr.Debug.const_ty c'
-  with Not_found ->
-    log 1 "New constant : %a" Expr.Debug.const_ty c;
-    H.add declared_terms name c
+(* Global identifier table; stores declared types and aliases. *)
+let global_env = H.create stack
 
 let find_global name =
-  try `Ty (H.find declared_types name)
-  with Not_found ->
-    begin
-      try
-        `Term (H.find declared_terms name)
-      with Not_found ->
-        `Not_found
-    end
+  try H.find global_env name
+  with Not_found -> `Not_found
+
+(* Symbol declarations *)
+let decl_ty_cstr id c =
+  if H.mem global_env id then
+    log 0 "Symbol '%s' has already been defined, overwriting previous definition" id.Ast.name;
+  H.add global_env id (`Ty c);
+  log 1 "New type constructor : %a" Expr.Debug.const_ttype c
+
+let decl_term id c =
+  if H.mem global_env id then
+    log 0 "Symbol '%s' has already been defined, overwriting previous definition" id.Ast.name;
+  H.add global_env id (`Term c);
+  log 1 "New constant : %a" Expr.Debug.const_ty c
+
+(* Symbol definitions *)
+let def_ty id args body =
+  if H.mem global_env id then
+    log 0 "Symbol '%s' has already been defined, overwriting previous definition" id.Ast.name;
+  H.add global_env id (`Ty_alias (args, body));
+  log 1 "New type alias: %s(%a) = %a" id.Ast.name
+    (CCPrint.list ~start:"" ~stop:"" ~sep:"," Expr.Debug.id_ttype) args
+    Expr.Debug.ty body
+
+let def_term id ty_args args body =
+  if H.mem global_env id then
+    log 0 "Symbol '%s' has already been defined, overwriting previous definition" id.Ast.name;
+  H.add global_env id (`Term_alias (ty_args, args, body));
+  log 1 "New type alias: %s(%a;%a) = %a" id.Ast.name
+    (CCPrint.list ~start:"" ~stop:"" ~sep:"," Expr.Debug.id_ttype) ty_args
+    (CCPrint.list ~start:"" ~stop:"" ~sep:"," Expr.Debug.id_ty) args
+    Expr.Debug.term body
 
 (* Local Environment *)
 (* ************************************************************************ *)
@@ -136,10 +140,10 @@ let empty_env
    however, if a binding already exists, use [new_var] to create a
    new variable to bind to [v.id_name].
    Returns the identifiers actually bound, and the new map. *)
-let add_var print new_var add map v =
+let add_var print new_var add map id v =
   let v' =
-    if M.mem Expr.(v.id_name) map then
-      new_var Expr.(v.id_type)
+    if M.mem id map then
+      new_var id.Ast.name
     else
       v
   in
@@ -155,21 +159,31 @@ let new_ty_name = new_name "ty#"
 let new_term_name = new_name "term#"
 
 (* Add local variables to environment *)
-let add_type_var env v =
-  let new_var Expr.Type = Expr.Id.ttype (new_ty_name ()) in
-  let v', map = add_var Expr.Debug.id_ttype new_var M.add env.type_vars v in
-  v, { env with type_vars = map }
+let add_type_var env id v =
+  let v' =
+    if M.mem id env.type_vars then
+      Expr.Id.ttype (new_ty_name ())
+    else
+      v
+  in
+  log 3 "New binding : %s -> %a" id.Ast.name Expr.Debug.id_ttype v';
+  v', { env with type_vars = M.add id v' env.type_vars }
 
 let add_type_vars env l =
-  let l', env' = List.fold_left (fun (l, acc) v ->
-      let v', acc' = add_type_var acc v in
+  let l', env' = List.fold_left (fun (l, acc) (id, v) ->
+      let v', acc' = add_type_var acc id v in
       v' :: l, acc') ([], env) l in
   List.rev l', env'
 
-let add_term_var env l =
-  let new_var ty = Expr.Id.ty (new_term_name ()) ty in
-  let v', map = add_var Expr.Debug.id_ty new_var M.add env.term_vars l in
-  v', { env with term_vars = map }
+let add_term_var env id v =
+  let v' =
+    if M.mem id env.type_vars then
+      Expr.Id.ty (new_term_name ()) Expr.(v.id_type)
+    else
+      v
+  in
+  log 3 "New binding : %s -> %a" id.Ast.name Expr.Debug.id_ty v';
+  v', { env with term_vars = M.add id v' env.term_vars }
 
 let find_var env name =
   try `Ty (M.find name env.type_vars)
@@ -216,6 +230,22 @@ let term_apply ast_term ~status f ty_args t_args =
     _bad_arity Expr.(f.id_name) (arity f) ast_term
   | Expr.Type_mismatch (t, ty, ty') ->
     _type_mismatch t ty ty' ast_term
+
+let ty_subst ast_term name args f_args body =
+  let aux s v ty = Expr.Subst.Id.bind v ty s in
+  match List.fold_left2 aux Expr.Subst.empty f_args args with
+  | subst ->
+    Expr.Ty.subst subst body
+  | exception Invalid_argument _ ->
+    _bad_arity name (List.length f_args) ast_term
+
+let ty_subst ast_term name args f_args body =
+  let aux s v ty = Expr.Subst.Id.bind v ty s in
+  match List.fold_left2 aux Expr.Subst.empty f_args args with
+  | subst ->
+    Expr.Ty.subst subst body
+  | exception Invalid_argument _ ->
+    _bad_arity name (List.length f_args) ast_term
 
 let make_eq ast_term a b =
   try
@@ -349,15 +379,15 @@ let rec parse_expr (env : env) = function
 and parse_var env = function
   | { Ast.term = Ast.Colon ({ Ast.term = Ast.Symbol s }, e) } ->
     begin match parse_expr env e with
-      | Ttype -> `Ty (Expr.Id.ttype s)
-      | Ty ty -> `Term (Expr.Id.ty s ty)
+      | Ttype -> `Ty (s, Expr.Id.ttype s.Ast.name)
+      | Ty ty -> `Term (s, Expr.Id.ty s.Ast.name ty)
       | _ -> _expected "type (or Ttype)" e
     end
   | { Ast.term = Ast.Symbol s } ->
     begin match env.expect with
       | Nothing -> assert false
-      | Type -> `Ty (Expr.Id.ttype s)
-      | Typed ty -> `Term (Expr.Id.ty s ty)
+      | Type -> `Ty (s, Expr.Id.ttype s.Ast.name)
+      | Typed ty -> `Term (s, Expr.Id.ty s.Ast.name ty)
     end
   | t -> _expected "(typed) variable" t
 
@@ -365,11 +395,11 @@ and parse_quant_vars env l =
   let ttype_vars, typed_vars, env' = List.fold_left (
       fun (l1, l2, acc) v ->
         match parse_var acc v with
-        | `Ty v' ->
-          let v'', acc' = add_type_var env v' in
+        | `Ty (id, v') ->
+          let v'', acc' = add_type_var env id v' in
           (v'' :: l1, l2, acc')
-        | `Term v' ->
-          let v'', acc' = add_term_var env v' in
+        | `Term (id, v') ->
+          let v'', acc' = add_term_var env id v' in
           (l1, v'' :: l2, acc')
     ) ([], [], { env with expect = Typed Expr.Ty.base }) l in
   List.rev ttype_vars, List.rev typed_vars, env'
@@ -401,7 +431,6 @@ and parse_let env f = function
       | t -> _expected "let-binding" t
     end
 
-
 and parse_app env ast s args =
   match find_let env s with
   | `Term t ->
@@ -422,6 +451,10 @@ and parse_app env ast s args =
         begin match find_global s with
           | `Ty f -> parse_app_ty env ast f args
           | `Term f -> parse_app_term env ast f args
+          | `Ty_alias (args, body) ->
+            try
+              ()
+            with
           | `Not_found ->
             begin match env.builtins env s args with
               | Some res -> res
@@ -465,7 +498,7 @@ and parse_formula env ast =
 
 let parse_ttype_var env t =
   match parse_var env t with
-  | `Ty id -> id
+  | `Ty (id, v) -> (id, v)
   | `Term _ -> _expected "type variable" t
 
 let rec parse_sig_quant env = function
@@ -478,7 +511,7 @@ let rec parse_sig_quant env = function
     parse_sig_arrow [] [] env t
 
 and parse_sig_arrow ttype_vars (ty_args: (Ast.t * res) list) env = function
-  | { Ast.term = Ast.App ({Ast.term = Ast.Builtin Ast.Arrow}, ret :: args) } ->
+  | { Ast.term = Ast.Binder (Ast.Arrow, args, ret) } ->
     let t_args = parse_sig_args env args in
     parse_sig_arrow ttype_vars (ty_args @ t_args) env ret
   | t ->
@@ -526,6 +559,17 @@ and parse_sig_arg env = function
 
 and parse_sig = parse_sig_quant
 
+let rec parse_fun ty_args t_args env = function
+  | { Ast.term = Ast.Binder (Ast.Fun, l, ret) } ->
+    let ty_args', t_args', env' = parse_quant_vars env l in
+    parse_fun (ty_args @ ty_args') (t_args @ t_args') env' ret
+  | ast ->
+    begin match parse_expr env ast with
+      | Ttype -> raise (Typing_error ("Cannot redefine Ttype", ast))
+      | Ty _ -> assert false
+      | _ -> assert false
+    end
+
 (* High-level parsing functions *)
 (* ************************************************************************ *)
 
@@ -542,7 +586,7 @@ let new_decl ~builtin name t =
 let new_def ~builtin name t =
   Util.enter_prof section;
   let env = empty_env builtin in
-  begin match parse_expr env t with
+  begin match parse_fun [] [] env t with
     | _ -> assert false
   end;
   Util.exit_prof section

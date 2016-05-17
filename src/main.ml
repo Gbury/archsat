@@ -3,6 +3,9 @@
 
 open Options
 
+module T = Dolmen.Term
+module S = Dolmen.Statement
+
 (* Module inclusion for extensions to ensure they are linked *)
 include Ext_eq
 include Ext_meta
@@ -16,6 +19,7 @@ include Ext_constraints
 
 (* Exceptions *)
 exception Sigint
+exception Exit of int
 exception Out_of_time
 exception Out_of_space
 
@@ -52,7 +56,6 @@ let start_section l s =
   Util.debug l "=== %s %s" s (String.make (64 - String.length s) '=')
 
 let end_section () = ()
-(* Util.debug 1 "%s" (String.make 69 '=') *)
 
 let wrap l s f x =
   start_section l s;
@@ -60,37 +63,41 @@ let wrap l s f x =
   end_section ();
   res
 
+(* Prelude strings for interactive mode. *)
+let prelude_strings opt =
+  match opt.input_format with
+  | None -> assert false
+  | Some l ->
+    let s = Format.asprintf "(%s)# @?" (In.string_of_language l) in
+    s, String.make (String.length s) ' '
+
 (* Level stack for push/pop operations *)
 let level_stack = Stack.create ()
 
 (* Execute given command *)
-let do_command opt = function
-  | Ast.Push ->
-    wrap 0 "Push" (Stack.push (Solver.push ())) level_stack
-  | Ast.Pop ->
-    wrap 0 "Pop" Solver.pop (Stack.pop level_stack)
-  | Ast.Cnf cnf ->
-    if opt.solve then wrap 0 "assume" Solver.assume cnf
-  | Ast.NewType (name, s, n) ->
-    wrap 1 ("typing " ^ name) Type.new_type_def (s, n)
-  | Ast.TypeDef (name, s, t) ->
-    wrap 1 ("typing " ^ name) (Type.new_const_def (Io.input_env ())) (s, t)
-  | Ast.Assert (name, t, goal) ->
-    let f = wrap 1 ("typing " ^ name) (Type.parse ~goal (Io.input_env ())) t in
-    if opt.solve then wrap 1 "assume" Solver.assume [[f]]
-  | Ast.CheckSat ->
+let rec do_command opt = function
+  | { S.descr = S.Pack l } ->
+    do_commands opt (Gen.of_list l)
+  | { S.descr = S.Push i } ->
+    for _ = 1 to i do
+      wrap 0 "Push" (Stack.push (Solver.push ())) level_stack
+    done
+  | { S.descr = S.Pop i } ->
+    for _ = 1 to i do
+      wrap 0 "Pop" Solver.pop (Stack.pop level_stack)
+    done
+  | { S.descr = S.Prove } ->
     if opt.solve then
-      Io.set_start ();
-      let res = wrap 0 "solve" Solver.solve () in
-      begin match res with
+      Out.set_start ();
+      begin match wrap 0 "solve" Solver.solve () with
         (* Model found *)
         | Solver.Sat ->
-          Io.print_sat opt.out;
+          Out.print_sat opt.out;
           (* Io.print_model opt.model_out (get_model ()); *)
           ()
         (* Proof found *)
         | Solver.Unsat ->
-          Io.print_unsat opt.out;
+          Out.print_unsat opt.out;
           if opt.proof.active then begin
             let proof = Solver.get_proof () in
             CCOpt.iter (fun fmt ->
@@ -100,54 +107,63 @@ let do_command opt = function
           end
         (* No concrete result *)
         | Solver.Unknown ->
-          Io.print_unknown opt.out
+          Out.print_unknown opt.out
       end
-  | Ast.Exit -> raise Exit
-  | c ->
-    Io.print_error opt.out
-      "%a : operation not supported yet" Ast.print_command_name c;
-    exit 42
+  | { S.descr = S.Exit } ->
+    raise (Exit 0)
+  | _ -> assert false
 
-let prelude_strings () =
-  let s = Format.asprintf "(%a)# @?" Io.print_input (Io.curr_input ()) in
-  s, String.make (String.length s) ' '
-
-let rec do_commands opt commands =
-  let prelude, pre_space = prelude_strings () in
+and do_commands opt commands =
+  let prelude, pre_space = prelude_strings opt in
   if opt.interactive then
     Format.printf "%s@?" prelude;
-  match commands () with
-  | None -> ()
-  | Some c ->
-    if not opt.interactive then do_command opt c
-    else begin
-      try
-        setup_alarm opt.time_limit opt.size_limit;
-        do_command opt c;
-        delete_alarm ()
-      with
-      | Out_of_time ->
-        delete_alarm ();
-        Io.print_timeout Format.std_formatter
-      | Type.Typing_error (msg, t) ->
-        delete_alarm ();
-        let loc = CCOpt.maybe CCFun.id (ParseLocation.mk opt.input_file 0 0 0 0) Ast.(t.loc) in
-        Format.fprintf Format.std_formatter "While typing %s@\n" (Ast.s_term t);
-        Format.fprintf Format.std_formatter "%a:@\n%s@."ParseLocation.fmt loc msg
-    end;
-    do_commands opt commands
-  | exception Input.Lexing_error l ->
-    if opt.interactive then
-      Format.fprintf Format.std_formatter "%s%a@\n"
-        (if ParseLocation.(l.start_line = 1) then pre_space else "") ParseLocation.fmt_hint l;
-    Format.fprintf Format.std_formatter "%a:@\nLexing error: invalid character@." ParseLocation.fmt l;
-    do_commands opt commands
-  | exception Input.Parsing_error (l, msg) ->
-    if opt.interactive then
-      Format.fprintf Format.std_formatter "%s%a@\n"
-        (if ParseLocation.(l.start_line = 1) then pre_space else "") ParseLocation.fmt_hint l;
-    Format.fprintf Format.std_formatter "%a:@\n%s@." ParseLocation.fmt l msg;
-    do_commands opt commands
+  begin match commands () with
+    | None -> raise (Exit 0)
+    | Some c ->
+      begin
+        try
+          if opt.interactive then
+            setup_alarm opt.time_limit opt.size_limit;
+          do_command opt c;
+          if opt.interactive then
+            delete_alarm ();
+          ()
+        with
+        | Out_of_time ->
+          delete_alarm ();
+          Out.print_timeout Format.std_formatter;
+          if not opt.interactive then raise (Exit 0)
+        | Out_of_space ->
+          delete_alarm ();
+          Out.print_spaceout Format.std_formatter;
+          if not opt.interactive then raise (Exit 0)
+        | Type.Typing_error (msg, t) ->
+          delete_alarm ();
+          let loc = CCOpt.maybe CCFun.id
+              (Dolmen.ParseLocation.mk opt.input_file 0 0 0 0) T.(t.loc)
+          in
+          Format.fprintf Format.std_formatter "While typing %a@\n" T.print t;
+          Format.fprintf Format.std_formatter "%a:@\n%s@." Dolmen.ParseLocation.fmt loc msg;
+          if opt.interactive then raise (Exit 2)
+      end
+    | exception Dolmen.ParseLocation.Lexing_error (loc, msg) ->
+      if opt.interactive then
+        Format.fprintf Format.std_formatter "%s%a@\n"
+          (if Dolmen.ParseLocation.(loc.start_line = 1) then pre_space else "")
+          Dolmen.ParseLocation.fmt_hint loc;
+      Format.fprintf Format.std_formatter "%a:@\n%s@."
+        Dolmen.ParseLocation.fmt loc (match msg with | "" -> "Lexing error: invalid character" | x -> x)
+    | exception Dolmen.ParseLocation.Syntax_error (loc, msg) ->
+      if opt.interactive then
+        Format.fprintf Format.std_formatter "%s%a@\n"
+          (if Dolmen.ParseLocation.(loc.start_line = 1) then pre_space else "")
+          Dolmen.ParseLocation.fmt_hint loc;
+      Format.fprintf Format.std_formatter "%a:@\n%s@." Dolmen.ParseLocation.fmt loc msg
+    | exception Extension.Abort (ext, reason) ->
+      Format.fprintf Format.std_formatter "Extension '%s' aborted the proof search:@\n%s@." ext reason
+  end;
+  do_commands opt commands
+
 
 (* Main function *)
 let () =
@@ -186,9 +202,8 @@ let () =
       Util.enable_statistics ();
 
     (* Io options *)
-    Io.set_input_file opt.input_file;
-    Io.set_input opt.input_format;
-    Io.set_output opt.output_format;
+    Out.set_input_file opt.input_file;
+    Out.set_output opt.output_format;
 
     (* Syntax extensions *)
     Semantics.Addon.set_exts "+base,+arith";
@@ -204,7 +219,7 @@ let () =
         Semantics.Addon.log_active 0;
         Dispatcher.Plugin.log_active 0) ();
 
-    let commands = Io.parse_input opt.input_file in
+    let commands = Gen.singleton @@ S.include_ opt.input_file [] in
 
     (* Commands execution *)
     do_commands opt commands;
@@ -220,35 +235,16 @@ let () =
     delete_alarm ();
     let s = Printexc.get_backtrace () in
     let retcode = match e with
-      | Exit -> 0
+      | Exit ret -> ret
       | Out_of_time ->
-        Io.print_timeout Format.std_formatter;
+        Out.print_timeout Format.std_formatter;
         0
       | Out_of_space ->
-        Io.print_spaceout Format.std_formatter;
+        Out.print_spaceout Format.std_formatter;
         0
 
       (* User interrupt *)
       | Sigint -> 1
-
-      (* Parsing/Typing errors *)
-      | Input.Lexing_error l ->
-        Format.fprintf Format.std_formatter "%a:@\nLexing error: invalid character@." ParseLocation.fmt l;
-        2
-      | Input.Parsing_error (l, msg) ->
-        Format.fprintf Format.std_formatter "%a:@\n%s@." ParseLocation.fmt l msg;
-        2
-      | Type.Typing_error (msg, t) ->
-        let loc = CCOpt.maybe CCFun.id (ParseLocation.mk opt.input_file 0 0 0 0) Ast.(t.loc) in
-        Format.fprintf Format.std_formatter "While typing : %s@\n%a:@\n%s@."
-          (Ast.s_term t) ParseLocation.fmt loc msg;
-        2
-
-      (* Extension error *)
-      | Extension.Abort (ext, reason) ->
-        Format.fprintf Format.std_formatter "Extension '%s' aborted the proof search:@\n%s@." ext reason;
-        (* No particuler exit code, because it most likely is the desired behavior *)
-        0
 
       | Extension.Extension_not_found (sect, ext, l) ->
         Format.fprintf Format.std_formatter "Extension '%s/%s' not found. Available extensions are :@\n%a@."
