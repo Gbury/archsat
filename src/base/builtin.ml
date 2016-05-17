@@ -4,16 +4,20 @@ let section = Util.Section.make "builtin"
 let log i fmt = Util.debug ~section i fmt
 *)
 
+module Ast = Dolmen.Term
+
 (* Type builtins for languages *)
 (* ************************************************************************ *)
 
-let parse_tptp s args _ = match s with
-  | "$o" -> Some (`Ty (Expr.Id.prop, args))
-  | "$i" -> Some (`Ty (Expr.Id.base, args))
+let parse_tptp env ast s args =
+  match s.Ast.name with
+  | "$o" -> Some (Type.parse_app_ty env ast Expr.Id.prop args)
+  | "$i" -> Some (Type.parse_app_ty env ast Expr.Id.base args)
   | _ -> None
 
-let parse_smtlib s args _ = match s with
-  | "Bool" -> Some (`Ty (Expr.Id.prop, args))
+let parse_smtlib env ast s args =
+  match s.Ast.name with
+  | "Bool" -> Some (Type.parse_app_ty env ast Expr.Id.prop args)
   | _ -> None
 
 ;;
@@ -347,19 +351,27 @@ module Arith = struct
     in
     aux (List.map num_type l)
 
-  let parse_tptp s ty_args t_args =
-    let aux f = CCOpt.map
-        (fun opt -> `Term (f opt, ty_args, t_args))
-        (list_type t_args)
+  let parse_tptp env ast id args =
+    let aux f =
+      match List.map (Type.parse_term env) args with
+      | [] -> raise (Type.Typing_error ("Arithmetics function need arguments", ast))
+      | (h :: _) as l ->
+        begin match num_type h with
+          | Some ty ->
+            Some (Type.Term (Type.term_apply env ast (f ty) [] l))
+          | None -> raise (Type.Typing_error (
+              "Expected an arithmetic expression", List.hd args))
+        end
     in
-    let aux_cast ret = CCOpt.map
-        (fun opt -> `Term (Misc.cast_cstr, [to_ty opt; ret], t_args))
-        (list_type t_args)
+    let aux_cast ty =
+      match List.map (Type.parse_term env) args with
+      | [x] -> Some (Type.Term (Misc.cast x ty))
+      | _ -> raise (Type.Typing_error ("Casts expect one argument", ast))
     in
-    match s with
-    | "$int" -> Some (`Ty (int_cstr, ty_args))
-    | "$rat" -> Some (`Ty (rat_cstr, ty_args))
-    | "$real" -> Some (`Ty (real_cstr, ty_args))
+    match id.Ast.name with
+    | "$int" -> Some (Type.parse_app_ty env ast int_cstr args)
+    | "$rat" -> Some (Type.parse_app_ty env ast rat_cstr args)
+    | "$real" -> Some (Type.parse_app_ty env ast real_cstr args)
     | "$less" -> aux less
     | "$lesseq" -> aux lesseq
     | "$greater" -> aux greater
@@ -382,11 +394,12 @@ module Arith = struct
     | "$is_int" -> aux is_int
     | "$is_rat" -> aux is_rat
     | "$is_real" -> aux is_real
-    | "$to_int" when ty_args = [] -> aux_cast type_int
-    | "$to_rat" when ty_args = [] -> aux_cast type_rat
-    | "$to_real" when ty_args = [] -> aux_cast type_real
-    | _ -> begin match val_of_string s with
-        | Some value -> Some (`Term (const_num s value, ty_args, t_args))
+    | "$to_int" -> aux_cast type_int
+    | "$to_rat" -> aux_cast type_rat
+    | "$to_real" -> aux_cast type_real
+    | s -> begin match val_of_string s with
+        | Some value ->
+          Some (Type.parse_app_term env ast (const_num s value) args)
         | None -> None
       end
 

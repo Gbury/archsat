@@ -3,12 +3,17 @@ type ext = {
   builtins : Options.input -> Type.builtin_symbols;
 }
 
-let default = fun _ _ _ -> None
+let default = fun _ _ _ _ -> None
 
-let mk_ext ?(tptp=default) ?(smtlib=default) () =
+let mk_ext
+    ?(tptp=default)
+    ?(smtlib=default)
+    ?(zf=default)
+    () =
   { builtins = (function
-        | Options.Tptp -> tptp
-        | Options.Smtlib -> smtlib
+        | In.Tptp -> tptp
+        | In.Smtlib -> smtlib
+        | In.Zf -> zf
         | _ -> default);
   }
 
@@ -17,11 +22,11 @@ module Addon = Extension.Make(struct
     let neutral = mk_ext ()
     let section = Util.Section.make ~parent:Type.section "addons"
     let merge ~high ~low = {
-      builtins = (fun input_format s args arg' ->
+      builtins = (fun input_format env ast id args ->
           Util.enter_prof section;
-          let res = match high.builtins input_format s args arg' with
+          let res = match high.builtins input_format env ast id args with
             | Some x -> Some x
-            | None -> low.builtins input_format s args arg'
+            | None -> low.builtins input_format env ast id args
           in
           Util.exit_prof section;
           res);
