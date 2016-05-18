@@ -22,6 +22,7 @@ exception Sigint
 exception Exit of int
 exception Out_of_time
 exception Out_of_space
+exception File_not_found of string
 
 (* GC alarm for time/space limits *)
 let check size_limit = function () ->
@@ -55,18 +56,10 @@ let get_model () =
 let start_section l s =
   Util.debug l "=== %s %s" s (String.make (64 - String.length s) '=')
 
-let end_section () = ()
-
-let wrap l s f x =
-  start_section l s;
-  let res = f x in
-  end_section ();
-  res
-
 (* Prelude strings for interactive mode. *)
 let prelude_strings opt =
   match opt.input_format with
-  | None -> assert false
+  | None -> "", ""
   | Some l ->
     let s = Format.asprintf "(%s)# @?" (In.string_of_language l) in
     s, String.make (String.length s) ' '
@@ -76,20 +69,66 @@ let level_stack = Stack.create ()
 
 (* Execute given command *)
 let rec do_command opt = function
+
+  (* File include *)
+  | { S.descr = S.Include f } ->
+    begin match In.find ?language:opt.input_format ~dir:opt.input_dir f with
+      | None -> raise (File_not_found f)
+      | Some file ->
+        let l, gen = In.parse_input ?language:opt.input_format (`File file) in
+        do_commands { opt with input_format = Some l } gen
+    end
+
+  (* Pack of commands *)
   | { S.descr = S.Pack l } ->
     do_commands opt (Gen.of_list l)
+
+  (* Push/pop options *)
   | { S.descr = S.Push i } ->
+    start_section 0 "Push";
     for _ = 1 to i do
-      wrap 0 "Push" (Stack.push (Solver.push ())) level_stack
+      Stack.push (Solver.push ()) level_stack
     done
   | { S.descr = S.Pop i } ->
+    start_section 0 "Pop";
     for _ = 1 to i do
-      wrap 0 "Pop" Solver.pop (Stack.pop level_stack)
+      Solver.pop (Stack.pop level_stack)
     done
+
+  (* Declarations and definitions *)
+  | { S.descr = S.Decl (id, t) } ->
+    start_section 0 "Declaration";
+    let l = CCOpt.get_exn opt.input_format in
+    let env = Type.empty_env ~status:Expr.Status.hypothesis (Semantics.type_env l) in
+    Type.new_decl env t id
+  | { S.descr = S.Def (id, t) } ->
+    start_section 0 "Definition";
+    let l = CCOpt.get_exn opt.input_format in
+    let env = Type.empty_env ~status:Expr.Status.hypothesis (Semantics.type_env l) in
+    Type.new_def env t id
+
+  (* New assertions *)
+  | { S.descr = S.Antecedent t } ->
+    start_section 0 "Typing";
+    let l = CCOpt.get_exn opt.input_format in
+    let env = Type.empty_env ~status:Expr.Status.hypothesis (Semantics.type_env l) in
+    let f = Type.new_formula env t in
+    start_section 0 "Assume";
+    Solver.assume [[f]]
+  | { S.descr = S.Consequent t } ->
+    start_section 0 "Typing";
+    let l = CCOpt.get_exn opt.input_format in
+    let env = Type.empty_env ~status:Expr.Status.goal (Semantics.type_env l) in
+    let f = Type.new_formula env t in
+    start_section 0 "Assume";
+    Solver.assume [[Expr.Formula.neg f]]
+
+  (* Time to solve ! *)
   | { S.descr = S.Prove } ->
-    if opt.solve then
+    if opt.solve then begin
       Out.set_start ();
-      begin match wrap 0 "solve" Solver.solve () with
+      start_section 0 "Solve";
+      begin match Solver.solve () with
         (* Model found *)
         | Solver.Sat ->
           Out.print_sat opt.out;
@@ -109,9 +148,15 @@ let rec do_command opt = function
         | Solver.Unknown ->
           Out.print_unknown opt.out
       end
+    end
+
+  (* Exit *)
   | { S.descr = S.Exit } ->
     raise (Exit 0)
-  | _ -> assert false
+
+  | c ->
+    Format.fprintf opt.out "The following command is not yet understood:@\n%a"
+      Dolmen.Statement.print c
 
 and do_commands opt commands =
   let prelude, pre_space = prelude_strings opt in
@@ -140,7 +185,7 @@ and do_commands opt commands =
         | Type.Typing_error (msg, t) ->
           delete_alarm ();
           let loc = CCOpt.maybe CCFun.id
-              (Dolmen.ParseLocation.mk opt.input_file 0 0 0 0) T.(t.loc)
+              (Dolmen.ParseLocation.mk (input_to_string opt.input_file) 0 0 0 0) T.(t.loc)
           in
           Format.fprintf Format.std_formatter "While typing %a@\n" T.print t;
           Format.fprintf Format.std_formatter "%a:@\n%s@." Dolmen.ParseLocation.fmt loc msg;
@@ -202,7 +247,7 @@ let () =
       Util.enable_statistics ();
 
     (* Io options *)
-    Out.set_input_file opt.input_file;
+    Out.set_input_file (input_to_string opt.input_file);
     Out.set_output opt.output_format;
 
     (* Syntax extensions *)
@@ -214,21 +259,22 @@ let () =
     List.iter Dispatcher.Plugin.set_ext opt.plugins;
 
     (* Print the current options *)
-    wrap 0 "Options" (fun () ->
-        Options.log_opts opt;
-        Semantics.Addon.log_active 0;
-        Dispatcher.Plugin.log_active 0) ();
-
-    let commands = Gen.singleton @@ S.include_ opt.input_file [] in
+    start_section 0 "Options";
+    Options.log_opts opt;
+    Semantics.Addon.log_active 0;
+    Dispatcher.Plugin.log_active 0;
 
     (* Commands execution *)
-    do_commands opt commands;
+    begin match opt.input_file with
+      | `Stdin ->
+        let l, gen = In.parse_input ?language:opt.input_format (`Stdin In.Smtlib) in
+        do_commands { opt with input_format = Some l } gen
+      | `File f ->
+        do_commands opt (Gen.singleton @@ S.include_ f [])
+    end;
 
     (* Output raw profiling data *)
     CCOpt.iter Util.csv_prof_data opt.profile.raw_data;
-
-    (* Clean up *)
-    Options.clean opt
 
   with
   | e ->

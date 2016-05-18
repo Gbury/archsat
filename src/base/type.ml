@@ -140,6 +140,8 @@ let empty_env
   expect; status;
 }
 
+let expect env expect = { env with expect = expect }
+
 (* Generate new fresh names for shadowed variables *)
 let new_name pre =
   let i = ref 0 in
@@ -261,10 +263,14 @@ let infer env s args =
   | Nothing -> `Nothing
   | Type ->
     let n = List.length args in
-    `Ty (Expr.Id.ty_fun s.Ast.name n)
+    let res = Expr.Id.ty_fun s.Ast.name n in
+    decl_ty_cstr s res;
+    `Ty res
   | Typed ty ->
     let n = List.length args in
-    `Term (Expr.Id.term_fun s.Ast.name [] (CCList.replicate n Expr.Ty.base) ty)
+    let res = Expr.Id.term_fun s.Ast.name [] (CCList.replicate n Expr.Ty.base) ty in
+    decl_term s res;
+    `Term res
 
 (* Expression parsing *)
 (* ************************************************************************ *)
@@ -594,9 +600,8 @@ let rec parse_fun ty_args t_args env = function
 (* High-level parsing functions *)
 (* ************************************************************************ *)
 
-let new_decl ~builtin id t =
+let new_decl env t id =
   Util.enter_prof section;
-  let env = empty_env builtin in
   begin match parse_sig env t with
     | `Ty_cstr n -> decl_ty_cstr id (Expr.Id.ty_fun id.Ast.name n)
     | `Fun_ty (vars, args, ret) ->
@@ -604,22 +609,17 @@ let new_decl ~builtin id t =
   end;
   Util.exit_prof section
 
-let new_def ~builtin id t =
+let new_def env t id =
   Util.enter_prof section;
-  let env = empty_env builtin in
   begin match parse_fun [] [] env t with
     | `Ty (ty_args, body) -> def_ty id ty_args body
     | `Term (ty_args, t_args, body) -> def_term id ty_args t_args body
   end;
   Util.exit_prof section
 
-(*
-let parse ~goal builtins t =
+let new_formula env t =
   Util.enter_prof section;
-  let status = if goal then Expr.Status.goal else Expr.Status.hypothesis in
-  let f = parse_formula ~status (empty_env builtins) t in
-  log 1 "New expr : %a" Expr.Debug.formula f;
+  let res = parse_formula env t in
   Util.exit_prof section;
-  f
-*)
+  res
 

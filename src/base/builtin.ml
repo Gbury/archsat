@@ -154,12 +154,6 @@ module Arith = struct
   let type_rat = Expr.Ty.apply rat_cstr []
   let type_real = Expr.Ty.apply real_cstr []
 
-  let to_ty (ty: ty) =
-    match ty with
-    | Int -> type_int
-    | Rat -> type_rat
-    | Real -> type_real
-
   let num_type = function
     | { Expr.t_type = {
         Expr.ty = Expr.TyApp ({
@@ -342,14 +336,6 @@ module Arith = struct
           Hashtbl.add real_const s res;
           res
       end
-
-  let list_type l =
-    let rec aux = function
-      | [Some ty] -> Some ty
-      | (Some ty) :: (((Some ty') :: _) as r) when ty = ty' -> aux r
-      | _ -> None
-    in
-    aux (List.map num_type l)
 
   let parse_tptp env ast id args =
     let aux f =

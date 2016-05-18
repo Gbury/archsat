@@ -3,14 +3,9 @@
 
 val misc_section : Util.Section.t
 
-type input = In.language
-
-(** Type for input formats. *)
-
 type output =
   | Standard
   | SZS
-
 (** Type for choosing model output *)
 
 type profile_options = {
@@ -32,11 +27,11 @@ type copts = {
   (* Input/Output *)
   out           : Format.formatter;
   input_dir     : string;
-  input_file    : string;
+  input_file    : [ `Stdin | `File of string];
 
   (* Input/Output options *)
   output_format : output;
-  input_format  : input option;
+  input_format  : In.language option;
   interactive   : bool;
 
   (* Solving options *)
@@ -55,14 +50,13 @@ type copts = {
   size_limit  : float;
   profile     : profile_options;
 }
-
 (** Common options for theorem proving. *)
+
+val input_to_string : [ `Stdin | `File of string ] -> string
+(** String representation of inut mode. *)
 
 val log_opts : copts -> unit
 (** Prints a summary of options *)
-
-val clean : copts -> unit
-(** Closes open file descriptors (namely the out_channel of print_proof). *)
 
 val ext_sect : string
 val copts_sect : string

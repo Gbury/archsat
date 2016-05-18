@@ -9,5 +9,5 @@ val mk_ext :
   ?zf:Type.builtin_symbols ->
   unit -> ext
 
-val type_env : Options.input -> Type.builtin_symbols
+val type_env : In.language -> Type.builtin_symbols
 

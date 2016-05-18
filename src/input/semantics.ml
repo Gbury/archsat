@@ -1,6 +1,6 @@
 
 type ext = {
-  builtins : Options.input -> Type.builtin_symbols;
+  builtins : In.language -> Type.builtin_symbols;
 }
 
 let default = fun _ _ _ _ -> None

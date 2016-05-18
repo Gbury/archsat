@@ -34,7 +34,7 @@ type copts = {
   (* Input/Output *)
   out           : Format.formatter;
   input_dir     : string;
-  input_file    : string;
+  input_file    : [ `Stdin | `File of string];
 
   (* Input/Output options *)
   output_format : output;
@@ -61,6 +61,10 @@ type copts = {
 (* Misc *)
 (* ************************************************************************ *)
 
+let input_to_string = function
+  | `Stdin -> "<stdin>"
+  | `File f -> f
+
 let formatter_of_descr = function
   | "" -> None
   | "stdout" -> Some (Format.std_formatter)
@@ -69,17 +73,25 @@ let formatter_of_descr = function
 (* Option values *)
 (* ************************************************************************ *)
 
-let mk_opts file
-    input output interactive type_only
+let mk_opts in_fd
+    input output type_only
     plugins addons model_out time size
     proof profile =
   {
     out = Format.std_formatter;
-    input_dir = Filename.dirname file;
-    input_file = Filename.basename file;
+    input_dir =
+      begin match in_fd with
+      | `Stdin -> Sys.getcwd ()
+      | `File f -> Filename.dirname f
+      end;
+    input_file =
+      begin match in_fd with
+        | `Stdin -> `Stdin
+        | `File f -> `File (Filename.basename f)
+      end;
     input_format = input;
     output_format = output;
-    interactive = interactive || file = "stdin";
+    interactive = (in_fd = `Stdin);
 
     solve = not type_only;
     addons = List.concat addons;
@@ -224,7 +236,8 @@ let log_opts opt =
     (bool_opt "profile" opt.profile.enabled)
     (CCOpt.get "" @@ CCOpt.map In.string_of_language @@ opt.input_format)
     (output_string opt.output_format);
-  log 0 "Input file : %s" opt.input_file
+  log 0 "Input dir : '%s'" opt.input_dir;
+  log 0 "Input file : %s" (input_to_string opt.input_file)
 
 (* Other Argument converters *)
 (* ************************************************************************ *)
@@ -232,6 +245,12 @@ let log_opts opt =
 (* Input/Output formats *)
 let input = Arg.enum In.enum
 let output = Arg.enum output_list
+
+(* Converter for input file/stdin *)
+let in_fd =
+  let parse x = `Ok (`File x) in
+  let print fmt i = Format.fprintf fmt "%s" (input_to_string i) in
+  parse, print
 
 (* Converter for sections *)
 let print_section fmt s = Format.fprintf fmt "%s" (Util.Section.full_name s)
@@ -345,10 +364,6 @@ let copts_t () =
     let doc = "Supress all output but the result status of the problem" in
     Arg.(value & flag & info ["q"; "quiet"] ~docs ~doc)
   in
-  let interactive =
-    let doc = "Use archsat in interactive mode (equivalent to using 'stdin' as input file)." in
-    Arg.(value & flag & info ["interactive"] ~docs ~doc)
-  in
   let log =
     let doc = "Set the global level for debug outpout." in
     Arg.(value & opt int 0 & info ["v"; "verbose"] ~docs ~docv:"LVL" ~doc)
@@ -360,8 +375,9 @@ let copts_t () =
     Arg.(value & opt_all (pair section int) [] & info ["debug"] ~docs:ext_sect ~docv:"NAME,LVL" ~doc)
   in
   let file =
-    let doc = "Input problem file, 'stdin' can be used for interactive mode" in
-    Arg.(value & pos 0 non_dir_file "stdin" & info [] ~docv:"FILE" ~doc)
+    let doc = "Input problem file. If no file is specified,
+               archsat will enter interactive mode and read on stdin." in
+    Arg.(value & pos 0 in_fd `Stdin & info [] ~docv:"FILE" ~doc)
   in
   let input =
     let doc = CCPrint.sprintf
@@ -411,6 +427,6 @@ let copts_t () =
     Arg.(value & opt c_size 1_000_000_000. & info ["s"; "size"] ~docs ~docv:"SIZE" ~doc)
   in
   Term.(pure set_opts $ gc $ bt $ quiet $ log $ debug $ (
-      pure mk_opts $ file $ input $ output $ interactive $ type_only $
+      pure mk_opts $ file $ input $ output $ type_only $
       plugins $ addons $ model_out $ time $ size $ proof_t $ profile_t))
 

@@ -59,7 +59,7 @@ module SolverExpr = struct
     | f -> f, false
 end
 
-module SolverTypes = Msat.Solver_types.McMake(SolverExpr)()
+module SolverTypes = Msat.Solver_types.McMake(SolverExpr)
 
 (* Exceptions *)
 (* ************************************************************************ *)

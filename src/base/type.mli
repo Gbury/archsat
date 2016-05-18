@@ -16,6 +16,13 @@ val stack : Backtrack.Stack.t
 type env
 (** The type of environments for typechecking. *)
 
+type expect =
+  | Nothing
+  | Type
+  | Typed of Expr.ty
+(** The type of expected result when typing an expression, used to infer
+    non-declared symbols. *)
+
 type res =
   | Ttype
   | Ty of Expr.ty
@@ -34,6 +41,17 @@ type builtin_symbols = (Dolmen.Term.id -> Dolmen.Term.t list -> res option) type
     Can be useful for extensions to define overloaded operators such as addition in arithmetic,
     since the exact function symbol returned can depend on the arguments (or even be different
     between two calls with the same arguments). *)
+
+(** {2 Environments} *)
+
+val empty_env :
+  ?expect:expect ->
+  ?status:Expr.status ->
+  builtin_symbols -> env
+(** Create a new environment. *)
+
+val expect : env -> expect -> env
+(** Returns the same environment but with the given expectation. *)
 
 (** {2 Parsing helpers} *)
 
@@ -60,7 +78,9 @@ val parse_app_term : (Expr.ty Expr.function_descr Expr.id -> Dolmen.Term.t list 
 
 (** {2 High-level functions} *)
 
-val new_decl : builtin:builtin_symbols -> Dolmen.Term.id -> Dolmen.Term.t -> unit
+val new_decl : (Dolmen.Term.id -> unit) typer
 
-val new_def  : builtin:builtin_symbols -> Dolmen.Term.id -> Dolmen.Term.t -> unit
+val new_def  : (Dolmen.Term.id -> unit) typer
+
+val new_formula : Expr.formula typer
 

@@ -1,7 +1,4 @@
 
-let section = Util.Section.make ~parent:Options.misc_section "IO"
-let log i fmt = Util.debug ~section i fmt
-
 (* IO settings *)
 (* ************************************************************************ *)
 
