@@ -158,7 +158,7 @@ let add_type_var env id v =
     else
       v
   in
-  log 3 "New binding : %a -> %a" Id.pp id Expr.Debug.id_ttype v';
+  log 1 "New binding : %a -> %a" Id.pp id Expr.Debug.id_ttype v';
   v', { env with type_vars = M.add id v' env.type_vars }
 
 let add_type_vars env l =
@@ -174,7 +174,7 @@ let add_term_var env id v =
     else
       v
   in
-  log 3 "New binding : %a -> %a" Id.pp id Expr.Debug.id_ty v';
+  log 1 "New binding : %a -> %a" Id.pp id Expr.Debug.id_ty v';
   v', { env with term_vars = M.add id v' env.term_vars }
 
 let find_var env name =
@@ -188,8 +188,13 @@ let find_var env name =
     end
 
 (* Add local bound variables to env *)
-let add_let_term env name t = { env with term_lets = M.add name t env.term_lets }
-let add_let_prop env name t = { env with prop_lets = M.add name t env.prop_lets }
+let add_let_term env id t =
+  log 1 "New let-binding : %s -> %a" id.Ast.name Expr.Debug.term t;
+  { env with term_lets = M.add id t env.term_lets }
+
+let add_let_prop env id t =
+  log 1 "New let-binding : %s -> %a" id.Ast.name Expr.Debug.formula t;
+  { env with prop_lets = M.add id t env.prop_lets }
 
 let find_let env name =
   try `Term (M.find name env.term_lets)
@@ -200,6 +205,22 @@ let find_let env name =
       with Not_found ->
         `Not_found
     end
+
+let pp_expect b = function
+  | Nothing -> Printf.bprintf b "<>"
+  | Type -> Printf.bprintf b "<tType>"
+  | Typed ty -> Expr.Debug.ty b ty
+
+let pp_map pp b map =
+  M.iter (fun k v -> Printf.bprintf b "%s->%a;" k.Ast.name pp v) map
+
+let pp_env b env =
+  Printf.bprintf b "(%a) %a%a%a%a"
+    pp_expect env.expect
+    (pp_map Expr.Debug.id_ttype) env.type_vars
+    (pp_map Expr.Debug.id_ty) env.term_vars
+    (pp_map Expr.Debug.term) env.term_lets
+    (pp_map Expr.Debug.formula) env.prop_lets
 
 (* Wrappers for expression building *)
 (* ************************************************************************ *)
@@ -275,7 +296,10 @@ let infer env s args =
 (* Expression parsing *)
 (* ************************************************************************ *)
 
-let rec parse_expr (env : env) = function
+let rec parse_expr (env : env) t =
+  log 50 "parsing : %a" Ast.pp t;
+  log 90 "env: %a" pp_env env;
+  match t with
 
   (* Basic formulas *)
   | { Ast.term = Ast.App ({ Ast.term = Ast.Builtin Ast.True }, []) }
@@ -295,34 +319,27 @@ let rec parse_expr (env : env) = function
   | { Ast.term = Ast.App ({Ast.term = Ast.Builtin Ast.Xor}, l) } as t ->
     begin match l with
       | [p; q] ->
-        Formula (
-          Expr.Formula.neg (
-            Expr.Formula.equiv
-              (parse_formula env p)
-              (parse_formula env q)
-          ))
+        let f = parse_formula env p in
+        let g = parse_formula env q in
+        Formula (Expr.Formula.neg (Expr.Formula.equiv f g))
       | _ -> _bad_arity "xor" 2 t
     end
 
   | { Ast.term = Ast.App ({Ast.term = Ast.Builtin Ast.Imply}, l) } as t ->
     begin match l with
       | [p; q] ->
-        Formula (
-          Expr.Formula.imply
-            (parse_formula env p)
-            (parse_formula env q)
-        )
+        let f = parse_formula env p in
+        let g = parse_formula env q in
+        Formula (Expr.Formula.imply f g)
       | _ -> _bad_arity "=>" 2 t
     end
 
   | { Ast.term = Ast.App ({Ast.term = Ast.Builtin Ast.Equiv}, l) } as t ->
     begin match l with
       | [p; q] ->
-        Formula (
-          Expr.Formula.equiv
-            (parse_formula env p)
-            (parse_formula env q)
-        )
+        let f = parse_formula env p in
+        let g = parse_formula env q in
+        Formula (Expr.Formula.equiv f g)
       | _ -> _bad_arity "<=>" 2 t
     end
 
@@ -335,14 +352,16 @@ let rec parse_expr (env : env) = function
 
   (* Binders *)
   | { Ast.term = Ast.Binder (Ast.All, vars, f) } ->
-    let ttype_vars, ty_vars, env' = parse_quant_vars env vars in
+    let ttype_vars, ty_vars, env' =
+      parse_quant_vars { env with expect = Typed Expr.Ty.base } vars in
     Formula (
       Expr.Formula.allty ttype_vars
         (Expr.Formula.all ty_vars (parse_formula env' f))
     )
 
   | { Ast.term = Ast.Binder (Ast.Ex, vars, f) } ->
-    let ttype_vars, ty_vars, env' = parse_quant_vars env vars in
+    let ttype_vars, ty_vars, env' =
+      parse_quant_vars { env with expect = Typed Expr.Ty.base } vars in
     Formula (
       Expr.Formula.exty ttype_vars
         (Expr.Formula.ex ty_vars (parse_formula env' f))
@@ -369,23 +388,17 @@ let rec parse_expr (env : env) = function
     )
 
   (* General case: application *)
-  | ast ->
-    let res = match ast with
-      | { Ast.term = Ast.Symbol s } ->
-        parse_app env ast s []
-      | { Ast.term = Ast.App ({ Ast.term = Ast.Symbol s }, l) } ->
-        parse_app env ast s l
+  | { Ast.term = Ast.Symbol s } as ast ->
+    parse_app env ast s []
+  | { Ast.term = Ast.App ({ Ast.term = Ast.Symbol s }, l) } as ast ->
+    parse_app env ast s l
 
-      (* Local bindings *)
-      | { Ast.term = Ast.Binder (Ast.Let, vars, f) } ->
-        parse_let env f vars
+  (* Local bindings *)
+  | { Ast.term = Ast.Binder (Ast.Let, vars, f) } ->
+    parse_let env f vars
 
-      (* Other cases *)
-      | _ -> raise (Typing_error ("Couldn't parse the expression", ast))
-    in
-    match res with
-    | Term t when Expr.(Ty.equal Ty.prop t.t_type) -> Formula (make_pred ast t)
-    | _ -> res
+  (* Other cases *)
+  | ast -> raise (Typing_error ("Couldn't parse the expression", ast))
 
 and parse_var env = function
   | { Ast.term = Ast.Colon ({ Ast.term = Ast.Symbol s }, e) } ->
@@ -407,12 +420,12 @@ and parse_quant_vars env l =
       fun (l1, l2, acc) v ->
         match parse_var acc v with
         | `Ty (id, v') ->
-          let v'', acc' = add_type_var env id v' in
+          let v'', acc' = add_type_var acc id v' in
           (v'' :: l1, l2, acc')
         | `Term (id, v') ->
-          let v'', acc' = add_term_var env id v' in
+          let v'', acc' = add_term_var acc id v' in
           (l1, v'' :: l2, acc')
-    ) ([], [], { env with expect = Typed Expr.Ty.base }) l in
+    ) ([], [], env) l in
   List.rev ttype_vars, List.rev typed_vars, env'
 
 and parse_let env f = function
@@ -517,6 +530,8 @@ and parse_term env ast =
 
 and parse_formula env ast =
   match parse_expr { env with expect = Typed Expr.Ty.prop } ast with
+  | Term t when Expr.(Ty.equal Ty.prop t.t_type) ->
+    make_pred ast t
   | Formula p -> p
   | _ -> _expected "formula" ast
 
@@ -602,6 +617,7 @@ let rec parse_fun ty_args t_args env = function
 
 let new_decl env t id =
   Util.enter_prof section;
+  log 5 "Typing declaration: %s : %a" id.Ast.name Ast.pp t;
   begin match parse_sig env t with
     | `Ty_cstr n -> decl_ty_cstr id (Expr.Id.ty_fun id.Ast.name n)
     | `Fun_ty (vars, args, ret) ->
@@ -611,6 +627,7 @@ let new_decl env t id =
 
 let new_def env t id =
   Util.enter_prof section;
+  log 5 "Typing definition: %s = %a" id.Ast.name Ast.pp t;
   begin match parse_fun [] [] env t with
     | `Ty (ty_args, body) -> def_ty id ty_args body
     | `Term (ty_args, t_args, body) -> def_term id ty_args t_args body
@@ -619,6 +636,7 @@ let new_def env t id =
 
 let new_formula env t =
   Util.enter_prof section;
+  log 5 "Typing top-level formula: %a" Ast.pp t;
   let res = parse_formula env t in
   Util.exit_prof section;
   res

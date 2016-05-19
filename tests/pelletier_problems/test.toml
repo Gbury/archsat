@@ -1,5 +1,5 @@
 prover = "archsat"
-problems = ".*\\.p"
+problems = "pb.\\.p"
 
 [archsat]
 cmd = "/home/guigui/build/archsat/archsat -t ${timeout}s -s ${memory}M $file"

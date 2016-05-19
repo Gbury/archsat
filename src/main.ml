@@ -76,7 +76,7 @@ let rec do_command opt = function
       | None -> raise (File_not_found f)
       | Some file ->
         let l, gen = In.parse_input ?language:opt.input_format (`File file) in
-        do_commands { opt with input_format = Some l } gen
+        do_commands { opt with input_format = Some l; input_file = `File file } gen
     end
 
   (* Pack of commands *)
@@ -189,7 +189,7 @@ and do_commands opt commands =
           in
           Format.fprintf Format.std_formatter "While typing %a@\n" T.print t;
           Format.fprintf Format.std_formatter "%a:@\n%s@." Dolmen.ParseLocation.fmt loc msg;
-          if opt.interactive then raise (Exit 2)
+          if not opt.interactive then raise (Exit 2)
       end
     | exception Dolmen.ParseLocation.Lexing_error (loc, msg) ->
       if opt.interactive then
@@ -197,15 +197,18 @@ and do_commands opt commands =
           (if Dolmen.ParseLocation.(loc.start_line = 1) then pre_space else "")
           Dolmen.ParseLocation.fmt_hint loc;
       Format.fprintf Format.std_formatter "%a:@\n%s@."
-        Dolmen.ParseLocation.fmt loc (match msg with | "" -> "Lexing error: invalid character" | x -> x)
+        Dolmen.ParseLocation.fmt loc (match msg with | "" -> "Lexing error: invalid character" | x -> x);
+      if not opt.interactive then raise (Exit 1)
     | exception Dolmen.ParseLocation.Syntax_error (loc, msg) ->
       if opt.interactive then
         Format.fprintf Format.std_formatter "%s%a@\n"
           (if Dolmen.ParseLocation.(loc.start_line = 1) then pre_space else "")
           Dolmen.ParseLocation.fmt_hint loc;
-      Format.fprintf Format.std_formatter "%a:@\n%s@." Dolmen.ParseLocation.fmt loc msg
+      Format.fprintf Format.std_formatter "%a:@\n%s@." Dolmen.ParseLocation.fmt loc msg;
+      if not opt.interactive then raise (Exit 1)
     | exception Extension.Abort (ext, reason) ->
-      Format.fprintf Format.std_formatter "Extension '%s' aborted the proof search:@\n%s@." ext reason
+      Format.fprintf Format.std_formatter "Extension '%s' aborted the proof search:@\n%s@." ext reason;
+      if not opt.interactive then raise (Exit 0)
   end;
   do_commands opt commands
 
