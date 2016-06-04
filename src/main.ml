@@ -163,7 +163,7 @@ and do_commands opt commands =
   if opt.interactive then
     Format.printf "%s@?" prelude;
   begin match commands () with
-    | None -> raise (Exit 0)
+    | None -> ()
     | Some c ->
       begin
         try
@@ -190,7 +190,11 @@ and do_commands opt commands =
           Format.fprintf Format.std_formatter "While typing %a@\n" T.print t;
           Format.fprintf Format.std_formatter "%a:@\n%s@." Dolmen.ParseLocation.fmt loc msg;
           if not opt.interactive then raise (Exit 2)
-      end
+        | Extension.Abort (ext, reason) ->
+          Format.fprintf Format.std_formatter "Extension '%s' aborted the proof search:@\n%s@." ext reason;
+          if not opt.interactive then raise (Exit 0)
+      end;
+      do_commands opt commands
     | exception Dolmen.ParseLocation.Lexing_error (loc, msg) ->
       if opt.interactive then
         Format.fprintf Format.std_formatter "%s%a@\n"
@@ -198,19 +202,21 @@ and do_commands opt commands =
           Dolmen.ParseLocation.fmt_hint loc;
       Format.fprintf Format.std_formatter "%a:@\n%s@."
         Dolmen.ParseLocation.fmt loc (match msg with | "" -> "Lexing error: invalid character" | x -> x);
-      if not opt.interactive then raise (Exit 1)
+      if opt.interactive then
+        do_commands opt commands
+      else
+        raise (Exit 1)
     | exception Dolmen.ParseLocation.Syntax_error (loc, msg) ->
       if opt.interactive then
         Format.fprintf Format.std_formatter "%s%a@\n"
           (if Dolmen.ParseLocation.(loc.start_line = 1) then pre_space else "")
           Dolmen.ParseLocation.fmt_hint loc;
       Format.fprintf Format.std_formatter "%a:@\n%s@." Dolmen.ParseLocation.fmt loc msg;
-      if not opt.interactive then raise (Exit 1)
-    | exception Extension.Abort (ext, reason) ->
-      Format.fprintf Format.std_formatter "Extension '%s' aborted the proof search:@\n%s@." ext reason;
-      if not opt.interactive then raise (Exit 0)
-  end;
-  do_commands opt commands
+      if opt.interactive then
+        do_commands opt commands
+      else
+        raise (Exit 1)
+  end
 
 
 (* Main function *)
