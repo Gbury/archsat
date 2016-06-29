@@ -4,27 +4,31 @@ let section = Util.Section.make "builtin"
 let log i fmt = Util.debug ~section i fmt
 *)
 
+module Id = Dolmen.Id
 module Ast = Dolmen.Term
 
 (* Type builtins for languages *)
 (* ************************************************************************ *)
 
 let parse_tptp env ast s args =
-  match s.Ast.name with
-  | "$o" -> Some (Type.parse_app_ty env ast Expr.Id.prop args)
-  | "$i" -> Some (Type.parse_app_ty env ast Expr.Id.base args)
+  match s with
+  | { Id.name = "$o"; ns = Id.Term } ->
+    Some (Type.parse_app_ty env ast Expr.Id.prop args)
+  | { Id.name = "$i"; ns = Id.Term } ->
+    Some (Type.parse_app_ty env ast Expr.Id.base args)
   | _ -> None
 
 let parse_smtlib env ast s args =
-  match s.Ast.name with
-  | "Bool" -> Some (Type.parse_app_ty env ast Expr.Id.prop args)
+  match s with
+  | { Id.name = "Bool"; ns = Id.Sort } ->
+    Some (Type.parse_app_ty env ast Expr.Id.prop args)
   | _ -> None
 
-;;
-Semantics.Addon.register "base"
-  ~descr:"Defines the base types/builtins of languages (such as tptp's $i and $o)"
-  (Semantics.mk_ext ~tptp:parse_tptp ~smtlib:parse_smtlib ())
-;;
+let _ =
+  Semantics.Addon.register "base"
+    ~descr:"Defines the base types/builtins of languages (such as tptp's $i and $o)"
+    (Semantics.mk_ext ~tptp:parse_tptp ~smtlib:parse_smtlib ())
+
 
 (* Misc builtins *)
 (* ************************************************************************ *)
@@ -354,40 +358,42 @@ module Arith = struct
       | [x] -> Some (Type.Term (Misc.cast x ty))
       | _ -> raise (Type.Typing_error ("Casts expect one argument", ast))
     in
-    match id.Ast.name with
-    | "$int" -> Some (Type.parse_app_ty env ast int_cstr args)
-    | "$rat" -> Some (Type.parse_app_ty env ast rat_cstr args)
-    | "$real" -> Some (Type.parse_app_ty env ast real_cstr args)
-    | "$less" -> aux less
-    | "$lesseq" -> aux lesseq
-    | "$greater" -> aux greater
-    | "$greatereq" -> aux greatereq
-    | "$uminus" -> aux uminus
-    | "$sum" -> aux sum
-    | "$difference" -> aux diff
-    | "$product" -> aux mult
-    | "$quotient" -> aux div
-    | "$quotient_e" -> aux div_e
-    | "$quotient_t" -> aux div_t
-    | "$quotient_f" -> aux div_f
-    | "$remainder_e" -> aux rem_e
-    | "$remainder_t" -> aux rem_t
-    | "$remainder_f" -> aux rem_f
-    | "$floor" -> aux floor
-    | "$ceiling" -> aux ceiling
-    | "$truncate" -> aux truncate
-    | "$round" -> aux round
-    | "$is_int" -> aux is_int
-    | "$is_rat" -> aux is_rat
-    | "$is_real" -> aux is_real
-    | "$to_int" -> aux_cast type_int
-    | "$to_rat" -> aux_cast type_rat
-    | "$to_real" -> aux_cast type_real
-    | s -> begin match val_of_string s with
-        | Some value ->
-          Some (Type.parse_app_term env ast (const_num s value) args)
-        | None -> None
-      end
+    if id.Id.ns = Id.Term then
+      match id.Id.name with
+      | "$int" -> Some (Type.parse_app_ty env ast int_cstr args)
+      | "$rat" -> Some (Type.parse_app_ty env ast rat_cstr args)
+      | "$real" -> Some (Type.parse_app_ty env ast real_cstr args)
+      | "$less" -> aux less
+      | "$lesseq" -> aux lesseq
+      | "$greater" -> aux greater
+      | "$greatereq" -> aux greatereq
+      | "$uminus" -> aux uminus
+      | "$sum" -> aux sum
+      | "$difference" -> aux diff
+      | "$product" -> aux mult
+      | "$quotient" -> aux div
+      | "$quotient_e" -> aux div_e
+      | "$quotient_t" -> aux div_t
+      | "$quotient_f" -> aux div_f
+      | "$remainder_e" -> aux rem_e
+      | "$remainder_t" -> aux rem_t
+      | "$remainder_f" -> aux rem_f
+      | "$floor" -> aux floor
+      | "$ceiling" -> aux ceiling
+      | "$truncate" -> aux truncate
+      | "$round" -> aux round
+      | "$is_int" -> aux is_int
+      | "$is_rat" -> aux is_rat
+      | "$is_real" -> aux is_real
+      | "$to_int" -> aux_cast type_int
+      | "$to_rat" -> aux_cast type_rat
+      | "$to_real" -> aux_cast type_real
+      | s -> begin match val_of_string s with
+          | Some value ->
+            Some (Type.parse_app_term env ast (const_num s value) args)
+          | None -> None
+        end
+    else None
 
 end
 

@@ -9,14 +9,7 @@ let stack = Backtrack.Stack.create (
     Util.Section.make ~parent:section "backtrack")
 
 module Ast = Dolmen.Term
-module Id = struct
-  type t = Ast.id
-  let hash = Hashtbl.hash
-  let equal = Pervasives.(=)
-  let compare = Pervasives.compare
-  let pp b id = Printf.bprintf b "%s" id.Ast.name
-  let print fmt id = Format.fprintf fmt "%s" id.Ast.name
-end
+module Id = Dolmen.Id
 module M = Map.Make(Id)
 module H = Backtrack.HashtblBack(Id)
 
@@ -59,7 +52,7 @@ type env = {
 (* Builtin symbols, i.e symbols understood by some theories,
    but which do not have specific syntax, so end up as special
    cases of application. *)
-and builtin_symbols = env -> Dolmen.Term.t -> Dolmen.Term.id -> Ast.t list -> res option
+and builtin_symbols = env -> Dolmen.Term.t -> Dolmen.Id.t -> Ast.t list -> res option
 
 type 'a typer = env -> Dolmen.Term.t -> 'a
 
@@ -75,11 +68,18 @@ exception Typing_error of string * Ast.t
 (* Convenience functions *)
 let _expected s t = raise (Typing_error (
     Format.asprintf "Expected a %s" s, t))
-let _bad_arity s n t = raise (Typing_error (
+
+let _bad_op_arity s n t = raise (Typing_error (
     Format.asprintf "Bad arity for operator '%s' (expected %d arguments)" s n, t))
+let _bad_id_arity id n t = raise (Typing_error (
+    Format.asprintf "Bad arity for identifier '%a' (expected %d arguments)" Id.print id n, t))
+let _bad_term_arity f n t = raise (Typing_error (
+    Format.asprintf "Bad arity for function '%a' (expected %d arguments)" Expr.Print.id f n, t))
+
 let _type_mismatch t ty ty' ast = raise (Typing_error (
     Format.asprintf "Type Mismatch: '%a' has type %a, but an expression of type %a was expected"
       Expr.Print.term t Expr.Print.ty ty Expr.Print.ty ty', ast))
+
 let _fo_term s t = raise (Typing_error (
     Format.asprintf "Let-bound variable '%a' is applied to terms" Id.print s, t))
 
@@ -189,11 +189,11 @@ let find_var env name =
 
 (* Add local bound variables to env *)
 let add_let_term env id t =
-  log 1 "New let-binding : %s -> %a" id.Ast.name Expr.Debug.term t;
+  log 1 "New let-binding : %a -> %a" Id.pp id Expr.Debug.term t;
   { env with term_lets = M.add id t env.term_lets }
 
 let add_let_prop env id t =
-  log 1 "New let-binding : %s -> %a" id.Ast.name Expr.Debug.formula t;
+  log 1 "New let-binding : %a -> %a" Id.pp id Expr.Debug.formula t;
   { env with prop_lets = M.add id t env.prop_lets }
 
 let find_let env name =
@@ -212,7 +212,7 @@ let pp_expect b = function
   | Typed ty -> Expr.Debug.ty b ty
 
 let pp_map pp b map =
-  M.iter (fun k v -> Printf.bprintf b "%s->%a;" k.Ast.name pp v) map
+  M.iter (fun k v -> Printf.bprintf b "%a->%a;" Id.pp k pp v) map
 
 let pp_env b env =
   Printf.bprintf b "(%a) %a%a%a%a"
@@ -233,14 +233,14 @@ let ty_apply env ast f args =
   try
     Expr.Ty.apply ~status:env.status f args
   with Expr.Bad_ty_arity _ ->
-    _bad_arity Expr.(f.id_name) (arity f) ast
+    _bad_term_arity f (arity f) ast
 
 let term_apply env ast f ty_args t_args =
   try
     Expr.Term.apply ~status:env.status f ty_args t_args
   with
   | Expr.Bad_arity _ ->
-    _bad_arity Expr.(f.id_name) (arity f) ast
+    _bad_term_arity f (arity f) ast
   | Expr.Type_mismatch (t, ty, ty') ->
     _type_mismatch t ty ty' ast
 
@@ -250,7 +250,7 @@ let ty_subst ast_term id args f_args body =
   | subst ->
     Expr.Ty.subst subst body
   | exception Invalid_argument _ ->
-    _bad_arity id.Ast.name (List.length f_args) ast_term
+    _bad_id_arity id (List.length f_args) ast_term
 
 let term_subst ast_term id ty_args t_args f_ty_args f_t_args body =
   let aux s v ty = Expr.Subst.Id.bind v ty s in
@@ -262,10 +262,10 @@ let term_subst ast_term id ty_args t_args f_ty_args f_t_args body =
       | t_subst ->
         Expr.Term.subst ty_subst t_subst body
       | exception Invalid_argument _ ->
-        _bad_arity id.Ast.name (List.length f_ty_args + List.length f_t_args) ast_term
+        _bad_id_arity id (List.length f_ty_args + List.length f_t_args) ast_term
     end
   | exception Invalid_argument _ ->
-    _bad_arity id.Ast.name (List.length f_ty_args + List.length f_t_args) ast_term
+    _bad_id_arity id (List.length f_ty_args + List.length f_t_args) ast_term
 
 let make_eq ast_term a b =
   try
@@ -284,12 +284,12 @@ let infer env s args =
   | Nothing -> `Nothing
   | Type ->
     let n = List.length args in
-    let res = Expr.Id.ty_fun s.Ast.name n in
+    let res = Expr.Id.ty_fun (Id.full_name s) n in
     decl_ty_cstr s res;
     `Ty res
   | Typed ty ->
     let n = List.length args in
-    let res = Expr.Id.term_fun s.Ast.name [] (CCList.replicate n Expr.Ty.base) ty in
+    let res = Expr.Id.term_fun (Id.full_name s) [] (CCList.replicate n Expr.Ty.base) ty in
     decl_term s res;
     `Term res
 
@@ -322,7 +322,7 @@ let rec parse_expr (env : env) t =
         let f = parse_formula env p in
         let g = parse_formula env q in
         Formula (Expr.Formula.neg (Expr.Formula.equiv f g))
-      | _ -> _bad_arity "xor" 2 t
+      | _ -> _bad_op_arity "xor" 2 t
     end
 
   | { Ast.term = Ast.App ({Ast.term = Ast.Builtin Ast.Imply}, l) } as t ->
@@ -331,7 +331,7 @@ let rec parse_expr (env : env) t =
         let f = parse_formula env p in
         let g = parse_formula env q in
         Formula (Expr.Formula.imply f g)
-      | _ -> _bad_arity "=>" 2 t
+      | _ -> _bad_op_arity "=>" 2 t
     end
 
   | { Ast.term = Ast.App ({Ast.term = Ast.Builtin Ast.Equiv}, l) } as t ->
@@ -340,14 +340,14 @@ let rec parse_expr (env : env) t =
         let f = parse_formula env p in
         let g = parse_formula env q in
         Formula (Expr.Formula.equiv f g)
-      | _ -> _bad_arity "<=>" 2 t
+      | _ -> _bad_op_arity "<=>" 2 t
     end
 
   | { Ast.term = Ast.App ({Ast.term = Ast.Builtin Ast.Not}, l) } as t ->
     begin match l with
       | [p] ->
         Formula (Expr.Formula.neg (parse_formula env p))
-      | _ -> _bad_arity "not" 1 t
+      | _ -> _bad_op_arity "not" 1 t
     end
 
   (* Binders *)
@@ -376,7 +376,7 @@ let rec parse_expr (env : env) t =
             (parse_term env a)
             (parse_term env b)
         )
-      | _ -> _bad_arity "=" 2 t
+      | _ -> _bad_op_arity "=" 2 t
     end
 
   | { Ast.term = Ast.App ({Ast.term = Ast.Builtin Ast.Distinct}, args) } as t ->
@@ -403,15 +403,15 @@ let rec parse_expr (env : env) t =
 and parse_var env = function
   | { Ast.term = Ast.Colon ({ Ast.term = Ast.Symbol s }, e) } ->
     begin match parse_expr env e with
-      | Ttype -> `Ty (s, Expr.Id.ttype s.Ast.name)
-      | Ty ty -> `Term (s, Expr.Id.ty s.Ast.name ty)
+      | Ttype -> `Ty (s, Expr.Id.ttype (Id.full_name s))
+      | Ty ty -> `Term (s, Expr.Id.ty (Id.full_name s) ty)
       | _ -> _expected "type (or Ttype)" e
     end
   | { Ast.term = Ast.Symbol s } ->
     begin match env.expect with
       | Nothing -> assert false
-      | Type -> `Ty (s, Expr.Id.ttype s.Ast.name)
-      | Typed ty -> `Term (s, Expr.Id.ty s.Ast.name ty)
+      | Type -> `Ty (s, Expr.Id.ttype (Id.full_name s))
+      | Typed ty -> `Term (s, Expr.Id.ty (Id.full_name s) ty)
     end
   | t -> _expected "(typed) variable" t
 
@@ -617,17 +617,17 @@ let rec parse_fun ty_args t_args env = function
 
 let new_decl env t id =
   Util.enter_prof section;
-  log 5 "Typing declaration: %s : %a" id.Ast.name Ast.pp t;
+  log 5 "Typing declaration: %a : %a" Id.pp id Ast.pp t;
   begin match parse_sig env t with
-    | `Ty_cstr n -> decl_ty_cstr id (Expr.Id.ty_fun id.Ast.name n)
+    | `Ty_cstr n -> decl_ty_cstr id (Expr.Id.ty_fun (Id.full_name id) n)
     | `Fun_ty (vars, args, ret) ->
-      decl_term id (Expr.Id.term_fun id.Ast.name vars args ret)
+      decl_term id (Expr.Id.term_fun (Id.full_name id) vars args ret)
   end;
   Util.exit_prof section
 
 let new_def env t id =
   Util.enter_prof section;
-  log 5 "Typing definition: %s = %a" id.Ast.name Ast.pp t;
+  log 5 "Typing definition: %a = %a" Id.pp id Ast.pp t;
   begin match parse_fun [] [] env t with
     | `Ty (ty_args, body) -> def_ty id ty_args body
     | `Term (ty_args, t_args, body) -> def_term id ty_args t_args body

@@ -35,7 +35,7 @@ type 'a typer = env -> Dolmen.Term.t -> 'a
     and return a value. The typer may need additional information for parsing,
     in which case the return value will be a function. *)
 
-type builtin_symbols = (Dolmen.Term.id -> Dolmen.Term.t list -> res option) typer
+type builtin_symbols = (Dolmen.Id.t -> Dolmen.Term.t list -> res option) typer
 (** The type of a typer for builtin symbols. Takes the name of the symbol and the arguments
     applied to it, and can return a typechecking result.
     Can be useful for extensions to define overloaded operators such as addition in arithmetic,
@@ -78,9 +78,9 @@ val parse_app_term : (Expr.ty Expr.function_descr Expr.id -> Dolmen.Term.t list 
 
 (** {2 High-level functions} *)
 
-val new_decl : (Dolmen.Term.id -> unit) typer
+val new_decl : (Dolmen.Id.t -> unit) typer
 
-val new_def  : (Dolmen.Term.id -> unit) typer
+val new_def  : (Dolmen.Id.t -> unit) typer
 
 val new_formula : Expr.formula typer
 

@@ -138,8 +138,6 @@ let set_opts gc bt quiet log debug opt =
   end;
   opt
 
-let clean opt = ()
-
 (* Argument converter for integer with multiplier suffix *)
 (* ************************************************************************ *)
 
