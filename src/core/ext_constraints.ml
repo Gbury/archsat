@@ -55,12 +55,11 @@ type constraints = (Unif.t, Ext_meta.state, Expr.formula) Constraints.t
 type t = {
   id : int;
   acc : constraints;
-  level : Solver.level;
 }
 
 let make =
   let c = ref 0 in
-  (fun acc level -> { id = !c; acc; level; })
+  (fun acc -> { id = !c; acc; })
 
 (* Builtin symbol *)
 (* ************************************************************************ *)

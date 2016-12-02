@@ -90,21 +90,12 @@ let profile section f = fun x ->
 (* Messages for extensions *)
 (* ************************************************************************ *)
 
-type directive = ..
-type directive +=
-  | Restart
-
 type 'ret msg = ..
 type 'ret msg +=
   | If_sat : ((Expr.formula -> unit) -> unit) -> unit msg
 
-type 'ret result =
-  | Ok
-  | Ret of 'ret
-  | Directive of directive
-
 type handle = {
-  handle : 'ret. 'ret msg -> 'ret result;
+  handle : 'ret. 'ret msg -> 'ret option;
 }
 
 (* Extensions *)
@@ -125,7 +116,7 @@ type ext = {
 
   (* Handle messages *)
   handle : 'ret 'acc. (
-      ('ret result -> 'acc -> 'acc) -> ('ret msg -> 'acc -> 'acc)
+      ('acc -> 'ret option -> 'acc) -> 'acc -> 'ret msg -> 'acc
     ) option;
 
   (* Pre-process input formulas *)
@@ -143,10 +134,10 @@ let mk_ext ~section ?peek ?assume ?eval_pred ?(handle: handle option) ?preproces
     handle = match handle with
       | None -> None
       | Some h ->
-        Some (fun (type ret) (type acc)
-               (fold : ret result -> acc -> acc)
-               (msg : ret msg) (acc: acc) ->
-               fold (profile section h.handle msg) acc
+        Some (fun (type acc) (type ret)
+               (fold : acc -> ret option -> acc)
+               (acc: acc) (msg : ret msg) ->
+               fold acc (profile section h.handle msg)
              );
   }
 
@@ -184,11 +175,12 @@ let merge_exts ~high ~low =
     handle = begin match high.handle, low.handle with
       | None, res | res, None -> res
       | Some h, Some h' ->
-        Some (fun (type ret) (type acc)
-               (fold : ret result -> acc -> acc)
-               (msg : ret msg) (acc: acc) ->
-               let acc' = h fold msg acc in
-               h' fold msg acc'
+        Some (fun (type acc) (type ret)
+               (fold : acc -> ret option -> acc)
+               (acc: acc) (msg : ret msg)
+               ->
+               let acc' = h fold acc msg in
+               h' fold acc' msg
              )
     end;
   }
@@ -217,7 +209,7 @@ let plugin_assume () =
 
 let plugin_handle fold acc msg =
   match (Plugin.get_res ()).handle with
-  | Some handle -> handle fold msg acc
+  | Some handle -> handle fold acc msg
   | None -> acc
 
 let plugin_eval_pred f =
@@ -230,7 +222,7 @@ let plugin_eval_pred f =
 
 let handle = plugin_handle
 
-let send = plugin_handle (fun _ () -> ()) ()
+let send = plugin_handle (fun () _ -> ()) ()
 
 (* Proof management *)
 (* ************************************************************************ *)
@@ -533,21 +525,21 @@ module SolverTheory = struct
       | _ -> ()
     done
 
-  let if_sat_aux ret acc =
-    match ret with
-    | Ok | Ret () -> acc
-    | Directive Restart -> true
-    | Directive _ -> acc
-
   let if_sat s =
     Util.enter_prof section;
     Util.debug ~section 0 "Iteration with complete model";
-    let b = handle if_sat_aux false (If_sat (if_sat_iter s)) in
-    Util.exit_prof section;
-    assert (Stack.is_empty propagate_stack);
-    do_push s.Msat.Plugin_intf.push;
-    if b then raise Unknown;
-    Msat.Plugin_intf.Sat
+    try
+      send (If_sat (if_sat_iter s));
+      assert (Stack.is_empty propagate_stack);
+      do_push s.Msat.Plugin_intf.push;
+      Util.exit_prof section;
+      Msat.Plugin_intf.Sat
+    with Absurd (l, p) ->
+      clean_propagate ();
+      Util.debug ~section 5 "Conflict '%s'" p.proof_name;
+      List.iter (fun f -> Util.debug ~section 5 " |- %a" Expr.Debug.formula f) l;
+      Util.exit_prof section;
+      Msat.Plugin_intf.Unsat (l, p)
 
   let assign t =
     Util.enter_prof section;

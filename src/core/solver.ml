@@ -1,116 +1,83 @@
 
 let section = Dispatcher.solver_section
 
-(* Proof replay helpers *)
+(* Msat instanciation *)
 (* ************************************************************************ *)
 
-type res = Sat | Unsat | Unknown
-
-let pp_res b = function
-  | Sat -> Printf.bprintf b "Sat"
-  | Unsat -> Printf.bprintf b "Unsat"
-  | Unknown -> Printf.bprintf b "Unknown"
+module S = Msat.Internal.Make(Dispatcher.SolverTypes)(Dispatcher.SolverTheory)()
 
 (* Proof replay helpers *)
 (* ************************************************************************ *)
 
-type ret =
-  | Ok
-  | Toggle of string
+type model = unit -> (Expr.term * Expr.term) list
 
-type _ Dispatcher.msg += Found : res -> ret Dispatcher.msg
+type proof = S.Proof.proof
 
-let push s = function
-  | Dispatcher.Ok -> ()
-  | Dispatcher.Ret ret -> Stack.push ret s
-  | Dispatcher.Directive _ -> ()
+type res =
+  | Sat of model
+  | Unsat of proof
+  | Unknown
 
-let do_pre = function
-  | Ok -> ()
-  | Toggle ext -> Dispatcher.Plugin.deactivate ext
+(* Proof replay helpers *)
+(* ************************************************************************ *)
 
-let do_post = function
-  | Ok -> ()
-  | Toggle ext -> Dispatcher.Plugin.activate ext
+type unsat_ret =
+  | Unsat_ok
+
+type sat_ret =
+  | Sat_ok
+  | Assume of Expr.formula list
+
+type _ Dispatcher.msg +=
+  | Found_sat : model -> sat_ret Dispatcher.msg
+  | Found_unsat : proof -> unsat_ret Dispatcher.msg
+  | Found_unknown : unit -> unit Dispatcher.msg
 
 (* Solving module *)
 (* ************************************************************************ *)
 
-module Smt = Msat.Internal.Make(Dispatcher.SolverTypes)(Dispatcher.SolverTheory)()
+let if_sat acc = function
+  | None -> acc
+  | Some Sat_ok -> acc
+  | Some Assume l ->
+    begin match acc with
+      | None -> Some l
+      | Some l' -> Some (l @ l')
+    end
 
-module Dot = Msat.Dot.Make(Smt.Proof)(struct
-    let print_atom = Dispatcher.SolverTypes.print_atom
-    let lemma_info p =
-      let name, color, t_args, f_args = Dispatcher.proof_debug p in
-      name, color,
-      List.map (fun t -> (fun fmt () -> Expr.Print.term fmt t)) t_args @
-      List.map (fun f -> (fun fmt () -> Expr.Print.formula fmt f)) f_args
-  end)
+let rec solve_aux ?(assumptions = []) () =
+  match begin
+    let () = S.pop () in
+    let () = S.push () in
+    let () = S.local assumptions in
+    let () = S.solve () in
+    Util.debug ~section 1 "Found SAT";
+    let model = Dispatcher.model in
+    Dispatcher.handle if_sat None (Found_sat model)
+  end with
+  | None -> Sat Dispatcher.model
+  | Some assumptions ->
+    solve_aux ~assumptions ()
+  | exception S.Unsat ->
+    let proof =
+      match S.unsat_conflict () with
+      | None -> assert false
+      | Some c -> S.Proof.prove_unsat c
+    in
+    Unsat proof
 
-(* Solving *)
-let solve_aux () =
-  match Smt.solve () with
-  | () -> Sat
-  | exception Smt.Unsat -> Unsat
-  | exception Dispatcher.Unknown -> Unknown
-
-let rec solve () =
+let solve () =
   Util.enter_prof section;
-  let lvl = Smt.push () in
   let res = solve_aux () in
-  Util.debug ~section 0 "Solution found : %a" pp_res res;
-  let s = Stack.create () in
-  Dispatcher.handle (fun ret () -> push s ret) () (Found res);
-  let res' =
-    if not (Stack.is_empty s) then begin
-      Util.debug ~section 0 "Restarting...";
-      Smt.pop lvl;
-      Stack.iter do_pre s;
-      let tmp = solve () in
-      Stack.iter do_post s;
-      tmp
-    end else res
-  in
   Util.exit_prof section;
-  res'
+  res
 
 let assume l =
   Util.enter_prof section;
   let l = List.map (List.map Dispatcher.pre_process) l in
   List.iter (fun cl -> Util.debug ~section 1 "Assuming : %a"
                 (CCPrint.list ~sep:"; " Expr.Debug.formula) cl) l;
-  begin match Smt.assume l with
-    | () -> ()
-    | exception Smt.Unsat -> ()
-  end;
+  let () = S.assume l in
   Util.exit_prof section
 
-(* Model output *)
-let model = Smt.model
-
-let full_model = Dispatcher.model
-
-(* Proof output *)
-type proof = Smt.Proof.proof
-
-let get_proof () =
-  match Smt.unsat_conflict () with
-  | None -> assert false
-  | Some c -> Smt.Proof.prove_unsat c
-
-let print_dot_proof = Dot.print
-
-let unsat_core p =
-  Smt.Proof.(
-    fold (fun l node ->
-        match node.step with
-        | Hypothesis ->
-          List.map (fun a -> Dispatcher.SolverTypes.(a.lit))
-            (Smt.Proof.to_list node.conclusion) :: l
-        | _ -> l) [] p)
-
-let print_unsat_core fmt l =
-  List.iter (fun c ->
-      Format.fprintf fmt "%a\n"
-        Expr.Print.formula (Expr.Formula.f_or c)) l
 

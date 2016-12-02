@@ -3,14 +3,6 @@
 
 (** {2 Types for message} *)
 
-type directive = ..
-(** Directives are used in the return values of message handlers to
-    pass generic information. *)
-
-type directive += Restart
-(** This directive instructs the dispatcher and the solver that a restart is
-    needed. *)
-
 type 'ret msg = ..
 (** Messages are arbitrary data that can be sent to extensions, and expect
     an answer of type ['ret option].
@@ -21,13 +13,6 @@ type _ msg += If_sat : ((Expr.formula -> unit) -> unit) -> unit msg
 (** This message contains a function to iter over current assumptions.
     It is sent at the end of each round of solving, i.e whenever the sat solver
     returns a model. *)
-
-type 'ret result =
-  | Ok
-  | Ret of 'ret
-  | Directive of directive
-  (** The type that should be returned by extension upon reception
-      of a ['ret msg]. *)
 
 (** {2 Type for lemmas} *)
 
@@ -45,7 +30,6 @@ module SolverExpr : Msat.Expr_intf.S
   with type Term.t = Expr.term
    and type Formula.t = Expr.formula
    and type proof = lemma
-
 
 module SolverTypes : Msat.Solver_types.S
   with type term = Expr.term
@@ -93,7 +77,7 @@ val proof_debug : lemma -> string * string option * Expr.term list * Expr.formul
 type ext
 (** Type of plugins/extensions *)
 
-type handle = { handle : 'ret. 'ret msg -> 'ret result; }
+type handle = { handle : 'ret. 'ret msg -> 'ret option; }
 (** Type for message handlers. Enclosed in a record to ensure full polymorphism *)
 
 val mk_ext :
@@ -113,7 +97,7 @@ val send : unit msg -> unit
 (** Send the given message to all extensions, ignoring any exception raised
     during the handling of the message. *)
 
-val handle : ('ret result -> 'acc -> 'acc) -> 'acc -> 'ret msg -> 'acc
+val handle : ('acc -> 'ret option -> 'acc) -> 'acc -> 'ret msg -> 'acc
 (** Fold over the results of handlers for a given message *)
 
 val pre_process : Expr.formula -> Expr.formula
