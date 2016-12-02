@@ -1,4 +1,7 @@
 
+(* The Dolmen library is used to parse input languages *)
+(* ************************************************************************ *)
+
 module P = Dolmen.Logic.Make
     (Dolmen.ParseLocation)
     (Dolmen.Id)
@@ -6,4 +9,5 @@ module P = Dolmen.Logic.Make
     (Dolmen.Statement)
 
 include P
+
 

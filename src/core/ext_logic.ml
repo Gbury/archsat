@@ -58,12 +58,11 @@ let tab = function
   (* Other formulas (not treated) *)
   | _ -> ()
 
-let tab_assume (f, i) =
-    try
-      ignore (H.find st f)
-    with Not_found ->
+let tab_assume f =
+    if not (H.mem st f) then begin
       tab f;
-      H.add st f i
+      H.add st f true
+    end
 
 ;;
 Dispatcher.Plugin.register "logic"

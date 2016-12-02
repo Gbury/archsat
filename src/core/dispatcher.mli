@@ -99,8 +99,8 @@ type handle = { handle : 'ret. 'ret msg -> 'ret result; }
 val mk_ext :
   section:Util.Section.t ->
   ?peek:(Expr.formula -> unit) ->
-  ?assume:(Expr.formula * int -> unit) ->
-  ?eval_pred:(Expr.formula -> (bool * int) option) ->
+  ?assume:(Expr.formula -> unit) ->
+  ?eval_pred:(Expr.formula -> (bool * Expr.term list) option) ->
   ?handle:handle ->
   ?preprocess:(Expr.formula -> (Expr.formula * lemma) option) -> unit -> ext
 (** Generate a new extension with defaults values. *)
@@ -135,7 +135,7 @@ val stack : Backtrack.Stack.t
 val push : Expr.formula list -> lemma -> unit
 (** Push the given clause to the sat solver. *)
 
-val propagate : Expr.formula -> int -> unit
+val propagate : Expr.formula -> Expr.term list -> unit
 (** Propagate the given formula at the given evaluation level. *)
 
 (** {2 Model operations} *)
@@ -143,11 +143,11 @@ val propagate : Expr.formula -> int -> unit
 val get_truth : Expr.formula -> bool option
 (** Returns the current truth value of a given formula, if it is decided. *)
 
-val get_assign : Expr.term -> Expr.term * int
-(** [get_assign t] Returns the current assignment of [t] and its level, if it exists.
+val get_assign : Expr.term -> Expr.term
+(** [get_assign t] Returns the current assignment of [t], if it exists.
     @raise Not_assigned if the term isn't assigned *)
 
-val set_assign : Expr.term -> Expr.term -> int -> unit
+val set_assign : Expr.term -> Expr.term -> unit
 (** [set_assign t v lvl] sets the assignment of [t] to [v], with level [lvl].
     May erase previous assignment of [t]. *)
 

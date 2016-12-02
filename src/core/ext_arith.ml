@@ -31,9 +31,10 @@ let val_to_q = function
 let evaluate_aux t =
   Arith.M.fold (fun e c acc ->
       match Dispatcher.get_assign e with
-      | ({ Expr.term = Expr.App ({ Expr.builtin = B.Val v}, [], []) }, _) ->
+      | { Expr.term = Expr.App ({ Expr.builtin = B.Val v}, [], []) } ->
         CCOpt.map (fun acc -> Q.(acc + c * val_to_q v)) acc
-      | _ -> None) t.Arith.Lit.sum (Some (val_to_q t.Arith.Lit.const))
+      | _ -> None
+    ) t.Arith.Lit.sum (Some (val_to_q t.Arith.Lit.const))
 
 let evaluate t = CCOpt.map evaluate_aux @@ Arith.Lit.parse_num t
 
@@ -41,3 +42,4 @@ let evaluate t = CCOpt.map evaluate_aux @@ Arith.Lit.parse_num t
 Dispatcher.Plugin.register "arith"
   ~descr:"Handles satisfiability of arithmetic formulas (work in progress, DO NOT USE)."
   (Dispatcher.mk_ext ~section ())
+

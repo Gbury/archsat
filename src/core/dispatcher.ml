@@ -43,23 +43,30 @@ type 'a job = {
 module SolverExpr = struct
 
   module Term = Expr.Term
-  module Formula = Expr.Formula
+
+  module Formula = struct
+    include Expr.Formula
+
+    let fresh () = assert false
+
+    let neg f = Expr.Formula.neg f
+
+    let norm = function
+      | { Expr.formula = Expr.False } ->
+        Expr.Formula.f_true, Msat.Expr_intf.Negated
+      | { Expr.formula = Expr.Not f } ->
+        f, Msat.Expr_intf.Negated
+      | f ->
+        f, Msat.Expr_intf.Same_sign
+
+    let dummy = Expr.Formula.f_true
+  end
 
   type proof = lemma
-
-  let dummy = Expr.Formula.f_true
-
-  let fresh () = assert false
-
-  let neg f = Expr.Formula.neg f
-
-  let norm = function
-    | { Expr.formula = Expr.False } -> Expr.Formula.f_true, true
-    | { Expr.formula = Expr.Not f } -> f, true
-    | f -> f, false
 end
 
-module SolverTypes = Msat.Solver_types.McMake(SolverExpr)
+
+module SolverTypes = Msat.Solver_types.McMake(SolverExpr)()
 
 (* Exceptions *)
 (* ************************************************************************ *)
@@ -111,10 +118,10 @@ type ext = {
   peek : (Expr.formula -> unit) option;
 
   (* Called on each formula that the solver assigns to true *)
-  assume : (Expr.formula * int -> unit) option;
+  assume : (Expr.formula -> unit) option;
 
   (* Evaluate a formula with the current assignments *)
-  eval_pred : (Expr.formula -> (bool * int) option) option;
+  eval_pred : (Expr.formula -> (bool * Expr.term list) option) option;
 
   (* Handle messages *)
   handle : 'ret 'acc. (
@@ -137,9 +144,9 @@ let mk_ext ~section ?peek ?assume ?eval_pred ?(handle: handle option) ?preproces
       | None -> None
       | Some h ->
         Some (fun (type ret) (type acc)
-          (fold : ret result -> acc -> acc)
-          (msg : ret msg) (acc: acc) ->
-            fold (profile section h.handle msg) acc
+               (fold : ret result -> acc -> acc)
+               (msg : ret msg) (acc: acc) ->
+               fold (profile section h.handle msg) acc
              );
   }
 
@@ -154,9 +161,9 @@ let merge_iter a b = merge_opt (fun f f' -> (function arg -> f arg; f' arg)) a b
 let merge_first a b =
   merge_opt (fun f f' ->
       (function arg ->
-        match f arg with
-        | (Some _) as res -> res
-        | None -> f' arg
+       match f arg with
+       | (Some _) as res -> res
+       | None -> f' arg
       )) a b
 
 let merge_preprocess f p =
@@ -264,6 +271,9 @@ let do_propagate propagate =
     propagate t lvl
   done
 
+let clean_propagate () =
+  Stack.clear propagate_stack
+
 let do_push f =
   while not (Stack.is_empty push_stack) do
     let (a, p) = Stack.pop push_stack in
@@ -361,7 +371,7 @@ let add_job job t =
 
 let call_job j =
   if CCOpt.(get true (j.job_formula >>= eval_f))
-     && j.job_done < !last_backtrack then begin
+  && j.job_done < !last_backtrack then begin
     j.job_done <- !last_backtrack;
     profile j.job_section j.job_callback ()
   end
@@ -448,22 +458,23 @@ let rec assign_watch t = function
     end;
     assign_watch t r
 
-and set_assign t v lvl =
+and set_assign t v =
   Util.enter_prof section;
   try
-    let v', lvl' = M.find eval_map t in
-    Util.debug ~section 5 "Assigned (%d) : %a -> %a / %a" lvl' Expr.Debug.term t Expr.Debug.term v' Expr.Debug.term v;
+    let v' = M.find eval_map t in
+    Util.debug ~section 5 "Assigned : %a -> %a / %a"
+      Expr.Debug.term t Expr.Debug.term v' Expr.Debug.term v;
     if not (Expr.Term.equal v v') then
       _fail "Incoherent assignments";
     Util.exit_prof section
   with Not_found ->
-    Util.debug ~section 5 "Assign (%d) : %a -> %a" lvl Expr.Debug.term t Expr.Debug.term v;
-    M.add eval_map t (v, lvl);
+    Util.debug ~section 5 "Assign : %a -> %a" Expr.Debug.term t Expr.Debug.term v;
+    M.add eval_map t v;
     let l = try hpop watch_map t with Not_found -> [] in
     Util.debug ~section 10 " Found %d watchers" (List.length l);
     assign_watch t l
 
-let model () = M.fold eval_map (fun t (v, _) acc -> (t, v) :: acc) []
+let model () = M.fold eval_map (fun t v acc -> (t, v) :: acc) []
 
 (* Mcsat Plugin functions *)
 (* ************************************************************************ *)
@@ -475,27 +486,7 @@ module SolverTheory = struct
 
   type proof = lemma
 
-  type assumption =
-    | Lit of formula
-    | Assign of term * term
-
-  type slice = {
-    start : int;
-    length : int;
-    get : int -> assumption * int;
-    push : formula list -> proof -> unit;
-    propagate : formula -> int -> unit;
-  }
-
   type level = Backtrack.Stack.level
-
-  type res =
-    | Sat
-    | Unsat of formula list * proof
-
-  type eval_res =
-    | Valued of bool * int
-    | Unknown
 
   let dummy = Backtrack.Stack.dummy_level
 
@@ -508,18 +499,19 @@ module SolverTheory = struct
     Backtrack.Stack.backtrack stack lvl
 
   let assume s =
+    let open Msat.Plugin_intf in
     Util.enter_prof section;
     Util.debug ~section 5 "New slice of length %d" s.length;
     try
       let assume_aux = plugin_assume () in
       for i = s.start to s.start + s.length - 1 do
         match s.get i with
-        | Lit f, lvl ->
-          Util.debug ~section 5 " Assuming (%d) %a" lvl Expr.Debug.formula f;
-          assume_aux (f, lvl)
-        | Assign (t, v), lvl ->
-          Util.debug ~section 5 " Assuming (%d) %a -> %a" lvl Expr.Debug.term t Expr.Debug.term v;
-          set_assign t v lvl
+        | Lit f ->
+          Util.debug ~section 5 " Assuming %a" Expr.Debug.formula f;
+          assume_aux f
+        | Assign (t, v) ->
+          Util.debug ~section 5 " Assuming %a -> %a" Expr.Debug.term t Expr.Debug.term v;
+          set_assign t v
       done;
       Util.exit_prof section;
       Util.debug ~section 8 "Propagating (%d)" (Stack.length propagate_stack);
@@ -527,15 +519,17 @@ module SolverTheory = struct
       do_push s.push;
       Sat
     with Absurd (l, p) ->
+      clean_propagate ();
       Util.debug ~section 5 "Conflict '%s'" p.proof_name;
       List.iter (fun f -> Util.debug ~section 5 " |- %a" Expr.Debug.formula f) l;
       Util.exit_prof section;
       Unsat (l, p)
 
   let if_sat_iter s f =
+    let open Msat.Plugin_intf in
     for i = s.start to s.start + s.length - 1 do
       match s.get i with
-      | Lit g, _ -> f g
+      | Lit g -> f g
       | _ -> ()
     done
 
@@ -550,8 +544,10 @@ module SolverTheory = struct
     Util.debug ~section 0 "Iteration with complete model";
     let b = handle if_sat_aux false (If_sat (if_sat_iter s)) in
     Util.exit_prof section;
-    do_push s.push;
-    if b then raise Unknown
+    assert (Stack.is_empty propagate_stack);
+    do_push s.Msat.Plugin_intf.push;
+    if b then raise Unknown;
+    Msat.Plugin_intf.Sat
 
   let assign t =
     Util.enter_prof section;
@@ -583,13 +579,15 @@ module SolverTheory = struct
     Util.exit_prof section
 
   let debug_eval_res buf = function
-    | Unknown -> Printf.bprintf buf "<unknown>"
-    | Valued (b, lvl) -> Printf.bprintf buf "%B (%d)" b lvl
+    | Msat.Plugin_intf.Unknown ->
+      Printf.bprintf buf "<unknown>"
+    | Msat.Plugin_intf.Valued (b, l) ->
+      Printf.bprintf buf "%B (%a)" b (CCPrint.list Expr.Term.debug) l
 
   let eval_aux f =
     match plugin_eval_pred f with
-    | None -> Unknown
-    | Some (b, lvl) -> Valued (b, lvl)
+    | None -> Msat.Plugin_intf.Unknown
+    | Some (b, l) -> Msat.Plugin_intf.Valued (b, l)
 
   let eval formula =
     Util.enter_prof section;

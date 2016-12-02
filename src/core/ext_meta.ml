@@ -207,36 +207,36 @@ let do_formula =
 let do_meta_inst = function
   | { Expr.formula = Expr.All (l, _, p) } as f ->
     let i = get_nb_metas f in
-    Util.debug ~section 5 "new_meta (%d/%d) : %a" !i !meta_max Expr.Debug.formula f;
     if !i < !meta_max then begin
       incr i;
+      Util.debug ~section 5 "new_meta (%d/%d) : %a" !i !meta_max Expr.Debug.formula f;
       let metas = Expr.Meta.of_all f in
       let u = List.fold_left (fun s m -> Unif.bind_term s m (Expr.Term.of_meta m)) Unif.empty metas in
       if not (Inst.add ~delay:(delay !i) u) then assert false
     end
   | { Expr.formula = Expr.Not { Expr.formula = Expr.Ex (l, _, p) } } as f ->
     let i = get_nb_metas f in
-    Util.debug ~section 5 "new_meta (%d/%d) : %a" !i !meta_max Expr.Debug.formula f;
     if !i < !meta_max then begin
       incr i;
+      Util.debug ~section 5 "new_meta (%d/%d) : %a" !i !meta_max Expr.Debug.formula f;
       let metas = Expr.Meta.of_all f in
       let u = List.fold_left (fun s m -> Unif.bind_term s m (Expr.Term.of_meta m)) Unif.empty metas in
       if not (Inst.add ~delay:(delay !i) u) then assert false
     end
   | { Expr.formula = Expr.AllTy (l, _, p) } as f ->
     let i = get_nb_metas f in
-    Util.debug ~section 5 "new_meta (%d/%d) : %a" !i !meta_max Expr.Debug.formula f;
     if !i < !meta_max then begin
       incr i;
+      Util.debug ~section 5 "new_meta (%d/%d) : %a" !i !meta_max Expr.Debug.formula f;
       let metas = Expr.Meta.of_all_ty f in
       let u = List.fold_left (fun s m -> Unif.bind_ty s m (Expr.Ty.of_meta m)) Unif.empty metas in
       if not (Inst.add ~delay:(delay !i) u) then assert false
     end
   | { Expr.formula = Expr.Not { Expr.formula = Expr.ExTy (l, _, p) } } as f ->
     let i = get_nb_metas f in
-    Util.debug ~section 5 "new_meta (%d/%d) : %a" !i !meta_max Expr.Debug.formula f;
     if !i < !meta_max then begin
       incr i;
+      Util.debug ~section 5 "new_meta (%d/%d) : %a" !i !meta_max Expr.Debug.formula f;
       let metas = Expr.Meta.of_all_ty f in
       let u = List.fold_left (fun s m -> Unif.bind_ty s m (Expr.Ty.of_meta m)) Unif.empty metas in
       if not (Inst.add ~delay:(delay !i) u) then assert false
@@ -244,7 +244,7 @@ let do_meta_inst = function
   | _ -> assert false
 
 (* Assuming function *)
-let meta_assume (f, _) = do_formula f
+let meta_assume = do_formula
 
 (* Finding instanciations *)
 (* ************************************************************************ *)

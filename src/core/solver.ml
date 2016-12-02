@@ -48,8 +48,6 @@ module Dot = Msat.Dot.Make(Smt.Proof)(struct
   end)
 
 (* Solving *)
-type level = Smt.level
-
 let solve_aux () =
   match Smt.solve () with
   | () -> Sat
@@ -86,11 +84,6 @@ let assume l =
     | exception Smt.Unsat -> ()
   end;
   Util.exit_prof section
-
-(* Push/Pop options *)
-let push = Smt.push
-
-let pop = Smt.pop
 
 (* Model output *)
 let model = Smt.model

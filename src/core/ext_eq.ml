@@ -80,9 +80,9 @@ let eq_assign x =
     raise (D.Absurd (mk_expl (a, b, l), mk_proof l))
 
 let eq_assume = function
-  | ({ Expr.formula = Expr.Equal (a, b)}, _) ->
+  | { Expr.formula = Expr.Equal (a, b)} ->
     wrap E.add_eq a b;
-  | ({ Expr.formula = Expr.Not { Expr.formula = Expr.Equal (a, b)} }, _) ->
+  | { Expr.formula = Expr.Not { Expr.formula = Expr.Equal (a, b)} } ->
     wrap E.add_neq a b;
   | _ -> ()
 

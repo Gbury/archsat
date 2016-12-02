@@ -194,7 +194,10 @@ let handle : type ret. ret Dispatcher.msg -> ret Dispatcher.result = function
 (* ************************************************************************ *)
 
 let eval = function
-  | { Expr.formula = Expr.Pred { Expr.term = Expr.App ({ Expr.builtin = Acc _ }, _, _) } } -> Some (false, 0)
+  | { Expr.formula = Expr.Pred
+          {Expr.term = Expr.App (
+               {Expr.builtin = Acc _ }, _, _) } } ->
+    Some (false, [])
   | _ -> None
 
 let options =

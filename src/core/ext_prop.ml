@@ -2,10 +2,10 @@
 let section = Util.Section.make ~parent:Dispatcher.section "prop"
 
 let sat_assume = function
-  | { Expr.formula = Expr.Pred ({Expr.term = Expr.App (p, _, _)} as t)}, lvl ->
-    Dispatcher.set_assign t Builtin.Misc.p_true lvl
-  | { Expr.formula = Expr.Not {Expr.formula = Expr.Pred ({Expr.term = Expr.App (p, _, _)} as t)}}, lvl ->
-    Dispatcher.set_assign t Builtin.Misc.p_false lvl
+  | { Expr.formula = Expr.Pred ({Expr.term = Expr.App (p, _, _)} as t)} ->
+    Dispatcher.set_assign t Builtin.Misc.p_true (-1)
+  | { Expr.formula = Expr.Not {Expr.formula = Expr.Pred ({Expr.term = Expr.App (p, _, _)} as t)}} ->
+    Dispatcher.set_assign t Builtin.Misc.p_false (-1)
   | _ -> ()
 
 let sat_assign = function

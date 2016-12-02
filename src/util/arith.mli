@@ -26,4 +26,5 @@ module Lit : sig
   val times : Builtin.Arith.value -> t -> t
 
   val parse_num : Expr.term -> t option
+
 end

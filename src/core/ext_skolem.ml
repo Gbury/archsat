@@ -23,7 +23,7 @@ let has_been_seen f =
   try ignore (H.find seen f); true
   with Not_found -> false
 
-let mark f lvl = H.add seen f lvl
+let mark f = H.add seen f 0
 
 (* Proof generation *)
 let mk_proof_ty f p l taus = Dispatcher.mk_proof "skolem"
@@ -44,10 +44,10 @@ let get_term_taus ty_args t_args l = match !inst with
   | Tau -> List.map Expr.(fun v -> Term.apply (Id.term_fun ("t_" ^ v.id_name) [] [] v.id_type) [] []) l
   | Skolem -> List.map (fun v -> Expr.Term.apply (Expr.Id.term_skolem v) ty_args t_args) l
 
-let tau lvl = function
+let tau = function
   | { Expr.formula = Expr.Ex (l, (ty_args, t_args), p) } as f ->
     if not (has_been_seen f) then begin
-      mark f lvl;
+      mark f;
       let taus = get_term_taus ty_args t_args l in
       let subst = List.fold_left2 (fun s v t -> Expr.Subst.Id.bind v t s) Expr.Subst.empty l taus in
       let q = Expr.Formula.subst Expr.Subst.empty subst p in
@@ -55,7 +55,7 @@ let tau lvl = function
     end
   | { Expr.formula = Expr.Not { Expr.formula = Expr.All (l, (ty_args, t_args), p) } } as f ->
     if not (has_been_seen f) then begin
-      mark f lvl;
+      mark f;
       let taus = get_term_taus ty_args t_args l in
       let subst = List.fold_left2 (fun s v t -> Expr.Subst.Id.bind v t s) Expr.Subst.empty l taus in
       let q = Expr.Formula.subst Expr.Subst.empty subst p in
@@ -63,7 +63,7 @@ let tau lvl = function
     end
   | { Expr.formula = Expr.ExTy (l, (ty_args, t_args), p) } as f ->
     if not (has_been_seen f) then begin
-      mark f lvl;
+      mark f;
       let taus = get_ty_taus ty_args t_args l in
       let subst = List.fold_left2 (fun s v t -> Expr.Subst.Id.bind v t s) Expr.Subst.empty l taus in
       let q = Expr.Formula.subst subst Expr.Subst.empty p in
@@ -72,7 +72,7 @@ let tau lvl = function
   | { Expr.formula = Expr.Not { Expr.formula = Expr.AllTy (l, (ty_args, t_args), p) } } as f ->
     assert (t_args = []);
     if not (has_been_seen f) then begin
-      mark f lvl;
+      mark f;
       let taus = get_ty_taus ty_args t_args l in
       let subst = List.fold_left2 (fun s v t -> Expr.Subst.Id.bind v t s) Expr.Subst.empty l taus in
       let q = Expr.Formula.subst subst Expr.Subst.empty p in
@@ -80,8 +80,6 @@ let tau lvl = function
     end
   (* TODO: Taus for types ? *)
   | _ -> ()
-
-let tau_assume (f, i) = tau i f
 
 let opts =
   let docs = Options.ext_sect in
@@ -98,5 +96,5 @@ let opts =
 ;;
 Dispatcher.Plugin.register "skolem" ~options:opts
   ~descr:"Generate skolem or tau for existencially quantified formulas (see options)."
-  (Dispatcher.mk_ext ~section ~assume:tau_assume ())
+  (Dispatcher.mk_ext ~section ~assume:tau ())
 
