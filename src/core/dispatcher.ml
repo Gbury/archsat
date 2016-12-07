@@ -71,7 +71,6 @@ module SolverTypes = Msat.Solver_types.McMake(SolverExpr)()
 (* Exceptions *)
 (* ************************************************************************ *)
 
-exception Unknown
 exception Bad_assertion of string
 exception Absurd of Expr.formula list * lemma
 
@@ -123,7 +122,9 @@ type ext = {
   preprocess : (Expr.formula -> (Expr.formula * lemma) option) option;
 }
 
-let mk_ext ~section ?peek ?assume ?eval_pred ?(handle: handle option) ?preprocess () =
+let mk_ext
+    ~section ?(handle: handle option)
+    ?peek ?assume ?eval_pred ?preprocess () =
   Util.Stats.attach section stats_group;
   {
     section;
@@ -179,8 +180,8 @@ let merge_exts ~high ~low =
                (fold : acc -> ret option -> acc)
                (acc: acc) (msg : ret msg)
                ->
-               let acc' = h fold acc msg in
-               h' fold acc' msg
+                 let acc' = h fold acc msg in
+                 h' fold acc' msg
              )
     end;
   }

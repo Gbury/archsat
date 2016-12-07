@@ -55,10 +55,6 @@ exception Absurd of Expr.formula list * lemma
 (** To be raised by extensions in their 'assume' function
     when an unsatisfiable set of formulas as been assumed. *)
 
-exception Unknown
-(** Raised by this module to force a restart of the solver.
-    Should *NOT* be used by extensions. *)
-
 (** {2 Proof management} *)
 
 val mk_proof : string ->
@@ -82,11 +78,12 @@ type handle = { handle : 'ret. 'ret msg -> 'ret option; }
 
 val mk_ext :
   section:Util.Section.t ->
+  ?handle:handle ->
   ?peek:(Expr.formula -> unit) ->
   ?assume:(Expr.formula -> unit) ->
   ?eval_pred:(Expr.formula -> (bool * Expr.term list) option) ->
-  ?handle:handle ->
-  ?preprocess:(Expr.formula -> (Expr.formula * lemma) option) -> unit -> ext
+  ?preprocess:(Expr.formula -> (Expr.formula * lemma) option) ->
+  unit -> ext
 (** Generate a new extension with defaults values. *)
 
 module Plugin : Extension.S with type ext = ext

@@ -12,19 +12,19 @@ let watch = D.watch name
 let eq_eval = function
   | { Expr.formula = Expr.Equal (a, b) } as f ->
     begin try
-        let a', lvl_a = D.get_assign a in
-        let b', lvl_b = D.get_assign b in
-        Util.debug ~section 30 "Eval [%a] %a (%d) == %a (%d)" Expr.Debug.formula f Expr.Debug.term a' lvl_a Expr.Debug.term b' lvl_b;
-        Some (Expr.Term.equal a' b', max lvl_a lvl_b)
+        let a' = D.get_assign a in
+        let b' = D.get_assign b in
+        Util.debug ~section 30 "Eval [%a] %a == %a" Expr.Debug.formula f Expr.Debug.term a' Expr.Debug.term b';
+        Some (Expr.Term.equal a' b', [a; b])
       with D.Not_assigned _ ->
         None
     end
   | { Expr.formula = Expr.Not { Expr.formula = Expr.Equal (a, b) } } as f ->
     begin try
-        let a', lvl_a = D.get_assign a in
-        let b', lvl_b = D.get_assign b in
-        Util.debug ~section 30 "Eval [%a] %a (%d) <> %a (%d)" Expr.Debug.formula f Expr.Debug.term a' lvl_a Expr.Debug.term b' lvl_b;
-        Some (not (Expr.Term.equal a' b'), max lvl_a lvl_b)
+        let a' = D.get_assign a in
+        let b' = D.get_assign b in
+        Util.debug ~section 30 "Eval [%a] %a <> %a" Expr.Debug.formula f Expr.Debug.term a' Expr.Debug.term b';
+        Some (not (Expr.Term.equal a' b'), [a; b])
       with D.Not_assigned _ ->
         None
     end
@@ -58,9 +58,9 @@ let wrap f x y =
 let tag x = fun () ->
   try
     Util.debug ~section 10 "Tagging %a" Expr.Debug.term x;
-    E.add_tag st x (fst (D.get_assign x))
+    E.add_tag st x (D.get_assign x)
   with E.Unsat (a, b, l) ->
-    Util.debug ~section 2 "Error while tagging : %a -> %a" Expr.Debug.term x Expr.Debug.term (fst (D.get_assign x));
+    Util.debug ~section 2 "Error while tagging : %a -> %a" Expr.Debug.term x Expr.Debug.term (D.get_assign x);
     let res = mk_expl (a, b, l) in
     let proof = mk_proof l in
     raise (D.Absurd (res, proof))
@@ -73,7 +73,7 @@ let eq_assign x =
         v
       | x, None ->
         Util.debug ~section 5 "Looking up repr : %a" Expr.Debug.term x;
-        let res = try fst (D.get_assign x) with D.Not_assigned _ -> x in
+        let res = try D.get_assign x with D.Not_assigned _ -> x in
         res
     end
   with E.Unsat (a, b, l) ->

@@ -47,11 +47,6 @@ let delete_alarm () = match !al with
     al := None
   | None -> ()
 
-(* Model printing *)
-let get_model () =
-  List.sort (fun (t, _) (t', _) -> Expr.Term.compare t t')
-     (Solver.full_model ())
-
 (* Logging *)
 let start_section l s =
   Util.debug l "=== %s %s" s (String.make (64 - String.length s) '=')
@@ -63,9 +58,6 @@ let prelude_strings opt =
   | Some l ->
     let s = Format.asprintf "(%s)# @?" (In.string_of_language l) in
     s, String.make (String.length s) ' '
-
-(* Level stack for push/pop operations *)
-let level_stack = Stack.create ()
 
 (* Execute given command *)
 let rec do_command opt = function
@@ -82,18 +74,6 @@ let rec do_command opt = function
   (* Pack of commands *)
   | { S.descr = S.Pack l } ->
     do_commands opt (Gen.of_list l)
-
-  (* Push/pop options *)
-  | { S.descr = S.Push i } ->
-    start_section 0 "Push";
-    for _ = 1 to i do
-      Stack.push (Solver.push ()) level_stack
-    done
-  | { S.descr = S.Pop i } ->
-    start_section 0 "Pop";
-    for _ = 1 to i do
-      Solver.pop (Stack.pop level_stack)
-    done
 
   (* Declarations and definitions *)
   | { S.descr = S.Decl (id, t) } ->
@@ -130,20 +110,13 @@ let rec do_command opt = function
       start_section 0 "Solve";
       begin match Solver.solve () with
         (* Model found *)
-        | Solver.Sat ->
+        | Solver.Sat _ ->
           Out.print_sat opt.out;
           (* Io.print_model opt.model_out (get_model ()); *)
           ()
         (* Proof found *)
-        | Solver.Unsat ->
-          Out.print_unsat opt.out;
-          if opt.proof.active then begin
-            let proof = Solver.get_proof () in
-            CCOpt.iter (fun fmt ->
-                Solver.print_dot_proof fmt proof) opt.proof.dot;
-            CCOpt.iter (fun fmt ->
-                Solver.print_unsat_core fmt (Solver.unsat_core proof)) opt.proof.unsat_core;
-          end
+        | Solver.Unsat proof ->
+          Out.print_unsat opt.out
         (* No concrete result *)
         | Solver.Unknown ->
           Out.print_unknown opt.out
@@ -155,8 +128,9 @@ let rec do_command opt = function
     raise (Exit 0)
 
   | c ->
-    Format.fprintf opt.out "The following command is not yet understood:@\n%a"
-      Dolmen.Statement.print c
+    Util.debug 0
+      "The following command is not yet understood: %a"
+      Dolmen.Statement.pp c
 
 and do_commands opt commands =
   let prelude, pre_space = prelude_strings opt in

@@ -45,15 +45,15 @@ let inst_remaining r =
   CCVector.set state.instanciations s (i, r)
 
 (* Print stats and prep for next round *)
-let handle : type ret. ret Dispatcher.msg -> ret Dispatcher.result = function
+let handle : type ret. ret Dispatcher.msg -> ret option = function
   | Dispatcher.If_sat _ ->
     print_state state;
     if !max_rounds >= 0 && state.cur_round >= !max_rounds then
       raise (Extension.Abort (
           "stats", Format.sprintf "Maximum number of rounds reached (%d)" !max_rounds));
     init_round state;
-    Dispatcher.Ret ()
-  | _ -> Dispatcher.Ok
+    Some ()
+  | _ -> None
 
 (* Extension registering *)
 (* ************************************************************************ *)

@@ -225,18 +225,14 @@ let rec decr_delay () =
       decr_delay ()
   end
 
-let rec inst_sat : type ret. ret Dispatcher.msg -> ret Dispatcher.result = function
-  | Dispatcher.If_sat _ as r ->
+let rec inst_sat : type ret. ret Dispatcher.msg -> ret option = function
+  | Dispatcher.If_sat _ ->
     decr_delay ();
     fold push () !inst_incr;
-    if not (Q.is_empty !heap) then
-      inst_sat r
-    else begin
-      Stats.inst_remaining (Q.size !heap);
-      Inst.clock ();
-      Dispatcher.Ret ()
-    end
-  | _ -> Dispatcher.Ok
+    Stats.inst_remaining (Q.size !heap);
+    Inst.clock ();
+    Some ()
+  | _ -> None
 
 (* Extension registering *)
 (* ************************************************************************ *)

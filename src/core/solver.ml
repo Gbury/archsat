@@ -4,14 +4,22 @@ let section = Dispatcher.solver_section
 (* Msat instanciation *)
 (* ************************************************************************ *)
 
-module S = Msat.Internal.Make(Dispatcher.SolverTypes)(Dispatcher.SolverTheory)()
+module S = Msat.Internal.Make
+    (Dispatcher.SolverTypes)
+    (Dispatcher.SolverTheory)
+    ()
 
 (* Proof replay helpers *)
 (* ************************************************************************ *)
 
-type model = unit -> (Expr.term * Expr.term) list
+type model = unit
+(** The type of models for first order problems *)
+
+type view = (Expr.formula -> unit) -> unit
+(** A view of the trail when SAT is reached. *)
 
 type proof = S.Proof.proof
+(** A proof of UNSAT. *)
 
 type res =
   | Sat of model
@@ -26,23 +34,33 @@ type unsat_ret =
 
 type sat_ret =
   | Sat_ok
+  | Restart
   | Assume of Expr.formula list
 
 type _ Dispatcher.msg +=
-  | Found_sat : model -> sat_ret Dispatcher.msg
+  | Found_sat : view -> sat_ret Dispatcher.msg
   | Found_unsat : proof -> unsat_ret Dispatcher.msg
   | Found_unknown : unit -> unit Dispatcher.msg
 
 (* Solving module *)
 (* ************************************************************************ *)
 
+let if_sat_iter s f =
+  let open Msat.Plugin_intf in
+  for i = s.start to s.start + s.length - 1 do
+    match s.get i with
+    | Lit g -> f g
+    | _ -> ()
+  done
+
 let if_sat acc = function
-  | None -> acc
-  | Some Sat_ok -> acc
+  | None | Some Sat_ok -> acc
+  | Some Restart -> Restart
   | Some Assume l ->
     begin match acc with
-      | None -> Some l
-      | Some l' -> Some (l @ l')
+      | Restart -> Restart
+      | Sat_ok -> Assume l
+      | Assume l' -> Assume (l @ l')
     end
 
 let rec solve_aux ?(assumptions = []) () =
@@ -52,11 +70,13 @@ let rec solve_aux ?(assumptions = []) () =
     let () = S.local assumptions in
     let () = S.solve () in
     Util.debug ~section 1 "Found SAT";
-    let model = Dispatcher.model in
-    Dispatcher.handle if_sat None (Found_sat model)
+    let view = if_sat_iter (S.full_slice ()) in
+    Dispatcher.handle if_sat Sat_ok (Found_sat view)
   end with
-  | None -> Sat Dispatcher.model
-  | Some assumptions ->
+  | Sat_ok -> Sat ()
+  | Restart ->
+    solve_aux ()
+  | Assume assumptions ->
     solve_aux ~assumptions ()
   | exception S.Unsat ->
     let proof =

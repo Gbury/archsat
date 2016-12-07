@@ -3,15 +3,14 @@ let section = Util.Section.make ~parent:Dispatcher.section "prop"
 
 let sat_assume = function
   | { Expr.formula = Expr.Pred ({Expr.term = Expr.App (p, _, _)} as t)} ->
-    Dispatcher.set_assign t Builtin.Misc.p_true (-1)
+    Dispatcher.set_assign t Builtin.Misc.p_true
   | { Expr.formula = Expr.Not {Expr.formula = Expr.Pred ({Expr.term = Expr.App (p, _, _)} as t)}} ->
-    Dispatcher.set_assign t Builtin.Misc.p_false (-1)
+    Dispatcher.set_assign t Builtin.Misc.p_false
   | _ -> ()
 
 let sat_assign = function
   | { Expr.term = Expr.App (p, _, _) } as t (* when Expr.(Ty.equal t.t_type type_prop) *) ->
-    begin try
-        fst (Dispatcher.get_assign t)
+    begin try Dispatcher.get_assign t
       with Dispatcher.Not_assigned _ ->
         Builtin.Misc.p_true
     end
@@ -20,11 +19,11 @@ let sat_assign = function
 let rec sat_eval = function
   | { Expr.formula = Expr.Pred ({Expr.term = Expr.App (p, _, _)} as t)} ->
     begin try
-        let b, lvl = Dispatcher.get_assign t in
+        let b = Dispatcher.get_assign t in
         if Expr.Term.equal Builtin.Misc.p_true b then
-          Some (true, lvl)
+          Some (true, [b])
         else if Expr.Term.equal Builtin.Misc.p_false b then
-          Some (false, lvl)
+          Some (false, [b])
         else
           assert false
       with Dispatcher.Not_assigned _ ->

@@ -312,8 +312,8 @@ let rec unif_f st = function
     else
       unif_f st SuperAll
 
-let find_all_insts : type ret. ret Dispatcher.msg -> ret Dispatcher.result = function
-  | Dispatcher.If_sat model ->
+let find_all_insts : type ret. ret Dispatcher.msg -> ret option = function
+  | Solver.Found_sat model ->
     (* Create new metas *)
     if !meta_incr then begin
       Util.debug 1 "New metas to generate (%d formulas to inspect)" (H.length metas);
@@ -331,8 +331,8 @@ let find_all_insts : type ret. ret Dispatcher.msg -> ret Dispatcher.result = fun
         log 5 "Applying unification";
         unif_f st !unif_setting
     end;
-    Dispatcher.Ret ()
-  | _ -> Dispatcher.Ok
+    Some (Solver.Assume [])
+  | _ -> None
 
 (* Extension registering *)
 (* ************************************************************************ *)

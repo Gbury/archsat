@@ -12,8 +12,8 @@ let set_interpretation t = fun () ->
     match t with
     | { Expr.term = Expr.App (f, tys, l) } ->
       let is_prop = Expr.(Ty.equal t.t_type Ty.prop) in
-      let t_v, _ = Dispatcher.get_assign t in
-      let l' = List.map (fun x -> fst (Dispatcher.get_assign x)) l in
+      let t_v = Dispatcher.get_assign t in
+      let l' = List.map (fun x -> Dispatcher.get_assign x) l in
       let u = Expr.Term.apply f tys l' in
       begin try
           let t', u_v = H.find st u in
