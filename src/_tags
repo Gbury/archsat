@@ -1,5 +1,5 @@
 # Compilation options
-true: use_menhir, explain, color(always)
+true: color(always)
 
 <util>: include
 <base>: include
@@ -12,7 +12,7 @@ true: use_menhir, explain, color(always)
 <**/*.cm*>: debug
 
 # Package management
-<**/*.cm*>: for-pack(Archsat)
+<*/*.*>: for-pack(Archsat)
 
 <**/*>: package(unix), package(zarith), package(msat),     \
         package(cmdliner), package(ocamlgraph),            \

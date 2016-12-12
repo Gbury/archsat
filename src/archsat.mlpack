@@ -38,7 +38,6 @@ Ext_constraints
 ########################
 
 # Utilities modules
-Sig
 Util
 Arith
 Backtrack

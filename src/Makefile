@@ -11,19 +11,17 @@ LIB=$(addprefix $(NAME), .cma .cmxa .cmxs)
 
 all: bin
 
+top: lib
+	utop
+
 doc:
 	$(COMP) $(FLAGS) $(DOC)
 
-build-bin:
+bin:
 	$(COMP) $(FLAGS) $(BIN)
 
-bin: build-bin
-
-build-lib:
+lib:
 	$(COMP) $(FLAGS) $(LIB)
-
-lib: build-lib
-	@echo "Lib compiled."
 
 log:
 	cat _build/$(LOG) || true
@@ -31,4 +29,4 @@ log:
 clean:
 	$(COMP) -clean
 
-.PHONY: clean doc all bin lib build-bin build-lib
+.PHONY: clean doc all bin lib top

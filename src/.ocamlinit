@@ -1,10 +1,14 @@
-#require "gen";;
+
+#require "unix";;
+#require "ocamlgraph";;
+#require "cmdliner";;
+#require "msat";;
+#require "zarith";;
 #require "containers";;
 #require "containers.data";;
-#require "zarith";;
-#require "msat";;
-#require "cmdliner";;
-#require "ocamlgraph";;
+#require "dolmen";;
+#require "gen";;
+#require "oclock";;
 #directory "_build";;
 #load "archsat.cma";;
 

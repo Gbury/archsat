@@ -17,14 +17,14 @@ depends: [
   "msat"
   "zarith"
   "containers"
-  "menhir"
+  "dolmen"
   "gen"
   "oclock"
 ]
 available: [
   ocaml-version >= "4.02.1"
 ]
-tags: [ "sat" "smt" ]
+tags: [ "sat" "smt" "mcsat" "theorem proving" ]
 homepage: ""
 dev-repo: ""
 bug-reports: ""
