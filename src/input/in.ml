@@ -10,4 +10,3 @@ module P = Dolmen.Logic.Make
 
 include P
 
-

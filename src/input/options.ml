@@ -6,6 +6,13 @@ let log i fmt = Util.debug ~section i fmt
 
 open Cmdliner
 
+(* Exceptions *)
+(* ************************************************************************ *)
+
+exception Sigint
+exception Out_of_time
+exception Out_of_space
+
 (* Type definitions for common options *)
 (* ************************************************************************ *)
 

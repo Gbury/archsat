@@ -1,56 +1,34 @@
 
-(* IO settings *)
-(* ************************************************************************ *)
-
-open Options
-
-let output = ref Standard
-let input_file = ref ""
-let curr_output () = !output
-
-let set_output o = output := o
-let set_input_file f = input_file := f
-
 (* Output functions *)
 (* ************************************************************************ *)
 
-let start = ref 0.
+let print_sat opt =
+  match opt.Options.output_format with
+  | Options.SZS -> Szs.print_sat opt opt.Options.out
+  | Options.Standard -> Std.print_sat opt opt.Options.out
 
-let set_start () = start := Util.get_total_time ()
+let print_unsat opt =
+  match opt.Options.output_format with
+  | Options.SZS -> Szs.print_unsat opt opt.Options.out
+  | Options.Standard -> Std.print_unsat opt opt.Options.out
 
-let flush fmt = Format.fprintf fmt "@."
+let print_unknown opt =
+  match opt.Options.output_format with
+  | Options.SZS -> Szs.print_unknown opt opt.Options.out
+  | Options.Standard -> Std.print_unknown opt opt.Options.out
 
-let print_szs_status fmt status =
-  Format.fprintf fmt "%% SZS status %s for %s" status !input_file
+let print_timeout opt =
+  match opt.Options.output_format with
+  | Options.SZS -> Szs.print_timeout opt opt.Options.out
+  | Options.Standard -> Std.print_timeout opt opt.Options.out
 
-let print_res fmt status =
-  Format.fprintf fmt "%s (%.3f)" status (Util.get_total_time () -. !start)
+let print_spaceout opt =
+  match opt.Options.output_format with
+  | Options.SZS -> Szs.print_spaceout opt opt.Options.out
+  | Options.Standard -> Std.print_spaceout opt opt.Options.out
 
-let print_sat fmt = match !output with
-  | Standard -> Format.fprintf fmt "%a@." print_res "Sat"
-  | SZS -> Format.fprintf fmt "%a@." print_szs_status "CounterSatisfiable"
-
-let print_unsat fmt = match !output with
-  | Standard -> Format.fprintf fmt "%a@." print_res "Unsat"
-  | SZS -> Format.fprintf fmt "%a@." print_szs_status "Theorem"
-
-let print_unknown fmt = match !output with
-  | Standard -> Format.fprintf fmt "%a@." print_res "Unknown"
-  | SZS -> Format.fprintf fmt "%a@." print_szs_status "Unknown"
-
-let print_error fmt format = match !output with
-  | Standard ->
-    Format.fprintf fmt "%a@\n" print_res "Error";
-    Format.kfprintf flush fmt format
-  | SZS ->
-    Format.fprintf fmt "%a : " print_szs_status "Error";
-    Format.kfprintf flush fmt format
-
-let print_timeout fmt = match !output with
-  | Standard -> Format.fprintf fmt "%a@." print_res "Timeout"
-  | SZS -> Format.fprintf fmt "%a@." print_szs_status "Timeout"
-
-let print_spaceout fmt = match !output with
-  | Standard -> Format.fprintf fmt "%a@." print_res "Out of Memory"
-  | SZS -> Format.fprintf fmt "%a@." print_szs_status "MemoryOut"
+let print_exn opt exn =
+  match opt.Options.output_format with
+  | Options.SZS -> Szs.print_exn opt opt.Options.out exn
+  | Options.Standard -> Std.print_exn opt opt.Options.out exn
 

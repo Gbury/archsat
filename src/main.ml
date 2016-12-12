@@ -18,34 +18,6 @@ include Ext_functions
 include Ext_constraints
 
 (* Exceptions *)
-exception Sigint
-exception Exit of int
-exception Out_of_time
-exception Out_of_space
-exception File_not_found of string
-
-(* GC alarm for time/space limits *)
-let check size_limit = function () ->
-  let heap_size = (Gc.quick_stat ()).Gc.heap_words in
-  let s = float heap_size *. float Sys.word_size /. 8. in
-  if s > size_limit then
-    raise Out_of_space
-
-let al = ref None
-let setup_alarm t s = match !al with
-  | None ->
-    let _ = Unix.setitimer Unix.ITIMER_REAL
-        Unix.{it_value = t; it_interval = 0.001 } in
-    al := Some (Gc.create_alarm (check s))
-  | Some _ -> assert false
-
-let delete_alarm () = match !al with
-  | Some alarm ->
-    let _ = Unix.setitimer Unix.ITIMER_REAL
-        Unix.{it_value = 0.; it_interval = 0. } in
-    Gc.delete_alarm alarm;
-    al := None
-  | None -> ()
 
 (* Logging *)
 let start_section l s =
@@ -61,15 +33,6 @@ let prelude_strings opt =
 
 (* Execute given command *)
 let rec do_command opt = function
-
-  (* File include *)
-  | { S.descr = S.Include f } ->
-    begin match In.find ?language:opt.input_format ~dir:opt.input_dir f with
-      | None -> raise (File_not_found f)
-      | Some file ->
-        let l, gen = In.parse_input ?language:opt.input_format (`File file) in
-        do_commands { opt with input_format = Some l; input_file = `File file } gen
-    end
 
   (* Pack of commands *)
   | { S.descr = S.Pack l } ->
@@ -209,15 +172,6 @@ let () =
     setup_alarm opt.time_limit opt.size_limit;
 
   (* Signal handlers *)
-  Sys.set_signal Sys.sigint (Sys.Signal_handle (fun _ ->
-      Util.need_cleanup := true;
-      Util.debug 0 "Interrupted by user";
-      raise Sigint));
-  Sys.set_signal Sys.sigalrm (Sys.Signal_handle (fun _ ->
-      delete_alarm ();
-      Util.need_cleanup := true;
-      Util.debug 0 "Alarm clock";
-      raise Out_of_time));
 
   try
     (* Profiling *)

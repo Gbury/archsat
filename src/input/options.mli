@@ -1,5 +1,10 @@
 
-(** Gloabl options for the prover. *)
+(** Global options for the prover. *)
+
+exception Sigint
+exception Out_of_time
+exception Out_of_space
+(** Some exceptions *)
 
 val misc_section : Util.Section.t
 

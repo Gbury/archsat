@@ -4,7 +4,6 @@ S ./algos
 S ./util
 S ./core
 S ./input
-S ./parsers
 
 B _build/
 B _build/base
@@ -12,7 +11,6 @@ B _build/algos
 B _build/util
 B _build/core
 B _build/input
-B _build/parsers
 
 PKG gen
 PKG msat
