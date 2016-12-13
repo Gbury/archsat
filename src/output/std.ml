@@ -9,6 +9,14 @@ let set_start () = start := Util.get_total_time ()
 let flush fmt () =
   Format.fprintf fmt "@."
 
+let prelude opt =
+  match opt.Options.input_format with
+  | None -> ""
+  | Some l -> Format.asprintf "(%s)# @?" (In.string_of_language l)
+
+let prelude_space opt =
+  String.make (String.length (prelude opt)) ' '
+
 (* Output functions *)
 (* ************************************************************************ *)
 
@@ -19,13 +27,63 @@ let print_sat opt fmt = print_status opt fmt "Sat"
 let print_unsat opt fmt = print_status opt fmt "Unsat"
 let print_unknown opt fmt = print_status opt fmt "Unknown"
 
-let print_error opt fmt = function
+let print_exn opt fmt = function
+
+  (** User interrupt *)
   | Options.Sigint ->
     Format.fprintf fmt "User interrupt@."
+
+  (** Size and time limits *)
   | Options.Out_of_time ->
-    print_status opt fmt "Timeout"
+    print_status opt fmt "Timeout@."
   | Options.Out_of_space ->
-    print_status opt fmt "Out of space"
+    print_status opt fmt "Out of space@."
+
+  (** Parsing errors *)
+  | Dolmen.ParseLocation.Lexing_error (loc, msg) ->
+    if opt.Options.interactive then
+      Format.fprintf Format.std_formatter "%s%a@\n"
+        (if Dolmen.ParseLocation.(loc.start_line = 1) then prelude_space opt else "")
+        Dolmen.ParseLocation.fmt_hint loc;
+    Format.fprintf Format.std_formatter "%a:@\n%s@."
+      Dolmen.ParseLocation.fmt loc
+      (match msg with | "" -> "Lexing error: invalid character" | x -> x);
+  | Dolmen.ParseLocation.Syntax_error (loc, msg) ->
+    if opt.Options.interactive then
+      Format.fprintf Format.std_formatter "%s%a@\n"
+        (if Dolmen.ParseLocation.(loc.start_line = 1) then prelude_space opt else "")
+        Dolmen.ParseLocation.fmt_hint loc;
+    Format.fprintf Format.std_formatter "%a:@\n%s@." Dolmen.ParseLocation.fmt loc msg;
+
+  (** Typing errors *)
+  | Type.Typing_error (msg, t) ->
+    let default_loc = Dolmen.ParseLocation.mk
+        (Options.input_to_string opt.Options.input_file) 0 0 0 0 in
+    let loc = CCOpt.get default_loc t.Dolmen.Term.loc in
+    Format.fprintf Format.std_formatter "While typing %a@\n" Dolmen.Term.print t;
+    Format.fprintf Format.std_formatter "%a:@\n%s@." Dolmen.ParseLocation.fmt loc msg;
+
+  (** Extension not found *)
+  | Extension.Extension_not_found (sect, ext, l) ->
+    Format.fprintf Format.std_formatter
+      "Extension '%s/%s' not found. Available extensions are :@\n%a@."
+      sect ext (fun fmt -> List.iter (fun s -> Format.fprintf fmt "%s " s)) l
+
+  (** Internal errors. Should not happen *)
+  | Dispatcher.Bad_assertion msg ->
+    Format.fprintf Format.std_formatter "%s@." msg
+  | Expr.Type_mismatch (t, ty1, ty2) ->
+    Format.fprintf Format.std_formatter
+      "Term %a has type %a but an expression of type %a was expected@."
+      Expr.Print.term t Expr.Print.ty ty1 Expr.Print.ty ty2;
+
+  (** Generic catch *)
   | exn ->
     Format.fprintf fmt "%a@\n%s@."
       (print_status opt) "Uncaught exception" (Printexc.to_string exn)
+
+
+
+
+
+

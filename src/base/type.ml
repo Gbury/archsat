@@ -44,9 +44,12 @@ type env = {
   (* The current builtin symbols *)
   builtins : builtin_symbols;
 
-  (* Typing options *)
-  expect   : expect;
-  status   : Expr.status;
+  (* Additional typing info *)
+  expect      : expect;
+  infer_hook  :
+    [ `Ty of Expr.ttype Expr.function_descr Expr.id
+    | `Term of Expr.ty Expr.function_descr Expr.id ] -> unit;
+  status      : Expr.status;
 }
 
 (* Builtin symbols, i.e symbols understood by some theories,
@@ -131,13 +134,13 @@ let def_term id ty_args args body =
 let empty_env
     ?(expect=Nothing)
     ?(status=Expr.Status.hypothesis)
+    ?(infer_hook=ignore)
     builtins = {
   type_vars = M.empty;
   term_vars = M.empty;
   term_lets = M.empty;
   prop_lets = M.empty;
-  builtins;
-  expect; status;
+  builtins; expect; infer_hook; status;
 }
 
 let expect env expect = { env with expect = expect }
@@ -284,14 +287,18 @@ let infer env s args =
   | Nothing -> `Nothing
   | Type ->
     let n = List.length args in
-    let res = Expr.Id.ty_fun (Id.full_name s) n in
-    decl_ty_cstr s res;
-    `Ty res
+    let ret = Expr.Id.ty_fun (Id.full_name s) n in
+    let res = `Ty ret in
+    env.infer_hook res;
+    decl_ty_cstr s ret;
+    res
   | Typed ty ->
     let n = List.length args in
-    let res = Expr.Id.term_fun (Id.full_name s) [] (CCList.replicate n Expr.Ty.base) ty in
-    decl_term s res;
-    `Term res
+    let ret = Expr.Id.term_fun (Id.full_name s) [] (CCList.replicate n Expr.Ty.base) ty in
+    let res = `Term ret in
+    env.infer_hook res;
+    decl_term s ret;
+    res
 
 (* Expression parsing *)
 (* ************************************************************************ *)
@@ -618,21 +625,34 @@ let rec parse_fun ty_args t_args env = function
 let new_decl env t id =
   Util.enter_prof section;
   log 5 "Typing declaration: %a : %a" Id.pp id Ast.pp t;
-  begin match parse_sig env t with
-    | `Ty_cstr n -> decl_ty_cstr id (Expr.Id.ty_fun (Id.full_name id) n)
+  let res =
+    match parse_sig env t with
+    | `Ty_cstr n ->
+      let c = Expr.Id.ty_fun (Id.full_name id) n in
+      decl_ty_cstr id c;
+      `Type_decl c
     | `Fun_ty (vars, args, ret) ->
-      decl_term id (Expr.Id.term_fun (Id.full_name id) vars args ret)
-  end;
-  Util.exit_prof section
+      let f = Expr.Id.term_fun (Id.full_name id) vars args ret in
+      decl_term id f;
+      `Term_decl f
+  in
+  Util.exit_prof section;
+  res
 
 let new_def env t id =
   Util.enter_prof section;
   log 5 "Typing definition: %a = %a" Id.pp id Ast.pp t;
-  begin match parse_fun [] [] env t with
-    | `Ty (ty_args, body) -> def_ty id ty_args body
-    | `Term (ty_args, t_args, body) -> def_term id ty_args t_args body
-  end;
-  Util.exit_prof section
+  let res =
+    match parse_fun [] [] env t with
+    | `Ty (ty_args, body) ->
+      def_ty id ty_args body;
+      `Type_def (id, ty_args, body)
+    | `Term (ty_args, t_args, body) ->
+      def_term id ty_args t_args body;
+      `Term_def (id, ty_args, t_args, body)
+  in
+  Util.exit_prof section;
+  res
 
 let new_formula env t =
   Util.enter_prof section;

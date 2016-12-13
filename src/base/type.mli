@@ -47,6 +47,8 @@ type builtin_symbols = (Dolmen.Id.t -> Dolmen.Term.t list -> res option) typer
 val empty_env :
   ?expect:expect ->
   ?status:Expr.status ->
+  ?infer_hook:([ `Ty of Expr.ttype Expr.function_descr Expr.id
+               | `Term of Expr.ty Expr.function_descr Expr.id ] -> unit) ->
   builtin_symbols -> env
 (** Create a new environment. *)
 
@@ -78,9 +80,21 @@ val parse_app_term : (Expr.ty Expr.function_descr Expr.id -> Dolmen.Term.t list 
 
 (** {2 High-level functions} *)
 
-val new_decl : (Dolmen.Id.t -> unit) typer
+val new_decl :
+  (Dolmen.Id.t ->
+   [ `Type_decl of Expr.ttype Expr.function_descr Expr.id
+   | `Term_decl of Expr.ty Expr.function_descr Expr.id
+   ]) typer
+(** Parse a declaration. *)
 
-val new_def  : (Dolmen.Id.t -> unit) typer
+val new_def :
+  (Dolmen.Id.t ->
+   [ `Type_def of Dolmen.Id.t * Expr.ttype Expr.id list * Expr.ty
+   | `Term_def of Dolmen.Id.t * Expr.ttype Expr.id list * Expr.ty Expr.id list * Expr.term
+   ]) typer
+(** Parse a definition *)
 
 val new_formula : Expr.formula typer
+(** Parse a formula *)
+
 

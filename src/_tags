@@ -4,8 +4,10 @@ true: color(always)
 <util>: include
 <base>: include
 <core>: include
-<input>: include
 <algos>: include
+<tools>: include
+<input>: include
+<output>: include
 
 # Some warnings
 <**/*.ml>: warn_K, warn_Y, warn_X, warn(-58)

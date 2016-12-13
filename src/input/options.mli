@@ -4,6 +4,9 @@
 exception Sigint
 exception Out_of_time
 exception Out_of_space
+exception File_not_found of string
+exception Stmt_not_implemented of Dolmen.Statement.t
+
 (** Some exceptions *)
 
 val misc_section : Util.Section.t

@@ -12,6 +12,8 @@ open Cmdliner
 exception Sigint
 exception Out_of_time
 exception Out_of_space
+exception File_not_found of string
+exception Stmt_not_implemented of Dolmen.Statement.t
 
 (* Type definitions for common options *)
 (* ************************************************************************ *)

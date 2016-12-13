@@ -27,10 +27,13 @@ Solver
 # Extensions
 Inst
 Stats
-Ext_meta
-Ext_skolem
-Ext_logic
 Ext_eq
+Ext_meta
+Ext_prop
+Ext_logic
+Ext_arith
+Ext_prenex
+Ext_skolem
 Ext_functions
 Ext_constraints
 
