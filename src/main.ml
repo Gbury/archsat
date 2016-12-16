@@ -51,12 +51,20 @@ let () =
   let opt', g = Pipe.parse opt in
   Pipeline.(
     run ~handle_exn:Out.print_exn g opt' (
-      expand  Pipe.expand     @@
-      op      Pipe.typecheck  @@
-      op      Pipe.solve      @@
-      iter    Pipe.print_res  @@
-      map     fst             @@
-      iter    Pipe.print_stats
-      @@ pipe_end
+      (
+        ~~~~ (apply ~name:"includes" Pipe.expand_include)
+        @*** (apply ~name:"expand" Pipe.expand_pack)
+        @>|> (apply ~name:"execute" Pipe.execute)
+        @>>> (f_map ~name:"typecheck" Pipe.typecheck)
+        @>>> (f_map ~name:"solve" Pipe.solve)
+        @>>> (iter_ ~name:"print_res" Pipe.print_res)
+        @>>> (apply fst)
+        @>>> _end
+      ) @||| (
+        ~~~~ (iter_ ~name:"print_stats" Pipe.print_stats)
+        @>>> _end
+      )
     ))
+
+
 
