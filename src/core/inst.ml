@@ -225,7 +225,7 @@ let rec decr_delay () =
       decr_delay ()
   end
 
-let rec inst_sat : type ret. ret Dispatcher.msg -> ret option = function
+let inst_sat : type ret. ret Dispatcher.msg -> ret option = function
   | Dispatcher.If_sat _ ->
     decr_delay ();
     fold push () !inst_incr;

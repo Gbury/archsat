@@ -39,6 +39,15 @@ let print_exn opt fmt = function
   | Options.Out_of_space ->
     print_status opt fmt "Out of space@."
 
+  (** Statement not implemented *)
+  | Options.Stmt_not_implemented s ->
+    let default_loc = Dolmen.ParseLocation.mk
+        (Options.input_to_string opt.Options.input_file) 0 0 0 0 in
+    let loc = CCOpt.get default_loc s.Dolmen.Statement.loc in
+    Format.fprintf Format.std_formatter
+      "%a: the following statement is not yet treated:@\n%a@."
+      Dolmen.ParseLocation.fmt loc Dolmen.Statement.print s
+
   (** Parsing errors *)
   | Dolmen.ParseLocation.Lexing_error (loc, msg) ->
     if opt.Options.interactive then

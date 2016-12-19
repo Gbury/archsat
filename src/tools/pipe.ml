@@ -60,6 +60,7 @@ let wrap_parser g =
     g ()
 
 let parse opt =
+  (** Parse the input *)
   let opt', g =
     match opt.Options.input_file with
     | `Stdin ->
@@ -69,7 +70,16 @@ let parse opt =
     | `File f ->
       opt, (Gen.singleton @@ Dolmen.Statement.include_ f [])
   in
-  opt', wrap_parser g
+  (** Formats Dimacs and Tptp are descriptive and lack the emission
+      of formal solveprove instructions, so we need to add them. *)
+  let g' =
+    match opt'.Options.input_format with
+    | Some In.Dimacs | Some In.Tptp ->
+      Gen.append g (Gen.singleton @@ S.prove ())
+    | _ -> g
+  in
+  (** Wrap the resulting parser *)
+  opt', wrap_parser g'
 
 (* Expand dolmen statements *)
 (* ************************************************************************ *)
@@ -157,10 +167,16 @@ let solve (opt, (c : typechecked stmt)) : solved stmt =
   | ({ contents = `Type_decl _; _ } as res)
   | ({ contents = `Term_decl _; _ } as res) -> res
   | ({ contents = `Hyp f; _ } as res) ->
-    if opt.Options.solve then Solver.assume [[f]];
+    if opt.Options.solve then begin
+      start_section 0 "Assume hyp";
+      Solver.assume [[f]]
+    end;
     res
   | ({ contents = `Goal f; _ } as res) ->
-    if opt.Options.solve then Solver.assume [[Expr.Formula.neg f]];
+    if opt.Options.solve then begin
+      start_section 0 "Assume goal";
+      Solver.assume [[Expr.Formula.neg f]]
+    end;
     res
   | { contents = `Solve; _ } ->
     let ret =

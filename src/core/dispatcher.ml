@@ -47,8 +47,6 @@ module SolverExpr = struct
   module Formula = struct
     include Expr.Formula
 
-    let fresh () = assert false
-
     let neg f = Expr.Formula.neg f
 
     let norm = function
