@@ -88,7 +88,7 @@ let print_exn opt fmt = function
 
   (** Generic catch *)
   | exn ->
-    Format.fprintf fmt "%a@\n%s@."
+    Format.fprintf fmt "%a%s@."
       (print_status opt) "Uncaught exception" (Printexc.to_string exn)
 
 

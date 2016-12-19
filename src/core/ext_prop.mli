@@ -1,4 +1,4 @@
 
-(** Extension to do SAT Solving.
-    Use with the Dimacs input format only. *)
+(** Extension to bridge assignments and
+    SAT solver propagations/decisions for predicates. *)
 

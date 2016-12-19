@@ -87,7 +87,8 @@ let mk_opts in_fd
     plugins addons model_out time size
     proof profile =
   {
-    out = Format.std_formatter;
+    interactive = (in_fd = `Stdin);
+    input_format = input;
     input_dir =
       begin match in_fd with
       | `Stdin -> Sys.getcwd ()
@@ -98,9 +99,9 @@ let mk_opts in_fd
         | `Stdin -> `Stdin
         | `File f -> `File (Filename.basename f)
       end;
-    input_format = input;
+
+    out = Format.std_formatter;
     output_format = output;
-    interactive = (in_fd = `Stdin);
 
     solve = not type_only;
     addons = List.concat addons;

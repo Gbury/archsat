@@ -52,19 +52,20 @@ let () =
   Pipeline.(
     run ~handle_exn:Out.print_exn g opt' (
       (
-        ~~~~ (apply ~name:"includes" Pipe.expand_include)
-        @*** (apply ~name:"expand" Pipe.expand_pack)
-        @>|> (apply ~name:"execute" Pipe.execute)
-        @>>> (f_map ~name:"typecheck" Pipe.typecheck)
-        @>>> (f_map ~name:"solve" Pipe.solve)
-        @>>> (iter_ ~name:"print_res" Pipe.print_res)
-        @>>> (apply fst)
-        @>>> _end
-      ) @||| (
-        ~~~~ (iter_ ~name:"print_stats" Pipe.print_stats)
-        @>>> _end
+        (
+          fix (apply ~name:"expand" Pipe.expand) (
+            (apply ~name:"execute" Pipe.execute) @>>>
+            (f_map ~name:"typecheck" Pipe.typecheck) @>>>
+            (f_map ~name:"solve" Pipe.solve) @>>>
+            (iter_ ~name:"print_res" Pipe.print_res)
+            @>>> (apply fst) @>>> _end
+          )
+        ) @||| (
+          (iter_ ~name:"print_stats" Pipe.print_stats) @>>> _end
+        )
       )
-    ))
+    )
+  )
 
 
 

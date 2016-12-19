@@ -54,7 +54,7 @@ let () =
 type opt = Options.copts
 
 type 'a gen = 'a Gen.t
-type 'a fix = [ `Ok | `Gen of 'a gen ]
+type 'a fix = [ `Ok | `Gen of bool * 'a gen ]
 
 type ('a, 'b) op = {
   name : string;
@@ -78,9 +78,6 @@ type (_, _) t =
   (** Fixpoint expansion *)
   | Fix :
       ('opt * 'a, 'opt * 'a fix) op * ('opt * 'a, 'opt) t -> ('opt * 'a, 'opt) t
-  (** Fold a pipeline over a pipeline that returns a generator. *)
-  | Fold :
-      ('opt * 'a, 'opt) t -> ('opt * 'a gen, 'opt) t
 
 (** Creating pipelines. *)
 
@@ -92,11 +89,10 @@ let iter_ ?(name="") f =
   { name; f = (fun x -> f x; x); }
 
 let _end = End
-let (~~~~) x = x
 let (@>>>) op t = Map(op, t)
-let (@***) op t = Fix(op, t)
 let (@|||) t t' = Concat (t, t')
-let (@>|>) op t = Map(op, Fold t)
+
+let fix op t = Fix(op, t)
 
 (** Eval a pipeline into the corresponding function *)
 let rec eval : type a b. (a, b) t -> a -> b =
@@ -112,15 +108,11 @@ let rec eval : type a b. (a, b) t -> a -> b =
       let opt, y = x in
       begin match op.f x with
         | opt', `Ok -> eval t (opt', y)
-        | opt', `Gen g ->
+        | opt', `Gen (flat, g) ->
           let aux opt c = eval pipe (opt, c) in
-          let _ = Gen.fold aux opt' g in
-          opt
+          let opt'' = Gen.fold aux opt' g in
+          if flat then opt'' else opt
       end
-    | Fold t ->
-      let (opt, g) = x in
-      let aux opt c = eval t (opt, c) in
-      Gen.fold aux opt g
 
 (** Aux function to eval a pipeline on the current value of a generator. *)
 let run_aux : type a. (opt * a, opt) t -> (opt -> a option) -> opt -> opt option =

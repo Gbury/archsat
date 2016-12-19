@@ -32,15 +32,15 @@ type proof_options = {
 
 type copts = {
 
-  (* Input/Output *)
-  out           : Format.formatter;
+  (* Input options *)
+  interactive   : bool;
   input_dir     : string;
   input_file    : [ `Stdin | `File of string];
-
-  (* Input/Output options *)
-  output_format : output;
   input_format  : In.language option;
-  interactive   : bool;
+
+  (* Output options *)
+  out           : Format.formatter;
+  output_format : output;
 
   (* Solving options *)
   solve   : bool;

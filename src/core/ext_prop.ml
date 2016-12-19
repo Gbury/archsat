@@ -8,14 +8,6 @@ let sat_assume = function
     Dispatcher.set_assign t Builtin.Misc.p_false
   | _ -> ()
 
-let sat_assign = function
-  | { Expr.term = Expr.App (p, _, _) } as t (* when Expr.(Ty.equal t.t_type type_prop) *) ->
-    begin try Dispatcher.get_assign t
-      with Dispatcher.Not_assigned _ ->
-        Builtin.Misc.p_true
-    end
-  | _ -> assert false
-
 let rec sat_eval = function
   | { Expr.formula = Expr.Pred ({Expr.term = Expr.App (p, _, _)} as t)} ->
     begin try
@@ -30,22 +22,8 @@ let rec sat_eval = function
         None
     end
   | { Expr.formula = Expr.Not f } ->
-    CCOpt.map (fun (b, lvl) -> (not b, lvl)) (sat_eval f)
+    CCOpt.map (fun (b, l) -> (not b, l)) (sat_eval f)
   | _ -> None
-
-let f_eval f () =
-  match sat_eval f with
-  | Some(true, lvl) -> Dispatcher.propagate f lvl
-  | Some(false, lvl) -> Dispatcher.propagate (Expr.Formula.neg f) lvl
-  | None -> ()
-
-let sat_preprocess = function
-  | { Expr.formula = Expr.Pred {Expr.term = Expr.App (_, [], [])}} -> ()
-  | { Expr.formula = Expr.Pred ({Expr.term = Expr.App (p, _, _)} as t)} as f
-    when Expr.(Ty.equal t.t_type Ty.prop) ->
-    Expr.Id.set_assign p 5 sat_assign;
-    Dispatcher.watch "prop" 1 [t] (f_eval f)
-  | _ -> ()
 
 ;;
 Dispatcher.Plugin.register "prop"
@@ -54,5 +32,4 @@ Dispatcher.Plugin.register "prop"
      ~section
      ~assume:sat_assume
      ~eval_pred:sat_eval
-     ~peek:sat_preprocess
      ())

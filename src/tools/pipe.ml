@@ -68,18 +68,22 @@ let parse opt =
           ?language:opt.Options.input_format (`Stdin In.Smtlib) in
       { opt with Options.input_format = Some l }, gen
     | `File f ->
-      opt, (Gen.singleton @@ Dolmen.Statement.include_ f [])
-  in
-  (** Formats Dimacs and Tptp are descriptive and lack the emission
-      of formal solveprove instructions, so we need to add them. *)
-  let g' =
-    match opt'.Options.input_format with
-    | Some In.Dimacs | Some In.Tptp ->
-      Gen.append g (Gen.singleton @@ S.prove ())
-    | _ -> g
+      (** Formats Dimacs and Tptp are descriptive and lack the emission
+          of formal solveprove instructions, so we need to add them. *)
+      let i = max 0 (CCString.rfind ~sub:"." f) in
+      let ext = String.sub f i (String.length f - i) in
+      let l, _, _ = In.of_extension ext in
+      let s = Dolmen.Statement.include_ f [] in
+      let s' =
+        match l with
+        | In.Dimacs | In.Tptp ->
+          Dolmen.Statement.pack [s; Dolmen.Statement.prove ()]
+        | _ -> s
+      in
+      opt, (Gen.singleton s')
   in
   (** Wrap the resulting parser *)
-  opt', wrap_parser g'
+  opt', wrap_parser g
 
 (* Execute statements *)
 (* ************************************************************************ *)
@@ -93,14 +97,10 @@ let execute (opt, c) =
 (* Expand dolmen statements *)
 (* ************************************************************************ *)
 
-let expand_pack (opt, c) =
+let expand (opt, c) =
   match c with
   | { S.descr = S.Pack l } ->
-    opt, Gen.of_list l
-  | _ -> opt, Gen.singleton c
-
-let expand_include (opt, c) =
-  match c with
+    opt, `Gen (true, Gen.of_list l)
   (* TODO: filter the statements by passing some options *)
   | { S.descr = S.Include f } ->
     let language = opt.Options.input_format in
@@ -114,7 +114,7 @@ let expand_include (opt, c) =
                              input_format = Some l;
                              input_file = `File file;
                              interactive = false } in
-        opt', `Gen gen
+        opt', `Gen (false, gen)
     end
   | _ -> (opt, `Ok)
 

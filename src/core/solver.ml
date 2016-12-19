@@ -65,9 +65,11 @@ let if_sat acc = function
 
 let rec solve_aux ?(assumptions = []) () =
   match begin
+    Util.debug ~section 5 "Preparing solver";
     let () = S.pop () in
     let () = S.push () in
     let () = S.local assumptions in
+    Util.debug ~section 5 "Solving problem";
     let () = S.solve () in
     Util.debug ~section 1 "Found SAT";
     let view = if_sat_iter (S.full_slice ()) in
@@ -79,6 +81,7 @@ let rec solve_aux ?(assumptions = []) () =
   | Assume assumptions ->
     solve_aux ~assumptions ()
   | exception S.Unsat ->
+    Util.debug ~section 1 "Found UNSAT";
     let proof =
       match S.unsat_conflict () with
       | None -> assert false
