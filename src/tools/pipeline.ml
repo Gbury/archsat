@@ -51,11 +51,17 @@ let () =
 (* ************************************************************************ *)
 
 (** Some aliases for readibility *)
-type 'a gen = 'a Gen.t
 type opt = Options.copts
-type ('a, 'b) f = 'a -> 'b
 
-(** Type for pipelines, i.e a serie of functions to
+type 'a gen = 'a Gen.t
+type 'a fix = [ `Ok | `Gen of 'a gen ]
+
+type ('a, 'b) op = {
+  name : string;
+  f : 'a -> 'b;
+}
+
+(** Type for pipelines, i.e a series of transformations to
     apply to the input. An ('a, 'b) t is a pipeline that
     takes an input of type ['a] and returns a value of type
     ['b]. *)
@@ -63,49 +69,58 @@ type (_, _) t =
   (** The end of the pipeline, the identity/reflexive constructor *)
   | End :
       ('a, 'a) t
-  (** A simple function to apply. *)
+  (** Apply a single function and then proceed with the rest of the pipeline *)
   | Map :
-      ('a, 'c) f * ('c, 'b) t -> ('a, 'b) t
-  (** Expand a single input into a generator of outputs.
-      The base idea is to fold the inner pipeline over the generator. *)
-  | Expand :
-      ('opt * 'a, 'opt * [< `Single of 'c | `Gen of bool * 'c gen]) f *
-      ('opt * 'c, 'opt) t -> ('opt * 'a, 'opt) t
+      ('a, 'c) op * ('c, 'b) t -> ('a, 'b) t
+  (** Concat two pipeline. Not tail recursive. *)
+  | Concat :
+      ('a, 'b) t * ('b, 'c) t -> ('a, 'c) t
+  (** Fixpoint expansion *)
+  | Fix :
+      ('opt * 'a, 'opt * 'a fix) op * ('opt * 'a, 'opt) t -> ('opt * 'a, 'opt) t
+  (** Fold a pipeline over a pipeline that returns a generator. *)
+  | Fold :
+      ('opt * 'a, 'opt) t -> ('opt * 'a gen, 'opt) t
 
-(** Creating pipelines.
-    TODO: better functions/infix notations *)
-let pipe_end = End
-let map f t = Map (f, t)
-let iter f t = map (fun x -> f x; x) t
-let op f t = map (fun x -> (fst x, f x)) t
-let expand f t = Expand(f, t)
+(** Creating pipelines. *)
 
-(** Eval a pipeline into the corresponding fucntion *)
-let rec eval : type a b. (a, b) t -> (a, b) f =
+let apply ?(name="") f =
+  { name; f; }
+let f_map ?(name="") f =
+  { name; f = (fun ((opt, y) as x) -> opt, f x); }
+let iter_ ?(name="") f =
+  { name; f = (fun x -> f x; x); }
+
+let _end = End
+let (~~~~) x = x
+let (@>>>) op t = Map(op, t)
+let (@***) op t = Fix(op, t)
+let (@|||) t t' = Concat (t, t')
+let (@>|>) op t = Map(op, Fold t)
+
+(** Eval a pipeline into the corresponding function *)
+let rec eval : type a b. (a, b) t -> a -> b =
   fun pipe x ->
     match pipe with
-    (** Smple cases. *)
     | End -> x
-    | Map (f, t) ->
-      eval t (f x)
-    (** Expand, this case is a bit tricky. Indeed, in the case where
-        some inputs are *not* actually expanded, we want to avoid
-        non-tailrec function calls such as fold, which explains the
-        return type of the function. *)
-    | Expand (f, t) ->
-      match f x with
-      (** The function did not actually expand the input, so we do the same as
-          the Map case. *)
-      | opt, `Single y ->
-        eval t (opt, y)
-      (** Expansion. There are two cases, either we want the result of the fold
-          to be used for the rest of the evaluation, or we want to discard it.
-          This is governed by the [flat] boolean (flat = true means to keep the
-          return value for following evaluations). *)
-      | opt, `Gen (flat, g) ->
-        let aux opt c = eval t (opt, c) in
-        let opt' = Gen.fold aux opt g in
-        if flat then (fst x) else opt'
+    | Map (op, t) ->
+      eval t (op.f x)
+    | Concat (t, t') ->
+      let y = eval t x in
+      eval t' y
+    | Fix (op, t) ->
+      let opt, y = x in
+      begin match op.f x with
+        | opt', `Ok -> eval t (opt', y)
+        | opt', `Gen g ->
+          let aux opt c = eval pipe (opt, c) in
+          let _ = Gen.fold aux opt' g in
+          opt
+      end
+    | Fold t ->
+      let (opt, g) = x in
+      let aux opt c = eval t (opt, c) in
+      Gen.fold aux opt g
 
 (** Aux function to eval a pipeline on the current value of a generator. *)
 let run_aux : type a. (opt * a, opt) t -> (opt -> a option) -> opt -> opt option =

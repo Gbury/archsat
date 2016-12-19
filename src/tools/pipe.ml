@@ -81,16 +81,27 @@ let parse opt =
   (** Wrap the resulting parser *)
   opt', wrap_parser g'
 
+(* Execute statements *)
+(* ************************************************************************ *)
+
+let execute (opt, c) =
+  match c with
+  | { S.descr = S.Exit } -> exit 0
+  (** TODO: parse and apply option changes *)
+  | _ -> opt, c
+
 (* Expand dolmen statements *)
 (* ************************************************************************ *)
 
-let expand (opt, c) =
+let expand_pack (opt, c) =
   match c with
-  | { S.descr = S.Exit } ->
-    exit 0
   | { S.descr = S.Pack l } ->
-    opt, `Gen (true, Gen.of_list l)
-  (* TODO: filter the statements in the returned generator *)
+    opt, Gen.of_list l
+  | _ -> opt, Gen.singleton c
+
+let expand_include (opt, c) =
+  match c with
+  (* TODO: filter the statements by passing some options *)
   | { S.descr = S.Include f } ->
     let language = opt.Options.input_format in
     let dir = opt.Options.input_dir in
@@ -103,9 +114,9 @@ let expand (opt, c) =
                              input_format = Some l;
                              input_file = `File file;
                              interactive = false } in
-        opt', (`Gen (false, gen))
+        opt', `Gen gen
     end
-  | _ -> (opt, `Single c)
+  | _ -> (opt, `Ok)
 
 
 (* Typechecking *)
@@ -165,7 +176,8 @@ let solve (opt, (c : typechecked stmt)) : solved stmt =
   | ({ contents = `Type_def _; _ } as res)
   | ({ contents = `Term_def _; _ } as res)
   | ({ contents = `Type_decl _; _ } as res)
-  | ({ contents = `Term_decl _; _ } as res) -> res
+  | ({ contents = `Term_decl _; _ } as res) ->
+    res
   | ({ contents = `Hyp f; _ } as res) ->
     if opt.Options.solve then begin
       start_section 0 "Assume hyp";
