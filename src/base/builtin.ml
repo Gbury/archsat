@@ -7,6 +7,19 @@ let log i fmt = Util.debug ~section i fmt
 module Id = Dolmen.Id
 module Ast = Dolmen.Term
 
+(* Some convenience functions *)
+(* ************************************************************************ *)
+
+let rec pair_map f = function
+  | [ _ ] | [] -> []
+  | a :: ((b :: _) as r) ->
+    (f a b) :: (pair_map f r)
+
+let parse_f env ast cstr args =
+  let loc = Dolmen.Term.(ast.loc) in
+  let t = Dolmen.Term.apply ?loc cstr args in
+  Type.Formula (Type.parse_formula env t)
+
 (* Type builtins for languages *)
 (* ************************************************************************ *)
 
@@ -20,8 +33,31 @@ let parse_tptp env ast s args =
 
 let parse_smtlib env ast s args =
   match s with
+  (** Boolean operators *)
   | { Id.name = "Bool"; ns = Id.Sort } ->
     Some (Type.parse_app_ty env ast Expr.Id.prop args)
+  | { Id.name = "true"; ns = Id.Term } ->
+    Some (Type.Formula Expr.Formula.f_true)
+  | { Id.name = "false"; ns = Id.Term } ->
+    Some (Type.Formula Expr.Formula.f_false)
+  | { Id.name = "not"; ns = Id.Term } ->
+    Some (parse_f env ast Dolmen.Term.not_t args)
+  | { Id.name = "and"; ns = Id.Term } ->
+    Some (parse_f env ast Dolmen.Term.and_t args)
+  | { Id.name = "or"; ns = Id.Term } ->
+    Some (parse_f env ast Dolmen.Term.or_t args)
+  | { Id.name = "xor"; ns = Id.Term } ->
+    Some (parse_f env ast Dolmen.Term.xor_t args)
+  | { Id.name = "=>"; ns = Id.Term } ->
+    Some (parse_f env ast Dolmen.Term.implies_t args)
+
+  (** Equality *)
+  | { Id.name = "distinct"; ns = Id.Term } ->
+    Some (parse_f env ast Dolmen.Term.neq_t args)
+  | { Id.name = "="; ns = Id.Term } ->
+    let l = List.map (Type.parse_term env) args in
+    Some (Type.Formula (Expr.Formula.f_and @@ pair_map Expr.Formula.eq l))
+
   | _ -> None
 
 let _ =
