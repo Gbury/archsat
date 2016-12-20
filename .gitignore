@@ -1,5 +1,11 @@
+**/*.aux
+**/*.bbl
+**/*.blg
+**/*.toc
+
 src/_build
 src/*.native
+
 .*.swp
 *.docdir
 archsat
