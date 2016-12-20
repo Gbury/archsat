@@ -1,0 +1,6 @@
+# subset_reflexivity.zf
+
+include "bset.zf".
+
+goal forall (a: type) (S: a). subset a S S.
+

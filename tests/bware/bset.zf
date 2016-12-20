@@ -1,0 +1,37 @@
+# bset.zf
+
+val tup : type -> type -> type.
+val set : type -> type.
+val mem : pi a. a -> set a -> prop.
+val pair : pi a b.a -> b -> (tup a b).
+val power : pi a. set a -> set (set a).
+val subset : pi a. set a -> set a -> prop.
+val times : pi a b. set a -> set b -> set (tup a b).
+val union : pi a. set a -> set a -> set a.
+val inter : pi a. set a -> set a -> set a.
+
+rewrite
+  forall a b z S T.
+    mem (tup a b) z (times _ _ S T) <=>
+      (exists x y. z = (pair a b x y) && mem _ x S && mem _ y T).
+
+rewrite
+  forall a b x y S T.
+    mem _ (pair a b x y) (times _ _ S T) <=> mem _ x S && mem _ y T.
+
+#rewrite
+#  forall a b z S.
+#    mem (tup a b) z S <=> (exists x y. z = (pair a b x y) &&
+#      mem (tup a b) (pair a b x y) S).
+
+rewrite
+  forall a S T.
+    mem (set a) S (power _ T) <=> (forall x. (mem _ x S) => (mem _ x T)).
+
+rewrite forall a S T. subset a S T <=> mem _ S (power _ T).
+
+rewrite forall a S T. S = T <=> (forall x. (mem _ x S) <=> (mem _ x T)).
+
+rewrite forall a x S T. mem a x (union _ S T) <=> mem _ x S || mem _ x T.
+
+rewrite forall a x S T. mem a x (inter _ S T) <=> mem _ x S && mem _ x T.
