@@ -77,8 +77,11 @@ let rec solve_aux ?(assumptions = []) () =
   end with
   | Sat_ok -> Sat ()
   | Restart ->
+    Util.debug ~section 1 "Restarting...";
     solve_aux ()
   | Assume assumptions ->
+    Util.debug ~section 1 "New assumptions: %a"
+      (CCPrint.list ~start:"" ~stop:"" ~sep:" && " Expr.Debug.formula) assumptions;
     solve_aux ~assumptions ()
   | exception S.Unsat ->
     Util.debug ~section 1 "Found UNSAT";

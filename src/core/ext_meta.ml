@@ -331,7 +331,7 @@ let find_all_insts : type ret. ret Dispatcher.msg -> ret option = function
         log 5 "Applying unification";
         unif_f st !unif_setting
     end;
-    Some (Solver.Assume [])
+    Some Solver.Sat_ok
   | _ -> None
 
 (* Extension registering *)

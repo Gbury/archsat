@@ -34,10 +34,10 @@ let state = {
 
 let current_round () = state.cur_round
 
-let inst_done () =
+let inst_done k =
   let s = state.cur_round in
   let (i, r) = CCVector.get state.instanciations s in
-  CCVector.set state.instanciations s (i + 1, r)
+  CCVector.set state.instanciations s (i + k, r)
 
 let inst_remaining r =
   let s = state.cur_round in

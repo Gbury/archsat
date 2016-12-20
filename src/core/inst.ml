@@ -179,37 +179,18 @@ let add ?(delay=0) ?(score=0) u =
     false
   end
 
-let push () inst =
+let push acc inst =
   assert (not (H.find inst_set inst));
   H.replace inst_set inst true;
   let open Inst in
   Util.debug ~section 5 "Pushing inst : %a" Inst.debug inst;
   let cl, p = soft_subst inst.formula inst.ty_subst inst.term_subst in
   Dispatcher.push cl p;
-  Stats.inst_done ()
+  acc + 1
 
-let fold f acc k =
-  let rec aux f acc i =
-    if i <= 0 then acc
-    else begin
-      let acc' =
-        match Q.take !heap with
-        | None -> acc
-        | Some (new_h, min) ->
-          heap := new_h;
-          f acc min
-      in
-      aux f acc' (i - 1)
-    end
-  in
-  if k > 0 then
-    aux f acc k
-  else
-    aux f acc (Q.size !heap + k)
-
-let rec decr_delay () =
+let decr_delay () =
   if !delayed = [] then
-    ()
+    false
   else begin
     delayed := CCList.filter_map (fun (u, d) ->
         if d > 1 then begin
@@ -221,17 +202,43 @@ let rec decr_delay () =
           None
         end
       ) !delayed;
-    if Q.size !heap = 0 then
-      decr_delay ()
+    true
   end
 
+let inst_aux f acc k =
+  let rec fold f acc i =
+    if i <= 0 then
+      acc
+    else begin
+      let acc' =
+        match Q.take !heap with
+        | None ->
+          if decr_delay () then
+            fold f acc i
+          else
+            acc
+        | Some (new_h, min) ->
+          heap := new_h;
+          f acc min
+      in
+      fold f acc' (i - 1)
+    end
+  in
+  if k > 0 then
+    fold f acc k
+  else
+    fold f acc (Q.size !heap + k)
+
 let inst_sat : type ret. ret Dispatcher.msg -> ret option = function
-  | Dispatcher.If_sat _ ->
-    decr_delay ();
-    fold push () !inst_incr;
-    Stats.inst_remaining (Q.size !heap);
+  | Solver.Found_sat _ ->
+    let n = inst_aux push 0 !inst_incr in
+    Stats.inst_remaining (Q.size !heap + List.length !delayed);
+    Stats.inst_done n;
     Inst.clock ();
-    Some ()
+    if n > 0 then
+      Some (Solver.Assume [])
+    else
+      Some Solver.Sat_ok
   | _ -> None
 
 (* Extension registering *)
