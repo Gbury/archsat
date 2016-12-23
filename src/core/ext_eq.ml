@@ -2,7 +2,7 @@
 let section = Util.Section.make ~parent:Dispatcher.section "eq"
 
 module D = Dispatcher
-module E = Eclosure.Make(Expr.Term)
+module E = Closure.Eq(Expr.Term)
 
 let st = E.create D.stack (Util.Section.make ~parent:section "union-find")
 

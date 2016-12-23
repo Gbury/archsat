@@ -15,8 +15,8 @@ let stats_group = Util.Stats.bundle [stats_watchers]
 (* ************************************************************************ *)
 
 module H = Hashtbl.Make(Expr.Term)
-module M = Backtrack.HashtblBack(Expr.Term)
-module F = Backtrack.HashtblBack(Expr.Formula)
+module M = Backtrack.Hashtbl(Expr.Term)
+module F = Backtrack.Hashtbl(Expr.Formula)
 
 type lemma = {
   plugin_name : string;

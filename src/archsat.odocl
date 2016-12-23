@@ -13,7 +13,7 @@ base/Builtin
 # Standard Algorithms
 algos/Unif
 algos/Index
-algos/Eclosure
+algos/Closure
 algos/Heuristic
 algos/Rigid
 algos/Superposition

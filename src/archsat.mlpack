@@ -10,11 +10,12 @@ Type
 Position
 Builtin
 Semantics
+Options
 
 # Algorithms
 Index
 Unif
-Eclosure
+Closure
 Heuristic
 Rigid
 Superposition

@@ -11,7 +11,7 @@ let stack = Backtrack.Stack.create (
 module Ast = Dolmen.Term
 module Id = Dolmen.Id
 module M = Map.Make(Id)
-module H = Backtrack.HashtblBack(Id)
+module H = Backtrack.Hashtbl(Id)
 
 (* Types *)
 (* ************************************************************************ *)

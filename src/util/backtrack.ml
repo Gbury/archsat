@@ -72,7 +72,7 @@ module Stack = struct
 
 end
 
-module HashtblBack(K : Hashtbl.HashedType) = struct
+module Hashtbl(K : Hashtbl.HashedType) = struct
 
   module H = Hashtbl.Make(K)
 

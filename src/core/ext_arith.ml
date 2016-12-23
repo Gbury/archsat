@@ -19,7 +19,7 @@ type domain = interval list
 
 (* Domain checking *)
 
-module E = Backtrack.HashtblBack(Expr.Term)
+module E = Backtrack.Hashtbl(Expr.Term)
 
 let h : domain E.t = E.create Dispatcher.stack
 

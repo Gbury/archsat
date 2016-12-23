@@ -243,7 +243,7 @@ module Id : sig
   (** Create a fresh type constructor with given name and arity *)
 
   val term_fun : ?builtin:builtin -> string -> ttype id list -> ty list -> ty -> ty function_descr id
-  (** [ty_fun name type_vars arg_types return_type] returns a fresh constant symbol,
+  (** [term_fun name type_vars arg_types return_type] returns a fresh constant symbol,
       possibly polymorphic with respect to the variables in [type_vars] (which may appear in the
       types in [arg_types] and in [return_type]). *)
 

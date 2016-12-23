@@ -50,28 +50,26 @@ module Stack : sig
 
 end
 
-module HashtblBack :
-  functor (K : Hashtbl.HashedType) ->
-  sig
-    (** Provides wrappers around hastables in order to have
-        very simple integration with backtraking stacks.
-        All actions performed on this table register the corresponding
-        undo operations so that backtracking is automatic. *)
+module Hashtbl(K : Hashtbl.HashedType) : sig
+  (** Provides wrappers around hastables in order to have
+      very simple integration with backtraking stacks.
+      All actions performed on this table register the corresponding
+      undo operations so that backtracking is automatic. *)
 
-    type key = K.t
-    (** The type of keys of the Hashtbl. *)
+  type key = K.t
+  (** The type of keys of the Hashtbl. *)
 
-    type 'a t
-    (** The type of hastable from keys to values of type ['a]. *)
+  type 'a t
+  (** The type of hastable from keys to values of type ['a]. *)
 
-    val create : ?size:int -> Stack.t -> 'a t
-    (** Creates an empty hashtable, that registers undo operations on the given stack. *)
+  val create : ?size:int -> Stack.t -> 'a t
+  (** Creates an empty hashtable, that registers undo operations on the given stack. *)
 
-    val add : 'a t -> key -> 'a -> unit
-    val mem : 'a t -> key -> bool
-    val find : 'a t -> key -> 'a
-    val remove : 'a t -> key -> unit
-    val iter : (key -> 'a -> unit) -> 'a t -> unit
-    val fold : 'a t -> (key -> 'a -> 'b -> 'b) -> 'b -> 'b
-    (** Usual operations on the hashtabl. For more information see the Hashtbl module of the stdlib. *)
-  end
+  val add : 'a t -> key -> 'a -> unit
+  val mem : 'a t -> key -> bool
+  val find : 'a t -> key -> 'a
+  val remove : 'a t -> key -> unit
+  val iter : (key -> 'a -> unit) -> 'a t -> unit
+  val fold : 'a t -> (key -> 'a -> 'b -> 'b) -> 'b -> 'b
+  (** Usual operations on the hashtabl. For more information see the Hashtbl module of the stdlib. *)
+end

@@ -56,5 +56,5 @@ module type S = sig
 
 end
 
-module Make(T : Key) : S with type var = T.t
+module Eq(T : Key) : S with type var = T.t
 

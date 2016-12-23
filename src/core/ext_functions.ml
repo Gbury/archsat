@@ -1,7 +1,7 @@
 
 let section = Util.Section.make ~parent:Dispatcher.section "functions"
 
-module H = Backtrack.HashtblBack(Expr.Term)
+module H = Backtrack.Hashtbl(Expr.Term)
 
 let st = H.create Dispatcher.stack
 
