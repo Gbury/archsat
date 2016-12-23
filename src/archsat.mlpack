@@ -41,6 +41,9 @@ Ext_constraints
 ##### Misc modules #####
 ########################
 
+# Random generation
+Expr_random
+
 # Utilities modules
 Util
 Arith

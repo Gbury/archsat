@@ -9,6 +9,7 @@
 #require "dolmen";;
 #require "gen";;
 #require "oclock";;
+#require "qcheck";;
 #directory "_build";;
 #load "archsat.cma";;
 
@@ -18,4 +19,5 @@ open Archsat;;
 #install_printer Expr.Print.ty;;
 #install_printer Expr.Print.term;;
 #install_printer Expr.Print.formula;;
+
 
