@@ -456,7 +456,7 @@ module Term : sig
 
   val replace : term * term -> term -> term
   (** [replace (t, t') t''] returns the term [t''] where every occurence of [t]
-      has been replace by [t']. *)
+      has been replaced by [t']. *)
 
   val fv : term -> ttype id list * ty id list
   (** Return the list of free variables in the given term. *)

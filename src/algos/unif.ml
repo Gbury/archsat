@@ -156,7 +156,7 @@ let saturate u = {
     ) u.t_map u.t_map;
 }
 
-(* Utilities functions *)
+(* Robinson unification *)
 (* ************************************************************************ *)
 
 module Robinson = struct
