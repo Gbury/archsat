@@ -1,5 +1,5 @@
 
-(** Random generation of terms
+(** Random generation of expressions
 
     This module is designed to generate random terms. Since truly random terms might
     not be that useful we instead constrain generated terms to live inside a specific
@@ -50,6 +50,7 @@ module type S = sig
   val sized : t sized
   val gen : t gen
   val t : t arbitrary
+  val make : t gen -> t arbitrary
 end
 
 (* Small matching algorithm for types *)
@@ -184,7 +185,9 @@ module Ty = struct
 
   let gen = G.sized sized
 
-  let t = QCheck.make ~print ~small ~shrink gen
+  let make g = QCheck.make ~print ~small ~shrink g
+
+  let t = make gen
 
 end
 
@@ -314,11 +317,14 @@ module Term = struct
 
   let gen = G.sized sized
 
-  let t = QCheck.make ~print ~small ~shrink gen
+  let make g = QCheck.make ~print ~small ~shrink g
+
+  let t = make gen
 
 end
 
-(* Formula generation for unification poblems *)
+
+(* Formula generation *)
 (* ************************************************************************ *)
 
 module Formula = struct
@@ -440,18 +446,18 @@ module Formula = struct
       ]
     else
       G.frequency [
-        2, eq ?ground (n - 1);
+        3, eq ?ground (n - 1);
         3, pred ?ground (n - 1);
-        1, G.(return Expr.Formula.neg <*> self (n-1));
-        1, G.(split_int (n-1) >>= fun (a, b) ->
+        2, G.(return Expr.Formula.neg <*> self (n-1));
+        2, G.(split_int (n-1) >>= fun (a, b) ->
               self a >>= fun p -> self b >>= fun q ->
               return @@ Expr.Formula.f_and [p; q]);
-        1, G.(split_int (n-1) >>= fun (a, b) ->
+        2, G.(split_int (n-1) >>= fun (a, b) ->
               self a >>= fun p -> self b >>= fun q ->
               return @@ Expr.Formula.f_or [p; q]);
-        1, G.(split_int (n-1) >>= fun (a, b) ->
+        2, G.(split_int (n-1) >>= fun (a, b) ->
               return Expr.Formula.imply <*> self a <*> self b);
-        1, G.(split_int (n-1) >>= fun (a, b) ->
+        2, G.(split_int (n-1) >>= fun (a, b) ->
               return Expr.Formula.equiv <*> self a <*> self b);
       ]
 
@@ -462,7 +468,7 @@ module Formula = struct
         if n = 0 then sized_free_aux ~ground:true self n
         else
           G.frequency [
-            5, sized_free_aux ~ground:false self n;
+            4, sized_free_aux ~ground:false self n;
             1, G.(self (n-1) >>= ex);
             1, G.(self (n-1) >>= all);
             1, G.(self (n-1) >>= exty);
@@ -479,19 +485,78 @@ module Formula = struct
 
   let gen = G.sized sized
 
-  let t = QCheck.make ~print ~small ~shrink gen
+  let make g = QCheck.make ~print ~small ~shrink g
 
-  let meta gen size =
-    G.(gen size >|= fun f ->
-       let tys, l = Expr.Formula.fv f in
-       assert (tys = []);
-       match Expr.Formula.all l f with
-       | { Expr.formula = Expr.All (vars, _, _) } as q_f ->
-         let metas = List.map Expr.Term.of_meta (Expr.Meta.of_all q_f) in
-         let subst = List.fold_left2 (fun s v t -> Expr.Subst.Id.bind v t s)
-             Expr.Subst.empty vars metas in
-         Expr.Formula.subst Expr.Subst.empty subst f
-       | _ -> f)
+  let t = make gen
+
+  let meta f =
+    let tys, l = Expr.Formula.fv f in
+    assert (tys = []);
+    match Expr.Formula.all l f with
+    | { Expr.formula = Expr.All (vars, _, _) } as q_f ->
+      let metas = List.map Expr.Term.of_meta (Expr.Meta.of_all q_f) in
+      let subst = List.fold_left2 (fun s v t -> Expr.Subst.Id.bind v t s)
+          Expr.Subst.empty vars metas in
+      Expr.Formula.subst Expr.Subst.empty subst f
+    | _ -> f
+
+  let meta_tt (u, v) =
+    assert Expr.(Ty.equal u.t_type v.t_type);
+    let eq = Expr.Formula.eq u v in
+    match meta eq with
+    | { Expr.formula = Expr.Equal (t, t') }
+    | { Expr.formula = Expr.Equiv (
+            { Expr.formula = Expr.Pred t},
+            { Expr.formula = Expr.Pred t'} ) } ->
+      (t, t')
+    | _ -> assert false
+
+end
+
+(* Substitution generation *)
+(* ************************************************************************ *)
+
+module Subst = struct
+
+  type t = (Expr.ty Expr.meta, Expr.term) Expr.Subst.t
+
+  let print s =
+    Format.asprintf "%a"
+      (Expr.Subst.print Expr.Meta.print Expr.Term.print) s
+
+  let small s =
+    Expr.Subst.fold (fun v t acc -> acc + Term.small t) s 0
+
+  let shrink s =
+    let aux (v, t) = I.map (fun t' -> (v, t')) (Term.shrink t) in
+    let of_list l =
+      List.fold_left (fun s (v, t) ->
+          Expr.Subst.Meta.bind v t s) Expr.Subst.empty l
+    in
+    let l = Expr.Subst.bindings s in
+    I.map of_list (S.list ~shrink:aux l)
+
+  let domain d =
+    G.fix (fun self n ->
+        if n = 0 then G.return Expr.Subst.empty
+        else
+          G.(d >>= fun v -> split_int n >>= fun (a, b) ->
+             Term.typed ~ground:false Expr.(v.id_type) a >>= fun t ->
+             match Formula.meta_tt (Expr.Term.of_id v, t) with
+             | ({Expr.term = Expr.Meta m }, t')
+             | (t', {Expr.term = Expr.Meta m }) ->
+               return (Expr.Subst.Meta.bind m t') <*> self b
+             | _ -> assert false)
+      )
+
+  let sized =
+    domain G.(Ty.gen >>= Var.gen)
+
+  let gen = G.sized sized
+
+  let make g = QCheck.make ~print ~small ~shrink g
+
+  let t = make gen
 
 end
 

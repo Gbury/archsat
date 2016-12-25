@@ -37,6 +37,9 @@ module type S = sig
   val t : t arbitrary
   (** Arbitrary for types. To use in qcheck tests. *)
 
+  val make : t gen -> t arbitrary
+  (** Convenient shortcut. *)
+
 end
 
 (** {2 Types} *)
@@ -70,8 +73,23 @@ module Formula : sig
   val pred : ?ground:bool -> Expr.formula sized
   (** Individual generator for expressions. *)
 
-  val meta : Expr.formula sized -> Expr.formula sized
+  val meta : Expr.formula -> Expr.formula
   (** Replaces variable with meta-variables in the formulas of a generator. *)
+
+  val meta_tt : (Expr.term * Expr.term) -> (Expr.term * Expr.term)
+  (** Takes a pair of terms with free variables and substitute them with
+      meta-variables. *)
+
+end
+
+(** {2 Substitutions} *)
+
+module Subst : sig
+
+  type t = (Expr.ty Expr.meta, Expr.term) Expr.Subst.t
+  (** Type alias for the substitutions. *)
+
+  include S with type t := t
 
 end
 

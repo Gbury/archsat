@@ -54,6 +54,11 @@ let debug b s =
     (Expr.Subst.debug Expr.Debug.meta Expr.Debug.ty) s.ty_map
     (Expr.Subst.debug Expr.Debug.meta Expr.Debug.term) s.t_map
 
+let print fmt s =
+  Format.fprintf fmt "{%a; %a}"
+    (Expr.Subst.print Expr.Print.meta Expr.Print.ty) s.ty_map
+    (Expr.Subst.print Expr.Print.meta Expr.Print.term) s.t_map
+
 let inverse s =
   Expr.Subst.fold (fun m t s ->
       match t with

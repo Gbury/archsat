@@ -73,6 +73,7 @@ val saturate : t -> t
     WARNING: This is unsafe,and, as it seems, incomplete to use... *)
 
 val debug : Buffer.t -> t -> unit
+val print : Buffer.t -> t -> unit
 
 val combine : t -> t -> t option
 
