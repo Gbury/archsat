@@ -214,6 +214,33 @@ module Var = struct
 
 end
 
+(* Meta-variable generation *)
+(* ************************************************************************ *)
+
+module Meta = struct
+
+  module H = Hashtbl.Make(Expr.Ty)
+
+  let num = 10
+  let table = H.create 42
+
+  let get ty =
+    try H.find table ty
+    with Not_found ->
+      let a = Array.init num (fun i ->
+          let v = Expr.Id.ty (Format.sprintf "m%d" i) ty in
+          match Expr.(Meta.of_all (Formula.(all [v] f_true))) with
+          | [ m ] -> m
+          | _ -> assert false
+        ) in
+      H.add table ty a;
+      a
+
+  let gen ty =
+    G.map (fun i -> (get ty).(i)) G.(0 -- (num - 1))
+
+end
+
 (* Term generation *)
 (* ************************************************************************ *)
 
@@ -249,7 +276,14 @@ module Term = struct
     let aux t = Expr.(Ty.equal term.t_type t.t_type) in
     iter_filter aux (sub term)
 
-  let rec typed ?(ground=true) ty size =
+  type config = {
+    var : int;
+    meta : int;
+  }
+
+  let ground = { var = 0; meta = 1; }
+
+  let rec typed ~config ty size =
     (** This is used to filter constant that can produce a term
         of the required type [ty]. *)
     let aux c =
@@ -285,35 +319,36 @@ module Term = struct
         List.map (fun x -> (1, `Cst x)) l1
       end
     in
+    assert (l3 <> []);
     (** Finally, insert the possibility to generate a variable when we want to
         generate a leaf (i.e ground is true, and size <= 1). *)
     let l4 =
-      if ground || size > 1 then l3
-      else (2, `Var) :: l3
+      if size > 1 then l3
+      else (config.var, `Var) :: (config.meta, `Meta) :: l3
     in
-    assert (l4 <> [] && List.for_all (fun (n, _) -> n > 0) l4);
     (** Turn the possibility list into a generator. *)
     G.(frequencyl l4 >>= (fun x ->
         match x with
         | `Var -> Var.gen ty >|= Expr.Term.of_id
+        | `Meta -> Meta.gen ty >|= Expr.Term.of_meta
         | `Cst (c, subst) ->
           let tys = List.map (fun v -> Expr.Subst.Id.get v subst) Expr.(c.id_type.fun_vars) in
           let args = List.map (Expr.Ty.subst subst) Expr.(c.id_type.fun_args) in
           split (max 0 (size - 1)) (List.length args) >>= fun sizes ->
-          sized_list ~ground args sizes >|= (Expr.Term.apply c tys)
+          sized_list ~config args sizes >|= (Expr.Term.apply c tys)
       ))
 
-  and sized_list ~ground l sizes =
+  and sized_list ~config l sizes =
     match l, sizes with
     | [], [] -> G.return []
     | ty :: r, size :: rest ->
-      G.(typed ~ground ty size >>= fun t ->
-         sized_list ~ground r rest >|= fun tail ->
+      G.(typed ~config ty size >>= fun t ->
+         sized_list ~config r rest >|= fun tail ->
          t :: tail)
     | _ -> assert false
 
   let sized size =
-    G.(Ty.sized (min 5 size) >>= fun ty -> typed ty size)
+    G.(Ty.sized (min 5 size) >>= fun ty -> typed ~config:ground ty size)
 
   let gen = G.sized sized
 
@@ -406,16 +441,46 @@ module Formula = struct
              List.exists (Expr.Id.equal x) vars) l in
          Expr.Formula.allty l' q)
 
-  let pred ?ground size =
-    G.(return Expr.Formula.pred <*>
-       (Term.typed ?ground Expr.Ty.prop size))
+  type config = {
+    term  : Term.config;
+    eq    : int;
+    pred  : int;
+    neg   : int;
+    conj  : int;
+    disj  : int;
+    impl  : int;
+    equiv : int;
+    all   : int;
+    allty : int;
+    ex    : int;
+    exty  : int;
+  }
 
-  let eq ?ground size =
+  let default = {
+    term = Term.({ var = 1; meta = 0; });
+    eq    = 3;
+    pred  = 4;
+    neg   = 1;
+    conj  = 1;
+    disj  = 1;
+    impl  = 1;
+    equiv = 1;
+    all   = 1;
+    allty = 1;
+    ex    = 1;
+    exty  = 1;
+  }
+
+  let pred ~config size =
+    G.(return Expr.Formula.pred <*>
+       (Term.typed ~config:config.term Expr.Ty.prop size))
+
+  let eq ~config size =
     G.(split_int size >>= fun (a, b) ->
        Ty.sized (min 5 size) >>= fun ty ->
        return Expr.Formula.eq
-       <*> (Term.typed ?ground ty a)
-       <*> (Term.typed ?ground ty b)
+       <*> (Term.typed ~config:config.term ty a)
+       <*> (Term.typed ~config:config.term ty b)
       )
 
   let all f =
@@ -438,50 +503,41 @@ module Formula = struct
     G.(sublist vars >|= fun l ->
        Expr.Formula.exty l f)
 
-  let sized_free_aux ?ground = fun self n ->
-    if n = 0 then
-      G.frequency [
-        1, G.return Expr.Formula.f_true;
-        1, G.return Expr.Formula.f_false;
-      ]
-    else
-      G.frequency [
-        3, eq ?ground (n - 1);
-        3, pred ?ground (n - 1);
-        2, G.(return Expr.Formula.neg <*> self (n-1));
-        2, G.(split_int (n-1) >>= fun (a, b) ->
-              self a >>= fun p -> self b >>= fun q ->
-              return @@ Expr.Formula.f_and [p; q]);
-        2, G.(split_int (n-1) >>= fun (a, b) ->
-              self a >>= fun p -> self b >>= fun q ->
-              return @@ Expr.Formula.f_or [p; q]);
-        2, G.(split_int (n-1) >>= fun (a, b) ->
-              return Expr.Formula.imply <*> self a <*> self b);
-        2, G.(split_int (n-1) >>= fun (a, b) ->
-              return Expr.Formula.equiv <*> self a <*> self b);
-      ]
-
-  let sized_free ?ground = G.fix sized_free_aux
-
-  let sized_closed_aux =
+  let guided ~config =
     G.fix (fun self n ->
-        if n = 0 then sized_free_aux ~ground:true self n
+        if n = 0 then
+          G.frequency [
+            1, G.return Expr.Formula.f_true;
+            1, G.return Expr.Formula.f_false;
+          ]
         else
           G.frequency [
-            4, sized_free_aux ~ground:false self n;
-            1, G.(self (n-1) >>= ex);
-            1, G.(self (n-1) >>= all);
-            1, G.(self (n-1) >>= exty);
-            1, G.(self (n-1) >>= allty);
+            config.eq,    eq ~config n;
+            config.pred,  pred ~config n;
+            config.ex,    G.(self (n-1) >>= ex);
+            config.all,   G.(self (n-1) >>= all);
+            config.exty,  G.(self (n-1) >>= exty);
+            config.allty, G.(self (n-1) >>= allty);
+            config.neg,   G.(return Expr.Formula.neg <*> self (n-1));
+            config.conj,  G.(split_int (n-1) >>= fun (a, b) ->
+                             self a >>= fun p -> self b >>= fun q ->
+                             return @@ Expr.Formula.f_and [p; q]);
+            config.disj,  G.(split_int (n-1) >>= fun (a, b) ->
+                             self a >>= fun p -> self b >>= fun q ->
+                             return @@ Expr.Formula.f_or [p; q]);
+            config.impl,  G.(split_int (n-1) >>= fun (a, b) ->
+                             return Expr.Formula.imply <*> self a <*> self b);
+            config.equiv, G.(split_int (n-1) >>= fun (a, b) ->
+                             return Expr.Formula.equiv <*> self a <*> self b);
           ]
       )
 
-  let sized_closed size =
-    G.(sized_closed_aux size >|= (fun f ->
+  let closed ~config size =
+    G.(guided ~config size >|= (fun f ->
         let tys, vars = Expr.Formula.fv f in
         Expr.Formula.allty tys (Expr.Formula.all vars f)))
 
-  let sized = sized_closed
+  let sized = closed ~config:default
 
   let gen = G.sized sized
 
@@ -541,7 +597,7 @@ module Subst = struct
         if n = 0 then G.return Expr.Subst.empty
         else
           G.(d >>= fun v -> split_int n >>= fun (a, b) ->
-             Term.typed ~ground:false Expr.(v.id_type) a >>= fun t ->
+             Term.typed ~config:Term.ground Expr.(v.id_type) a >>= fun t ->
              match Formula.meta_tt (Expr.Term.of_id v, t) with
              | ({Expr.term = Expr.Meta m }, t')
              | (t', {Expr.term = Expr.Meta m }) ->

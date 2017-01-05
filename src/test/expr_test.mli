@@ -56,7 +56,12 @@ module Term : sig
 
   include S with type t := Expr.term
 
-  val typed : ?ground:bool -> Expr.ty -> Expr.term sized
+  type config = {
+    var : int;
+    meta: int;
+  }
+
+  val typed : config:config -> Expr.ty -> Expr.term sized
   (** Generate a term with the given size and type.
       @param ground if false then variables can appear in the generatd term.
         (default [true]) *)
@@ -69,9 +74,30 @@ module Formula : sig
 
   include S with type t := Expr.formula
 
-  val eq : ?ground:bool -> Expr.formula sized
-  val pred : ?ground:bool -> Expr.formula sized
+  type config = {
+    term  : Term.config;
+    eq    : int;
+    pred  : int;
+    neg   : int;
+    conj  : int;
+    disj  : int;
+    impl  : int;
+    equiv : int;
+    all   : int;
+    allty : int;
+    ex    : int;
+    exty  : int;
+  }
+
+  val eq : config:config -> Expr.formula sized
+  val pred : config:config -> Expr.formula sized
   (** Individual generator for expressions. *)
+
+  val guided : config:config -> Expr.formula sized
+  (** Generate a formula using a given configuration. *)
+
+  val closed : config:config -> Expr.formula sized
+  (** Generate a closed formula. *)
 
   val meta : Expr.formula -> Expr.formula
   (** Replaces variable with meta-variables in the formulas of a generator. *)

@@ -4,6 +4,7 @@ true: color(always)
 <util>: include
 <base>: include
 <core>: include
+<test>: include
 <algos>: include
 <tools>: include
 <input>: include

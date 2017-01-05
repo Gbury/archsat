@@ -2,6 +2,7 @@ S ./
 S ./util
 S ./base
 S ./core
+S ./test
 S ./algos
 S ./tools
 S ./input
@@ -11,6 +12,7 @@ B _build/
 B _build/util
 B _build/base
 B _build/core
+B _build/test
 B _build/algos
 B _build/tools
 B _build/input
