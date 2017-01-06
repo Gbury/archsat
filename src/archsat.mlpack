@@ -42,7 +42,9 @@ Ext_constraints
 ########################
 
 # Random generation
-Expr_random
+Misc_test
+Expr_test
+Unif_test
 
 # Utilities modules
 Util

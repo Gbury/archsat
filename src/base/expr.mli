@@ -326,6 +326,9 @@ module Subst : sig
   val fold : ('a -> 'b -> 'c -> 'c) -> ('a, 'b) t -> 'c -> 'c
   (** Fold over the elements *)
 
+  val filter : ('a -> 'b -> bool) -> ('a, 'b) t -> ('a, 'b) t
+  (** Filter bindings base on a predicate. *)
+
   val bindings : ('a, 'b) t -> ('a * 'b) list
   (** Returns the list of bindings ofa substitution. *)
 

@@ -296,6 +296,8 @@ module Subst = struct
 
   let bindings s = Mi.fold (fun _ (key, value) acc -> (key, value) :: acc) s []
 
+  let filter p = Mi.filter (fun _ (key, value) -> p key value)
+
   (* Comparisons *)
   let equal f = Mi.equal (fun (_, value1) (_, value2) -> f value1 value2)
   let compare f = Mi.compare (fun (_, value1) (_, value2) -> f value1 value2)
@@ -326,7 +328,7 @@ module Subst = struct
 
   let print print_key print_value fmt map =
     let aux _ (key, value) =
-      Format.fprintf fmt "%a -> %a@ " print_key key print_value value
+      Format.fprintf fmt "%a -> %a;@ " print_key key print_value value
     in
     Format.fprintf fmt "@[<hov 0>%a@]" (fun _ -> Mi.iter aux) map
 

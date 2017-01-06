@@ -19,4 +19,6 @@ open Archsat;;
 #install_printer Expr.Print.ty;;
 #install_printer Expr.Print.term;;
 #install_printer Expr.Print.formula;;
+#install_printer Unif.print;;
+
 

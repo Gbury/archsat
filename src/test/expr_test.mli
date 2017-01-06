@@ -5,40 +5,65 @@
     These are intended for use in qcheck tests.
 *)
 
-(** {2 Type definition} *)
+(** {2 Constants} *)
 
-type 'a gen = 'a QCheck.Gen.t
-type 'a sized = 'a QCheck.Gen.sized
-type 'a shrink = 'a QCheck.Shrink.t
-type 'a arbitrary = 'a QCheck.arbitrary
-(** Some type abbreviations *)
+module C : sig
 
-(** {2 Common interface} *)
+  val type_a : Expr.ty
+  val type_b : Expr.ty
+  val type_prop : Expr.ty
+  (** Base types used in the generation of terms. *)
 
-module type S = sig
+  val mk_list_type : Expr.ty -> Expr.ty
+  val mk_pair_type : Expr.ty -> Expr.ty -> Expr.ty
+  (** Composite types used in the generation of terms. *)
 
-  type t
+  val a_0 : Expr.ty Expr.function_descr Expr.id
+  val a_1 : Expr.ty Expr.function_descr Expr.id
+  val a_2 : Expr.ty Expr.function_descr Expr.id
+  val f_a : Expr.ty Expr.function_descr Expr.id
+  val g_a : Expr.ty Expr.function_descr Expr.id
+  val h_a : Expr.ty Expr.function_descr Expr.id
+  val b_0 : Expr.ty Expr.function_descr Expr.id
+  val b_1 : Expr.ty Expr.function_descr Expr.id
+  val b_2 : Expr.ty Expr.function_descr Expr.id
+  val f_b : Expr.ty Expr.function_descr Expr.id
+  val g_b : Expr.ty Expr.function_descr Expr.id
+  val h_b : Expr.ty Expr.function_descr Expr.id
+  val p_0 : Expr.ty Expr.function_descr Expr.id
+  val p_1 : Expr.ty Expr.function_descr Expr.id
+  val p_2 : Expr.ty Expr.function_descr Expr.id
+  val f_p : Expr.ty Expr.function_descr Expr.id
+  val g_p : Expr.ty Expr.function_descr Expr.id
+  val h_p : Expr.ty Expr.function_descr Expr.id
+  val pair : Expr.ty Expr.function_descr Expr.id
+  val nil : Expr.ty Expr.function_descr Expr.id
+  val cons : Expr.ty Expr.function_descr Expr.id
+  (** Constants used in the generation of terms. *)
 
-  val print : t -> string
-  (** Print types to string. *)
+end
 
-  val small : t -> int
-  (** Returns the size of a type. *)
+(** {2 Variables} *)
 
-  val shrink : t shrink
-  (** Shrink a type by trying all its subtypes. *)
+module Var : sig
 
-  val sized : t sized
-  (** A sized generator for types. *)
+  val get : Expr.ty -> Expr.ty Expr.id array
+  (** Return an array of variables of the given type. *)
 
-  val gen : t gen
-  (** Generate a random type. *)
+  val gen : Expr.ty -> Expr.ty Expr.id QCheck.Gen.t
+  (** Generate a variable of the given type. *)
 
-  val t : t arbitrary
-  (** Arbitrary for types. To use in qcheck tests. *)
+end
 
-  val make : t gen -> t arbitrary
-  (** Convenient shortcut. *)
+(** {2 Meta-variables} *)
+
+module Meta : sig
+
+  val get : Expr.ty -> Expr.ty Expr.meta array
+  (** Return an array of meta-variables of the given type. *)
+
+  val gen : Expr.ty -> Expr.ty Expr.meta QCheck.Gen.t
+  (** Generate a variable of the given type. *)
 
 end
 
@@ -46,7 +71,7 @@ end
 
 module Ty : sig
 
-  include S with type t := Expr.ty
+  include Misc_test.S with type t := Expr.ty
 
 end
 
@@ -54,14 +79,14 @@ end
 
 module Term : sig
 
-  include S with type t := Expr.term
+  include Misc_test.S with type t := Expr.term
 
   type config = {
     var : int;
     meta: int;
   }
 
-  val typed : config:config -> Expr.ty -> Expr.term sized
+  val typed : config:config -> Expr.ty -> Expr.term QCheck.Gen.sized
   (** Generate a term with the given size and type.
       @param ground if false then variables can appear in the generatd term.
         (default [true]) *)
@@ -72,7 +97,7 @@ end
 
 module Formula : sig
 
-  include S with type t := Expr.formula
+  include Misc_test.S with type t := Expr.formula
 
   type config = {
     term  : Term.config;
@@ -89,14 +114,14 @@ module Formula : sig
     exty  : int;
   }
 
-  val eq : config:config -> Expr.formula sized
-  val pred : config:config -> Expr.formula sized
+  val eq : config:config -> Expr.formula QCheck.Gen.sized
+  val pred : config:config -> Expr.formula QCheck.Gen.sized
   (** Individual generator for expressions. *)
 
-  val guided : config:config -> Expr.formula sized
+  val guided : config:config -> Expr.formula QCheck.Gen.sized
   (** Generate a formula using a given configuration. *)
 
-  val closed : config:config -> Expr.formula sized
+  val closed : config:config -> Expr.formula QCheck.Gen.sized
   (** Generate a closed formula. *)
 
   val meta : Expr.formula -> Expr.formula
@@ -105,17 +130,6 @@ module Formula : sig
   val meta_tt : (Expr.term * Expr.term) -> (Expr.term * Expr.term)
   (** Takes a pair of terms with free variables and substitute them with
       meta-variables. *)
-
-end
-
-(** {2 Substitutions} *)
-
-module Subst : sig
-
-  type t = (Expr.ty Expr.meta, Expr.term) Expr.Subst.t
-  (** Type alias for the substitutions. *)
-
-  include S with type t := t
 
 end
 

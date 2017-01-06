@@ -3,7 +3,9 @@
 LOG=build.log
 COMP=ocamlbuild -log $(LOG) # -classic-display
 FLAGS=-use-ocamlfind -yaccflag '--table'
+
 DOC=archsat.docdir/index.html
+TEST=run_test.native
 BIN=main.native
 
 NAME=archsat
@@ -23,10 +25,14 @@ bin:
 lib:
 	$(COMP) $(FLAGS) $(LIB)
 
+test:
+	$(COMP) $(FLAGS) $(TEST)
+	./$(TEST) -seed $$RANDOM
+
 log:
 	cat _build/$(LOG) || true
 
 clean:
 	$(COMP) -clean
 
-.PHONY: clean doc all bin lib top
+.PHONY: clean doc all bin lib top test

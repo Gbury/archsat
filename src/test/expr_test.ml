@@ -6,52 +6,7 @@
     signature of types and terms (defined in the [S] module).
 *)
 
-(* QCheck related definitions *)
-(* ************************************************************************ *)
-
-module G = QCheck.Gen
-module I = QCheck.Iter
-module S = QCheck.Shrink
-
-type 'a gen = 'a QCheck.Gen.t
-type 'a sized = 'a QCheck.Gen.sized
-type 'a shrink = 'a QCheck.Shrink.t
-type 'a arbitrary = 'a QCheck.arbitrary
-
-let rec split size len =
-  let open G in
-  if len = 0 then
-    return []
-  else if len = 1 then
-    return [size]
-  else begin
-    (0 -- size) >>= fun hd ->
-    split (size - hd) (len - 1) >|= fun tl ->
-    hd :: tl
-  end
-
-let split_int size =
-  G.(split size 2 >|= function
-    | [a; b] -> a, b | _ -> assert false)
-
-let sublist l =
-  G.(shuffle_l l >>= fun l ->
-     (0 -- List.length l) >|= fun n ->
-     CCList.take n l)
-
-let iter_filter p seq k =
-  seq (fun x -> if p x then k x)
-
-module type S = sig
-  type t
-  val print : t -> string
-  val small : t -> int
-  val shrink : t shrink
-  val sized : t sized
-  val gen : t gen
-  val t : t arbitrary
-  val make : t gen -> t arbitrary
-end
+open Misc_test.Infix
 
 (* Small matching algorithm for types *)
 (* ************************************************************************ *)
@@ -274,7 +229,7 @@ module Term = struct
 
   let shrink term =
     let aux t = Expr.(Ty.equal term.t_type t.t_type) in
-    iter_filter aux (sub term)
+    Misc_test.iter_filter aux (sub term)
 
   type config = {
     var : int;
@@ -334,7 +289,7 @@ module Term = struct
         | `Cst (c, subst) ->
           let tys = List.map (fun v -> Expr.Subst.Id.get v subst) Expr.(c.id_type.fun_vars) in
           let args = List.map (Expr.Ty.subst subst) Expr.(c.id_type.fun_args) in
-          split (max 0 (size - 1)) (List.length args) >>= fun sizes ->
+          Misc_test.split (max 0 (size - 1)) (List.length args) >>= fun sizes ->
           sized_list ~config args sizes >|= (Expr.Term.apply c tys)
       ))
 
@@ -348,7 +303,7 @@ module Term = struct
     | _ -> assert false
 
   let sized size =
-    G.(Ty.sized (min 5 size) >>= fun ty -> typed ~config:ground ty size)
+    G.(Ty.gen >>= fun ty -> typed ~config:ground ty size)
 
   let gen = G.sized sized
 
@@ -476,7 +431,7 @@ module Formula = struct
        (Term.typed ~config:config.term Expr.Ty.prop size))
 
   let eq ~config size =
-    G.(split_int size >>= fun (a, b) ->
+    G.(Misc_test.split_int size >>= fun (a, b) ->
        Ty.sized (min 5 size) >>= fun ty ->
        return Expr.Formula.eq
        <*> (Term.typed ~config:config.term ty a)
@@ -485,22 +440,22 @@ module Formula = struct
 
   let all f =
     let _, vars = Expr.Formula.fv f in
-    G.(sublist vars >|= fun l ->
+    G.(Misc_test.sublist vars >|= fun l ->
        Expr.Formula.all l f)
 
   let ex f =
     let _, vars = Expr.Formula.fv f in
-    G.(sublist vars >|= fun l ->
+    G.(Misc_test.sublist vars >|= fun l ->
        Expr.Formula.ex l f)
 
   let allty f =
     let vars, _ = Expr.Formula.fv f in
-    G.(sublist vars >|= fun l ->
+    G.(Misc_test.sublist vars >|= fun l ->
        Expr.Formula.allty l f)
 
   let exty f =
     let vars, _ = Expr.Formula.fv f in
-    G.(sublist vars >|= fun l ->
+    G.(Misc_test.sublist vars >|= fun l ->
        Expr.Formula.exty l f)
 
   let guided ~config =
@@ -519,15 +474,15 @@ module Formula = struct
             config.exty,  G.(self (n-1) >>= exty);
             config.allty, G.(self (n-1) >>= allty);
             config.neg,   G.(return Expr.Formula.neg <*> self (n-1));
-            config.conj,  G.(split_int (n-1) >>= fun (a, b) ->
+            config.conj,  G.(Misc_test.split_int (n-1) >>= fun (a, b) ->
                              self a >>= fun p -> self b >>= fun q ->
                              return @@ Expr.Formula.f_and [p; q]);
-            config.disj,  G.(split_int (n-1) >>= fun (a, b) ->
+            config.disj,  G.(Misc_test.split_int (n-1) >>= fun (a, b) ->
                              self a >>= fun p -> self b >>= fun q ->
                              return @@ Expr.Formula.f_or [p; q]);
-            config.impl,  G.(split_int (n-1) >>= fun (a, b) ->
+            config.impl,  G.(Misc_test.split_int (n-1) >>= fun (a, b) ->
                              return Expr.Formula.imply <*> self a <*> self b);
-            config.equiv, G.(split_int (n-1) >>= fun (a, b) ->
+            config.equiv, G.(Misc_test.split_int (n-1) >>= fun (a, b) ->
                              return Expr.Formula.equiv <*> self a <*> self b);
           ]
       )
@@ -566,53 +521,6 @@ module Formula = struct
             { Expr.formula = Expr.Pred t'} ) } ->
       (t, t')
     | _ -> assert false
-
-end
-
-(* Substitution generation *)
-(* ************************************************************************ *)
-
-module Subst = struct
-
-  type t = (Expr.ty Expr.meta, Expr.term) Expr.Subst.t
-
-  let print s =
-    Format.asprintf "%a"
-      (Expr.Subst.print Expr.Meta.print Expr.Term.print) s
-
-  let small s =
-    Expr.Subst.fold (fun v t acc -> acc + Term.small t) s 0
-
-  let shrink s =
-    let aux (v, t) = I.map (fun t' -> (v, t')) (Term.shrink t) in
-    let of_list l =
-      List.fold_left (fun s (v, t) ->
-          Expr.Subst.Meta.bind v t s) Expr.Subst.empty l
-    in
-    let l = Expr.Subst.bindings s in
-    I.map of_list (S.list ~shrink:aux l)
-
-  let domain d =
-    G.fix (fun self n ->
-        if n = 0 then G.return Expr.Subst.empty
-        else
-          G.(d >>= fun v -> split_int n >>= fun (a, b) ->
-             Term.typed ~config:Term.ground Expr.(v.id_type) a >>= fun t ->
-             match Formula.meta_tt (Expr.Term.of_id v, t) with
-             | ({Expr.term = Expr.Meta m }, t')
-             | (t', {Expr.term = Expr.Meta m }) ->
-               return (Expr.Subst.Meta.bind m t') <*> self b
-             | _ -> assert false)
-      )
-
-  let sized =
-    domain G.(Ty.gen >>= Var.gen)
-
-  let gen = G.sized sized
-
-  let make g = QCheck.make ~print ~small ~shrink g
-
-  let t = make gen
 
 end
 

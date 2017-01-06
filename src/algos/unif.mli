@@ -55,9 +55,10 @@ val term_subst : t -> Expr.term -> Expr.term
 (** Subsitutions of meta-variables, given a unifier. May not terminate if the substitution
     contains cycles. *)
 
-val occurs_ty : t -> Expr.ttype Expr.meta -> Expr.ty -> bool
-val occurs_term : t -> Expr.ty Expr.meta -> Expr.term -> bool
-(** Occurs check on terms and types, expected return result should be false (i.e no cycles detected). *)
+val occurs_ty : t -> Expr.ttype Expr.meta list -> Expr.ty -> bool
+val occurs_term : t -> Expr.ty Expr.meta list -> Expr.term -> bool
+(** Occurs check on terms and types, expected return result should be false
+    (i.e no cycles detected). *)
 
 val occurs_check : t -> bool
 (** Returns true if no bindings of the substitution violates the usual occurs check criterion
@@ -73,7 +74,7 @@ val saturate : t -> t
     WARNING: This is unsafe,and, as it seems, incomplete to use... *)
 
 val debug : Buffer.t -> t -> unit
-val print : Buffer.t -> t -> unit
+val print : Format.formatter -> t -> unit
 
 val combine : t -> t -> t option
 
@@ -116,8 +117,12 @@ module Match : sig
 
   val ty : t -> Expr.ty -> Expr.ty -> t
   val term : t -> Expr.term -> Expr.term -> t
+  (** Matching on types and terms. The first argument is the term, and the second
+      argument is the pattern. *)
 
   val find : section:Util.Section.t -> Expr.term -> Expr.term -> t option
+  (** [find ~section term pat] try and find a substitution [u] such that
+      [term_subst u pat = term]. *)
 
 end
 

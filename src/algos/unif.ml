@@ -89,27 +89,31 @@ let rec follow_term subst = function
     end
   | t -> t
 
-let rec occurs_ty subst m = function
+let rec occurs_ty subst l = function
   | { Expr.ty = Expr.TyMeta m' } ->
+    List.exists (Expr.Meta.equal m') l ||
     begin match get_ty subst m' with
-      | exception Not_found -> Expr.Meta.equal m m'
-      | e -> occurs_ty subst m e
+      | exception Not_found -> false
+      | e -> occurs_ty subst (m' :: l) e
     end
-  | { Expr.ty = Expr.TyApp (_, l) } -> List.exists (occurs_ty subst m) l
+  | { Expr.ty = Expr.TyApp (_, tys) } ->
+    List.exists (occurs_ty subst l) tys
   | _ -> false
 
-let rec occurs_term subst m = function
+let rec occurs_term subst l = function
   | { Expr.term = Expr.Meta m' } ->
+    List.exists (Expr.Meta.equal m') l ||
     begin match get_term subst m' with
-      | exception Not_found -> Expr.Meta.equal m m'
-      | e -> occurs_term subst m e
+      | exception Not_found -> false
+      | e -> occurs_term subst (m' :: l) e
     end
-  | { Expr.term = Expr.App (_, _, l) } -> List.exists (occurs_term subst m) l
+  | { Expr.term = Expr.App (_, _, terms) } ->
+    List.exists (occurs_term subst l) terms
   | _ -> false
 
 let occurs_check t =
-  Expr.Subst.for_all (fun v e -> occurs_ty t v e) t.ty_map &&
-  Expr.Subst.for_all (fun v e -> occurs_term t v e) t.t_map
+  Expr.Subst.for_all (fun v e -> not (occurs_ty t [v] e)) t.ty_map &&
+  Expr.Subst.for_all (fun v e -> not (occurs_term t [v] e)) t.t_map
 
 (* Manipulation over meta substitutions *)
 (* ************************************************************************ *)
@@ -118,7 +122,10 @@ let occurs_check t =
 let rec type_subst_aux u = function
   | { Expr.ty = Expr.TyVar _ } -> assert false
   | { Expr.ty = Expr.TyMeta m } as t ->
-    begin try Expr.Subst.Meta.get m u.ty_map with Not_found -> t end
+    begin match Expr.Subst.Meta.get m u.ty_map with
+    | exception Not_found -> t
+    | t' -> type_subst_aux u t'
+    end
   | { Expr.ty = Expr.TyApp (f, args) } as ty ->
     let new_args = List.map (type_subst_aux u) args in
     if List.for_all2 (==) args new_args then ty
@@ -129,7 +136,10 @@ let type_subst u t = if Expr.Subst.is_empty u.ty_map then t else type_subst_aux 
 let rec term_subst_aux u = function
   | { Expr.term = Expr.Var _ } -> assert false
   | { Expr.term = Expr.Meta m } as t ->
-    begin try Expr.Subst.Meta.get m u.t_map with Not_found -> t end
+    begin match Expr.Subst.Meta.get m u.t_map with
+      | exception Not_found -> t
+      | t' -> term_subst_aux u t'
+    end
   | { Expr.term = Expr.App (f, tys, args) } as t ->
     let new_tys = List.map (type_subst u) tys in
     let new_args = List.map (term_subst_aux u) args in
@@ -177,7 +187,7 @@ module Robinson = struct
     | u, ({ Expr.ty = Expr.TyMeta v } as m) ->
       if Expr.Ty.equal m u then
         subst
-      else if occurs_ty subst v u then
+      else if occurs_ty subst [v] u then
         raise (Impossible_ty (m, u))
       else
         bind_ty subst v u
@@ -197,7 +207,7 @@ module Robinson = struct
     | u, ({ Expr.term = Expr.Meta v } as m) ->
       if Expr.Term.equal m u then
         subst
-      else if occurs_term subst v u then
+      else if occurs_term subst [v] u then
         raise (Impossible_term (m, u))
       else
         let subst' = ty subst Expr.(m.t_type) Expr.(u.t_type) in
@@ -266,7 +276,8 @@ module Match = struct
         | Some t' ->
           if Expr.Ty.equal s t' then subst
           else raise (Impossible_ty (s, t))
-        | None -> bind_ty subst v s
+        | None ->
+          ty (bind_ty subst v s) s s
       end
     | { Expr.ty = Expr.TyApp (f, f_args) },
       { Expr.ty = Expr.TyApp (g, g_args) } ->
@@ -284,7 +295,9 @@ module Match = struct
           if Expr.Term.equal s t' then subst
           else raise (Impossible_term (s, t))
         | None ->
-          bind_term (ty subst Expr.(s.t_type) Expr.(t.t_type)) v s
+          let subst' = ty subst Expr.(s.t_type) Expr.(t.t_type) in
+          let subst'' = bind_term subst' v s in
+          term subst'' s s
       end
     | { Expr.term = Expr.App (f, f_ty_args, f_t_args) },
       { Expr.term = Expr.App (g, g_ty_args, g_t_args) } ->
@@ -296,16 +309,18 @@ module Match = struct
         raise (Impossible_term (s, t))
     | _ -> raise (Impossible_term (s, t))
 
+  let filter subst =
+    let aux_ty m ty = not @@ Expr.Ty.equal (Expr.Ty.of_meta m) ty in
+    let aux_t m t = not @@ Expr.Term.equal (Expr.Term.of_meta m) t in
+    {
+      ty_map = Expr.Subst.filter aux_ty subst.ty_map;
+      t_map = Expr.Subst.filter aux_t subst.t_map;
+    }
+
   let find ~section s t =
     Util.enter_prof section;
-    let res = try
-        let u = term empty s t in
-        assert (Expr.Subst.for_all (fun m t ->
-            Expr.Ty.equal
-              (type_subst u Expr.(m.meta_id.id_type))
-              (type_subst u Expr.(t.t_type))) u.t_map);
-        assert (Expr.Term.equal s (term_subst u t));
-        Some u
+    let res =
+      try Some (filter (term empty s t))
       with Impossible_ty _ | Impossible_term _ -> None
     in
     Util.exit_prof section;
