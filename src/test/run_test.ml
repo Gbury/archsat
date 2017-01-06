@@ -6,6 +6,8 @@ let _ =
         Unif_test.unif_tests;
         Unif_test.match_tests;
         Unif_test.robinson_tests;
+        Index_test.correct_tests;
+        Index_test.complete_tests;
       ]
     )
 

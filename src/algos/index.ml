@@ -3,6 +3,8 @@
    Currently only discrimnates according to the head symbol.
 *)
 
+module Mt = Map.Make(Expr.Term)
+
 (* Statistics *)
 (* ************************************************************************ *)
 
@@ -12,10 +14,54 @@ let s_success = Util.Stats.mk "success"
 
 let s_group = Util.Stats.bundle [s_success; s_found; s_tries]
 
-(* Fingerprint index *)
+(* Simple (and very naive) index *)
 (* ************************************************************************ *)
 
-module Mt = Map.Make(Expr.Term)
+(* This is designed as a reference implementation against which to compare. *)
+
+module Simple(T: Set.OrderedType) = struct
+
+  module S = Set.Make(T)
+
+  type t = {
+    section : Util.Section.t;
+    map: S.t Mt.t;
+  }
+
+  let empty section = { section; map = Mt.empty; }
+
+  let find t m =
+    try Mt.find t m.map
+    with Not_found -> S.empty
+
+  let add t x m =
+    let s = find t m in
+    { m with map = Mt.add t (S.add x s) m.map }
+
+  let remove t x m =
+    let s = find t m in
+    { m with map = Mt.add t (S.remove x s) m.map }
+
+  let find_unify pat m =
+    let aux t s acc =
+      match Unif.Robinson.find ~section:m.section pat t with
+      | None -> acc
+      | Some u -> (t, u, S.elements s) :: acc
+    in
+    Mt.fold aux m.map []
+
+  let find_match pat m =
+    let aux t s acc =
+      match Unif.Match.find ~section:m.section t pat with
+      | None -> acc
+      | Some u -> (t, u, S.elements s) :: acc
+    in
+    Mt.fold aux m.map []
+
+end
+
+(* Fingerprint index *)
+(* ************************************************************************ *)
 
 module Fingerprint = struct
   type t = Expr.ty Position.res
@@ -56,14 +102,14 @@ module Make(T: Set.OrderedType) = struct
     | [] -> Position.root
     | i :: r -> Position.arg (i - 1) (of_list r)
 
-  let master_key = List.map of_list [[]; [1]; [2]; [3]; [1; 1]; [1; 2]]
+  let master_key = [[]; [1]; [2]; [3]; [1; 1]; [1; 2]]
 
-  let empty section =
+  let empty ?(key=master_key) section =
     Util.Stats.attach section s_group;
     {
-      key = master_key;
+      section;
       trie = Empty;
-      section = section;
+      key = List.map of_list key;
       unif_section = Util.Section.make ~parent:section "unif";
     }
 
@@ -140,83 +186,19 @@ module Make(T: Set.OrderedType) = struct
     Util.exit_prof t.section;
     res
 
-  let find_match e t =
+  let find_match pat t =
     Util.enter_prof t.section;
     Util.Stats.incr s_tries t.section;
-    let l = find compat_match [] (fp t.key e) t.trie in
+    let l = find compat_match [] (fp t.key pat) t.trie in
     Util.Stats.incr ~k:(List.length l) s_found t.section;
     let res =
-      CCList.filter_map (fun (e', s) ->
-          match Unif.Match.find ~section:t.unif_section e e' with
-          | Some m -> Some (e', m, S.elements s) | None -> None
+      CCList.filter_map (fun (e, s) ->
+          match Unif.Match.find ~section:t.unif_section e pat with
+          | Some m -> Some (e, m, S.elements s) | None -> None
         ) l in
     Util.Stats.incr ~k:(List.length res) s_success t.section;
     Util.exit_prof t.section;
     res
 
 end
-
-(* Simple index *)
-(* ************************************************************************ *)
-
-(*
-module Mi = Map.Make(struct type t = int let compare = compare end)
-
-module Make(T: Set.OrderedType) = struct
-
-  module S = Set.Make(T)
-
-  type t = {
-    map : S.t Mt.t Mi.t;
-    univ : S.t Mt.t;
-  }
-
-  let empty = {
-    map = Mi.empty;
-    univ = Mt.empty;
-  }
-
-  let findi i m = try Mi.find i m with Not_found -> Mt.empty
-  let findt e m = try Mt.find e m with Not_found -> S.empty
-
-  let add e c t =
-    match e with
-    | { Expr.term = Expr.App(f,_,_) } ->
-      let m = findi (var_id f) t.map in
-      let s = findt e m in
-      { t with map = Mi.add (var_id f) (Mt.add e (S.add c s) m) t.map }
-    | { Expr.term = Expr.Meta { Expr.meta_id = v; _ } } ->
-      let s = findt e t.univ in
-      { t with univ = Mt.add e (S.add c s) t.univ }
-    | { Expr.term = Expr.Var _ } -> assert false
-
-  let remove e c t =
-    match e with
-    | { Expr.term = Expr.App(f,_,_) } ->
-      let m = findi (var_id f) t.map in
-      let s = findt e m in
-      { t with map = Mi.add (var_id f) (Mt.add e (S.remove c s) m) t.map }
-    | { Expr.term = Expr.Meta { Expr.meta_id = v; _ } } ->
-      let s = findt e t.univ in
-      { t with univ = Mt.add e (S.remove c s) t.univ }
-    | { Expr.term = Expr.Var _ } -> assert false
-
-  let unify_aux e map acc =
-    Mt.fold (fun e' s acc' ->
-        match Unif.Robinson.find_unifier e e' with
-        | None -> acc'
-        | Some u -> (e', u, S.elements s) :: acc'
-      ) map acc
-
-  let unify e t =
-    match e with
-    | { Expr.term = Expr.App(f,_,_) } ->
-      let m = findi (var_id f) t.map in
-      unify_aux e m (unify_aux e t.univ [])
-    | { Expr.term = Expr.Meta { Expr.meta_id = v; _ } } ->
-      Mi.fold (fun _ m acc -> unify_aux e m acc) t.map (unify_aux e t.univ [])
-    | { Expr.term = Expr.Var _ } -> assert false
-
-end
-*)
 
