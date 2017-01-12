@@ -25,7 +25,7 @@ let fold f l acc =
 (* ************************************************************************ *)
 
 let naive_correct_match =
-  QCheck.Test.make ~count:10 ~long_factor:10
+  QCheck.Test.make ~count:10 ~long_factor:100
     ~name:"naive_correct_match" pb
     (fun (pat, l) ->
        let t = fold N.add l (N.empty section) in
@@ -36,7 +36,7 @@ let naive_correct_match =
     )
 
 let naive_correct_unify =
-  QCheck.Test.make ~count:10 ~long_factor:10
+  QCheck.Test.make ~count:10 ~long_factor:100
     ~name:"naive_correct_unify" pb
     (fun (pat, l) ->
        let t = fold N.add l (N.empty section) in
@@ -47,7 +47,7 @@ let naive_correct_unify =
     )
 
 let index_correct_match =
-  QCheck.Test.make ~count:10 ~long_factor:10
+  QCheck.Test.make ~count:10 ~long_factor:100
     ~name:"index_correct_match" pb
     (fun (pat, l) ->
        let t = fold I.add l (I.empty ~key:[] section) in
@@ -58,7 +58,7 @@ let index_correct_match =
     )
 
 let index_correct_unify =
-  QCheck.Test.make ~count:10 ~long_factor:10
+  QCheck.Test.make ~count:10 ~long_factor:100
     ~name:"index_correct_unify" pb
     (fun (pat, l) ->
        let t = fold I.add l (I.empty ~key:[] section) in
@@ -69,7 +69,7 @@ let index_correct_unify =
     )
 
 let fingerprint_correct_match =
-  QCheck.Test.make ~count:10 ~long_factor:10
+  QCheck.Test.make ~count:10 ~long_factor:100
     ~name:"fingerprint_correct_match" pb
     (fun (pat, l) ->
        let t = fold I.add l (I.empty section) in
@@ -80,7 +80,7 @@ let fingerprint_correct_match =
     )
 
 let fingerprint_correct_unify =
-  QCheck.Test.make ~count:10 ~long_factor:10
+  QCheck.Test.make ~count:10 ~long_factor:100
     ~name:"fingerprint_correct_unify" pb
     (fun (pat, l) ->
        let t = fold I.add l (I.empty section) in
@@ -119,7 +119,7 @@ let eq_results res1 res2 =
 (* We assume here that the naive implementation is complete. *)
 
 let index_complete_match =
-  QCheck.Test.make ~count:10 ~long_factor:10
+  QCheck.Test.make ~count:10 ~long_factor:100
     ~name: "index_complete_match" pb
     (fun (pat, l) ->
        let ref = fold N.add l (N.empty section) in
@@ -128,7 +128,7 @@ let index_complete_match =
     )
 
 let index_complete_unify =
-  QCheck.Test.make ~count:10 ~long_factor:10
+  QCheck.Test.make ~count:10 ~long_factor:100
     ~name: "index_complete_unify" pb
     (fun (pat, l) ->
        let ref = fold N.add l (N.empty section) in

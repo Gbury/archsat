@@ -48,7 +48,7 @@ let t = make gen
 (* ************************************************************************ *)
 
 let fixpoint_occur =
-  QCheck.Test.make ~count:100
+  QCheck.Test.make ~count:100 ~long_factor:10
     ~name:"fixpoint_occur" t
     (fun u ->
        QCheck.assume (Unif.occurs_check u);
@@ -56,7 +56,7 @@ let fixpoint_occur =
     )
 
 let fixpoint_proj =
-  QCheck.Test.make ~count:100
+  QCheck.Test.make ~count:100 ~long_factor:10
     ~name:"fixpoint_is_proj" t
     (fun u ->
        QCheck.assume (Unif.occurs_check u);
@@ -100,7 +100,7 @@ let match_subst =
     )
 
 let subst_match =
-  QCheck.Test.make ~count:100
+  QCheck.Test.make ~count:100 ~long_factor:10
     ~name:"subst_match" (QCheck.pair t E.Term.t)
     (fun (u, pat) ->
        QCheck.assume (Unif.occurs_check u);
@@ -126,7 +126,7 @@ let match_tests =
 (* ************************************************************************ *)
 
 let robinson_subst =
-  QCheck.Test.make ~count:10 ~long_factor:10
+  QCheck.Test.make ~count:30 ~long_factor:5
     ~name:"robinson_subst" pair
     (fun (a, b) ->
        match Unif.Robinson.find ~section a b with
@@ -137,7 +137,7 @@ let robinson_subst =
     )
 
 let subst_robinson =
-  QCheck.Test.make ~count:100
+  QCheck.Test.make ~count:100 ~long_factor:10
     ~name:"subst_robinson" (QCheck.pair t E.Term.t)
     (fun (u, t) ->
        QCheck.assume (Unif.occurs_check u);

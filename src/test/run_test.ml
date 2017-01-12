@@ -15,17 +15,46 @@ let error =
 (* CLI arguments *)
 (* ************************************************************************ *)
 
+let seed = ref ~-1
 let long = ref false
+let only = ref []
+
+let add_only name =
+  only := name :: !only
+
+let rand () =
+  Random.State.make [| !seed |]
+
+let setup () =
+  (* Set random seed *)
+  if !seed = -1 then begin
+    Random.self_init ();
+    seed := Random.int (1 lsl 29)
+  end;
+  ()
 
 let args = Arg.align @@ List.sort
     (fun (s, _, _) (s', _, _) -> compare s s') [
-    "-long", Arg.Set long, " enable long tests"
+    "--long", Arg.Set long, " enable long tests";
+    "--only", Arg.String add_only, " run only these tests";
+    "--seed", Arg.Set_int seed, " set random seed";
   ]
 
 let anon _ =
   raise (Arg.Bad "Positional arguments are not parsed")
 
 let usage = "./run_test [opts]\tRun the testsuite"
+
+(* Filtering tests *)
+(* ************************************************************************ *)
+
+let filter l =
+  if !only = [] then l
+  else begin
+    List.filter (function (QCheck.Test.Test c) ->
+        List.mem (QCheck.Test.get_name c) !only
+      ) l
+  end
 
 (* Running tests *)
 (* ************************************************************************ *)
@@ -44,7 +73,12 @@ type res =
 
 let create cell = {
   start = Util.get_total_time ();
-  expected = QCheck.Test.get_count cell;
+  expected = begin
+    let count = QCheck.Test.get_count cell in
+    if !long
+    then QCheck.Test.get_long_factor cell * count
+    else count
+  end;
   gen = 0;
   pass = 0;
   fail = 0;
@@ -80,11 +114,17 @@ let run_list l =
   let aux = function
     | QCheck.Test.Test cell ->
       let c = create cell in
+      Format.printf "\r[ ] %a -- %s@?" pp_counter c (QCheck.Test.get_name cell);
       let r = QCheck.Test.check_cell ~long:!long
-          ~step:(step c) ~call:(callback c) cell in
+          ~rand:(rand()) ~step:(step c) ~call:(callback c) cell in
       Res (cell, r)
   in
+  Format.printf
+    "generated   fail; error; pass / total -     time -- test name\n%!";
   List.map aux l
+
+(* Analyzing test results *)
+(* ************************************************************************ *)
 
 let print_inst arb x =
   match arb.QCheck.print with
@@ -124,13 +164,18 @@ let analyze_list l =
 
 let run l =
   (* Some options *)
+  let () = Sys.catch_break true in
   let () = Printexc.record_backtrace true in
   let () = CCFormat.set_color_default true in
   (* Parsing arguments *)
   let () = Arg.parse args anon usage in
+  setup ();
+  (* Print random seed *)
+  Format.printf "Random seed : %d@." !seed;
   (* Running tests *)
-  let l' = run_list l in
-  analyze_list l'
+  let l = filter l in
+  let l = run_list l in
+  analyze_list l
 
 let _ =
   run (
@@ -139,6 +184,7 @@ let _ =
     Unif_test.match_qtests @
     Unif_test.robinson_qtests @
     Index_test.correct_qtests @
-    Index_test.complete_qtests
+    Index_test.complete_qtests @
+    Closure_test.closure_qtests
   )
 
