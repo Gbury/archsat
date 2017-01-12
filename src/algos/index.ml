@@ -14,6 +14,20 @@ let s_success = Util.Stats.mk "success"
 
 let s_group = Util.Stats.bundle [s_success; s_found; s_tries]
 
+(* Common signature *)
+(* ************************************************************************ *)
+
+module type S = sig
+
+  type t
+  type value
+
+  val add : Expr.term -> value -> t -> t
+  val remove : Expr.term -> value -> t -> t
+  val find_unify : Expr.term -> t -> (Expr.term * Unif.t * value list) list
+  val find_match : Expr.term -> t -> (Expr.term * Unif.t * value list) list
+end
+
 (* Simple (and very naive) index *)
 (* ************************************************************************ *)
 
@@ -64,6 +78,7 @@ end
 (* ************************************************************************ *)
 
 module Fingerprint = struct
+
   type t = Expr.ty Position.res
 
   let discr = function
@@ -78,7 +93,10 @@ module Fingerprint = struct
     | Var, Var | Possible, Possible | Impossible, Impossible -> 0
     | Top s, Top s' -> Expr.Id.compare s s'
     | _ -> discr f - discr f'
-  end
+
+  let print = Position.print_res Expr.Print.const_ty
+
+end
 
 module Mf = Map.Make(Fingerprint)
 
@@ -102,7 +120,7 @@ module Make(T: Set.OrderedType) = struct
     | [] -> Position.root
     | i :: r -> Position.arg (i - 1) (of_list r)
 
-  let master_key = [[]; [1]; [2]; [3]; [1; 1]; [1; 2]]
+  let master_key = [[]; [0]; [1]; [2]; [0; 0]; [0; 1]]
 
   let empty ?(key=master_key) section =
     Util.Stats.attach section s_group;
@@ -115,6 +133,8 @@ module Make(T: Set.OrderedType) = struct
 
   let fp_aux e p = fst @@ Position.Term.apply p e
   let fp l e = List.map (fp_aux e) l
+
+  let fingerprint t e = fp t.key e
 
   let findt e m = try Mt.find e m with Not_found -> S.empty
   let findf f m = try Mf.find f m with Not_found -> Empty
@@ -154,24 +174,30 @@ module Make(T: Set.OrderedType) = struct
       Mf.fold (fun f' t' acc' -> if compat f f' then find compat acc' r t' else acc') m acc
     | _ -> assert false
 
-  let compat_unif f f' =
+  let compat_unif f f' = (* Can f and f' be unified ? *)
     let open Position in
     match f, f' with
     | Top f1, Top f2 -> Expr.Id.equal f1 f2
-    | Impossible, (Top _ | Var) | (Top _ | Var), Impossible -> false
+    | Impossible, (Top _ | Var)
+    | (Top _ | Var), Impossible -> false
     | _ -> true
 
-  let compat_match f f' = (* can f' be 'sustituted' to be equal to f ? *)
+  let compat_match f f' = (* can f be 'sustituted' to be equal to f' ? *)
     let open Position in
-    match f with
-    | Top f1 -> begin match f' with
-        | Top f2 -> Expr.Id.equal f1 f2
-        | Var | Possible -> true
-        | Impossible -> false
-      end
-    | Var -> f' = Var || f' = Possible
-    | Possible -> f' = Possible
-    | Impossible -> f' = Possible || f' = Impossible
+    match f, f' with
+    (* To match an application, you need an application with the same function. *)
+    | Top f1, Top f2 -> Expr.Id.equal f1 f2
+    | Top _, (Var | Possible | Impossible) -> false
+    (* A var can match a var (iff it's the same var), and an application.
+       However, since we are matching, a var cannot match a 'possible'. *)
+    | Var, (Top _ | Var) -> true
+    | Var, (Possible | Impossible) -> false
+    (* A possible can match an application, an impossible, and another possible
+       (iff both possible derive from the same var at the same place. ) *)
+    | Possible, (Var | Impossible | Possible | Top _) -> true
+    (* An impossible can only match an impossible. *)
+    | Impossible, Impossible -> true
+    | Impossible, (Top _ | Var | Possible) -> false
 
   let find_unify e t =
     Util.enter_prof t.section;

@@ -64,12 +64,15 @@ let fixpoint_proj =
        Unif.equal u' (Unif.fixpoint u')
     )
 
+let unif_qtests = [
+  fixpoint_occur;
+  fixpoint_proj;
+]
+
 let unif_tests =
   let open OUnit2 in
-  "Unif" >::: List.map QCheck_runner.to_ounit2_test [
-    fixpoint_occur;
-    fixpoint_proj;
-  ]
+  "Unif" >:::
+  List.map QCheck_runner.to_ounit2_test unif_qtests
 
 (* Match tests *)
 (* ************************************************************************ *)
@@ -82,11 +85,11 @@ let pair =
                E.Term.typed ~config ty size >|= fun b -> (a, b)
               ) in
   QCheck.({(pair E.Term.t E.Term.t) with gen = gen })
-  (* Small hack to get the same printer/shrinker than for pairs, but
-     still generate terms of the same type. *)
+(* Small hack to get the same printer/shrinker than for pairs, but
+   still generate terms of the same type. *)
 
 let match_subst =
-  QCheck.Test.make ~count:30
+  QCheck.Test.make ~count:30 ~long_factor:5
     ~name:"match_subst" pair
     (fun (a, b) ->
        match Unif.Match.find ~section a b with
@@ -95,20 +98,6 @@ let match_subst =
          Unif.occurs_check u &&
          Expr.Term.equal a (Unif.term_subst u b)
     )
-
-let match_subst_custom1 =
-  let open OUnit2 in
-  "match_subst_custom1" >:: fun _ ->
-    let m0 = (E.Meta.get E.C.type_a).(0) in
-    let m1 = (E.Meta.get E.C.type_a).(1) in
-    let t = Expr.Term.apply E.C.pair [E.C.type_a; E.C.type_a]
-        [Expr.Term.apply E.C.a_0 [] []; Expr.Term.of_meta m0] in
-    let pat = Expr.Term.apply E.C.pair [E.C.type_a; E.C.type_a]
-        [Expr.Term.of_meta m0; Expr.Term.of_meta m1] in
-    OUnit2.assert_equal
-      ~cmp:(CCOpt.equal Unif.equal)
-      ~printer:(CCOpt.map_or ~default:"<>" print)
-      None (Unif.Match.find ~section t pat)
 
 let subst_match =
   QCheck.Test.make ~count:100
@@ -123,20 +112,21 @@ let subst_match =
          Expr.Term.equal t (Unif.term_subst u' pat)
     )
 
+let match_qtests = [
+  match_subst;
+  subst_match;
+]
+
 let match_tests =
   let open OUnit2 in
-  "Match" >::: [
-    match_subst_custom1;
-  ] @ List.map QCheck_runner.to_ounit2_test [
-      match_subst;
-      subst_match;
-    ]
+  "Match" >:::
+  List.map QCheck_runner.to_ounit2_test match_qtests
 
 (* Robinson unification tests *)
 (* ************************************************************************ *)
 
 let robinson_subst =
-  QCheck.Test.make ~count:10
+  QCheck.Test.make ~count:10 ~long_factor:10
     ~name:"robinson_subst" pair
     (fun (a, b) ->
        match Unif.Robinson.find ~section a b with
@@ -159,12 +149,14 @@ let subst_robinson =
          Expr.Term.equal (Unif.term_subst u' t) (Unif.term_subst u' t')
     )
 
+let robinson_qtests = [
+  robinson_subst;
+  subst_robinson;
+]
+
 let robinson_tests =
   let open OUnit2 in
-  "Robinson" >::: [
-  ] @ List.map QCheck_runner.to_ounit2_test [
-      robinson_subst;
-      subst_robinson;
-    ]
+  "Robinson" >:::
+  List.map QCheck_runner.to_ounit2_test robinson_qtests
 
 

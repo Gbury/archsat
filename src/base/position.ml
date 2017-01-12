@@ -10,17 +10,39 @@ type t =
   | Here
   | Arg of int * t
 
+(* Build positions *)
 let root = Here
 
 let arg i t = Arg (i, t)
 
+let rec path = function
+  | [] -> root
+  | k :: r -> arg k (path r)
+
+
+(* Comparison, equality, printing. *)
+let equal = (=)
 let compare = Pervasives.compare
 
+let rec print fmt = function
+  | Here -> Format.fprintf fmt "."
+  | Arg (i, t) -> Format.fprintf fmt "%d-%a" i print t
+
+(* Position results. *)
+(* ************************************************************************ *)
+
+(* What might wait at the end of a path. *)
 type 'a res =
   | Var
   | Top of 'a Expr.function_descr Expr.id
   | Possible
   | Impossible
+
+let print_res p fmt = function
+  | Var -> Format.fprintf fmt "var"
+  | Top f -> Format.fprintf fmt "top:%a" p f
+  | Possible -> Format.fprintf fmt "possible"
+  | Impossible -> Format.fprintf fmt "impossible"
 
 (* Positions for Types *)
 (* ************************************************************************ *)

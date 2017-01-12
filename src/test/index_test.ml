@@ -25,7 +25,7 @@ let fold f l acc =
 (* ************************************************************************ *)
 
 let naive_correct_match =
-  QCheck.Test.make ~count:10
+  QCheck.Test.make ~count:10 ~long_factor:10
     ~name:"naive_correct_match" pb
     (fun (pat, l) ->
        let t = fold N.add l (N.empty section) in
@@ -36,7 +36,7 @@ let naive_correct_match =
     )
 
 let naive_correct_unify =
-  QCheck.Test.make ~count:10
+  QCheck.Test.make ~count:10 ~long_factor:10
     ~name:"naive_correct_unify" pb
     (fun (pat, l) ->
        let t = fold N.add l (N.empty section) in
@@ -47,7 +47,7 @@ let naive_correct_unify =
     )
 
 let index_correct_match =
-  QCheck.Test.make ~count:10
+  QCheck.Test.make ~count:10 ~long_factor:10
     ~name:"index_correct_match" pb
     (fun (pat, l) ->
        let t = fold I.add l (I.empty ~key:[] section) in
@@ -58,7 +58,7 @@ let index_correct_match =
     )
 
 let index_correct_unify =
-  QCheck.Test.make ~count:10
+  QCheck.Test.make ~count:10 ~long_factor:10
     ~name:"index_correct_unify" pb
     (fun (pat, l) ->
        let t = fold I.add l (I.empty ~key:[] section) in
@@ -69,7 +69,7 @@ let index_correct_unify =
     )
 
 let fingerprint_correct_match =
-  QCheck.Test.make ~count:10
+  QCheck.Test.make ~count:10 ~long_factor:10
     ~name:"fingerprint_correct_match" pb
     (fun (pat, l) ->
        let t = fold I.add l (I.empty section) in
@@ -80,7 +80,7 @@ let fingerprint_correct_match =
     )
 
 let fingerprint_correct_unify =
-  QCheck.Test.make ~count:10
+  QCheck.Test.make ~count:10 ~long_factor:10
     ~name:"fingerprint_correct_unify" pb
     (fun (pat, l) ->
        let t = fold I.add l (I.empty section) in
@@ -90,16 +90,19 @@ let fingerprint_correct_unify =
          (I.find_unify pat t)
     )
 
+let correct_qtests = [
+  naive_correct_match;
+  naive_correct_unify;
+  index_correct_match;
+  index_correct_unify;
+  fingerprint_correct_match;
+  fingerprint_correct_unify;
+]
+
 let correct_tests =
   let open OUnit2 in
-  "Index_correct" >::: List.map QCheck_runner.to_ounit2_test [
-    naive_correct_match;
-    naive_correct_unify;
-    index_correct_match;
-    index_correct_unify;
-    fingerprint_correct_match;
-    fingerprint_correct_unify;
-  ]
+  "Index_correct" >:::
+  List.map QCheck_runner.to_ounit2_test correct_qtests
 
 (* Completeness check *)
 (* ************************************************************************ *)
@@ -116,7 +119,7 @@ let eq_results res1 res2 =
 (* We assume here that the naive implementation is complete. *)
 
 let index_complete_match =
-  QCheck.Test.make ~count:10
+  QCheck.Test.make ~count:10 ~long_factor:10
     ~name: "index_complete_match" pb
     (fun (pat, l) ->
        let ref = fold N.add l (N.empty section) in
@@ -125,7 +128,7 @@ let index_complete_match =
     )
 
 let index_complete_unify =
-  QCheck.Test.make ~count:10
+  QCheck.Test.make ~count:10 ~long_factor:10
     ~name: "index_complete_unify" pb
     (fun (pat, l) ->
        let ref = fold N.add l (N.empty section) in
@@ -134,7 +137,7 @@ let index_complete_unify =
     )
 
 let fingerprint_complete_match =
-  QCheck.Test.make ~count:10
+  QCheck.Test.make ~count:10 ~long_factor:100
     ~name: "fingerprint_complete_match" pb
     (fun (pat, l) ->
        let ref = fold N.add l (N.empty section) in
@@ -143,7 +146,7 @@ let fingerprint_complete_match =
     )
 
 let fingerprint_complete_unify =
-  QCheck.Test.make ~count:10
+  QCheck.Test.make ~count:10 ~long_factor:100
     ~name: "fingerprint_complete_unify" pb
     (fun (pat, l) ->
        let ref = fold N.add l (N.empty section) in
@@ -151,13 +154,16 @@ let fingerprint_complete_unify =
        eq_results (N.find_unify pat ref) (I.find_unify pat t)
     )
 
+let complete_qtests = [
+  index_complete_match;
+  index_complete_unify;
+  fingerprint_complete_match;
+  fingerprint_complete_unify;
+]
+
 let complete_tests =
   let open OUnit2 in
-  "Index_complete" >::: List.map QCheck_runner.to_ounit2_test [
-    index_complete_match;
-    index_complete_unify;
-    fingerprint_complete_match;
-    fingerprint_complete_unify;
-  ]
+  "Index_complete" >:::
+  List.map QCheck_runner.to_ounit2_test complete_qtests
 
 

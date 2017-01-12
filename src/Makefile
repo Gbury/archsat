@@ -27,7 +27,7 @@ lib:
 
 test:
 	$(COMP) $(FLAGS) $(TEST)
-	./$(TEST) -seed $$RANDOM
+	./$(TEST)
 
 log:
 	cat _build/$(LOG) || true
