@@ -1,4 +1,8 @@
 
+(* Modules signature *)
+(* ************************************************************************ *)
+
+(** Closure keys*)
 module type Key = sig
   type t
   val hash : t -> int
@@ -7,23 +11,27 @@ module type Key = sig
   val debug : Buffer.t -> t -> unit
 end
 
+(** Union-find algorithm signature *)
 module type S = sig
-  type t
   type var
-
+  type 'a t
+  type 'a repr
   exception Unsat of var * var * var list
-
-  val create : Backtrack.Stack.t -> Util.Section.t -> t
-
-  val find : t -> var -> var
-
-  val add_eq : t -> var -> var -> unit
-  val add_neq : t -> var -> var -> unit
-  val add_tag : t -> var -> var -> unit
-
-  val find_tag : t -> var -> var * (var * var) option
-
+  val repr : 'a repr -> var
+  val load : 'a repr -> 'a
+  val create :
+    gen:(var -> 'a) -> merge:('a -> 'a -> 'a) ->
+    section:Util.Section.t -> Backtrack.Stack.t -> 'a t
+  val get_repr : 'a t -> var -> 'a repr
+  val find : 'a t -> var -> var
+  val add_eq : 'a t -> var -> var -> unit
+  val add_neq : 'a t -> var -> var -> unit
+  val add_tag : 'a t -> var -> var -> unit
+  val find_tag : 'a t -> var -> var * (var * var) option
 end
+
+(* Union-find algorithm *)
+(* ************************************************************************ *)
 
 module Eq(T : Key) = struct
 
@@ -36,65 +44,77 @@ module Eq(T : Key) = struct
   exception Same_tag of var * var
   exception Unsat of var * var * var list
 
-  type repr_info = {
+  type 'a repr = {
+    load : 'a;
+    repr : var;
     rank : int;
     tag : (T.t * T.t) option;
     forbidden : (var * var) M.t;
   }
 
-  type node =
+  type 'a node =
     | Follow of var
-    | Repr of repr_info
+    | Repr of 'a repr
 
-  type t = {
+  type 'a t = {
     size : int H.t;
     expl : var H.t;
-    repr : node H.t;
+    repr : 'a node H.t;
+    gen  : var -> 'a;
+    merge : 'a -> 'a -> 'a;
     section : Util.Section.t;
   }
 
-  let create s section = {
-    section;
+  let create ~gen ~merge ~section s = {
+    section; merge; gen;
     size = H.create s;
     expl = H.create s;
     repr = H.create s;
   }
 
-  (* Union-find algorithm with path compression *)
-  let self_repr = Repr { rank = 0; tag = None; forbidden = M.empty }
+  (* Accessors *)
+  let repr (r : _ repr) = r.repr
+  let load r = r.load
 
+  (* Union-find algorithm with path compression *)
   let find_hash m i default =
     try H.find m i
     with Not_found -> default
 
-  let rec find_aux m i =
-    match find_hash m i self_repr with
-    | Repr r -> r, i
-    | Follow j ->
-      let r, k = find_aux m j in
-      H.add m i (Follow k);
-      r, k
+  let rec get_repr h v =
+    match H.find h.repr v with
+    | Repr r -> r
+    | Follow v' ->
+      let r = get_repr h v' in
+      H.add h.repr v (Follow r.repr);
+      r
+    | exception Not_found ->
+      let r = {
+          repr = v;
+          rank = 0;
+          tag = None;
+          load = h.gen v;
+          forbidden = M.empty;
+        } in
+      H.add h.repr v (Repr r);
+      r
 
-  let get_repr h x =
-    let r, y = find_aux h.repr x in
-    y, r
+  let find h x = (get_repr h x).repr
 
   let tag h x v =
-    let r, y = find_aux h.repr x in
+    let r = get_repr h x in
     let new_m =
       { r with
         tag = match r.tag with
-          | Some (_, v') when not (T.equal v v') -> raise (Equal (x, y))
+          | Some (_, v') when not (T.equal v v') -> raise (Equal (x, r.repr))
           | (Some _) as t -> t
           | None -> Some (x, v) }
     in
-    H.add h.repr y (Repr new_m)
-
-  let find h x = fst (get_repr h x)
+    H.add h.repr r.repr (Repr new_m)
 
   let find_tag h x =
-    let r, y = find_aux h.repr x in
-    y, r.tag
+    let r = get_repr h x in
+    r.repr, r.tag
 
   let forbid_aux m x =
     try
@@ -102,8 +122,10 @@ module Eq(T : Key) = struct
       raise (Equal (a, b))
     with Not_found -> ()
 
-  let link h x mx y my =
+  let link h mx my =
     let new_m = {
+      repr = mx.repr;
+      load = h.merge mx.load my.load;
       rank = if mx.rank = my.rank then mx.rank + 1 else mx.rank;
       tag = (match mx.tag, my.tag with
           | Some (z, t1), Some (w, t2) ->
@@ -120,32 +142,35 @@ module Eq(T : Key) = struct
     let aux m z eq =
       match H.find m z with
       | Repr r ->
-        let r' = { r with
-                   forbidden = M.add x eq (M.remove y r.forbidden) }
+        let r' =
+          { r with
+            forbidden = M.add mx.repr eq (M.remove my.repr r.forbidden) }
         in
         H.add m z (Repr r')
       | _ -> assert false
     in
     M.iter (aux h.repr) my.forbidden;
-    H.add h.repr y (Follow x);
-    H.add h.repr x (Repr new_m)
+    H.add h.repr my.repr (Follow mx.repr);
+    H.add h.repr mx.repr (Repr new_m)
 
   let union h x y =
-    let rx, mx = get_repr h x in
-    let ry, my = get_repr h y in
-    if T.compare rx ry <> 0 then begin
-      forbid_aux mx.forbidden ry;
-      forbid_aux my.forbidden rx;
+    let mx = get_repr h x in
+    let my = get_repr h y in
+    if T.compare mx.repr my.repr <> 0 then begin
+      forbid_aux mx.forbidden my.repr;
+      forbid_aux my.forbidden mx.repr;
       if mx.rank > my.rank then begin
-        link h rx mx ry my
+        link h mx my
       end else begin
-        link h ry my rx mx
+        link h my mx
       end
     end
 
   let forbid h x y =
-    let rx, mx = get_repr h x in
-    let ry, my = get_repr h y in
+    let mx = get_repr h x in
+    let my = get_repr h y in
+    let rx = mx.repr in
+    let ry = my.repr in
     if T.compare rx ry = 0 then
       raise (Equal (x, y))
     else match mx.tag, my.tag with
@@ -238,8 +263,3 @@ module Eq(T : Key) = struct
 
 end
 
-module CC(T : Key) = struct
-
-  type var = T.t
-
-end
