@@ -20,7 +20,7 @@ true: color(always)
 <**/*>: package(unix), package(zarith), package(msat),     \
         package(cmdliner), package(ocamlgraph),            \
         package(containers), package(containers.data),     \
-        package(gen), package(oclock), package(menhirLib), \
-        package(dolmen), package(qcheck), package(oUnit),  \
+        package(gen), package(oclock),                     \
+        package(dolmen), package(qcheck),                  \
         package(sequence)
 

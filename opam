@@ -1,30 +1,33 @@
 opam-version: "1.2"
-name:"archsat"
-license: ""
+name: "archsat"
 version: "dev"
-author: ["Guillaume Bury <guillaume.bury@gmail.com>"]
-maintainer: ["Guillaume Bury <guillaume.bury@gmail.com>"]
+author: "Guillaume Bury"
+maintainer: "guillaume.bury@gmail.com"
+license: "BSD-2-clauses"
 build: [
-  [make "all"]
+  [make "bin"]
 ]
-install: [make "MANDIR=%{man}%" "BINDIR=%{bin}%" "install"]
-remove: [make "MANDIR=%{man}%" "BINDIR=%{bin}%" "uninstall"]
+install:[
+  [make "MANDIR=%{man}%" "BINDIR=%{bin}%" "SHAREDIR=%{share}%" "install"]
+]
+remove: [
+  [make "MANDIR=%{man}%" "BINDIR=%{bin}%" "SHAREDIR=%{share}%" "uninstall"]
+]
 depends: [
-  "ocamlfind" {build}
-  "base-unix"
-  "ocamlgraph"
-  "cmdliner"
-  "msat"
+  "ocamlfind" { build }
+  "ocamlbuild" { build }
+  "qcheck" { test & >= "dev" }
+  "dolmen" { >= "dev" }
+  "msat" { >= "dev" }
   "zarith"
+  "cmdliner"
+  "ocamlgraph"
   "containers"
-  "dolmen"
   "gen"
   "oclock"
+  "sequence"
 ]
-available: [
-  ocaml-version >= "4.02.1"
-]
-tags: [ "sat" "smt" "mcsat" "theorem proving" ]
-homepage: ""
-dev-repo: ""
-bug-reports: ""
+tags: [ "sat" "smt" "solver" "theorem prover" "tptp" "logic" "smtlib" "dimacs" ]
+homepage: "https://gforge.inria.fr/projects/archsat"
+dev-repo: "https://gforge.inria.fr/projects/archsat"
+bug-reports: "https://gforge.inria.fr/projects/archsat"
