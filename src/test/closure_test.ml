@@ -106,7 +106,9 @@ let check_proof l (a, b, chain) =
 module C = Closure.Eq(Expr.Term)
 
 let mk_closure l =
-  let t = C.create (Backtrack.Stack.create section) section in
+  let gen _ = () and merge () () = () in
+  let t = C.create ~gen ~merge ~section
+      (Backtrack.Stack.create section) in
   List.iter (function
       | (true, (a, b)) -> C.add_eq t a b
       | (false, (a, b)) -> C.add_neq t a b) l

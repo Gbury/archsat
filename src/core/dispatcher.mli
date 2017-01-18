@@ -119,6 +119,11 @@ val push : Expr.formula list -> lemma -> unit
 val propagate : Expr.formula -> Expr.term list -> unit
 (** Propagate the given formula at the given evaluation level. *)
 
+val consequence : Expr.formula -> Expr.formula list -> lemma -> unit
+(** Propagate the given formula. [consequence f l proof] propagates [f]
+    as a consequence of the formulas in [l]. [proof] should be a proof
+    of the clause "[l] implies [f]". *)
+
 (** {2 Model operations} *)
 
 val get_truth : Expr.formula -> bool option

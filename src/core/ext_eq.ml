@@ -4,7 +4,43 @@ let section = Util.Section.make ~parent:Dispatcher.section "eq"
 module D = Dispatcher
 module E = Closure.Eq(Expr.Term)
 
-let st = E.create D.stack (Util.Section.make ~parent:section "union-find")
+(* Union-find *)
+(* ************************************************************************ *)
+
+module S = Set.Make(Expr.Term)
+module M = Map.Make(struct
+    type t = Expr.ty Expr.function_descr Expr.id
+    let compare= Expr.Id.compare
+  end)
+
+type load = {
+  vars : Expr.term list;
+  elts : Expr.term list M.t;
+}
+
+let gen = function
+  | { Expr.term = Expr.Var _ } ->
+    assert false
+  | { Expr.term = Expr.Meta _ } as t ->
+    { vars = [t]; elts = M.empty; }
+  | { Expr.term = Expr.App (f, _, _) } as t ->
+    { vars = []; elts = M.singleton f [t]; }
+
+let merge a b =
+  let vars = a.vars @ b.vars in
+  let aux _ x y = match x, y with
+    | None, None -> None
+    | Some l, Some l' -> Some (l @ l')
+    | Some l, None | None, Some l -> Some l
+  in
+  { vars; elts = M.merge aux a.elts b.elts; }
+
+let st = E.create
+    ~section:(Util.Section.make ~parent:section "union-find")
+    ~gen ~merge D.stack
+
+(* Equality predicate *)
+(* ************************************************************************ *)
 
 let name = "eq"
 let watch = D.watch name

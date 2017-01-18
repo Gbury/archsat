@@ -252,8 +252,11 @@ let push clause p  =
   Util.debug ~section 50 "New clause to push (%s) : %a" p.proof_name (CCPrint.list ~sep:" || " Expr.Debug.formula) clause;
   Stack.push (clause, p) push_stack
 
-let propagate f lvl =
-  Stack.push (f, lvl) propagate_stack
+let propagate f l =
+  Stack.push (f, Msat.Plugin_intf.Eval l) propagate_stack
+
+let consequence f l p =
+  Stack.push (f, Msat.Plugin_intf.Consequence (l, p)) propagate_stack
 
 let do_propagate propagate =
   while not (Stack.is_empty propagate_stack) do
