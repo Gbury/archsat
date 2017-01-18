@@ -18,6 +18,10 @@ let error =
 let seed = ref ~-1
 let long = ref false
 let only = ref []
+let log = ref Format.std_formatter
+
+let set_log s =
+  log := Format.formatter_of_out_channel (open_out s)
 
 let add_only name =
   only := name :: !only
@@ -35,6 +39,7 @@ let setup () =
 
 let args = Arg.align @@ List.sort
     (fun (s, _, _) (s', _, _) -> compare s s') [
+    "--log", Arg.String set_log, " set file for logging";
     "--long", Arg.Set long, " enable long tests";
     "--only", Arg.String add_only, " run only these tests";
     "--seed", Arg.Set_int seed, " set random seed";
@@ -132,14 +137,14 @@ let print_inst arb x =
   | None -> "<no printer>"
 
 let print_fail cell c_ex =
-  Format.printf "@\n--- Failure %s@\n@\n" (String.make 68 '-');
-  Format.printf "Test %s failed (%d shrink steps):@\n@\n%s@."
+  Format.fprintf !log "@\n--- Failure %s@\n@\n" (String.make 68 '-');
+  Format.fprintf !log "Test %s failed (%d shrink steps):@\n@\n%s@."
     (QCheck.Test.get_name cell) c_ex.QCheck.TestResult.shrink_steps
     (print_inst (QCheck.Test.get_arbitrary cell) c_ex.QCheck.TestResult.instance)
 
 let print_error cell c_ex exn bt =
-  Format.printf "@\n=== Error %s\n\n" (String.make 70 '=');
-  Format.printf "Test %s errored on (%d shrink steps):@\n@\n%s@\n@\nexception %s@\n%s@."
+  Format.fprintf !log "@\n=== Error %s\n\n" (String.make 70 '=');
+  Format.fprintf !log "Test %s errored on (%d shrink steps):@\n@\n%s@\n@\nexception %s@\n%s@."
     (QCheck.Test.get_name cell)
     c_ex.QCheck.TestResult.shrink_steps
     (print_inst (QCheck.Test.get_arbitrary cell) c_ex.QCheck.TestResult.instance)
@@ -171,7 +176,7 @@ let run l =
   let () = Arg.parse args anon usage in
   setup ();
   (* Print random seed *)
-  Format.printf "Random seed : %d@." !seed;
+  Format.fprintf !log "Random seed : %d@." !seed;
   (* Running tests *)
   let l = filter l in
   let l = run_list l in
