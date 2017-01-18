@@ -23,7 +23,7 @@ module Match = struct
         | t ->
           if Expr.Ty.equal t ty then subst else raise No_match
         | exception Not_found ->
-          Expr.Subst.Id.bind v ty subst
+          Expr.Subst.Id.bind subst v ty
       end
     | { ty = TyApp (id, l) }, { ty = TyApp (id', l') } ->
       if Expr.Id.equal id id' then
@@ -506,8 +506,7 @@ module Formula = struct
     match Expr.Formula.all l f with
     | { Expr.formula = Expr.All (vars, _, _) } as q_f ->
       let metas = List.map Expr.Term.of_meta (Expr.Meta.of_all q_f) in
-      let subst = List.fold_left2 (fun s v t -> Expr.Subst.Id.bind v t s)
-          Expr.Subst.empty vars metas in
+      let subst = List.fold_left2 Expr.Subst.Id.bind Expr.Subst.empty vars metas in
       Expr.Formula.subst Expr.Subst.empty subst f
     | _ -> f
 
