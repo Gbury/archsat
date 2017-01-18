@@ -1,3 +1,6 @@
 
-(** Extension to handle uninterpreted functions and predicates *)
+(** Extension for uninterpreted functions and predicates *)
+
+val register : unit -> unit
+(** Register the extension *)
 

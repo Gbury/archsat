@@ -1,17 +1,20 @@
 
 let section = Util.Section.make ~parent:Dispatcher.section "eq"
 
+(* Module initialisation *)
+(* ************************************************************************ *)
+
 module D = Dispatcher
 module E = Closure.Eq(Expr.Term)
-
-(* Union-find *)
-(* ************************************************************************ *)
 
 module S = Set.Make(Expr.Term)
 module M = Map.Make(struct
     type t = Expr.ty Expr.function_descr Expr.id
     let compare= Expr.Id.compare
   end)
+
+(* Union-find payloads *)
+(* ************************************************************************ *)
 
 type load = {
   vars : Expr.term list;
@@ -39,13 +42,35 @@ let st = E.create
     ~section:(Util.Section.make ~parent:section "union-find")
     ~gen ~merge D.stack
 
-(* Equality predicate *)
+(* Accessors to the equality closure *)
+(* ************************************************************************ *)
+
+type t = load E.repr
+
+let print fmt t =
+  Format.fprintf fmt "class<%a>" Expr.Term.print (E.repr t)
+
+let find x = E.get_repr st x
+
+let repr t = E.repr t
+
+let fold f x t =
+  let l = E.load t in
+  let y = List.fold_left f x l.vars in
+  M.fold (fun _ l acc -> List.fold_left f acc l) l.elts y
+
+let find_top t f =
+  let load = E.load t in
+  try M.find f load.elts
+  with Not_found -> []
+
+(* McSat Plugin for equality *)
 (* ************************************************************************ *)
 
 let name = "eq"
 let watch = D.watch name
 
-let eq_eval = function
+let eval_pred = function
   | { Expr.formula = Expr.Equal (a, b) } as f ->
     begin try
         let a' = D.get_assign a in
@@ -67,7 +92,7 @@ let eq_eval = function
   | _ -> None
 
 let f_eval f () =
-  match eq_eval f with
+  match eval_pred f with
   | Some(true, lvl) -> D.propagate f lvl
   | Some(false, lvl) -> D.propagate (Expr.Formula.neg f) lvl
   | None -> ()
@@ -115,7 +140,7 @@ let eq_assign x =
   with E.Unsat (a, b, l) ->
     raise (D.Absurd (mk_expl (a, b, l), mk_proof l))
 
-let eq_assume = function
+let assume = function
   | { Expr.formula = Expr.Equal (a, b)} ->
     wrap E.add_eq a b;
   | { Expr.formula = Expr.Not { Expr.formula = Expr.Equal (a, b)} } ->
@@ -137,7 +162,7 @@ let rec set_handler t =
       Expr.Id.set_assign f 0 eq_assign;
     List.iter set_handler l
 
-let rec eq_pre = function
+let rec peek = function
   | { Expr.formula = Expr.Equal (a, b) } as f when Expr.Term.equal a b ->
     D.push [f] (D.mk_proof "ext_eq" "trivial");
     set_handler a
@@ -148,15 +173,11 @@ let rec eq_pre = function
   | { Expr.formula = Expr.Pred p } ->
     set_handler p
   | { Expr.formula = Expr.Not f } ->
-    eq_pre f
+    peek f
   | _ -> ()
 
-;;
-D.Plugin.register name
-  ~descr:"Ensures consistency of assignment with regards to the equality predicates."
-  (D.mk_ext ~section
-     ~assume:eq_assume
-     ~eval_pred:eq_eval
-     ~peek:eq_pre
-     ()
-  )
+let register () =
+  D.Plugin.register name
+    ~descr:"Ensures consistency of assignment with regards to the equality predicates."
+    (D.mk_ext ~section ~assume ~peek ~eval_pred ())
+

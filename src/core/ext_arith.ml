@@ -4,6 +4,7 @@ let section = Util.Section.make ~parent:Dispatcher.section "arith"
 module B = Builtin.Arith
 
 (* Type definitions *)
+(* ************************************************************************ *)
 
 type bound =
   | Strict of Q.t
@@ -18,6 +19,7 @@ type domain = interval list
 (** Intervals in a domain should be non-overlapping and ordered in ascending order. *)
 
 (* Domain checking *)
+(* ************************************************************************ *)
 
 module E = Backtrack.Hashtbl(Expr.Term)
 
@@ -38,8 +40,8 @@ let evaluate_aux t =
 
 let evaluate t = CCOpt.map evaluate_aux @@ Arith.Lit.parse_num t
 
-;;
-Dispatcher.Plugin.register "arith"
-  ~descr:"Handles satisfiability of arithmetic formulas (work in progress, DO NOT USE)."
-  (Dispatcher.mk_ext ~section ())
+let register () =
+  Dispatcher.Plugin.register "arith"
+    ~descr:"Handles satisfiability of arithmetic formulas (work in progress, DO NOT USE)."
+    (Dispatcher.mk_ext ~section ())
 

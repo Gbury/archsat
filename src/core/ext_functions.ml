@@ -57,7 +57,7 @@ let uf_pre = function
       set_handler p
     | _ -> ()
 
-;;
-Dispatcher.Plugin.register "uf"
-  ~descr:"Ensures consistency of assignments for function applications."
-  (Dispatcher.mk_ext ~section ~peek:uf_pre ())
+let register () =
+  Dispatcher.Plugin.register "uf"
+    ~descr:"Ensures consistency of assignments for function applications."
+    (Dispatcher.mk_ext ~section ~peek:uf_pre ())

@@ -1,4 +1,6 @@
 
-(** Extension for handling propositional tableaux rules,
-    aka lazy cnf conversion *)
+(** Extension for propositional logic *)
+
+val register : unit -> unit
+(** Register the extension *)
 

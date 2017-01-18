@@ -25,6 +25,7 @@ PKG dolmen
 PKG zarith
 PKG oclock
 PKG cmdliner
+PKG sequence
 PKG ocamlgraph
 PKG containers
 PKG containers.data

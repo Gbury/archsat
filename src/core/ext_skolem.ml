@@ -93,8 +93,9 @@ let opts =
     inst := kind
   in
   Cmdliner.Term.(pure set_opts $ kind)
-;;
-Dispatcher.Plugin.register "skolem" ~options:opts
-  ~descr:"Generate skolem or tau for existencially quantified formulas (see options)."
-  (Dispatcher.mk_ext ~section ~assume:tau ())
+
+let register () =
+  Dispatcher.Plugin.register "skolem" ~options:opts
+    ~descr:"Generate skolem or tau for existencially quantified formulas (see options)."
+    (Dispatcher.mk_ext ~section ~assume:tau ())
 

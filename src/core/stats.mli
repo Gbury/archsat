@@ -1,4 +1,8 @@
 
+(** Extension for statistics *)
+
+(** {2 Extension helpers} *)
+
 val current_round : unit -> int
 (** Returns the index of the current round. *)
 
@@ -8,5 +12,8 @@ val inst_done : int -> unit
 val inst_remaining : int -> unit
 (** Sets the number of instanciations remaining to do this round. *)
 
+(** {2 Plugin} *)
 
+val register : unit -> unit
+(** Register the extension. *)
 

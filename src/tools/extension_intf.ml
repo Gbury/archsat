@@ -17,8 +17,9 @@ module type S = sig
   val get_res : unit -> ext
 
   (* Registering and setting extensions *)
-  val register : string -> ?descr:string -> ?prio:int ->
-    ?options:(unit Cmdliner.Term.t) -> ext -> id
+  val register :
+    string -> ?descr:string -> ?prio:int ->
+    ?options:(unit Cmdliner.Term.t) -> ext -> unit
 
   val activate : string -> unit
   val deactivate : string -> unit

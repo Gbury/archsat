@@ -11,7 +11,7 @@ BIN=main.native
 NAME=archsat
 LIB=$(addprefix $(NAME), .cma .cmxa .cmxs)
 
-all: bin
+all: bin lib test
 
 top: lib
 	utop

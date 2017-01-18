@@ -64,9 +64,9 @@ let tab_assume f =
       H.add st f true
     end
 
-;;
-Dispatcher.Plugin.register "logic"
-  ~descr:"Does lazy cnf conversion on input formulas whose topconstructor is a logical connective
+let register () =
+  Dispatcher.Plugin.register "logic"
+    ~descr:"Does lazy cnf conversion on input formulas whose topconstructor is a logical connective
           (i.e quantified formulas are $(b,not) handled by this plugin)."
-  (Dispatcher.mk_ext ~section ~assume:tab_assume ())
+    (Dispatcher.mk_ext ~section ~assume:tab_assume ())
 

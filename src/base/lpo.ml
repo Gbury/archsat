@@ -31,15 +31,22 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 let rec rpo6 ~prec s t =
   if Expr.Term.equal s t then Comparison.Eq else  (* equality test is cheap *)
     match s, t with
-    | { Expr.term = Expr.Meta _ }, { Expr.term = Expr.Meta _ } -> Comparison.Incomparable
-    | _, { Expr.term = Expr.Meta m } -> if Expr.Id.occurs_in_term Expr.(m.meta_id) s then Comparison.Gt else Comparison.Incomparable
-    | { Expr.term = Expr.Meta m} , _ -> if Expr.Id.occurs_in_term Expr.(m.meta_id) t then Comparison.Lt else Comparison.Incomparable
+    (* Variables *)
+    | { Expr.term = Expr.Var _ }, { Expr.term = Expr.Var _ } ->
+      Comparison.Incomparable
+    | _, { Expr.term = Expr.Var v } ->
+      if Expr.Id.occurs_in_term v s then Comparison.Gt else Comparison.Incomparable
+    | { Expr.term = Expr.Var v } , _ ->
+      if Expr.Id.occurs_in_term v t then Comparison.Lt else Comparison.Incomparable
+    (* Meta-variables *)
+    | { Expr.term = Expr.Meta _ }, { Expr.term = Expr.Meta _ } ->
+      Comparison.Incomparable
+    | _, { Expr.term = Expr.Meta m } ->
+      if Expr.Id.occurs_in_term Expr.(m.meta_id) s then Comparison.Gt else Comparison.Incomparable
+    | { Expr.term = Expr.Meta m} , _ ->
+      if Expr.Id.occurs_in_term Expr.(m.meta_id) t then Comparison.Lt else Comparison.Incomparable
     (* Application *)
     | { Expr.term = Expr.App (f, _, ss) }, { Expr.term= Expr.App (g, _, ts)} -> rpo6_composite ~prec s t f g ss ts
-    | { Expr.term = Expr.Var v}, { Expr.term = Expr.Var v'} -> if Expr.Id.equal v v' then Comparison.Eq else Comparison.Incomparable
-    (* node and something else *)
-    | { Expr.term = Expr.App (f, _, ss)}, { Expr.term = Expr.Var _ } -> Comparison.Incomparable
-    | { Expr.term = Expr.Var _ }, { Expr.term = Expr.App (g, _, ts)} -> Comparison.Incomparable
 
 (* handle the composite cases *)
 and rpo6_composite ~prec s t f g ss ts =

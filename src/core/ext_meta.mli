@@ -50,3 +50,8 @@ val meta_delay : (int * int) ref
 val meta_max : int ref
 (** Max number of metas to generate for each formulas *)
 
+(** {2 Plugin} *)
+
+val register : unit -> unit
+(** Register the extension. *)
+

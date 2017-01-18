@@ -21,5 +21,6 @@ true: color(always)
         package(cmdliner), package(ocamlgraph),            \
         package(containers), package(containers.data),     \
         package(gen), package(oclock), package(menhirLib), \
-        package(dolmen), package(qcheck), package(oUnit)
+        package(dolmen), package(qcheck), package(oUnit),  \
+        package(sequence)
 

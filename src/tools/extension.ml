@@ -45,12 +45,13 @@ module Make(E: K) : S with type ext = E.t = struct
     | Some x -> x
     | None -> _not_found name
 
-  let register name ?(descr="think hard !") ?(prio=10) ?(options=(Cmdliner.Term.pure ())) ext =
+  let register name
+      ?(descr="think hard !") ?(prio=10)
+      ?(options=(Cmdliner.Term.pure ())) ext =
     assert (not (CCVector.exists (fun r -> r.name = name) exts));
     if prio < 0 then log 0 "WARNING: %s - extensions should have positive priority" name;
     let id = CCVector.length exts in
-    CCVector.push exts { id; prio; name; descr; options; ext };
-    id
+    CCVector.push exts { id; prio; name; descr; options; ext }
 
   let merge high low = E.merge ~high ~low
 

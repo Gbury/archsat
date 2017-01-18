@@ -172,22 +172,22 @@ let do_formula =
   let aux = function
     | { Expr.formula = Expr.All (l, _, p) } as f ->
       let metas = List.map Expr.Term.of_meta (Expr.Meta.of_all f) in
-      let subst = List.fold_left2 (fun s v t -> Expr.Subst.Id.bind v t s) Expr.Subst.empty l metas in
+      let subst = List.fold_left2 Expr.Subst.Id.bind Expr.Subst.empty l metas in
       let q = Expr.Formula.subst Expr.Subst.empty subst p in
       Dispatcher.push [Expr.Formula.neg f; q] (mk_proof_term f metas)
     | { Expr.formula = Expr.Not { Expr.formula = Expr.Ex (l, _, p) } } as f ->
       let metas = List.map Expr.Term.of_meta (Expr.Meta.of_all f) in
-      let subst = List.fold_left2 (fun s v t -> Expr.Subst.Id.bind v t s) Expr.Subst.empty l metas in
+      let subst = List.fold_left2 Expr.Subst.Id.bind Expr.Subst.empty l metas in
       let q = Expr.Formula.subst Expr.Subst.empty subst p in
       Dispatcher.push [Expr.Formula.neg f; Expr.Formula.neg q] (mk_proof_term f metas)
     | { Expr.formula = Expr.AllTy (l, _, p) } as f ->
       let metas = List.map Expr.Ty.of_meta (Expr.Meta.of_all_ty f) in
-      let subst = List.fold_left2 (fun s v t -> Expr.Subst.Id.bind v t s) Expr.Subst.empty l metas in
+      let subst = List.fold_left2 Expr.Subst.Id.bind Expr.Subst.empty l metas in
       let q = Expr.Formula.subst subst Expr.Subst.empty p in
       Dispatcher.push [Expr.Formula.neg f; q] (mk_proof_ty f metas)
     | { Expr.formula = Expr.Not { Expr.formula = Expr.ExTy (l, _, p) } } as f ->
       let metas = List.map Expr.Ty.of_meta (Expr.Meta.of_all_ty f) in
-      let subst = List.fold_left2 (fun s v t -> Expr.Subst.Id.bind v t s) Expr.Subst.empty l metas in
+      let subst = List.fold_left2 Expr.Subst.Id.bind Expr.Subst.empty l metas in
       let q = Expr.Formula.subst subst Expr.Subst.empty p in
       Dispatcher.push [Expr.Formula.neg f; Expr.Formula.neg q] (mk_proof_ty f metas)
     | _ -> ()
@@ -396,13 +396,13 @@ let opts =
     rigid_round_incr := rigid_incr
   in
   Cmdliner.Term.(pure set_opts $ heuristic $ start $ max $ inst $ incr $ delay $ sup_coef $ sup_const $ rigid_depth $ rigid_incr)
-;;
 
-Dispatcher.Plugin.register "meta" ~options:opts
-  ~descr:"Generate meta variables for universally quantified formulas, and use unification to push
+let register () =
+  Dispatcher.Plugin.register "meta" ~options:opts
+    ~descr:"Generate meta variables for universally quantified formulas, and use unification to push
               possible instanciations to the 'inst' module."
-  (Dispatcher.mk_ext
-     ~handle:{Dispatcher.handle=find_all_insts}
-     ~assume:meta_assume
-     ~section ())
+    (Dispatcher.mk_ext
+       ~handle:{Dispatcher.handle=find_all_insts}
+       ~assume:meta_assume
+       ~section ())
 

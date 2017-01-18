@@ -100,7 +100,8 @@ let mk_proof f p ty_map t_map = Dispatcher.mk_proof "inst"
     ~term_args:(Expr.Subst.fold (fun v t l -> Expr.Term.of_id v :: t :: l) t_map [])
     ~formula_args:[f; p] "inst"
 
-let to_var s = Expr.Subst.fold (fun {Expr.meta_id = v} t acc -> Expr.Subst.Id.bind v t acc) s Expr.Subst.empty
+let to_var s = Expr.Subst.fold (fun {Expr.meta_id = v} t acc ->
+    Expr.Subst.Id.bind acc v t) s Expr.Subst.empty
 
 let soft_subst f ty_subst term_subst =
   let q = Expr.Formula.partial_inst ty_subst term_subst f in
@@ -258,9 +259,9 @@ let opts =
   in
   Cmdliner.Term.(pure set_opts $ n_of_inst)
 
-;;
-Dispatcher.Plugin.register "inst" ~prio:5 ~options:opts
-  ~descr:"Handles the pushing of clauses corresponding to instanciations. This plugin does not
+let register () =
+  Dispatcher.Plugin.register "inst" ~prio:5 ~options:opts
+    ~descr:"Handles the pushing of clauses corresponding to instanciations. This plugin does not
           do anything by itself, but rather is called by other plugins when doing instanciations."
-  (Dispatcher.mk_ext ~section ~handle:{Dispatcher.handle=inst_sat} ())
+    (Dispatcher.mk_ext ~section ~handle:{Dispatcher.handle=inst_sat} ())
 

@@ -69,11 +69,11 @@ let options =
   in
   Cmdliner.Term.(pure set_opts $ stop)
 
-;;
-Dispatcher.Plugin.register "stats" ~prio:0 ~options
-  ~descr:"Handles delayed printing of statistics for each round of solving"
-  (Dispatcher.mk_ext
-     ~handle:{Dispatcher.handle = handle }
-     ~section ()
-  )
+let register () =
+  Dispatcher.Plugin.register "stats" ~prio:0 ~options
+    ~descr:"Handles delayed printing of statistics for each round of solving"
+    (Dispatcher.mk_ext
+       ~handle:{Dispatcher.handle = handle }
+       ~section ()
+    )
 

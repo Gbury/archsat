@@ -48,6 +48,14 @@ module Stack : sig
   val register_set : t -> 'a ref -> 'a -> unit
   (** Registers a ref to be set to the given value upon backtracking. *)
 
+  val register_ref : t -> 'a ref -> unit
+  (** Registers a ref to be set to its current value upon backtracking.
+      [register_ref t r] is equivalent to [register_set t r !r] *)
+
+  val attach : t -> 'a ref -> unit
+  (** Attach a reference to a backtrack stack. At each new level, the value of
+      the ref will be saved to be set upon backtracking. *)
+
 end
 
 module Hashtbl(K : Hashtbl.HashedType) : sig

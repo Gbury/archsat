@@ -33,7 +33,7 @@ let add_ty_var env v =
     else Expr.(Ty.of_id (Id.ttype (name env v.id_name)))
   in
   Util.debug ~section 10 "%a -> %a" Expr.Debug.id_ttype v Expr.Debug.ty ty;
-  { env with type_vars = Expr.Subst.Id.bind v ty env.type_vars }
+  { env with type_vars = Expr.Subst.Id.bind env.type_vars v ty }
 
 let add_term_var env v =
   let t =
@@ -41,7 +41,7 @@ let add_term_var env v =
     else Expr.(Term.of_id (Id.ty (name env v.id_name) v.id_type))
   in
   Util.debug ~section 10 "%a -> %a" Expr.Debug.id_ty v Expr.Debug.term t;
-  { env with term_vars = Expr.Subst.Id.bind v t env.term_vars }
+  { env with term_vars = Expr.Subst.Id.bind env.term_vars v t }
 
 let add_ty_vars = List.fold_left add_ty_var
 let add_term_vars = List.fold_left add_term_var
@@ -50,13 +50,13 @@ let add_ty_sk env vars (ty_args, t_args) =
   assert (t_args = []);
   let ty_args = List.map (Expr.Ty.subst env.type_vars) ty_args in
   { env with type_vars = List.fold_left (fun s v ->
-        Expr.Subst.Id.bind v (Expr.Ty.apply (Expr.Id.ty_skolem v) ty_args) s) env.type_vars vars }
+        Expr.Subst.Id.bind s v (Expr.Ty.apply (Expr.Id.ty_skolem v) ty_args)) env.type_vars vars }
 
 let add_term_sk env vars (ty_args, t_args) =
   let ty_args = List.map (Expr.Ty.subst env.type_vars) ty_args in
   let t_args = List.map (apply env) t_args in
   { env with term_vars = List.fold_left (fun s v ->
-        Expr.Subst.Id.bind v (Expr.Term.apply (Expr.Id.term_skolem v) ty_args t_args) s) env.term_vars vars }
+        Expr.Subst.Id.bind s v (Expr.Term.apply (Expr.Id.term_skolem v) ty_args t_args)) env.term_vars vars }
 
 (* Free variables disjonction *)
 (* ************************************************************************ *)
@@ -160,11 +160,11 @@ let do_formula f =
     Some (f', Dispatcher.mk_proof "prenex" "todo")
   end
 
-;;
-Dispatcher.Plugin.register "prenex"
-  ~descr:"Pre-process formulas to put them in prenex normal form" (
-  Dispatcher.mk_ext
-    ~section
-    ~preprocess:do_formula
-    ()
-)
+let register () =
+  Dispatcher.Plugin.register "prenex"
+    ~descr:"Pre-process formulas to put them in prenex normal form" (
+    Dispatcher.mk_ext
+      ~section
+      ~preprocess:do_formula
+      ()
+  )

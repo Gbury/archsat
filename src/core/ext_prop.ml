@@ -25,11 +25,11 @@ let rec sat_eval = function
     CCOpt.map (fun (b, l) -> (not b, l)) (sat_eval f)
   | _ -> None
 
-;;
-Dispatcher.Plugin.register "prop"
-  ~descr:"Handles consitency of assignments with regards to predicates (i.e functions which returns a Prop)."
-  (Dispatcher.mk_ext
-     ~section
-     ~assume:sat_assume
-     ~eval_pred:sat_eval
-     ())
+let register () =
+  Dispatcher.Plugin.register "prop"
+    ~descr:"Handles consitency of assignments with regards to predicates (i.e functions which returns a Prop)."
+    (Dispatcher.mk_ext
+       ~section
+       ~assume:sat_assume
+       ~eval_pred:sat_eval
+       ())

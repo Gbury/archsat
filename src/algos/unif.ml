@@ -34,8 +34,8 @@ let get_term_opt subst m =
   try Some (Expr.Subst.Meta.get m subst.t_map)
   with Not_found -> None
 
-let bind_ty subst m t = { subst with ty_map = Expr.Subst.Meta.bind m t subst.ty_map }
-let bind_term subst m t = { subst with t_map = Expr.Subst.Meta.bind m t subst.t_map }
+let bind_ty subst m t = { subst with ty_map = Expr.Subst.Meta.bind subst.ty_map m t }
+let bind_term subst m t = { subst with t_map = Expr.Subst.Meta.bind subst.t_map m t }
 
 let hash s =
   Hashtbl.hash (Expr.Subst.hash Expr.Ty.hash s.ty_map, Expr.Subst.hash Expr.Term.hash s.t_map)
@@ -151,15 +151,17 @@ let term_subst u t =
 
 (* Fixpoint on meta substitutions *)
 let fixpoint u = {
-  ty_map = Expr.Subst.fold (fun m t acc -> Expr.Subst.Meta.bind m (type_subst u t) acc) u.ty_map Expr.Subst.empty;
-  t_map = Expr.Subst.fold (fun m t acc -> Expr.Subst.Meta.bind m (term_subst u t) acc) u.t_map Expr.Subst.empty;
+  ty_map = Expr.Subst.fold (fun m t acc ->
+      Expr.Subst.Meta.bind acc m (type_subst u t)) u.ty_map Expr.Subst.empty;
+  t_map = Expr.Subst.fold (fun m t acc ->
+      Expr.Subst.Meta.bind acc m (term_subst u t)) u.t_map Expr.Subst.empty;
 }
 
 (* Assign dangling metas to constants *)
 let saturate_aux_term l u =
   List.fold_left (fun acc m ->
       if not (Expr.Subst.Meta.mem m acc) then
-        Expr.Subst.Meta.bind m (Builtin.Misc.const Expr.(m.meta_id.id_type)) acc
+        Expr.Subst.Meta.bind acc m (Builtin.Misc.const Expr.(m.meta_id.id_type))
       else
         acc) u l
 

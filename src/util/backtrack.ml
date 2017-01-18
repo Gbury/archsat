@@ -12,10 +12,13 @@ module Stack = struct
     | Call3 : ('a -> 'b -> 'c -> unit) * 'a * 'b * 'c * op -> op
     | CallUnit : (unit -> unit) * op -> op
 
+  type aref = Ref : 'a ref -> aref
+
   type t = {
     section : Util.Section.t;
     mutable stack : op;
-    mutable last : int;
+    mutable last  : int;
+    mutable refs  : aref list;
   }
 
   type level = int
@@ -26,9 +29,14 @@ module Stack = struct
     section;
     stack = Nil;
     last = dummy_level;
+    refs = [];
   }
 
+  let attach t r = t.refs <- (Ref r) :: t.refs
+
   let register_set t ref value = t.stack <- Set(ref, value, t.stack)
+  let register_ref t ref = register_set t ref !ref
+
   let register_undo t f = t.stack <- CallUnit (f, t.stack)
   let register1 t f x = t.stack <- Call1 (f, x, t.stack)
   let register2 t f x y = t.stack <- Call2 (f, x, y, t.stack)
@@ -37,6 +45,9 @@ module Stack = struct
   let curr = ref 0
 
   let push t =
+    (* First insert Set callbacks for attached refs *)
+    List.iter (function Ref r -> register_ref t r) t.refs;
+    (* Then push a new level on the stack *)
     let level = !curr in
     Util.debug ~section:t.section 5 "Push (#%d)" level;
     t.stack <- Level (t.stack, level);

@@ -2,6 +2,7 @@
 #require "unix";;
 #require "ocamlgraph";;
 #require "cmdliner";;
+#require "sequence";;
 #require "msat";;
 #require "zarith";;
 #require "containers";;
@@ -21,5 +22,5 @@ open Archsat;;
 #install_printer Expr.Print.formula;;
 #install_printer Unif.print;;
 #install_printer Index.Fingerprint.print;;
-
+#install_printer Ext_eq.print;;
 

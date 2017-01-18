@@ -50,8 +50,8 @@ type ty_descr =
 
 and ty = {
   ty : ty_descr;
-  ty_tags : tag_map;
   ty_status : status;
+  mutable ty_tags : tag_map;
   mutable ty_hash : hash; (** lazy hash *)
 }
 
@@ -64,8 +64,8 @@ type term_descr =
 and term = {
   term    : term_descr;
   t_type  : ty;
-  t_tags : tag_map;
   t_status : status;
+  mutable t_tags : tag_map;
   mutable t_hash : hash; (* lazy hash *)
 }
 
@@ -92,8 +92,8 @@ type formula_descr =
   | ExTy of ttype id list * free_args * formula
 
 and formula = {
-  f_tags : tag_map;
   formula : formula_descr;
+  mutable f_tags : tag_map;
   mutable f_hash  : hash; (* lazy hash *)
   mutable f_vars : (ttype id list * ty id list) option;
 }
@@ -336,7 +336,7 @@ module Subst = struct
     type 'a key
     val get : 'a key -> ('a key, 'b) t -> 'b
     val mem : 'a key -> ('a key, 'b) t -> bool
-    val bind : 'a key -> 'b -> ('a key, 'b) t -> ('a key, 'b) t
+    val bind : ('a key, 'b) t -> 'a key -> 'b -> ('a key, 'b) t
     val remove : 'a key -> ('a key, 'b) t -> ('a key, 'b) t
   end
 
@@ -346,7 +346,7 @@ module Subst = struct
     let tok v = (v.index, 0)
     let get v s = snd (Mi.find (tok v) s)
     let mem v s = Mi.mem (tok v) s
-    let bind v t s = Mi.add (tok v) (v, t) s
+    let bind s v t = Mi.add (tok v) (v, t) s
     let remove v s = Mi.remove (tok v) s
   end
 
@@ -356,7 +356,7 @@ module Subst = struct
     let tok m = (m.meta_id.index, m.meta_index)
     let get m s = snd (Mi.find (tok m) s)
     let mem m s = Mi.mem (tok m) s
-    let bind m t s = Mi.add (tok m) (m, t) s
+    let bind s m t = Mi.add (tok m) (m, t) s
     let remove m s = Mi.remove (tok m) s
   end
 
@@ -639,7 +639,7 @@ module Ty = struct
 
   (* Tags *)
   let get_tag ty k = Tag.get ty.ty_tags k
-  let tag ty k v = { ty with ty_tags = Tag.add ty.ty_tags k v }
+  let tag ty k v = ty.ty_tags <- Tag.add ty.ty_tags k v
 
   (* Builtin types *)
   let prop = apply Id.prop []
@@ -662,7 +662,7 @@ module Ty = struct
        List.length f.id_type.fun_args <> List.length args then
       raise (Bad_arity (f, tys, args))
     else
-      let map = List.fold_left2 (fun acc v ty -> Subst.Id.bind v ty acc) Subst.empty f.id_type.fun_vars tys in
+      let map = List.fold_left2 Subst.Id.bind Subst.empty f.id_type.fun_vars tys in
       let fun_args = List.map (subst map) f.id_type.fun_args in
       List.iter2 (fun t ty ->
           if not (equal t.t_type ty) then raise (Type_mismatch (t, t.t_type, ty)))
@@ -745,7 +745,7 @@ module Term = struct
 
   (* Tags *)
   let get_tag t k = Tag.get t.t_tags k
-  let tag t k v = { t with t_tags = Tag.add t.t_tags k v }
+  let tag t k v = t.t_tags <- Tag.add t.t_tags k v
 
   (* Substitutions *)
   let rec subst_aux ty_map t_map t = match t.term with
@@ -906,7 +906,7 @@ module Formula = struct
 
   (* Tags *)
   let get_tag f k = Tag.get f.f_tags k
-  let tag f k v = { f with f_tags = Tag.add f.f_tags k v }
+  let tag f k v = f.f_tags <- Tag.add f.f_tags k v
 
   (* Free variables *)
   let rec free_vars f = match f.formula with
@@ -1038,7 +1038,7 @@ module Formula = struct
       let ty = Ty.subst ty_map v.id_type in
       if not (Ty.equal ty v.id_type) then
         let nv = Id.ty v.id_name ty in
-        new_binder_subst ty_map (Subst.Id.bind v (Term.of_id nv) subst) (nv :: acc) r
+        new_binder_subst ty_map (Subst.Id.bind subst v (Term.of_id nv)) (nv :: acc) r
       else
         new_binder_subst ty_map (Subst.Id.remove v subst) (v :: acc) r
 

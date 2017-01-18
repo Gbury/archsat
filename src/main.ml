@@ -3,19 +3,10 @@
 
 open Options
 
-(* Module inclusion for extensions to ensure they are linked *)
-include Ext_eq
-include Ext_meta
-include Ext_prop
-include Ext_logic
-include Ext_arith
-include Ext_prenex
-include Ext_skolem
-include Ext_functions
-include Ext_constraints
-
 (* Main function *)
 let () =
+  (* Register all extensions *)
+  Ext.register_all ();
   (* Argument parsing *)
   let man = Options.help_secs (Dispatcher.Plugin.ext_doc ()) (Semantics.Addon.ext_doc ()) in
   let info = Cmdliner.Term.(info ~sdocs:Options.copts_sect ~man ~version:"0.1" "archsat") in

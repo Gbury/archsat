@@ -1,5 +1,7 @@
 
-(** Provide instantiation helpers. *)
+(** Extension for instanciation *)
+
+(** {2 Extension helpers} *)
 
 val split : Unif.t -> Unif.t list
 (** Splits an arbitray unifier into a list. Each unifiers u in the list
@@ -16,4 +18,9 @@ val add : ?delay:int -> ?score:int -> Unif.t -> bool
     Unifiers with lower scores are prioritized when pushing instanciations to the solver.
     Returns true if the unifier has been added to the queue of instanciations to do,
     and false otherwise (forinstance, if it already belongs to the queue). *)
+
+(** {2 Plugin} *)
+
+val register : unit -> unit
+(** Register the extension. *)
 

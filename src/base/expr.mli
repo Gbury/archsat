@@ -76,8 +76,8 @@ type ty_descr = private
 
 and ty = private {
   ty : ty_descr;
-  ty_tags : tag_map;
   ty_status : status;
+  mutable ty_tags : tag_map;
   mutable ty_hash : hash; (** Use Ty.hash instead *)
 }
 
@@ -99,8 +99,8 @@ type term_descr = private
 and term = private {
   term     : term_descr;
   t_type   : ty;
-  t_tags   : tag_map;
   t_status : status;
+  mutable t_tags : tag_map;
   mutable t_hash : hash; (** Do not use this filed, call Term.hash instead *)
 }
 
@@ -135,8 +135,8 @@ type formula_descr = private
   | ExTy of ttype id list * free_args * formula
 
 and formula = private {
-  f_tags : tag_map;
   formula : formula_descr;
+  mutable f_tags : tag_map;
   mutable f_hash : hash; (** Use Formula.hash instead *)
   mutable f_vars : (ttype id list * ty id list) option;
 }
@@ -366,7 +366,7 @@ module Subst : sig
         @raise Not_found if there is no binding for [v]. *)
     val mem : 'a key -> ('a key, 'b) t -> bool
     (** [get v subst] returns wether there is a value associated with [v] in [subst]. *)
-    val bind : 'a key -> 'b -> ('a key, 'b) t -> ('a key, 'b) t
+    val bind : ('a key, 'b) t -> 'a key -> 'b -> ('a key, 'b) t
     (** [bind v t subst] returns the same substitution as [subst] with the additional binding from [v] to [t].
         Erases the previous binding of [v] if it exists. *)
     val remove : 'a key -> ('a key, 'b) t -> ('a key, 'b) t
@@ -416,7 +416,7 @@ module Ty : sig
   (** Return the list of free variables in the given type.
       Here, the [ty id list] is guaranteed to be empty. *)
 
-  val tag : ty -> 'a tag -> 'a -> ty
+  val tag : ty -> 'a tag -> 'a -> unit
   (** Insert a local tag in the given type. Does not change the semantic
       value of the type. Can be used to store some additional user-defined
       information. *)
@@ -473,7 +473,7 @@ module Term : sig
   (** Return a valid assignment for the given term using the handler of the
       head symbol of the expression, see the Var module. *)
 
-  val tag : term -> 'a tag -> 'a -> term
+  val tag : term -> 'a tag -> 'a -> unit
   (** Insert a local type in the given type. Does not change the semantic
       value of the type. Can be used to store some additional user-defined
       information. *)
@@ -541,7 +541,7 @@ module Formula : sig
   val fv : formula -> ttype id list * ty id list
   (** Return the list of free variables in the given formula. *)
 
-  val tag : formula -> 'a tag -> 'a -> formula
+  val tag : formula -> 'a tag -> 'a -> unit
   (** Insert a local type in the given type. Does not change the semantic
       value of the type. Can be used to store some additional user-defined
       information. *)

@@ -23,7 +23,7 @@ let mk_key id = { id; inj = CCMixmap.create_inj (); }
 
 let max_id = ref 0
 
-let new_tag () =
+let create () =
   incr max_id;
   mk_key !max_id
 

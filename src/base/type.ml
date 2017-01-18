@@ -248,20 +248,17 @@ let term_apply env ast f ty_args t_args =
     _type_mismatch t ty ty' ast
 
 let ty_subst ast_term id args f_args body =
-  let aux s v ty = Expr.Subst.Id.bind v ty s in
-  match List.fold_left2 aux Expr.Subst.empty f_args args with
+  match List.fold_left2 Expr.Subst.Id.bind Expr.Subst.empty f_args args with
   | subst ->
     Expr.Ty.subst subst body
   | exception Invalid_argument _ ->
     _bad_id_arity id (List.length f_args) ast_term
 
 let term_subst ast_term id ty_args t_args f_ty_args f_t_args body =
-  let aux s v ty = Expr.Subst.Id.bind v ty s in
-  match List.fold_left2 aux Expr.Subst.empty f_ty_args ty_args with
+  match List.fold_left2 Expr.Subst.Id.bind Expr.Subst.empty f_ty_args ty_args with
   | ty_subst ->
     begin
-      let aux s v t = Expr.Subst.Id.bind v t s in
-      match List.fold_left2 aux Expr.Subst.empty f_t_args t_args with
+      match List.fold_left2 Expr.Subst.Id.bind Expr.Subst.empty f_t_args t_args with
       | t_subst ->
         Expr.Term.subst ty_subst t_subst body
       | exception Invalid_argument _ ->

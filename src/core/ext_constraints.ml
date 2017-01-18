@@ -203,8 +203,8 @@ let options =
   in
   Cmdliner.Term.(pure aux $ kind $ dot)
 
-;;
-Dispatcher.Plugin.register "cstr" ~options
-  ~descr:"Handles instanciation using constraints to close multiple branches at the same time"
-  (Dispatcher.mk_ext ~section ~handle:{Dispatcher.handle=handle} ())
+let register () =
+  Dispatcher.Plugin.register "cstr" ~options
+    ~descr:"Handles instanciation using constraints to close multiple branches at the same time"
+    (Dispatcher.mk_ext ~section ~handle:{Dispatcher.handle=handle} ())
 
