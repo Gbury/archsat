@@ -15,8 +15,15 @@ module I = Index.Make(Int)
 (* Problem generation *)
 (* ************************************************************************ *)
 
-let pb =
-  QCheck.(pair (Expr_test.Term.t) (list (pair Expr_test.Term.t int)))
+let pb_match =
+  let config = Expr_test.Term.({ var = 1; meta = 1; }) in
+  let term = Expr_test.Term.(make @@ gen_c config) in
+  QCheck.(pair term (list (pair term int)))
+
+let pb_unif =
+  let config = Expr_test.Term.({ var = 0; meta = 1; }) in
+  let term = Expr_test.Term.(make @@ gen_c config) in
+  QCheck.(pair term (list (pair term int)))
 
 let fold f l acc =
   List.fold_left (fun acc (key, value) -> f key value acc) acc l
@@ -26,18 +33,17 @@ let fold f l acc =
 
 let naive_correct_match =
   QCheck.Test.make ~count:10 ~long_factor:100
-    ~name:"naive_correct_match" pb
+    ~name:"naive_correct_match" pb_match
     (fun (pat, l) ->
        let t = fold N.add l (N.empty section) in
        List.for_all (fun (t, u, _) ->
-           Unif.occurs_check u &&
-           Expr.Term.equal t (Unif.term_subst u pat))
+           Expr.Term.equal t (Match.term_apply u pat))
          (N.find_match pat t)
     )
 
 let naive_correct_unify =
   QCheck.Test.make ~count:10 ~long_factor:100
-    ~name:"naive_correct_unify" pb
+    ~name:"naive_correct_unify" pb_unif
     (fun (pat, l) ->
        let t = fold N.add l (N.empty section) in
        List.for_all (fun (t, u, _) ->
@@ -48,18 +54,17 @@ let naive_correct_unify =
 
 let index_correct_match =
   QCheck.Test.make ~count:10 ~long_factor:100
-    ~name:"index_correct_match" pb
+    ~name:"index_correct_match" pb_match
     (fun (pat, l) ->
        let t = fold I.add l (I.empty ~key:[] section) in
        List.for_all (fun (t, u, _) ->
-           Unif.occurs_check u &&
-           Expr.Term.equal t (Unif.term_subst u pat))
+           Expr.Term.equal t (Match.term_apply u pat))
          (I.find_match pat t)
     )
 
 let index_correct_unify =
   QCheck.Test.make ~count:10 ~long_factor:100
-    ~name:"index_correct_unify" pb
+    ~name:"index_correct_unify" pb_unif
     (fun (pat, l) ->
        let t = fold I.add l (I.empty ~key:[] section) in
        List.for_all (fun (t, u, _) ->
@@ -70,18 +75,17 @@ let index_correct_unify =
 
 let fingerprint_correct_match =
   QCheck.Test.make ~count:10 ~long_factor:100
-    ~name:"fingerprint_correct_match" pb
+    ~name:"fingerprint_correct_match" pb_match
     (fun (pat, l) ->
        let t = fold I.add l (I.empty section) in
        List.for_all (fun (t, u, _) ->
-           Unif.occurs_check u &&
-           Expr.Term.equal t (Unif.term_subst u pat))
+           Expr.Term.equal t (Match.term_apply u pat))
          (I.find_match pat t)
     )
 
 let fingerprint_correct_unify =
   QCheck.Test.make ~count:10 ~long_factor:100
-    ~name:"fingerprint_correct_unify" pb
+    ~name:"fingerprint_correct_unify" pb_unif
     (fun (pat, l) ->
        let t = fold I.add l (I.empty section) in
        List.for_all (fun (t, u, _) ->
@@ -107,7 +111,7 @@ let correct_tests =
 (* Completeness check *)
 (* ************************************************************************ *)
 
-let eq_results res1 res2 =
+let eq_unif res1 res2 =
   let cmp (t, _, _) (t', _, _) = Expr.Term.compare t t' in
   let l1 = List.sort cmp res1 in
   let l2 = List.sort cmp res2 in
@@ -116,42 +120,51 @@ let eq_results res1 res2 =
       Unif.equal u u' &&
       CCList.equal (=) l l') l1 l2
 
+let eq_match res1 res2 =
+  let cmp (t, _, _) (t', _, _) = Expr.Term.compare t t' in
+  let l1 = List.sort cmp res1 in
+  let l2 = List.sort cmp res2 in
+  CCList.equal (fun (t, u, l) (t', u', l') ->
+      Expr.Term.equal t t' &&
+      Match.equal u u' &&
+      CCList.equal (=) l l') l1 l2
+
 (* We assume here that the naive implementation is complete. *)
 
 let index_complete_match =
   QCheck.Test.make ~count:10 ~long_factor:100
-    ~name: "index_complete_match" pb
+    ~name: "index_complete_match" pb_match
     (fun (pat, l) ->
        let ref = fold N.add l (N.empty section) in
        let t = fold I.add l (I.empty ~key:[] section) in
-       eq_results (N.find_match pat ref) (I.find_match pat t)
+       eq_match (N.find_match pat ref) (I.find_match pat t)
     )
 
 let index_complete_unify =
   QCheck.Test.make ~count:10 ~long_factor:100
-    ~name: "index_complete_unify" pb
+    ~name: "index_complete_unify" pb_unif
     (fun (pat, l) ->
        let ref = fold N.add l (N.empty section) in
        let t = fold I.add l (I.empty ~key:[] section) in
-       eq_results (N.find_unify pat ref) (I.find_unify pat t)
+       eq_unif (N.find_unify pat ref) (I.find_unify pat t)
     )
 
 let fingerprint_complete_match =
   QCheck.Test.make ~count:10 ~long_factor:100
-    ~name: "fingerprint_complete_match" pb
+    ~name: "fingerprint_complete_match" pb_match
     (fun (pat, l) ->
        let ref = fold N.add l (N.empty section) in
        let t = fold I.add l (I.empty section) in
-       eq_results (N.find_match pat ref) (I.find_match pat t)
+       eq_match (N.find_match pat ref) (I.find_match pat t)
     )
 
 let fingerprint_complete_unify =
   QCheck.Test.make ~count:10 ~long_factor:100
-    ~name: "fingerprint_complete_unify" pb
+    ~name: "fingerprint_complete_unify" pb_unif
     (fun (pat, l) ->
        let ref = fold N.add l (N.empty section) in
        let t = fold I.add l (I.empty section) in
-       eq_results (N.find_unify pat ref) (I.find_unify pat t)
+       eq_unif (N.find_unify pat ref) (I.find_unify pat t)
     )
 
 let complete_qtests = [

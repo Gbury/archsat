@@ -302,14 +302,18 @@ module Term = struct
          t :: tail)
     | _ -> assert false
 
-  let sized size =
-    G.(Ty.gen >>= fun ty -> typed ~config:ground ty size)
+  let sized_c ~config size =
+    G.(Ty.gen >>= fun ty -> typed ~config ty size)
+
+  let sized = sized_c ~config:ground
 
   let gen = G.sized sized
 
   let make g = QCheck.make ~print ~small ~shrink g
 
   let t = make gen
+
+  let gen_c config = G.sized (sized_c ~config)
 
 end
 

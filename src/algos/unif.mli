@@ -1,5 +1,5 @@
 
-(** Unification for terms *)
+(** Unification for expressions *)
 
 (** {2 Unifiers} *)
 
@@ -109,22 +109,6 @@ module Cache : sig
 end
 
 (** {2 Robinson unification} *)
-
-module Match : sig
-
-  exception Impossible_ty of Expr.ty * Expr.ty
-  exception Impossible_term of Expr.term * Expr.term
-
-  val ty : t -> Expr.ty -> Expr.ty -> t
-  val term : t -> Expr.term -> Expr.term -> t
-  (** Matching on types and terms. The first argument is the term, and the second
-      argument is the pattern. *)
-
-  val find : section:Util.Section.t -> Expr.term -> Expr.term -> t option
-  (** [find ~section term pat] try and find a substitution [u] such that
-      [term_subst u pat = term]. *)
-
-end
 
 module Robinson : sig
 

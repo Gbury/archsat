@@ -54,10 +54,13 @@ let find x = E.get_repr st x
 
 let repr t = E.repr t
 
+let mem t x =
+  Expr.Term.equal (repr t) (repr (find x))
+
 let fold f x t =
   let l = E.load t in
-  let y = List.fold_left f x l.vars in
-  M.fold (fun _ l acc -> List.fold_left f acc l) l.elts y
+  let aux _ l acc = List.fold_left f acc l in
+  M.fold aux l.elts (List.fold_left f x l.vars)
 
 let find_top t f =
   let load = E.load t in

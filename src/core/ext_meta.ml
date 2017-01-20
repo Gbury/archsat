@@ -14,7 +14,7 @@ let unif_section = Util.Section.make ~parent:section "unif"
 let rigid_section = Util.Section.make ~parent:section "rigid"
 
 (* Create the necessary sections for superposition *)
-let () = ignore (Superposition.empty (fun _ -> assert false) sup_section)
+(* let () = ignore (Superposition.empty (fun _ -> assert false) sup_section) *)
 
 (* Extension parameters *)
 (* ************************************************************************ *)
@@ -286,6 +286,7 @@ let rec unif_f st = function
     Util.enter_prof rigid_section;
     fold_diff (fun () -> wrap_unif (Rigid.unify ~max_depth:(rigid_depth ()) st.equalities single_inst)) () st;
     Util.exit_prof rigid_section
+  (*
   | SuperEach ->
     Util.enter_prof sup_section;
     let t = Superposition.empty single_inst sup_section in
@@ -311,6 +312,8 @@ let rec unif_f st = function
       unif_f st Simple
     else
       unif_f st SuperAll
+     *)
+  | _ -> unif_f st Simple
 
 let find_all_insts : type ret. ret Dispatcher.msg -> ret option = function
   | Solver.Found_sat model ->

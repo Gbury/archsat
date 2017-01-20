@@ -14,7 +14,10 @@ type t = {
   t_map : (Expr.ty Expr.meta, Expr.term) Expr.Subst.t;
 }
 
-let empty = { ty_map = Expr.Subst.empty; t_map = Expr.Subst.empty; }
+let empty = {
+  ty_map = Expr.Subst.empty;
+  t_map = Expr.Subst.empty;
+}
 
 let is_empty u =
   Expr.Subst.is_empty u.ty_map &&
@@ -262,73 +265,6 @@ let to_formula t =
   Expr.Subst.fold (fun m t f ->
       Expr.(Formula.(f_and [f; eq (Term.of_meta m) t])))
     t.t_map Expr.Formula.f_true
-
-(* Matching of types and terms *)
-(* ************************************************************************ *)
-
-module Match = struct
-
-  exception Impossible_ty of Expr.ty * Expr.ty
-  exception Impossible_term of Expr.term * Expr.term
-
-  let rec ty subst s t =
-    match s, t with
-    | _, { Expr.ty = Expr.TyMeta v } ->
-      begin match get_ty_opt subst v with
-        | Some t' ->
-          if Expr.Ty.equal s t' then subst
-          else raise (Impossible_ty (s, t))
-        | None ->
-          ty (bind_ty subst v s) s s
-      end
-    | { Expr.ty = Expr.TyApp (f, f_args) },
-      { Expr.ty = Expr.TyApp (g, g_args) } ->
-      if Expr.Id.equal f g then
-        List.fold_left2 ty subst f_args g_args
-      else
-        raise (Impossible_ty (s, t))
-    | _ -> raise (Impossible_ty (s, t))
-
-  let rec term subst s t =
-    match s, t with
-    | _, { Expr.term = Expr.Meta v } ->
-      begin match get_term_opt subst v with
-        | Some t' ->
-          if Expr.Term.equal s t' then subst
-          else raise (Impossible_term (s, t))
-        | None ->
-          let subst' = ty subst Expr.(s.t_type) Expr.(t.t_type) in
-          let subst'' = bind_term subst' v s in
-          term subst'' s s
-      end
-    | { Expr.term = Expr.App (f, f_ty_args, f_t_args) },
-      { Expr.term = Expr.App (g, g_ty_args, g_t_args) } ->
-      if Expr.Id.equal f g then
-        List.fold_left2 term
-          (List.fold_left2 ty subst f_ty_args g_ty_args)
-          f_t_args g_t_args
-      else
-        raise (Impossible_term (s, t))
-    | _ -> raise (Impossible_term (s, t))
-
-  let filter subst =
-    let aux_ty m ty = not @@ Expr.Ty.equal (Expr.Ty.of_meta m) ty in
-    let aux_t m t = not @@ Expr.Term.equal (Expr.Term.of_meta m) t in
-    {
-      ty_map = Expr.Subst.filter aux_ty subst.ty_map;
-      t_map = Expr.Subst.filter aux_t subst.t_map;
-    }
-
-  let find ~section s t =
-    Util.enter_prof section;
-    let res =
-      try Some (filter (term empty s t))
-      with Impossible_ty _ | Impossible_term _ -> None
-    in
-    Util.exit_prof section;
-    res
-
-end
 
 (* Caching (modulo meta switching) *)
 (* ************************************************************************ *)

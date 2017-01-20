@@ -86,6 +86,9 @@ module Term : sig
     meta: int;
   }
 
+  val gen_c : config -> Expr.term QCheck.Gen.t
+  (** Configurable generator for terms. *)
+
   val typed : config:config -> Expr.ty -> Expr.term QCheck.Gen.sized
   (** Generate a term with the given size and type.
       @param ground if false then variables can appear in the generatd term.

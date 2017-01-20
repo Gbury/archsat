@@ -74,7 +74,7 @@ let unif_tests =
   "Unif" >:::
   List.map QCheck_runner.to_ounit2_test unif_qtests
 
-(* Match tests *)
+(* Problem generation *)
 (* ************************************************************************ *)
 
 let pair =
@@ -87,40 +87,6 @@ let pair =
   QCheck.({(pair E.Term.t E.Term.t) with gen = gen })
 (* Small hack to get the same printer/shrinker than for pairs, but
    still generate terms of the same type. *)
-
-let match_subst =
-  QCheck.Test.make ~count:30 ~long_factor:5
-    ~name:"match_subst" pair
-    (fun (a, b) ->
-       match Unif.Match.find ~section a b with
-       | None -> QCheck.assume_fail ()
-       | Some u ->
-         Unif.occurs_check u &&
-         Expr.Term.equal a (Unif.term_subst u b)
-    )
-
-let subst_match =
-  QCheck.Test.make ~count:100 ~long_factor:10
-    ~name:"subst_match" (QCheck.pair t E.Term.t)
-    (fun (u, pat) ->
-       QCheck.assume (Unif.occurs_check u);
-       let t = Unif.term_subst u pat in
-       match Unif.Match.find ~section t pat with
-       | None -> false
-       | Some u' ->
-         Unif.occurs_check u' &&
-         Expr.Term.equal t (Unif.term_subst u' pat)
-    )
-
-let match_qtests = [
-  match_subst;
-  subst_match;
-]
-
-let match_tests =
-  let open OUnit2 in
-  "Match" >:::
-  List.map QCheck_runner.to_ounit2_test match_qtests
 
 (* Robinson unification tests *)
 (* ************************************************************************ *)

@@ -15,10 +15,11 @@ Options
 # Algorithms
 Index
 Unif
+Match
 Closure
 Heuristic
 Rigid
-Superposition
+#Superposition
 Constraints
 
 # Core modules

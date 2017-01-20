@@ -25,7 +25,7 @@ module type S = sig
   val add : Expr.term -> value -> t -> t
   val remove : Expr.term -> value -> t -> t
   val find_unify : Expr.term -> t -> (Expr.term * Unif.t * value list) list
-  val find_match : Expr.term -> t -> (Expr.term * Unif.t * value list) list
+  val find_match : Expr.term -> t -> (Expr.term * Match.t * value list) list
 end
 
 (* Simple (and very naive) index *)
@@ -66,7 +66,7 @@ module Simple(T: Set.OrderedType) = struct
 
   let find_match pat m =
     let aux t s acc =
-      match Unif.Match.find ~section:m.section t pat with
+      match Match.find ~section:m.section pat t with
       | None -> acc
       | Some u -> (t, u, S.elements s) :: acc
     in
@@ -219,7 +219,7 @@ module Make(T: Set.OrderedType) = struct
     Util.Stats.incr ~k:(List.length l) s_found t.section;
     let res =
       CCList.filter_map (fun (e, s) ->
-          match Unif.Match.find ~section:t.unif_section e pat with
+          match Match.find ~section:t.unif_section pat e with
           | Some m -> Some (e, m, S.elements s) | None -> None
         ) l in
     Util.Stats.incr ~k:(List.length res) s_success t.section;

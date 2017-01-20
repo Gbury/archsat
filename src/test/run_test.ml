@@ -186,8 +186,8 @@ let _ =
   run (
     (* fail :: error :: *)
     Unif_test.unif_qtests @
-    Unif_test.match_qtests @
     Unif_test.robinson_qtests @
+    Match_test.match_qtests @
     Index_test.correct_qtests @
     Index_test.complete_qtests @
     Closure_test.closure_qtests

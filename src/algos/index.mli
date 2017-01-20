@@ -24,7 +24,7 @@ module type S = sig
   val find_unify : Expr.term -> t -> (Expr.term * Unif.t * value list) list
   (** Find all terms (and payloads) in the index that unify with a given pattern. *)
 
-  val find_match : Expr.term -> t -> (Expr.term * Unif.t * value list) list
+  val find_match : Expr.term -> t -> (Expr.term * Match.t * value list) list
   (** Find all terms (and payloads) in the index that match a given pattern. *)
 
 end

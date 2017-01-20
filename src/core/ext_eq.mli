@@ -17,6 +17,9 @@ val find : Expr.term -> t
 val repr : t -> Expr.term
 (** Return the current representant of an equality class. *)
 
+val mem : t -> Expr.term -> bool
+(** Does a term belong to an equialence class. *)
+
 val fold : ('a -> Expr.term -> 'a) -> 'a -> t -> 'a
 (** Fold over the terms in an equivalence class. *)
 
