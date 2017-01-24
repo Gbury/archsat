@@ -29,6 +29,9 @@ type res =
   | Term of Expr.term
   | Formula of Expr.formula
 
+type inferred =
+  | Ty_fun of Expr.ttype Expr.function_descr Expr.id
+  | Term_fun of Expr.ty Expr.function_descr Expr.id
 
 (* The local environments used for type-checking. *)
 type env = {
@@ -46,9 +49,7 @@ type env = {
 
   (* Additional typing info *)
   expect      : expect;
-  infer_hook  :
-    [ `Ty of Expr.ttype Expr.function_descr Expr.id
-    | `Term of Expr.ty Expr.function_descr Expr.id ] -> unit;
+  infer_hook  : env -> inferred -> unit;
   status      : Expr.status;
 }
 
@@ -134,7 +135,7 @@ let def_term id ty_args args body =
 let empty_env
     ?(expect=Nothing)
     ?(status=Expr.Status.hypothesis)
-    ?(infer_hook=ignore)
+    ?(infer_hook=(fun _ _ -> ()))
     builtins = {
   type_vars = M.empty;
   term_vars = M.empty;
@@ -281,21 +282,21 @@ let make_pred ast_term p =
 
 let infer env s args =
   match env.expect with
-  | Nothing -> `Nothing
+  | Nothing -> None
   | Type ->
     let n = List.length args in
     let ret = Expr.Id.ty_fun (Id.full_name s) n in
-    let res = `Ty ret in
-    env.infer_hook res;
+    let res = Ty_fun ret in
+    env.infer_hook env res;
     decl_ty_cstr s ret;
-    res
+    Some res
   | Typed ty ->
     let n = List.length args in
     let ret = Expr.Id.term_fun (Id.full_name s) [] (CCList.replicate n Expr.Ty.base) ty in
-    let res = `Term ret in
-    env.infer_hook res;
+    let res = Term_fun ret in
+    env.infer_hook env res;
     decl_term s ret;
-    res
+    Some res
 
 (* Expression parsing *)
 (* ************************************************************************ *)
@@ -490,9 +491,9 @@ and parse_app env ast s args =
               | Some res -> res
               | None ->
                 begin match infer env s args with
-                  | `Ty f -> parse_app_ty env ast f args
-                  | `Term f -> parse_app_term env ast f args
-                  | `Nothing ->
+                  | Some Ty_fun f -> parse_app_ty env ast f args
+                  | Some Term_fun f -> parse_app_term env ast f args
+                  | None ->
                     raise (Typing_error (
                         Format.asprintf "Scoping error: '%a' not found" Id.print s, ast))
                 end

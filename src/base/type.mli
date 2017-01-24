@@ -30,6 +30,11 @@ type res =
   | Formula of Expr.formula (**)
 (* The results of parsing an untyped term.  *)
 
+type inferred =
+  | Ty_fun of Expr.ttype Expr.function_descr Expr.id
+  | Term_fun of Expr.ty Expr.function_descr Expr.id
+(** The type for inferred symbols. *)
+
 type 'a typer = env -> Dolmen.Term.t -> 'a
 (** A general type for typers. Takes a local environment and the current untyped term,
     and return a value. The typer may need additional information for parsing,
@@ -47,13 +52,18 @@ type builtin_symbols = (Dolmen.Id.t -> Dolmen.Term.t list -> res option) typer
 val empty_env :
   ?expect:expect ->
   ?status:Expr.status ->
-  ?infer_hook:([ `Ty of Expr.ttype Expr.function_descr Expr.id
-               | `Term of Expr.ty Expr.function_descr Expr.id ] -> unit) ->
+  ?infer_hook:(env -> inferred -> unit) ->
   builtin_symbols -> env
 (** Create a new environment. *)
 
 val expect : env -> expect -> env
 (** Returns the same environment but with the given expectation. *)
+
+val find_var : env -> Dolmen.Id.t ->
+  [ `Not_found
+  | `Ty of Expr.ttype Expr.id
+  | `Term of Expr.ty Expr.id ]
+(** Lookup a variable in an environment. *)
 
 (** {2 Parsing helpers} *)
 

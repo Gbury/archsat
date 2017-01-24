@@ -127,9 +127,9 @@ let type_wrap opt =
   let l = CCOpt.get_exn opt.Options.input_format in
   let tys = ref [] in
   let terms = ref [] in
-  let infer_hook = function
-    | `Ty c -> tys:= c :: !tys
-    | `Term f -> terms := f :: !terms
+  let infer_hook _ = function
+    | Type.Ty_fun c -> tys:= c :: !tys
+    | Type.Term_fun f -> terms := f :: !terms
   in
   let env = Type.empty_env
       ~status:Expr.Status.hypothesis
