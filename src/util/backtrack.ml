@@ -1,4 +1,7 @@
 
+(* Undo stack module *)
+(* ************************************************************************ *)
+
 module Stack = struct
 
   type op =
@@ -82,6 +85,9 @@ module Stack = struct
   let pop t = backtrack t (t.last)
 
 end
+
+(* Hashtbl module *)
+(* ************************************************************************ *)
 
 module Hashtbl(K : Hashtbl.HashedType) = struct
 
