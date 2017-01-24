@@ -15,14 +15,15 @@ end
 module type S = sig
   type var
   type 'a t
-  type 'a repr
+  type 'a eq_class
   exception Unsat of var * var * var list
-  val repr : 'a repr -> var
-  val load : 'a repr -> 'a
+  val repr : 'a eq_class -> var
+  val load : 'a eq_class -> 'a
   val create :
     gen:(var -> 'a) -> merge:('a -> 'a -> 'a) ->
+    ?callback:('a eq_class -> 'a eq_class -> 'a eq_class -> unit) ->
     section:Util.Section.t -> Backtrack.Stack.t -> 'a t
-  val get_repr : 'a t -> var -> 'a repr
+  val get_class : 'a t -> var -> 'a eq_class
   val find : 'a t -> var -> var
   val add_eq : 'a t -> var -> var -> unit
   val add_neq : 'a t -> var -> var -> unit
@@ -44,7 +45,7 @@ module Eq(T : Key) = struct
   exception Same_tag of var * var
   exception Unsat of var * var * var list
 
-  type 'a repr = {
+  type 'a eq_class = {
     load : 'a;
     repr : var;
     rank : int;
@@ -54,26 +55,32 @@ module Eq(T : Key) = struct
 
   type 'a node =
     | Follow of var
-    | Repr of 'a repr
+    | Repr of 'a eq_class
 
   type 'a t = {
     size : int H.t;
     expl : var H.t;
-    repr : 'a node H.t;
+    table : 'a node H.t;
     gen  : var -> 'a;
     merge : 'a -> 'a -> 'a;
     section : Util.Section.t;
+    callback : 'a eq_class -> 'a eq_class -> 'a eq_class -> unit;
   }
 
-  let create ~gen ~merge ~section s = {
-    section; merge; gen;
+  let _callback_default _ _ _ = ()
+
+  let create
+      ~gen ~merge
+      ?(callback=_callback_default)
+      ~section s = {
+    section; merge; gen; callback;
     size = H.create s;
     expl = H.create s;
-    repr = H.create s;
+    table = H.create s;
   }
 
   (* Accessors *)
-  let repr (r : _ repr) = r.repr
+  let repr (r : _ eq_class) = r.repr
   let load r = r.load
 
   (* Union-find algorithm with path compression *)
@@ -81,12 +88,12 @@ module Eq(T : Key) = struct
     try H.find m i
     with Not_found -> default
 
-  let rec get_repr h v =
-    match H.find h.repr v with
+  let rec get_class h v =
+    match H.find h.table v with
     | Repr r -> r
     | Follow v' ->
-      let r = get_repr h v' in
-      H.add h.repr v (Follow r.repr);
+      let r = get_class h v' in
+      H.add h.table v (Follow r.repr);
       r
     | exception Not_found ->
       let r = {
@@ -96,13 +103,13 @@ module Eq(T : Key) = struct
           load = h.gen v;
           forbidden = M.empty;
         } in
-      H.add h.repr v (Repr r);
+      H.add h.table v (Repr r);
       r
 
-  let find h x = (get_repr h x).repr
+  let find h x = (get_class h x).repr
 
   let tag h x v =
-    let r = get_repr h x in
+    let r = get_class h x in
     let new_m =
       { r with
         tag = match r.tag with
@@ -110,10 +117,10 @@ module Eq(T : Key) = struct
           | (Some _) as t -> t
           | None -> Some (x, v) }
     in
-    H.add h.repr r.repr (Repr new_m)
+    H.add h.table r.repr (Repr new_m)
 
   let find_tag h x =
-    let r = get_repr h x in
+    let r = get_class h x in
     r.repr, r.tag
 
   let forbid_aux m x =
@@ -149,13 +156,14 @@ module Eq(T : Key) = struct
         H.add m z (Repr r')
       | _ -> assert false
     in
-    M.iter (aux h.repr) my.forbidden;
-    H.add h.repr my.repr (Follow mx.repr);
-    H.add h.repr mx.repr (Repr new_m)
+    M.iter (aux h.table) my.forbidden;
+    H.add h.table my.repr (Follow mx.repr);
+    H.add h.table mx.repr (Repr new_m);
+    h.callback mx my new_m
 
   let union h x y =
-    let mx = get_repr h x in
-    let my = get_repr h y in
+    let mx = get_class h x in
+    let my = get_class h y in
     if T.compare mx.repr my.repr <> 0 then begin
       forbid_aux mx.forbidden my.repr;
       forbid_aux my.forbidden mx.repr;
@@ -167,8 +175,8 @@ module Eq(T : Key) = struct
     end
 
   let forbid h x y =
-    let mx = get_repr h x in
-    let my = get_repr h y in
+    let mx = get_class h x in
+    let my = get_class h y in
     let rx = mx.repr in
     let ry = my.repr in
     if T.compare rx ry = 0 then
@@ -177,8 +185,8 @@ module Eq(T : Key) = struct
       | Some (a, v), Some (b, v') when T.compare v v' = 0 ->
         raise (Same_tag(a, b))
       | _ ->
-        H.add h.repr ry (Repr { my with forbidden = M.add rx (x, y) my.forbidden });
-        H.add h.repr rx (Repr { mx with forbidden = M.add ry (x, y) mx.forbidden })
+        H.add h.table ry (Repr { my with forbidden = M.add rx (x, y) my.forbidden });
+        H.add h.table rx (Repr { mx with forbidden = M.add ry (x, y) mx.forbidden })
 
   (* Equivalence closure with explanation output *)
   let find_parent v m = find_hash m v v

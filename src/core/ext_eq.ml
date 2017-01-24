@@ -13,13 +13,19 @@ module M = Map.Make(struct
     let compare= Expr.Id.compare
   end)
 
-(* Union-find payloads *)
+(* Union-find payloads and callbacks *)
 (* ************************************************************************ *)
 
 type load = {
   vars : Expr.term list;
   elts : Expr.term list M.t;
 }
+
+let print fmt t =
+  Format.fprintf fmt "class<%a>" Expr.Term.print (E.repr t)
+
+let debug buf t =
+  Printf.bprintf buf "class<%a>" Expr.Term.debug (E.repr t)
 
 let gen = function
   | { Expr.term = Expr.Var _ } ->
@@ -38,19 +44,30 @@ let merge a b =
   in
   { vars; elts = M.merge aux a.elts b.elts; }
 
+let callback, register_callback =
+  let l = ref [] in
+  let callback a b c =
+    Util.debug ~section 10 "Merging %a / %a ==> %a"
+      debug a debug b debug c;
+    List.iter (fun (name, f) ->
+        if Dispatcher.Plugin.(is_active (find name)) then
+          f a b c) !l
+  in
+  let register name f =
+    l := (name, f) :: !l
+  in
+  callback, register
+
 let st = E.create
     ~section:(Util.Section.make ~parent:section "union-find")
-    ~gen ~merge D.stack
+    ~gen ~merge ~callback D.stack
 
 (* Accessors to the equality closure *)
 (* ************************************************************************ *)
 
-type t = load E.repr
+type t = load E.eq_class
 
-let print fmt t =
-  Format.fprintf fmt "class<%a>" Expr.Term.print (E.repr t)
-
-let find x = E.get_repr st x
+let find x = E.get_class st x
 
 let repr t = E.repr t
 
@@ -121,7 +138,8 @@ let wrap f x y =
 
 let tag x = fun () ->
   try
-    Util.debug ~section 10 "Tagging %a" Expr.Debug.term x;
+    Util.debug ~section 10 "Tagging %a -> %a"
+      Expr.Debug.term x Expr.Debug.term (D.get_assign x);
     E.add_tag st x (D.get_assign x)
   with E.Unsat (a, b, l) ->
     Util.debug ~section 2 "Error while tagging : %a -> %a" Expr.Debug.term x Expr.Debug.term (D.get_assign x);

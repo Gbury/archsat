@@ -8,6 +8,7 @@ type t
     NOTE: equality classes are immutable, and so the information they
           contain is only valid right after they are provided. *)
 
+val debug : Buffer.t -> t -> unit
 val print : Format.formatter -> t -> unit
 (** Print a class. *)
 
@@ -26,6 +27,14 @@ val fold : ('a -> Expr.term -> 'a) -> 'a -> t -> 'a
 val find_top : t -> Expr.ty Expr.function_descr Expr.id -> Expr.term list
 (** Find all terms in an equivalence class that have the given function
     symbol at the top. *)
+
+(** {2 Union-find callbacks} *)
+
+val register_callback : string -> (t -> t -> t -> unit) -> unit
+(** [register_callback name f] registers the callback [f] to be called
+    on each merge of two union-find equivalence classes. [name] should be
+    the name of a registered extension, and [f] will only be called if
+    the named extension is active. *)
 
 (** {2 Plugin functions} *)
 

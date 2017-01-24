@@ -29,7 +29,7 @@ module type S = sig
       The type parameter ['a] is the type of payloads attached to
       equivalence classes. *)
 
-  type 'a repr
+  type 'a eq_class
   (** The type of equivalence classes. Parametrised
       by the type of payloads attached to it. *)
 
@@ -45,20 +45,21 @@ module type S = sig
 
   (** {3 Accessors} *)
 
-  val repr : 'a repr -> var
+  val repr : 'a eq_class -> var
   (** Return the representant of an equivalence class. *)
 
-  val load : 'a repr -> 'a
+  val load : 'a eq_class -> 'a
   (** Return the payload of an equivalence class. *)
 
   (** {3 Union-find structure} *)
 
   val create :
     gen:(var -> 'a) -> merge:('a -> 'a -> 'a) ->
+    ?callback:('a eq_class -> 'a eq_class -> 'a eq_class -> unit) ->
     section:Util.Section.t -> Backtrack.Stack.t -> 'a t
   (** Creates an empty state which uses the given backtrack stack *)
 
-  val get_repr : 'a t -> var -> 'a repr
+  val get_class : 'a t -> var -> 'a eq_class
   (** Get the representant of the equivalence class of a variable. *)
 
   val find : 'a t -> var -> var
