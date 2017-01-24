@@ -27,7 +27,8 @@ module type S = sig
   val set_ext : string -> unit
   val set_exts : string -> unit
 
-  (* Logging *)
+  (* Active extensions *)
+  val is_active : t -> bool
   val log_active : int -> unit
 
   (* Acces to extensions *)

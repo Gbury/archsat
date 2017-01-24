@@ -16,6 +16,7 @@ module Make(E: K) : S with type ext = E.t = struct
   let log_name = Util.Section.short_name E.section
   let log i fmt = Util.debug ~section:E.section i fmt
 
+  (* Type definitions *)
   type id = int
   type ext = E.t
 
@@ -29,12 +30,15 @@ module Make(E: K) : S with type ext = E.t = struct
     ext : E.t;
   }
 
+  (* Internal state *)
   let actual = ref E.neutral
   let exts = CCVector.create ()
   let active = ref []
 
+  (* Get the current extension result *)
   let get_res () = !actual
 
+  (* Get extensions *)
   let _not_found ext_name =
     raise (Extension_not_found (
         log_name, ext_name, List.map (fun r -> r.name) (CCVector.to_list exts)))
@@ -45,6 +49,7 @@ module Make(E: K) : S with type ext = E.t = struct
     | Some x -> x
     | None -> _not_found name
 
+  (* Register extensions *)
   let register name
       ?(descr="think hard !") ?(prio=10)
       ?(options=(Cmdliner.Term.pure ())) ext =
@@ -53,11 +58,13 @@ module Make(E: K) : S with type ext = E.t = struct
     let id = CCVector.length exts in
     CCVector.push exts { id; prio; name; descr; options; ext }
 
+  (* Merge extensions *)
   let merge high low = E.merge ~high ~low
 
   let refresh () =
     actual := List.fold_left merge E.neutral (List.map (fun t -> t.ext) !active)
 
+  (* Activate/deactivate extensions *)
   let activate ext =
     let aux r = r.name = ext in
     try
@@ -92,6 +99,10 @@ module Make(E: K) : S with type ext = E.t = struct
   let set_exts s =
     List.iter set_ext
       (List.map (fun (s, i, l) -> String.sub s i l) (CCString.Split.list_ ~by:"," s))
+
+  (* Active extensions *)
+  let is_active t =
+    List.exists (fun r -> r.name = t.name) !active
 
   let log_active lvl =
     log lvl "active: %a" CCPrint.(list string) (List.map (fun r -> r.name) !active)
