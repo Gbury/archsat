@@ -20,6 +20,7 @@ B _build/output
 
 PKG gen
 PKG msat
+PKG spelll
 PKG qcheck
 PKG dolmen
 PKG zarith

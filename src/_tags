@@ -22,5 +22,5 @@ true: color(always)
         package(containers), package(containers.data),     \
         package(gen), package(oclock),                     \
         package(dolmen), package(qcheck),                  \
-        package(sequence)
+        package(sequence), package(spelll)
 

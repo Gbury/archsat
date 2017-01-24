@@ -10,8 +10,76 @@ let stack = Backtrack.Stack.create (
 
 module Ast = Dolmen.Term
 module Id = Dolmen.Id
-module M = Map.Make(Id)
-module H = Backtrack.Hashtbl(Id)
+
+(* Fuzzy search maps *)
+(* ************************************************************************ *)
+
+module M = struct
+
+  module S = Spelll
+  module I = S.Index
+
+  (** We use fuzzy maps in order to give suggestions in case of typos.
+      Since such maps are not trivial to extend to Dolmen identifiers,
+      we map strings (identifier names) to list of associations. *)
+  type 'a t = (Id.t * 'a) list I.t
+
+  let eq = Id.equal
+
+  let empty = I.empty
+
+  let get t id =
+    let s = Id.(id.name) in
+    match S.klist_to_list (I.retrieve ~limit:0 t s) with
+    | [l] -> l
+    | [] -> []
+    | _ -> assert false
+
+  let mem id t =
+    CCList.Assoc.mem ~eq (get t id) id
+
+  let find id t =
+    CCList.Assoc.get_exn ~eq (get t id) id
+
+  let add id v t =
+    let l = get t id in
+    let l' = CCList.Assoc.set ~eq l id v in
+    I.add t Dolmen.Id.(id.name) l'
+
+  let iter f t =
+    I.iter (fun _ l -> List.iter (fun (id, v) -> f id v) l) t
+
+  (** Return a list of suggestions for an identifier. *)
+  let suggest ~limit id t =
+    let s = Id.(id.name) in
+    let l = S.klist_to_list (I.retrieve ~limit t s) in
+    CCList.flat_map (List.map fst) l
+
+end
+
+(* Fuzzy search hashtables *)
+(* ************************************************************************ *)
+
+module H = struct
+
+  (** Fuzzy hashtables are just references to fuzzy maps.
+      The reference is registered on the stack to allow backtracking. *)
+  let create stack =
+    let r = ref M.empty in
+    Backtrack.Stack.attach stack r;
+    r
+
+  let mem r id = M.mem id !r
+
+  let find r id = M.find id !r
+
+  let suggest r id = M.suggest id !r
+
+  let add r id v =
+    r := M.add id v !r
+
+
+end
 
 (* Types *)
 (* ************************************************************************ *)
