@@ -2,6 +2,8 @@
 BIN=archsat
 MAIN=src/main.native
 
+all: bin
+
 doc:
 	cd doc && $(MAKE)
 

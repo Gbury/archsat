@@ -27,7 +27,7 @@ lib:
 
 test:
 	$(COMP) $(FLAGS) $(TEST)
-	./$(TEST)
+	./$(TEST) --log unit_errors.log
 
 log:
 	cat _build/$(LOG) || true
