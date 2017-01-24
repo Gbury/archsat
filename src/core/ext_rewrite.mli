@@ -3,7 +3,7 @@
 
 (** {2 Matching modulo equality} *)
 
-val match_modulo : Expr.term -> Ext_eq.t -> Match.t Sequence.t
+val match_modulo : Expr.term -> Ext_eq.t -> Match.t list
 (** Matching modulo the equivalence classes registered in [Ext_eq]. *)
 
 (** {2 Plugin} *)

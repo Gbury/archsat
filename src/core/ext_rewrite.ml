@@ -74,24 +74,32 @@ let match_modulo_var v c subst =
     else
       None
 
-let rec match_modulo_app seq (ty_pats, pats) = function
+let rec match_modulo_app acc (ty_pats, pats) = function
   | { Expr.term = Expr.App (_, ty_args, args) } ->
-    let seq' = Sequence.filter_map (match_types ty_pats ty_args) seq in
+    let acc' = CCList.filter_map (match_types ty_pats ty_args) acc in
+    Util.debug ~section 50 "     + type matching: %d results" (List.length acc');
     let l = List.map Ext_eq.find args in
-    List.fold_left2 match_modulo_aux seq' pats l
+    List.fold_left2 match_modulo_aux acc' pats l
   | _ -> assert false
 
-and match_modulo_aux seq pat c =
+and match_modulo_aux acc pat c =
+  Util.debug ~section 50 " - matching %a <--> %a"
+    Expr.Term.debug pat Ext_eq.debug c;
   match pat with
   | { Expr.term = Expr.Var v } ->
-    Sequence.filter_map (match_modulo_var v (Ext_eq.repr c)) seq
+    Util.debug ~section 50 "   > variable";
+    CCList.filter_map (match_modulo_var v (Ext_eq.repr c)) acc
   | { Expr.term = Expr.Meta _ } as t ->
-    if Ext_eq.mem c t then seq else Sequence.empty
+    Util.debug ~section 50 "   > meta";
+    if Ext_eq.mem c t then acc else []
   | { Expr.term = Expr.App (f, ty_pats, pats) } ->
-    let s = Sequence.of_list (Ext_eq.find_top c f) in
-    Sequence.flat_map (match_modulo_app seq (ty_pats, pats)) s
+    let l = Ext_eq.find_top c f in
+    Util.debug ~section 50 "   * in %a starting with %a: %a"
+      Ext_eq.debug c Expr.Debug.id f (CCPrint.list Expr.Term.debug) l;
+    Util.debug ~section 50 "   * length: %d" (List.length l);
+    CCList.flat_map (match_modulo_app acc (ty_pats, pats)) l
 
-let match_modulo = match_modulo_aux (Sequence.singleton Match.empty)
+let match_modulo = match_modulo_aux [Match.empty]
 
 (* Detecting Rewrite rules *)
 (* ************************************************************************ *)
@@ -169,8 +177,26 @@ let add_rule r =
   Util.debug ~section 2 "Detected a new rewrite rule: %a" debug_rule r;
   rules := r :: !rules
 
-(*  *)
+(* Rewriter callback *)
 (* ************************************************************************ *)
+
+let callback a b t =
+  let l = find_all_parents (Ext_eq.repr t) in
+  List.iter (fun ({ guard; trigger; result; formula; } as rule) ->
+      Util.debug ~section 5 "Matches for rule %a" debug_rule rule;
+      let seq = S.fold (fun repr acc ->
+         let c = Ext_eq.find repr in
+          Util.debug ~section 10 "Trying to match %a with %a"
+            Expr.Term.debug trigger Ext_eq.debug c;
+          let s = match_modulo trigger c in
+          let s' = List.map (fun x -> repr, x) s in
+          List.append s' acc
+        ) l [] in
+      List.iter (fun (term, subst) ->
+          Util.debug ~section 5 "matched '%a' with %a"
+            Expr.Debug.term term Match.debug subst
+        ) seq
+    ) !rules
 
 (* Plugin *)
 (* ************************************************************************ *)
@@ -185,8 +211,19 @@ let assume f =
   in
   ()
 
+let rec peek = function
+  | { Expr.formula = Expr.Pred p } ->
+    register_parents p
+  | { Expr.formula = Expr.Equal (a, b) } ->
+    register_parents a;
+    register_parents b
+  | { Expr.formula = Expr.Not f } ->
+    peek f
+  | _ -> ()
+
 let register () =
+  Ext_eq.register_callback name callback;
   Dispatcher.Plugin.register name
     ~descr:"Detects rewrite rules and instantiate them (similarly to triggers)"
-    (Dispatcher.mk_ext ~section ())
+    (Dispatcher.mk_ext ~peek ~assume ~section ())
 
