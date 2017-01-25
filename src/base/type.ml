@@ -278,6 +278,7 @@ let find_let env name =
         `Not_found
     end
 
+(* Printing *)
 let pp_expect b = function
   | Nothing -> Printf.bprintf b "<>"
   | Type -> Printf.bprintf b "<tType>"
@@ -293,6 +294,22 @@ let pp_env b env =
     (pp_map Expr.Debug.id_ty) env.term_vars
     (pp_map Expr.Debug.term) env.term_lets
     (pp_map Expr.Debug.formula) env.prop_lets
+
+(* Typo suggestion *)
+(* ************************************************************************ *)
+
+let suggest ~limit env buf id =
+  let l =
+    M.suggest ~limit id env.type_vars @
+    M.suggest ~limit id env.term_vars @
+    M.suggest ~limit id env.term_lets @
+    M.suggest ~limit id env.prop_lets @
+    H.suggest ~limit global_env id
+  in
+  if l = [] then
+    Printf.bprintf buf "coming up empty, sorry, ^^"
+  else
+    CCPrint.list Id.pp buf l
 
 (* Wrappers for expression building *)
 (* ************************************************************************ *)
@@ -558,6 +575,8 @@ and parse_app env ast s args =
             begin match env.builtins env ast s args with
               | Some res -> res
               | None ->
+                Util.debug ~section 1 "Looking up %a failed, possibilities are: %a"
+                  Id.pp s (suggest ~limit:1 env) s;
                 begin match infer env s args with
                   | Some Ty_fun f -> parse_app_ty env ast f args
                   | Some Term_fun f -> parse_app_term env ast f args
