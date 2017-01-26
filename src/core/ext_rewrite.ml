@@ -106,7 +106,7 @@ let match_modulo = match_modulo_aux [Match.empty]
 
 type rule = {
   trigger : Expr.term;
-  result  : Expr.term;
+  result  : Expr.formula;
   formula : Expr.formula;
   guard   : Expr.formula option;
 }
@@ -120,33 +120,43 @@ let debug_rule buf { trigger; result; guard; formula; } =
   Printf.bprintf buf "%a%a --> %a ( %a )"
     debug_guard guard
     Expr.Term.debug trigger
-    Expr.Term.debug result
+    Expr.Formula.debug result
     Expr.Formula.debug formula
 
 let rules = ref []
 let () = Backtrack.Stack.attach Dispatcher.stack rules
 
 let rec parse_rule_aux = function
-  (* Regular rewrite rule *)
-  | ({ Expr.formula = Expr.Equal (a, b) } as f)
-  | ({ Expr.formula = Expr.Equiv (
-         { Expr.formula = Expr.Pred a },
-         { Expr.formula = Expr.Pred b }) } as f) ->
+  (* Equality as rewriting *)
+  | { Expr.formula = Expr.Equal (a, b) } as f ->
     begin match Lpo.compare a b with
       | Comparison.Incomparable
       | Comparison.Eq -> None
       | Comparison.Lt ->
-        Some { guard = None; trigger = b; result = a; formula = f }
+        Some { guard = None; trigger = b; result = f; formula = f }
       | Comparison.Gt ->
-        Some { guard = None; trigger = a; result = b; formula = f }
+        Some { guard = None; trigger = a; result = f; formula = f }
+    end
+  | { Expr.formula = Expr.Equiv (
+      ({ Expr.formula = Expr.Pred a } as fa),
+      ({ Expr.formula = Expr.Pred b } as fb))
+    } as f ->
+    begin match Lpo.compare a b with
+      | Comparison.Incomparable
+      | Comparison.Eq -> None
+      | Comparison.Lt ->
+        Some { guard = None; trigger = b; result = fa; formula = f }
+      | Comparison.Gt ->
+        Some { guard = None; trigger = a; result = fb; formula = f }
     end
   (* Polarised rewrite rule *)
-  | ({ Expr.formula = Expr.Imply (
-         ({ Expr.formula = Expr.Pred a } as g),
-         { Expr.formula = Expr.Pred b }) } as f) ->
+  | { Expr.formula = Expr.Imply (
+      ({ Expr.formula = Expr.Pred a } as fa),
+      ({ Expr.formula = Expr.Pred b } as fb))
+    } as f ->
     begin match Lpo.compare a b with
       | Comparison.Gt ->
-        Some { guard = Some g; trigger = a; result = b; formula = f }
+        Some { guard = Some fa; trigger = a; result = fb; formula = f }
       | Comparison.Lt | Comparison.Eq
       | Comparison.Incomparable ->
         None
@@ -165,7 +175,7 @@ let rec parse_rule_aux = function
 let parse_rule = function
   | ({ Expr.formula = Expr.All (_, _, r) } as formula)
   | ({ Expr.formula = Expr.AllTy (_, _, {
-        Expr.formula = Expr.All (_, _, r) })} as formula) ->
+         Expr.formula = Expr.All (_, _, r) })} as formula) ->
     begin match parse_rule_aux r with
       | None -> None
       | Some rule ->
@@ -185,7 +195,7 @@ let callback a b t =
   List.iter (fun ({ guard; trigger; result; formula; } as rule) ->
       Util.debug ~section 5 "Matches for rule %a" debug_rule rule;
       let seq = S.fold (fun repr acc ->
-         let c = Ext_eq.find repr in
+          let c = Ext_eq.find repr in
           Util.debug ~section 10 "Trying to match %a with %a"
             Expr.Term.debug trigger Ext_eq.debug c;
           let s = match_modulo trigger c in
