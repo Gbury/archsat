@@ -1,4 +1,7 @@
 
+(* Extension name *)
+let name = "rwrt"
+
 (* Module initialisation *)
 (* ************************************************************************ *)
 
@@ -106,21 +109,21 @@ let match_modulo = match_modulo_aux [Match.empty]
 
 type rule = {
   trigger : Expr.term;
-  result  : Expr.formula;
+  result  : Expr.term;
+  guard   : Expr.term option;
   formula : Expr.formula;
-  guard   : Expr.formula option;
 }
 
 let debug_guard buf = function
   | None -> ()
   | Some e ->
-    Printf.bprintf buf "[%a] " Expr.Formula.debug e
+    Printf.bprintf buf "[%a] " Expr.Term.debug e
 
 let debug_rule buf { trigger; result; guard; formula; } =
   Printf.bprintf buf "%a%a --> %a ( %a )"
     debug_guard guard
     Expr.Term.debug trigger
-    Expr.Formula.debug result
+    Expr.Term.debug result
     Expr.Formula.debug formula
 
 let rules = ref []
@@ -133,46 +136,46 @@ let rec parse_rule_aux = function
       | Comparison.Incomparable
       | Comparison.Eq -> None
       | Comparison.Lt ->
-        Some { guard = None; trigger = b; result = f; formula = f }
+        Some { guard = None; trigger = b; result = a; formula = f }
       | Comparison.Gt ->
-        Some { guard = None; trigger = a; result = f; formula = f }
+        Some { guard = None; trigger = a; result = b; formula = f }
     end
   | { Expr.formula = Expr.Equiv (
-      ({ Expr.formula = Expr.Pred a } as fa),
-      ({ Expr.formula = Expr.Pred b } as fb))
+      { Expr.formula = Expr.Pred a },
+      { Expr.formula = Expr.Pred b })
     } as f ->
     begin match Lpo.compare a b with
       | Comparison.Incomparable
       | Comparison.Eq -> None
       | Comparison.Lt ->
-        Some { guard = None; trigger = b; result = fa; formula = f }
+        Some { guard = None; trigger = b; result = a; formula = f }
       | Comparison.Gt ->
-        Some { guard = None; trigger = a; result = fb; formula = f }
+        Some { guard = None; trigger = a; result = b; formula = f }
     end
   (* Polarised rewrite rule *)
   | { Expr.formula = Expr.Imply (
-      ({ Expr.formula = Expr.Pred a } as fa),
-      ({ Expr.formula = Expr.Pred b } as fb))
+      { Expr.formula = Expr.Pred a },
+      { Expr.formula = Expr.Pred b })
     } as f ->
     begin match Lpo.compare a b with
       | Comparison.Gt ->
-        Some { guard = Some fa; trigger = a; result = fb; formula = f }
+        Some { guard = Some a; trigger = a; result = b; formula = f }
       | Comparison.Lt | Comparison.Eq
       | Comparison.Incomparable ->
         None
     end
   (* Conditional rewriting *)
-  | { Expr.formula = Expr.Imply (
-      ({ Expr.formula = Expr.Pred p } as g), r ) } as f ->
+  | { Expr.formula = Expr.Imply ({ Expr.formula = Expr.Pred p }, r ) } as f ->
     begin match parse_rule_aux r with
       | Some ({ guard = None; _ } as rule) ->
-        Some { rule with guard = Some g; formula = f }
+        Some { rule with guard = Some p; formula = f }
       | _ -> None
     end
   (* Other formulas are not rewrite rules *)
   | _ -> None
 
 let parse_rule = function
+  (* TODO: check that some variabls are actually used in the rule ? *)
   | ({ Expr.formula = Expr.All (_, _, r) } as formula)
   | ({ Expr.formula = Expr.AllTy (_, _, {
          Expr.formula = Expr.All (_, _, r) })} as formula) ->
@@ -187,12 +190,36 @@ let add_rule r =
   Util.debug ~section 2 "Detected a new rewrite rule: %a" debug_rule r;
   rules := r :: !rules
 
+(* Instantiate rewrite rules *)
+(* ************************************************************************ *)
+
+let instanciate rule subst =
+  let res = Expr.Formula.eq
+      (Match.term_apply subst rule.trigger)
+      (Match.term_apply subst rule.result)
+  in
+  match rule.guard with
+  | None ->
+    Dispatcher.consequence res [rule.formula]
+      (Dispatcher.mk_proof name "rewrite")
+  | Some g ->
+    let cond = Match.term_apply subst g in
+    Dispatcher.watch ~formula:rule.formula name 1 [cond]
+      (fun () ->
+         let t = Dispatcher.get_assign cond in
+         if Expr.Term.equal Builtin.Misc.p_true t then begin
+           Dispatcher.consequence res
+             [rule.formula; Expr.Formula.pred cond]
+             (Dispatcher.mk_proof name "rewrite_cond")
+         end
+      )
+
 (* Rewriter callback *)
 (* ************************************************************************ *)
 
 let callback a b t =
   let l = find_all_parents (Ext_eq.repr t) in
-  List.iter (fun ({ guard; trigger; result; formula; } as rule) ->
+  List.iter (fun ({ trigger; _ } as rule) ->
       Util.debug ~section 5 "Matches for rule %a" debug_rule rule;
       let seq = S.fold (fun repr acc ->
           let c = Ext_eq.find repr in
@@ -204,14 +231,13 @@ let callback a b t =
         ) l [] in
       List.iter (fun (term, subst) ->
           Util.debug ~section 5 "matched '%a' with %a"
-            Expr.Debug.term term Match.debug subst
+            Expr.Debug.term term Match.debug subst;
+          instanciate rule subst
         ) seq
     ) !rules
 
 (* Plugin *)
 (* ************************************************************************ *)
-
-let name = "rwrt"
 
 let assume f =
   (* Detect rewrite rules *)
