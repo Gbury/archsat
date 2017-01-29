@@ -38,6 +38,10 @@ type proof_options = {
   unsat_core  : Format.formatter option;
 }
 
+type model_options = {
+  active      : bool;
+}
+
 type copts = {
 
   (* Input options *)

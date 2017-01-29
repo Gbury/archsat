@@ -260,9 +260,9 @@ let consequence f l p =
 
 let do_propagate propagate =
   while not (Stack.is_empty propagate_stack) do
-    let (t, lvl) = Stack.pop propagate_stack in
+    let (t, reason) = Stack.pop propagate_stack in
     Util.debug ~section 10 "Propagating : %a" Expr.Debug.formula t;
-    propagate t lvl
+    propagate t reason
   done
 
 let clean_propagate () =
@@ -467,7 +467,8 @@ and set_assign t v =
     Util.debug ~section 10 " Found %d watchers" (List.length l);
     assign_watch t l
 
-let model () = M.fold eval_map (fun t v acc -> (t, v) :: acc) []
+let model () =
+  M.fold eval_map (fun t v acc -> (t, v) :: acc) []
 
 (* Mcsat Plugin functions *)
 (* ************************************************************************ *)
@@ -507,7 +508,7 @@ module SolverTheory = struct
           set_assign t v
       done;
       Util.exit_prof section;
-      Util.debug ~section 8 "Propagating (%d)" (Stack.length propagate_stack);
+      Util.debug ~section 8 "Propagating %d lits" (Stack.length propagate_stack);
       do_propagate s.propagate;
       do_push s.push;
       Sat

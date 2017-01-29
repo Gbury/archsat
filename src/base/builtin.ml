@@ -71,7 +71,10 @@ let _ =
 
 module Misc = struct
 
-  type Expr.builtin += Cast
+  type Expr.builtin +=
+    | Cast
+    | True
+    | False
 
   (* Casting *)
   let cast_cstr =
@@ -109,8 +112,8 @@ module Misc = struct
     Expr.Term.apply f ty_l l
 
   (* Propositional calculus *)
-  let p_true = Expr.Term.apply (Expr.Id.term_fun "true" [] [] Expr.Ty.prop) [] []
-  let p_false = Expr.Term.apply (Expr.Id.term_fun "false" [] [] Expr.Ty.prop) [] []
+  let p_true = Expr.Term.apply (Expr.Id.term_fun ~builtin:True "true" [] [] Expr.Ty.prop) [] []
+  let p_false = Expr.Term.apply (Expr.Id.term_fun ~builtin:False "false" [] [] Expr.Ty.prop) [] []
 
   let prop_cache = CCCache.unbounded 128
   let mk_prop_aux = CCCache.with_cache prop_cache

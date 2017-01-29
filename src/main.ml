@@ -17,46 +17,45 @@ let () =
     | `Ok opt -> opt
   in
 
-  (* Profiling *)
-  if opt.profile.enabled then begin
-    Util.enable_profiling ();
-    Util.Section.set_profile_depth (CCOpt.get 0 opt.profile.max_depth);
-    List.iter Util.Section.profile_section opt.profile.sections
-  end;
-  if opt.profile.print_stats then
-    Util.enable_statistics ();
+  try
+    (* Profiling *)
+    if opt.profile.enabled then begin
+      Util.enable_profiling ();
+      Util.Section.set_profile_depth (CCOpt.get 0 opt.profile.max_depth);
+      List.iter Util.Section.profile_section opt.profile.sections
+    end;
+    if opt.profile.print_stats then
+      Util.enable_statistics ();
 
-  (* Syntax extensions *)
-  Semantics.Addon.set_exts "+base,+arith";
-  List.iter Semantics.Addon.set_ext opt.addons;
+    (* Syntax extensions *)
+    Semantics.Addon.set_exts "+base,+arith";
+    List.iter Semantics.Addon.set_ext opt.addons;
 
-  (* Extensions options *)
-  Dispatcher.Plugin.set_exts "+eq,+uf,+logic,+prop,+skolem,+inst,+stats";
-  List.iter Dispatcher.Plugin.set_ext opt.plugins;
+    (* Extensions options *)
+    Dispatcher.Plugin.set_exts "+eq,+uf,+logic,+prop,+skolem,+inst,+stats";
+    List.iter Dispatcher.Plugin.set_ext opt.plugins;
 
-  (* Print the current options *)
-  Options.log_opts opt;
-  Semantics.Addon.log_active 0;
-  Dispatcher.Plugin.log_active 0;
+    (* Print the current options *)
+    Options.log_opts opt;
+    Semantics.Addon.log_active 0;
+    Dispatcher.Plugin.log_active 0;
 
-  let opt', g = Pipe.parse opt in
-  Pipeline.(
-    run ~handle_exn:Out.print_exn g opt' (
-      (
+    let opt', g = Pipe.parse opt in
+    Pipeline.(
+      run ~handle_exn:Out.print_exn g opt' (
         (
-          fix (apply ~name:"expand" Pipe.expand) (
-            (apply ~name:"execute" Pipe.execute) @>>>
-            (f_map ~name:"typecheck" Pipe.typecheck) @>>>
-            (f_map ~name:"solve" Pipe.solve) @>>>
-            (iter_ ~name:"print_res" Pipe.print_res)
-            @>>> (apply fst) @>>> _end
+          (fix (apply ~name:"expand" Pipe.expand) (
+              (apply ~name:"execute" Pipe.execute)
+              @>>> (f_map ~name:"typecheck" Pipe.typecheck)
+              @>>> (f_map ~name:"solve" Pipe.solve)
+              @>>> (iter_ ~name:"print_res" Pipe.print_res)
+              @>>> (apply fst) @>>> _end)
+          ) @||| (
+            (iter_ ~name:"print_stats" Pipe.print_stats) @>>> _end
           )
-        ) @||| (
-          (iter_ ~name:"print_stats" Pipe.print_stats) @>>> _end
         )
       )
     )
-  )
-
-
+  with e ->
+    Out.print_exn opt e
 

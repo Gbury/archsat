@@ -3,11 +3,12 @@ true: color(always)
 
 <util>: include
 <base>: include
+<misc>: include
 <core>: include
 <test>: include
 <algos>: include
-<tools>: include
 <input>: include
+<middle>: include
 <output>: include
 
 # Some warnings

@@ -48,3 +48,16 @@ type _ Dispatcher.msg +=
   | Found_unknown : unit -> unit Dispatcher.msg
 (** Dispatcher messages. *)
 
+
+(** {2 Model manipulation} *)
+
+module Model : sig
+
+  type t = model
+  (** The type of models *)
+
+  val print : Format.formatter -> t -> unit
+  (** Print a model on the given formatter. *)
+
+end
+

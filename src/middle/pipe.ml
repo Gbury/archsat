@@ -33,8 +33,8 @@ type solve = [
 
 type result = [
   | `Unknown
-  | `Proof (* TODO: add proof payload *)
-  | `Model (* TODO: add model payload *)
+  | `Proof of Solver.proof
+  | `Model of Solver.model
 ]
 
 (* Agregate types *)
@@ -195,8 +195,8 @@ let solve (opt, (c : typechecked stmt)) : solved stmt =
       if opt.Options.solve then begin
         start_section 0 "Solve";
         begin match Solver.solve () with
-          | Solver.Sat _ -> `Model
-          | Solver.Unsat _ -> `Proof
+          | Solver.Sat m -> `Model m
+          | Solver.Unsat p -> `Proof p
           | Solver.Unknown -> `Unknown
         end
       end else
@@ -216,9 +216,9 @@ let print_res (opt, (c : solved stmt)) =
   | { contents = `Hyp _; _ }
   | { contents = `Goal _; _ } ->
     ()
-  | { contents = `Model; _ }->
+  | { contents = `Model _; _ }->
     Out.print_sat opt
-  | { contents = `Proof; _ }->
+  | { contents = `Proof _; _ }->
     Out.print_unsat opt
   | { contents = `Unknown; _ }->
     Out.print_unknown opt

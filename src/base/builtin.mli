@@ -3,7 +3,10 @@ module Misc : sig
 
   (** {5 Builtin symbols} *)
 
-  type Expr.builtin += Cast
+  type Expr.builtin +=
+    | Cast
+    | True
+    | False
 
   (** {5 Typing} *)
 

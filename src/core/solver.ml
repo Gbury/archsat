@@ -12,7 +12,7 @@ module S = Msat.Internal.Make
 (* Proof replay helpers *)
 (* ************************************************************************ *)
 
-type model = unit
+type model = (Expr.term * Expr.term) list
 (** The type of models for first order problems *)
 
 type view = (Expr.formula -> unit) -> unit
@@ -75,7 +75,8 @@ let rec solve_aux ?(assumptions = []) () =
     let view = if_sat_iter (S.full_slice ()) in
     Dispatcher.handle if_sat Sat_ok (Found_sat view)
   end with
-  | Sat_ok -> Sat ()
+  | Sat_ok ->
+    Sat (Dispatcher.model ())
   | Restart ->
     Util.debug ~section 1 "Restarting...";
     solve_aux ()
@@ -106,4 +107,24 @@ let assume l =
   let () = S.assume l in
   Util.exit_prof section
 
+
+(* Model manipulation *)
+(* ************************************************************************ *)
+
+module Model = struct
+
+  type t = model
+
+  let rec print_aux fmt = function
+    | [] -> ()
+    | (u, v) :: r ->
+      Format.fprintf fmt "%a -> %a@\n"
+        Expr.Term.print u Expr.Term.print v;
+      print_aux fmt r
+
+  let print fmt l =
+    Format.fprintf fmt "@[<hov 2>Model:@\n%a@]" print_aux l
+
+
+end
 
