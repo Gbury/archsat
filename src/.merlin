@@ -3,20 +3,24 @@ S ./util
 S ./base
 S ./core
 S ./test
+S ./misc
 S ./algos
 S ./tools
 S ./input
 S ./output
+S ./middle
 
 B _build/
 B _build/util
 B _build/base
 B _build/core
 B _build/test
+B _build/misc
 B _build/algos
 B _build/tools
 B _build/input
 B _build/output
+B _build/middle
 
 PKG gen
 PKG msat

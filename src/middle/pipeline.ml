@@ -51,7 +51,7 @@ let () =
 (* ************************************************************************ *)
 
 (** Some aliases for readibility *)
-type opt = Options.copts
+type opt = Options.opts
 
 type 'a gen = 'a Gen.t
 type 'a fix = [ `Ok | `Gen of bool * 'a gen ]

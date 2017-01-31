@@ -16,6 +16,18 @@ type output =
   | SZS
 (** Type for choosing model output *)
 
+type input_options = {
+  format        : In.language option;
+  dir           : string;
+  file          : [ `Stdin | `File of string];
+  interactive   : bool;
+}
+
+type output_options = {
+  format  : output;
+  fmt     : Format.formatter;
+}
+
 type profile_options = {
   enabled : bool;
   max_depth : int option;
@@ -30,28 +42,25 @@ type proof_options = {
   unsat_core  : Format.formatter option;
 }
 
-type copts = {
+type model_options = {
+  active      : bool;
+  assign      : Format.formatter option;
+}
 
-  (* Input options *)
-  interactive   : bool;
-  input_dir     : string;
-  input_file    : [ `Stdin | `File of string];
-  input_format  : In.language option;
+type opts = {
 
-  (* Output options *)
-  out           : Format.formatter;
-  output_format : output;
+  (* Input&output options *)
+  input   : input_options;
+  output  : output_options;
+
+  (* Proof&model options *)
+  proof   : proof_options;
+  model   : model_options;
 
   (* Solving options *)
   solve   : bool;
   addons  : string list;
   plugins : string list;
-
-  (* Proof options *)
-  proof   : proof_options;
-
-  (* Printing options *)
-  model_out : Format.formatter option;
 
   (* Time/Memory options *)
   time_limit  : float;
@@ -63,17 +72,22 @@ type copts = {
 val input_to_string : [ `Stdin | `File of string ] -> string
 (** String representation of inut mode. *)
 
-val log_opts : copts -> unit
+val log_opts : opts -> unit
 (** Prints a summary of options *)
 
 val ext_sect : string
 val copts_sect : string
 val proof_sect : string
+val model_sect : string
 (** Section names for options in cmdliner. *)
 
-val help_secs : Cmdliner.Manpage.block list -> Cmdliner.Manpage.block list -> Cmdliner.Manpage.block list
-(** Given documentation for extensions, returns a documentation for the tool. *)
+val help_secs :
+  Cmdliner.Manpage.block list ->
+  Cmdliner.Manpage.block list ->
+  Cmdliner.Manpage.block list
+(** Given documentation for addons, then extensions,
+    returns a documentation for the tool. *)
 
-val copts_t : unit -> copts Cmdliner.Term.t
+val copts_t : unit -> opts Cmdliner.Term.t
 (** A term to evaluate common options from the command line. *)
 

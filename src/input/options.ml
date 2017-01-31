@@ -24,6 +24,18 @@ type output =
   | Standard
   | SZS
 
+type input_options = {
+  format        : input option;
+  dir           : string;
+  file          : [ `Stdin | `File of string];
+  interactive   : bool;
+}
+
+type output_options = {
+  format  : output;
+  fmt     : Format.formatter;
+}
+
 type profile_options = {
   enabled       : bool;
   max_depth     : int option;
@@ -40,30 +52,23 @@ type proof_options = {
 
 type model_options = {
   active      : bool;
+  assign      : Format.formatter option;
 }
 
-type copts = {
+type opts = {
 
-  (* Input options *)
-  interactive   : bool;
-  input_dir     : string;
-  input_file    : [ `Stdin | `File of string];
-  input_format  : input option;
+  (* Input&output options *)
+  input   : input_options;
+  output  : output_options;
 
-  (* Output options *)
-  out           : Format.formatter;
-  output_format : output;
+  (* Proof&model options *)
+  proof   : proof_options;
+  model   : model_options;
 
   (* Solving options *)
   solve   : bool;
   addons  : string list;
   plugins : string list;
-
-  (* Proof options *)
-  proof   : proof_options;
-
-  (* Printing options *)
-  model_out : Format.formatter option;
 
   (* Time/Memory options *)
   time_limit  : float;
@@ -78,60 +83,52 @@ let input_to_string = function
   | `Stdin -> "<stdin>"
   | `File f -> f
 
-let formatter_of_descr = function
-  | "" -> None
-  | "stdout" -> Some (Format.std_formatter)
-  | s -> Some (Format.formatter_of_out_channel (open_out s))
+let formatter_of_out_descr = function
+  | `None -> None
+  | `Stdout -> Some (Format.std_formatter)
+  | `File s -> Some (Format.formatter_of_out_channel (open_out s))
 
 (* Option values *)
 (* ************************************************************************ *)
 
-let mk_opts in_fd
-    input output type_only
-    plugins addons model_out time size
-    proof profile =
-  {
-    interactive = (in_fd = `Stdin);
-    input_format = input;
-    input_dir =
-      begin match in_fd with
-      | `Stdin -> Sys.getcwd ()
-      | `File f -> Filename.dirname f
-      end;
-    input_file =
-      begin match in_fd with
-        | `Stdin -> `Stdin
-        | `File f -> `File (Filename.basename f)
-      end;
+let input_opts fd format =
+  let interactive = (fd = `Stdin) in
+  let dir, file =
+    match fd with
+    | `Stdin ->
+      Sys.getcwd (), `Stdin
+    | `File f ->
+      Filename.dirname f, `File (Filename.basename f)
+  in
+  { interactive; format; dir; file; }
 
-    out = Format.std_formatter;
-    output_format = output;
+let output_opts fd format =
+  let fmt =
+    match formatter_of_out_descr fd with
+    | Some fmt -> fmt
+    | None -> assert false
+  in
+  { format; fmt; }
 
-    solve = not type_only;
-    addons = List.concat addons;
-    plugins = List.concat plugins;
-
-    proof = proof;
-
-    model_out = formatter_of_descr model_out;
-
-    profile = profile;
-    time_limit = time;
-    size_limit = size;
-  }
+let profile_opts enable max_depth sections out print_stats =
+  let enabled =
+    enable
+    || max_depth <> None
+    || sections <> []
+    || out <> `None
+  in
+  { enabled; max_depth; sections; print_stats;
+    raw_data = formatter_of_out_descr out; }
 
 let proof_opts prove dot unsat_core =
-  let dot = formatter_of_descr dot in
-  let unsat_core = formatter_of_descr unsat_core in
+  let dot = formatter_of_out_descr dot in
+  let unsat_core = formatter_of_out_descr unsat_core in
   let active = prove || dot <> None || unsat_core <> None in
   { active; dot; unsat_core; }
 
-let profile_opts enable depth l out stats = {
-  enabled = enable || depth <> None || l <> [] || out <> "";
-  max_depth = depth;
-  sections = l;
-  raw_data = formatter_of_descr out;
-  print_stats = stats;
+let model_opts active assign = {
+  active;
+  assign = formatter_of_out_descr assign;
 }
 
 (* Side-effects options *)
@@ -147,10 +144,30 @@ let set_opts gc bt quiet log debug opt =
   else begin
     Msat.Log.set_debug log;
     Msat.Log.set_debug_out Format.std_formatter;
-    Util.set_debug (if opt.interactive then max 1 log else log);
+    Util.set_debug (if opt.input.interactive then max 1 log else log);
     List.iter (fun (s, lvl) -> Util.Section.set_debug s lvl) debug
   end;
   opt
+
+let mk_opts
+    input output
+    proof model profile
+    type_only
+    plugins addons
+    time size
+  =
+  {
+    input; output;
+    proof; model;
+
+    solve = not type_only;
+    addons = List.concat addons;
+    plugins = List.concat plugins;
+
+    profile = profile;
+    time_limit = time;
+    size_limit = size;
+  }
 
 (* Argument converter for integer with multiplier suffix *)
 (* ************************************************************************ *)
@@ -244,12 +261,12 @@ let log_opts opt =
   log 0 "Options : %s%s%s%s[in: %s][out: %s]"
     (bool_opt "solve" opt.solve)
     (bool_opt "prove" opt.proof.active)
-    (bool_opt "interactive" opt.interactive)
+    (bool_opt "interactive" opt.input.interactive)
     (bool_opt "profile" opt.profile.enabled)
-    (CCOpt.get "" @@ CCOpt.map In.string_of_language @@ opt.input_format)
-    (output_string opt.output_format);
-  log 0 "Input dir : '%s'" opt.input_dir;
-  log 0 "Input file : %s" (input_to_string opt.input_file)
+    (CCOpt.get "" @@ CCOpt.map In.string_of_language @@ opt.input.format)
+    (output_string opt.output.format);
+  log 0 "Input dir : '%s'" opt.input.dir;
+  log 0 "Input file : %s" (input_to_string opt.input.file)
 
 (* Other Argument converters *)
 (* ************************************************************************ *)
@@ -274,18 +291,21 @@ let section = parse_section, print_section
 
 (* Converter for output file descriptor (with stdout as special case) *)
 let print_descr fmt = function
-  | "" -> Format.fprintf fmt "<none>"
-  | s -> Format.fprintf fmt "%s" s
+  | `None -> Format.fprintf fmt "<none>"
+  | `Stdout -> Format.fprintf fmt "<stdout>"
+  | `File s -> Format.fprintf fmt "%s" s
 
 let parse_descr = function
-  | "stdout" -> `Ok "stdout"
+  | "stdout" -> `Ok `Stdout
   | f ->
     try
       if Sys.is_directory f then
         `Error (Format.sprintf "File %s is a directory" f)
       else
-        `Ok f
-    with Sys_error _ -> `Ok f
+        `Ok (`File f)
+    with Sys_error _ ->
+      `Error (Format.sprintf
+                "system error while asserting wether '%s' is a directory" f)
 
 let out_descr = parse_descr, print_descr
 
@@ -296,6 +316,7 @@ let copts_sect = "COMMON OPTIONS"
 let prof_sect = "PROFILING OPTIONS"
 let ext_sect = "ADVANCED OPTIONS"
 let proof_sect = "PROOF OPTIONS"
+let model_sect = "MODEL OPTIONS"
 
 let help_secs ext_doc sext_doc = [
   `S copts_sect; `P "Common options for the prover";
@@ -306,8 +327,10 @@ let help_secs ext_doc sext_doc = [
       and name, and then a short description of what the extension does. Extensions with higher priorities
       are called earlier than those with lower priorities.";
   ] @ ext_doc @ [
-    `S ext_sect; `P "Options primarily used by the extensions (use only if you know what you're doing !).";
     `S prof_sect;
+    `S model_sect;
+    `S ext_sect;
+      `P "Options primarily used by the extensions (use only if you know what you're doing !).";
     `S "BUGS"; `P "TODO";
   ]
 
@@ -315,6 +338,35 @@ let log_sections () =
   let l = ref [] in
   Util.Section.iter (fun (name, _) -> if name <> "" then l := name :: !l);
   List.sort Pervasives.compare !l
+
+let input_t =
+  let docs = copts_sect in
+  let fd =
+    let doc = "Input problem file. If no file is specified,
+               archsat will enter interactive mode and read on stdin." in
+    Arg.(value & pos 0 in_fd `Stdin & info [] ~docv:"FILE" ~doc)
+  in
+  let format =
+    let doc = CCPrint.sprintf
+        "Set the format for the input file to $(docv) (%s)."
+        (Arg.doc_alts_enum ~quoted:false In.enum) in
+    Arg.(value & opt (some input) None & info ["i"; "input"] ~docs ~docv:"INPUT" ~doc)
+  in
+  Term.(pure input_opts $ fd $ format)
+
+let output_t =
+  let docs = copts_sect in
+  let fd =
+    let doc = "Output file. If no output is specified, defaults to stdout" in
+    Arg.(value & opt out_descr `Stdout & info ["fmt"] ~docs ~doc)
+  in
+  let format =
+    let doc = CCPrint.sprintf
+        "Set the output format to $(docv) (%s)."
+        (Arg.doc_alts_enum ~quoted:false output_list) in
+    Arg.(value & opt output Standard & info ["o"; "output"] ~docs ~docv:"OUTPUT" ~doc)
+  in
+  Term.(pure output_opts $ fd $ format)
 
 let profile_t =
   let docs = prof_sect in
@@ -333,7 +385,7 @@ let profile_t =
   let raw_data =
     let doc = "Set a file to which output the raw profiling data.
                A special 'stdout' value can be used to use standard output." in
-    Arg.(value & opt out_descr "" & info ["pdata"] ~docs ~doc)
+    Arg.(value & opt out_descr `None & info ["pdata"] ~docs ~doc)
   in
   let stats =
     let doc = "Print statistics" in
@@ -352,17 +404,30 @@ let proof_t =
   let dot_proof =
     let doc = "Set the file to which the program sould output a proof in dot format.
                A special 'stdout' value can be used to use standard output." in
-    Arg.(value & opt out_descr "" & info ["dot"] ~docs ~doc)
+    Arg.(value & opt out_descr `None & info ["dot"] ~docs ~doc)
   in
   let unsat_core =
     let doc = "Set the file to which the program sould output theunsat core, i.e the list
                of hypothesis used in the proof.
                A special 'stdout' value can be used to use standard output." in
-    Arg.(value & opt out_descr "" & info ["core"] ~docs ~doc)
+    Arg.(value & opt out_descr `None & info ["core"] ~docs ~doc)
   in
   Term.(pure proof_opts $ check_proof $ dot_proof $ unsat_core)
 
-let copts_t () =
+let model_t =
+  let docs = model_sect in
+  let active =
+    let doc = "If set, compute and check the first-order models found. This option
+               does not trigger printing of the model, for that use the other options." in
+    Arg.(value & flag & info ["m"; "model"] ~docs ~doc)
+  in
+  let assign =
+    let doc ="" in
+    Arg.(value & opt out_descr `None & info ["assign"] ~docs ~doc)
+  in
+  Term.(pure model_opts $ active $ assign)
+
+let unit_t =
   let docs = copts_sect in
   let gc =
     let doc = "Print statistics about the gc upon exiting" in
@@ -386,23 +451,10 @@ let copts_t () =
         $(b,section) might be %s." (Arg.doc_alts ~quoted:false (log_sections ())) in
     Arg.(value & opt_all (pair section int) [] & info ["debug"] ~docs:ext_sect ~docv:"NAME,LVL" ~doc)
   in
-  let file =
-    let doc = "Input problem file. If no file is specified,
-               archsat will enter interactive mode and read on stdin." in
-    Arg.(value & pos 0 in_fd `Stdin & info [] ~docv:"FILE" ~doc)
-  in
-  let input =
-    let doc = CCPrint.sprintf
-        "Set the format for the input file to $(docv) (%s)."
-        (Arg.doc_alts_enum ~quoted:false In.enum) in
-    Arg.(value & opt (some input) None & info ["i"; "input"] ~docs ~docv:"INPUT" ~doc)
-  in
-  let output =
-    let doc = CCPrint.sprintf
-        "Set the output for printing results to $(docv) (%s)."
-        (Arg.doc_alts_enum ~quoted:false  output_list) in
-    Arg.(value & opt output Standard & info ["o"; "output"] ~docs ~docv:"OUTPUT" ~doc)
-  in
+  Term.(pure set_opts $ gc $ bt $ quiet $ log $ debug)
+
+let copts_t () =
+  let docs = copts_sect in
   let type_only =
     let doc = "Only parse and type the given problem. Do not attempt to solve." in
     Arg.(value & flag & info ["type-only"] ~docs ~doc)
@@ -420,12 +472,6 @@ let copts_t () =
                for more documentation." in
     Arg.(value & opt_all (list string) [] & info ["semantics"] ~docs ~doc)
   in
-  let model_out =
-    let doc = CCPrint.sprintf
-        "Set the file to which output a model (if found). A special value
-        'stdout' can be used to output on standard output." in
-    Arg.(value & opt out_descr "" & info ["m"; "model"] ~docs ~docv:"MODEL" ~doc)
-  in
   let time =
     let doc = "Stop the program after a time lapse of $(docv).
                  Accepts usual suffixes for durations : s,m,h,d.
@@ -438,7 +484,11 @@ let copts_t () =
               "Without suffix, default to a size in octet." in
     Arg.(value & opt c_size 1_000_000_000. & info ["s"; "size"] ~docs ~docv:"SIZE" ~doc)
   in
-  Term.(pure set_opts $ gc $ bt $ quiet $ log $ debug $ (
-      pure mk_opts $ file $ input $ output $ type_only $
-      plugins $ addons $ model_out $ time $ size $ proof_t $ profile_t))
+  Term.(unit_t $ (
+      pure mk_opts
+      $ input_t $ output_t $ proof_t $ model_t $ profile_t
+      $ type_only $ plugins $ addons $ time $ size)
+    )
+
+
 

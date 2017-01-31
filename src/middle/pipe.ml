@@ -55,18 +55,18 @@ let simple contents = { contents; impl_types = []; impl_terms = []; }
 
 let wrap_parser g =
   fun opt ->
-    if opt.Options.interactive then
+    if Options.(opt.input.interactive) then
       Format.printf "%s@?" (Out.prelude opt);
     g ()
 
 let parse opt =
   (** Parse the input *)
   let opt', g =
-    match opt.Options.input_file with
+    match Options.(opt.input.file) with
     | `Stdin ->
       let l, gen = In.parse_input
-          ?language:opt.Options.input_format (`Stdin In.Smtlib) in
-      { opt with Options.input_format = Some l }, gen
+          ?language:Options.(opt.input.format) (`Stdin In.Smtlib) in
+      Options.({ opt with input = { opt.input with format = Some l } }), gen
     | `File f ->
       (** Formats Dimacs and Tptp are descriptive and lack the emission
           of formal solveprove instructions, so we need to add them. *)
@@ -103,17 +103,19 @@ let expand (opt, c) =
     opt, `Gen (true, Gen.of_list l)
   (* TODO: filter the statements by passing some options *)
   | { S.descr = S.Include f } ->
-    let language = opt.Options.input_format in
-    let dir = opt.Options.input_dir in
+    let language = Options.(opt.input.format) in
+    let dir = Options.(opt.input.dir) in
     begin
       match In.find ?language ~dir f with
       | None -> raise (Options.File_not_found f)
       | Some file ->
         let l, gen = In.parse_input ?language (`File file) in
-        let opt' = Options.{ opt with
-                             input_format = Some l;
-                             input_file = `File file;
-                             interactive = false } in
+        let opt' = Options.({
+            opt with input = {
+            opt.input with format = Some l;
+                           file = `File file;
+                           interactive = false }
+          } ) in
         opt', `Gen (false, gen)
     end
   | _ -> (opt, `Ok)
@@ -123,16 +125,19 @@ let expand (opt, c) =
 (* ************************************************************************ *)
 
 (* TODO, unwind backtrak stack on exceptions *)
-let type_wrap opt =
-  let l = CCOpt.get_exn opt.Options.input_format in
+let type_wrap ?(goal=false) opt =
+  let l = CCOpt.get_exn Options.(opt.input.format) in
   let tys = ref [] in
   let terms = ref [] in
+  let status =
+    if goal then Expr.Status.goal
+    else Expr.Status.hypothesis
+  in
   let infer_hook _ = function
     | Type.Ty_fun c -> tys:= c :: !tys
     | Type.Term_fun f -> terms := f :: !terms
   in
-  let env = Type.empty_env
-      ~status:Expr.Status.hypothesis
+  let env = Type.empty_env ~status
       ~infer_hook (Semantics.type_env l) in
   let aux res = {
     impl_types = !tys;
@@ -149,7 +154,7 @@ let typecheck (opt, c) : typechecked stmt =
     let ret = Type.new_def env t id in
     (aux ret :> typechecked stmt)
   | { S.descr = S.Decl (id, t) } ->
-    start_section 0 "Declaration";
+    start_section 0 "Declaration typing";
     let env, aux = type_wrap opt in
     let ret = Type.new_decl env t id in
     (aux ret :> typechecked stmt)
@@ -159,8 +164,8 @@ let typecheck (opt, c) : typechecked stmt =
     let ret = Type.new_formula env t in
     (aux (`Hyp ret) :> typechecked stmt)
   | { S.descr = S.Consequent t } ->
-    start_section 0 "Hypothesis typing";
-    let env, aux = type_wrap opt in
+    start_section 0 "Goal typing";
+    let env, aux = type_wrap ~goal:true opt in
     let ret = Type.new_formula env t in
     (aux (`Goal ret) :> typechecked stmt)
   | { S.descr = S.Prove } ->

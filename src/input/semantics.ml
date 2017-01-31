@@ -1,4 +1,9 @@
 
+(* Semantic extensions *)
+(* ************************************************************************ *)
+
+let section = Util.Section.make ~parent:Type.section "addons"
+
 type ext = {
   builtins : In.language -> Type.builtin_symbols;
 }
@@ -11,27 +16,36 @@ let mk_ext
     ?(zf=default)
     () =
   { builtins = (function
-        | In.Tptp -> tptp
+        | In.Dimacs | In.ICNF -> default
         | In.Smtlib -> smtlib
+        | In.Tptp -> tptp
         | In.Zf -> zf
-        | _ -> default);
+      );
   }
 
+(* Addons *)
+(* ************************************************************************ *)
+
+(* Instantiate the extension functor *)
 module Addon = Extension.Make(struct
     type t = ext
+    let section = section
     let neutral = mk_ext ()
-    let section = Util.Section.make ~parent:Type.section "addons"
     let merge ~high ~low = {
       builtins = (fun input_format env ast id args ->
-          Util.enter_prof section;
-          let res = match high.builtins input_format env ast id args with
-            | Some x -> Some x
-            | None -> low.builtins input_format env ast id args
-          in
-          Util.exit_prof section;
-          res);
+          match high.builtins input_format env ast id args with
+          | Some x -> Some x
+          | None -> low.builtins input_format env ast id args
+        );
     }
   end)
 
-let type_env input = (Addon.get_res ()).builtins input
+(* Convenience function to get the builtin function for type-checking *)
+let type_env input =
+  let f = (Addon.get_res ()).builtins input in
+  (fun env ast id args ->
+     Util.enter_prof section;
+     let res = f env ast id args in
+     Util.exit_prof section;
+     res)
 

@@ -25,6 +25,8 @@ let parse_f env ast cstr args =
 
 let parse_tptp env ast s args =
   match s with
+  | { Id.name = "$tType"; ns = Id.Term } ->
+    Some Type.Ttype
   | { Id.name = "$o"; ns = Id.Term } ->
     Some (Type.parse_app_ty env ast Expr.Id.prop args)
   | { Id.name = "$i"; ns = Id.Term } ->

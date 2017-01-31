@@ -10,7 +10,7 @@ let flush fmt () =
   Format.fprintf fmt "@."
 
 let prelude opt =
-  match opt.Options.input_format with
+  match Options.(opt.input.format) with
   | None -> ""
   | Some l -> Format.asprintf "(%s)# @?" (In.string_of_language l)
 
@@ -42,7 +42,7 @@ let print_exn opt fmt = function
   (** Statement not implemented *)
   | Options.Stmt_not_implemented s ->
     let default_loc = Dolmen.ParseLocation.mk
-        (Options.input_to_string opt.Options.input_file) 0 0 0 0 in
+        (Options.input_to_string Options.(opt.input.file)) 0 0 0 0 in
     let loc = CCOpt.get default_loc s.Dolmen.Statement.loc in
     Format.fprintf Format.std_formatter
       "%a: the following statement is not yet treated:@\n%a@."
@@ -50,34 +50,35 @@ let print_exn opt fmt = function
 
   (** Parsing errors *)
   | Dolmen.ParseLocation.Uncaught (loc, exn) ->
-    if opt.Options.interactive then
+    if Options.(opt.input.interactive) then
       Format.fprintf Format.std_formatter "%s%a@\n"
         (if Dolmen.ParseLocation.(loc.start_line = 1) then prelude_space opt else "")
         Dolmen.ParseLocation.fmt_hint loc;
     Format.fprintf Format.std_formatter "%a:@\n%s@."
-      Dolmen.ParseLocation.fmt loc (Printexc.to_string exn);
+      Dolmen.ParseLocation.fmt loc (Printexc.to_string exn)
   | Dolmen.ParseLocation.Lexing_error (loc, msg) ->
-    if opt.Options.interactive then
+    if Options.(opt.input.interactive) then
       Format.fprintf Format.std_formatter "%s%a@\n"
         (if Dolmen.ParseLocation.(loc.start_line = 1) then prelude_space opt else "")
         Dolmen.ParseLocation.fmt_hint loc;
     Format.fprintf Format.std_formatter "%a:@\n%s@."
       Dolmen.ParseLocation.fmt loc
-      (match msg with | "" -> "Lexing error: invalid character" | x -> x);
+      (match msg with | "" -> "Lexing error: invalid character" | x -> x)
   | Dolmen.ParseLocation.Syntax_error (loc, msg) ->
-    if opt.Options.interactive then
+    if Options.(opt.input.interactive) then
       Format.fprintf Format.std_formatter "%s%a@\n"
         (if Dolmen.ParseLocation.(loc.start_line = 1) then prelude_space opt else "")
         Dolmen.ParseLocation.fmt_hint loc;
-    Format.fprintf Format.std_formatter "%a:@\n%s@." Dolmen.ParseLocation.fmt loc msg;
+    Format.fprintf Format.std_formatter "%a:@\n%s@." Dolmen.ParseLocation.fmt loc
+      (match msg with "" -> "Syntax error" | x -> x)
 
   (** Typing errors *)
   | Type.Typing_error (msg, t) ->
     let default_loc = Dolmen.ParseLocation.mk
-        (Options.input_to_string opt.Options.input_file) 0 0 0 0 in
+        (Options.input_to_string Options.(opt.input.file)) 0 0 0 0 in
     let loc = CCOpt.get default_loc t.Dolmen.Term.loc in
     Format.fprintf Format.std_formatter "While typing %a@\n" Dolmen.Term.print t;
-    Format.fprintf Format.std_formatter "%a:@\n%s@." Dolmen.ParseLocation.fmt loc msg;
+    Format.fprintf Format.std_formatter "%a:@\n%s@." Dolmen.ParseLocation.fmt loc msg
 
   (** Extension not found *)
   | Extension.Extension_not_found (sect, ext, l) ->
@@ -91,7 +92,7 @@ let print_exn opt fmt = function
   | Expr.Type_mismatch (t, ty1, ty2) ->
     Format.fprintf Format.std_formatter
       "Term %a has type %a but an expression of type %a was expected@."
-      Expr.Print.term t Expr.Print.ty ty1 Expr.Print.ty ty2;
+      Expr.Print.term t Expr.Print.ty ty1 Expr.Print.ty ty2
 
   (** Generic catch *)
   | exn ->

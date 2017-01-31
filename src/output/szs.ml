@@ -12,7 +12,7 @@ let flush fmt () =
 
 let print_res opt fmt status =
   Format.fprintf fmt "%% SZS status %s for %s"
-    status (Options.input_to_string opt.Options.input_file)
+    status (Options.input_to_string Options.(opt.input.file))
 
 let print_status opt fmt status =
   Format.fprintf fmt "%a@." (print_res opt) status

@@ -78,7 +78,6 @@ module H = struct
   let add r id v =
     r := M.add id v !r
 
-
 end
 
 (* Types *)
