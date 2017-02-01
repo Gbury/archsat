@@ -5,8 +5,17 @@ let name = "rwrt"
 (* Module initialisation *)
 (* ************************************************************************ *)
 
+module C = Ext_eq.Class
+module T = Set.Make(C)
 module S = Set.Make(Expr.Term)
+
 module H = Hashtbl.Make(Expr.Term)
+(* TODO: Name the struct to avoid duplicating code (see ext_eq) *)
+module M = Hashtbl.Make(struct
+    type t = Expr.ty Expr.function_descr Expr.id
+    let hash = Expr.Id.hash
+    let equal = Expr.Id.equal
+  end)
 
 let section = Util.Section.make ~parent:Dispatcher.section "rwrt"
 
@@ -15,25 +24,35 @@ let section = Util.Section.make ~parent:Dispatcher.section "rwrt"
 
 let checked = Tag.create ()
 let parents = H.create 42
+let index = M.create 42
 
 let find_parents t =
   try H.find parents t
+  with Not_found -> S.empty
+
+let find_index f =
+  try M.find index f
   with Not_found -> S.empty
 
 let add_parent parent child =
   let s = find_parents child in
   H.replace parents child (S.add parent s)
 
-let rec register_parents = function
+let add_to_index f t =
+  let s = find_index f in
+  M.replace index f (S.add t s)
+
+let rec register = function
   (* If the term has already been treated, nothing to do. *)
   | t when Expr.Term.get_tag t checked = Some () -> ()
   (* Else: *)
   | { Expr.term = Expr.Var _ } -> assert false
   | { Expr.term = Expr.Meta _ } -> ()
-  | { Expr.term = Expr.App (_, _, l) } as t ->
+  | { Expr.term = Expr.App (f, _, l) } as t ->
     List.iter (add_parent t) l;
+    add_to_index f t;
     Expr.Term.tag t checked ();
-    List.iter register_parents l
+    List.iter register l
 
 let find_all_parents t =
   let q = Queue.create () in
@@ -41,22 +60,26 @@ let find_all_parents t =
     if Queue.is_empty q then acc
     else begin
       let c = Queue.take q in
-      let s = Ext_eq.fold (fun s x ->
+      let s = C.fold (fun s x ->
           let parents = find_parents x in
           S.fold aux_single parents s
         ) acc c in
       aux s
     end
   and aux_single y set =
-    let d = Ext_eq.find y in
-    let ry = Ext_eq.repr d in
-    if S.mem ry set then set
+    let d = C.find y in
+    if T.mem d set then set
     else begin
       Queue.add d q;
-      S.add ry set
+      T.add d set
     end
   in
-  aux (aux_single t S.empty)
+  aux (aux_single t T.empty)
+
+let find_indexed f =
+  let s = find_index f in
+  S.fold (fun t acc -> T.add (C.find t) acc) s T.empty
+
 
 (* Matching modulo equivalence classes *)
 (* ************************************************************************ *)
@@ -81,24 +104,24 @@ let rec match_modulo_app acc (ty_pats, pats) = function
   | { Expr.term = Expr.App (_, ty_args, args) } ->
     let acc' = CCList.filter_map (match_types ty_pats ty_args) acc in
     Util.debug ~section 50 "     + type matching: %d results" (List.length acc');
-    let l = List.map Ext_eq.find args in
+    let l = List.map C.find args in
     List.fold_left2 match_modulo_aux acc' pats l
   | _ -> assert false
 
 and match_modulo_aux acc pat c =
   Util.debug ~section 50 " - matching %a <--> %a"
-    Expr.Term.debug pat Ext_eq.debug c;
+    Expr.Term.debug pat C.debug c;
   match pat with
   | { Expr.term = Expr.Var v } ->
     Util.debug ~section 50 "   > variable";
-    CCList.filter_map (match_modulo_var v (Ext_eq.repr c)) acc
+    CCList.filter_map (match_modulo_var v (C.repr c)) acc
   | { Expr.term = Expr.Meta _ } as t ->
     Util.debug ~section 50 "   > meta";
-    if Ext_eq.mem c t then acc else []
+    if C.mem c t then acc else []
   | { Expr.term = Expr.App (f, ty_pats, pats) } ->
-    let l = Ext_eq.find_top c f in
+    let l = C.find_top c f in
     Util.debug ~section 50 "   * in %a starting with %a: %a"
-      Ext_eq.debug c Expr.Debug.id f (CCPrint.list Expr.Term.debug) l;
+      C.debug c Expr.Debug.id f (CCPrint.list Expr.Term.debug) l;
     Util.debug ~section 50 "   * length: %d" (List.length l);
     CCList.flat_map (match_modulo_app acc (ty_pats, pats)) l
 
@@ -186,10 +209,6 @@ let parse_rule = function
     end
   | _ -> None
 
-let add_rule r =
-  Util.debug ~section 2 "Detected a new rewrite rule: %a" debug_rule r;
-  rules := r :: !rules
-
 (* Instantiate rewrite rules *)
 (* ************************************************************************ *)
 
@@ -214,27 +233,47 @@ let instanciate rule subst =
          end
       )
 
+let match_and_instantiate s ({ trigger; _ } as rule) =
+  Util.debug ~section 5 "Matches for rule %a" debug_rule rule;
+  let seq = T.fold (fun c acc ->
+      let repr = C.repr c in
+      Util.debug ~section 10 "Trying to match %a with %a"
+        Expr.Term.debug trigger C.debug c;
+      let s = match_modulo trigger c in
+      let s' = List.map (fun x -> repr, x) s in
+      List.append s' acc
+    ) s [] in
+  List.iter (fun (term, subst) ->
+      Util.debug ~section 5 "matched '%a' with %a"
+        Expr.Debug.term term Match.debug subst;
+      instanciate rule subst
+    ) seq
+
 (* Rewriter callback *)
 (* ************************************************************************ *)
 
 let callback a b t =
-  let l = find_all_parents (Ext_eq.repr t) in
-  List.iter (fun ({ trigger; _ } as rule) ->
-      Util.debug ~section 5 "Matches for rule %a" debug_rule rule;
-      let seq = S.fold (fun repr acc ->
-          let c = Ext_eq.find repr in
-          Util.debug ~section 10 "Trying to match %a with %a"
-            Expr.Term.debug trigger Ext_eq.debug c;
-          let s = match_modulo trigger c in
-          let s' = List.map (fun x -> repr, x) s in
-          List.append s' acc
-        ) l [] in
-      List.iter (fun (term, subst) ->
-          Util.debug ~section 5 "matched '%a' with %a"
-            Expr.Debug.term term Match.debug subst;
-          instanciate rule subst
-        ) seq
-    ) !rules
+  let l = find_all_parents (C.repr t) in
+  List.iter (match_and_instantiate l) !rules
+
+(* Rule addition callback *)
+(* ************************************************************************ *)
+
+(* When adding a new rule, we have to try and instantiate it. *)
+let add_rule r =
+  Util.debug ~section 2 "Detected a new rewrite rule: %a" debug_rule r;
+  let () = rules := r :: !rules in
+  match r.trigger with
+  | { Expr.term = Expr.Var _ }
+  (** A rewrite rule with a single var as trigger is impossile:
+      what term could possibly be smaller than a single variable ? *)
+  | { Expr.term = Expr.Meta _ }
+    (** A trigger that consist of a single meta does not contain variable,
+        thus has no reason to be a rewrite rule... *)
+    -> assert false
+  | { Expr.term = Expr.App (f, _, _) } ->
+    let s = find_indexed f in
+    match_and_instantiate s r
 
 (* Plugin *)
 (* ************************************************************************ *)
@@ -249,10 +288,10 @@ let assume f =
 
 let rec peek = function
   | { Expr.formula = Expr.Pred p } ->
-    register_parents p
+    register p
   | { Expr.formula = Expr.Equal (a, b) } ->
-    register_parents a;
-    register_parents b
+    register a;
+    register b
   | { Expr.formula = Expr.Not f } ->
     peek f
   | _ -> ()

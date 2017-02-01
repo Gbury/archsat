@@ -65,24 +65,35 @@ let st = E.create
 (* Accessors to the equality closure *)
 (* ************************************************************************ *)
 
-type t = load E.eq_class
+module Class = struct
 
-let find x = E.get_class st x
+  type t = load E.eq_class
 
-let repr t = E.repr t
+  let find x = E.get_class st x
 
-let mem t x =
-  Expr.Term.equal (repr t) (repr (find x))
+  let repr t = E.repr t
 
-let fold f x t =
-  let l = E.load t in
-  let aux _ l acc = List.fold_left f acc l in
-  M.fold aux l.elts (List.fold_left f x l.vars)
+  let hash c = Expr.Term.hash (repr c)
+  let equal c c' = Expr.Term.equal (repr c) (repr c')
+  let compare c c' = Expr.Term.compare (repr c) (repr c')
 
-let find_top t f =
-  let load = E.load t in
-  try M.find f load.elts
-  with Not_found -> []
+  let print = print
+  let debug = debug
+
+  let mem t x =
+    Expr.Term.equal (repr t) (repr (find x))
+
+  let fold f x t =
+    let l = E.load t in
+    let aux _ l acc = List.fold_left f acc l in
+    M.fold aux l.elts (List.fold_left f x l.vars)
+
+  let find_top t f =
+    let load = E.load t in
+    try M.find f load.elts
+    with Not_found -> []
+
+end
 
 (* McSat Plugin for equality *)
 (* ************************************************************************ *)
