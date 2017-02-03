@@ -1,5 +1,5 @@
 
-let section = Util.Section.make "dispatch"
+let section = Util.Section.make "core"
 let solver_section = Util.Section.make "solver"
 
 let dummy_section = Util.Section.make "DUMMY"
