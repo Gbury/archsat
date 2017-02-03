@@ -390,6 +390,12 @@ let rec parse_expr (env : env) t =
   log 90 "env: %a" pp_env env;
   match t with
 
+  (* Ttype & builtin types *)
+  | { Ast.term = Ast.Builtin Ast.Ttype } ->
+    Ttype
+  | { Ast.term = Ast.Builtin Ast.Prop } ->
+    Ty Expr.Ty.prop
+
   (* Basic formulas *)
   | { Ast.term = Ast.App ({ Ast.term = Ast.Builtin Ast.True }, []) }
   | { Ast.term = Ast.Builtin Ast.True } ->
@@ -487,7 +493,7 @@ let rec parse_expr (env : env) t =
     parse_let env f vars
 
   (* Other cases *)
-  | ast -> raise (Typing_error ("Couldn't parse the expression", ast))
+  | ast -> raise (Typing_error ("Unknown construction", ast))
 
 and parse_var env = function
   | { Ast.term = Ast.Colon ({ Ast.term = Ast.Symbol s }, e) } ->
