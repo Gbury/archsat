@@ -407,118 +407,153 @@ let infer env s args =
     decl_term s ret;
     Some res
 
+(* Term attributes translation *)
+(* ************************************************************************ *)
+
+(* Generic functions for applying tags *)
+type vtag = Tag : 'a Tag.t * 'a -> vtag
+
+let apply_tag tag v = function
+  | Ttype -> assert false
+  | Ty ty -> Expr.Ty.tag ty tag v
+  | Term t -> Expr.Term.tag t tag v
+  | Formula f -> Expr.Formula.tag f tag v
+
+let apply_tags l res =
+  List.iter (function (Tag (tag, v)) -> apply_tag tag v res) l
+
+
+(* Standard tags *)
+let rwrt = Tag.create ()
+let rwrt_rule l =
+  if List.exists (Ast.equal Ast.rwrt_rule) l then
+    [Tag (rwrt, ())]
+  else []
+
+let rules = [
+  rwrt_rule;
+]
+
+let parse_attr ast =
+  let attrs = ast.Ast.attr in
+  List.flatten (List.map ((|>) attrs) rules)
+
 (* Expression parsing *)
 (* ************************************************************************ *)
 
 let rec parse_expr (env : env) t =
   log 50 "parsing : %a" Ast.pp t;
   log 90 "env: %a" pp_env env;
-  match t with
+  let tags = parse_attr t in
+  let res = match t with
 
-  (* Ttype & builtin types *)
-  | { Ast.term = Ast.Builtin Ast.Ttype } ->
-    Ttype
-  | { Ast.term = Ast.Builtin Ast.Prop } ->
-    Ty Expr.Ty.prop
+    (* Ttype & builtin types *)
+    | { Ast.term = Ast.Builtin Ast.Ttype } ->
+      Ttype
+    | { Ast.term = Ast.Builtin Ast.Prop } ->
+      Ty Expr.Ty.prop
 
-  (* Basic formulas *)
-  | { Ast.term = Ast.App ({ Ast.term = Ast.Builtin Ast.True }, []) }
-  | { Ast.term = Ast.Builtin Ast.True } ->
-    Formula Expr.Formula.f_true
+    (* Basic formulas *)
+    | { Ast.term = Ast.App ({ Ast.term = Ast.Builtin Ast.True }, []) }
+    | { Ast.term = Ast.Builtin Ast.True } ->
+      Formula Expr.Formula.f_true
 
-  | { Ast.term = Ast.App ({ Ast.term = Ast.Builtin Ast.False }, []) }
-  | { Ast.term = Ast.Builtin Ast.False } ->
-    Formula Expr.Formula.f_false
+    | { Ast.term = Ast.App ({ Ast.term = Ast.Builtin Ast.False }, []) }
+    | { Ast.term = Ast.Builtin Ast.False } ->
+      Formula Expr.Formula.f_false
 
-  | { Ast.term = Ast.App ({Ast.term = Ast.Builtin Ast.And}, l) } ->
-    Formula (Expr.Formula.f_and (List.map (parse_formula env) l))
+    | { Ast.term = Ast.App ({Ast.term = Ast.Builtin Ast.And}, l) } ->
+      Formula (Expr.Formula.f_and (List.map (parse_formula env) l))
 
-  | { Ast.term = Ast.App ({Ast.term = Ast.Builtin Ast.Or}, l) } ->
-    Formula (Expr.Formula.f_or (List.map (parse_formula env) l))
+    | { Ast.term = Ast.App ({Ast.term = Ast.Builtin Ast.Or}, l) } ->
+      Formula (Expr.Formula.f_or (List.map (parse_formula env) l))
 
-  | { Ast.term = Ast.App ({Ast.term = Ast.Builtin Ast.Xor}, l) } as t ->
-    begin match l with
-      | [p; q] ->
-        let f = parse_formula env p in
-        let g = parse_formula env q in
-        Formula (Expr.Formula.neg (Expr.Formula.equiv f g))
-      | _ -> _bad_op_arity "xor" 2 t
-    end
+    | { Ast.term = Ast.App ({Ast.term = Ast.Builtin Ast.Xor}, l) } as t ->
+      begin match l with
+        | [p; q] ->
+          let f = parse_formula env p in
+          let g = parse_formula env q in
+          Formula (Expr.Formula.neg (Expr.Formula.equiv f g))
+        | _ -> _bad_op_arity "xor" 2 t
+      end
 
-  | { Ast.term = Ast.App ({Ast.term = Ast.Builtin Ast.Imply}, l) } as t ->
-    begin match l with
-      | [p; q] ->
-        let f = parse_formula env p in
-        let g = parse_formula env q in
-        Formula (Expr.Formula.imply f g)
-      | _ -> _bad_op_arity "=>" 2 t
-    end
+    | { Ast.term = Ast.App ({Ast.term = Ast.Builtin Ast.Imply}, l) } as t ->
+      begin match l with
+        | [p; q] ->
+          let f = parse_formula env p in
+          let g = parse_formula env q in
+          Formula (Expr.Formula.imply f g)
+        | _ -> _bad_op_arity "=>" 2 t
+      end
 
-  | { Ast.term = Ast.App ({Ast.term = Ast.Builtin Ast.Equiv}, l) } as t ->
-    begin match l with
-      | [p; q] ->
-        let f = parse_formula env p in
-        let g = parse_formula env q in
-        Formula (Expr.Formula.equiv f g)
-      | _ -> _bad_op_arity "<=>" 2 t
-    end
+    | { Ast.term = Ast.App ({Ast.term = Ast.Builtin Ast.Equiv}, l) } as t ->
+      begin match l with
+        | [p; q] ->
+          let f = parse_formula env p in
+          let g = parse_formula env q in
+          Formula (Expr.Formula.equiv f g)
+        | _ -> _bad_op_arity "<=>" 2 t
+      end
 
-  | { Ast.term = Ast.App ({Ast.term = Ast.Builtin Ast.Not}, l) } as t ->
-    begin match l with
-      | [p] ->
-        Formula (Expr.Formula.neg (parse_formula env p))
-      | _ -> _bad_op_arity "not" 1 t
-    end
+    | { Ast.term = Ast.App ({Ast.term = Ast.Builtin Ast.Not}, l) } as t ->
+      begin match l with
+        | [p] ->
+          Formula (Expr.Formula.neg (parse_formula env p))
+        | _ -> _bad_op_arity "not" 1 t
+      end
 
-  (* Binders *)
-  | { Ast.term = Ast.Binder (Ast.All, vars, f) } ->
-    let ttype_vars, ty_vars, env' =
-      parse_quant_vars { env with expect = Typed Expr.Ty.base } vars in
-    Formula (
-      Expr.Formula.allty ttype_vars
-        (Expr.Formula.all ty_vars (parse_formula env' f))
-    )
+    (* Binders *)
+    | { Ast.term = Ast.Binder (Ast.All, vars, f) } ->
+      let ttype_vars, ty_vars, env' =
+        parse_quant_vars { env with expect = Typed Expr.Ty.base } vars in
+      Formula (
+        Expr.Formula.allty ttype_vars
+          (Expr.Formula.all ty_vars (parse_formula env' f))
+      )
 
-  | { Ast.term = Ast.Binder (Ast.Ex, vars, f) } ->
-    let ttype_vars, ty_vars, env' =
-      parse_quant_vars { env with expect = Typed Expr.Ty.base } vars in
-    Formula (
-      Expr.Formula.exty ttype_vars
-        (Expr.Formula.ex ty_vars (parse_formula env' f))
-    )
+    | { Ast.term = Ast.Binder (Ast.Ex, vars, f) } ->
+      let ttype_vars, ty_vars, env' =
+        parse_quant_vars { env with expect = Typed Expr.Ty.base } vars in
+      Formula (
+        Expr.Formula.exty ttype_vars
+          (Expr.Formula.ex ty_vars (parse_formula env' f))
+      )
 
-  (* (Dis)Equality *)
-  | { Ast.term = Ast.App ({Ast.term = Ast.Builtin Ast.Eq}, l) } as t ->
-    begin match l with
-      | [a; b] ->
-        Formula (
-          make_eq t
-            (parse_term env a)
-            (parse_term env b)
-        )
-      | _ -> _bad_op_arity "=" 2 t
-    end
+    (* (Dis)Equality *)
+    | { Ast.term = Ast.App ({Ast.term = Ast.Builtin Ast.Eq}, l) } as t ->
+      begin match l with
+        | [a; b] ->
+          Formula (
+            make_eq t
+              (parse_term env a)
+              (parse_term env b)
+          )
+        | _ -> _bad_op_arity "=" 2 t
+      end
 
-  | { Ast.term = Ast.App ({Ast.term = Ast.Builtin Ast.Distinct}, args) } as t ->
-    let l' = List.map (parse_term env) args in
-    let l'' = CCList.diagonal l' in
-    Formula (
-      Expr.Formula.f_and
-        (List.map (fun (a, b) -> Expr.Formula.neg (make_eq t a b)) l'')
-    )
+    | { Ast.term = Ast.App ({Ast.term = Ast.Builtin Ast.Distinct}, args) } as t ->
+      let l' = List.map (parse_term env) args in
+      let l'' = CCList.diagonal l' in
+      Formula (
+        Expr.Formula.f_and
+          (List.map (fun (a, b) -> Expr.Formula.neg (make_eq t a b)) l'')
+      )
 
-  (* General case: application *)
-  | { Ast.term = Ast.Symbol s } as ast ->
-    parse_app env ast s []
-  | { Ast.term = Ast.App ({ Ast.term = Ast.Symbol s }, l) } as ast ->
-    parse_app env ast s l
+    (* General case: application *)
+    | { Ast.term = Ast.Symbol s } as ast ->
+      parse_app env ast s []
+    | { Ast.term = Ast.App ({ Ast.term = Ast.Symbol s }, l) } as ast ->
+      parse_app env ast s l
 
-  (* Local bindings *)
-  | { Ast.term = Ast.Binder (Ast.Let, vars, f) } ->
-    parse_let env f vars
+    (* Local bindings *)
+    | { Ast.term = Ast.Binder (Ast.Let, vars, f) } ->
+      parse_let env f vars
 
-  (* Other cases *)
-  | ast -> raise (Typing_error ("Unknown construction", ast))
+    (* Other cases *)
+    | ast -> raise (Typing_error ("Unknown construction", ast))
+  in
+  apply_tags tags res;
+  res
 
 and parse_var env = function
   | { Ast.term = Ast.Colon ({ Ast.term = Ast.Symbol s }, e) } ->
