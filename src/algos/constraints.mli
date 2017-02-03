@@ -1,7 +1,7 @@
 
 (** Axiomatic Constraints accumulators *)
 
-type ('a, 'b, 'c) refiner = 'b -> 'a -> ('a *'c) Gen.t
+type ('a, 'b, 'c) refiner = 'b -> 'a -> ('a * 'c) Gen.t
 (** Given a value [t] of type ['b], and a constraint of type ['a],
     functions of this type should return an enumeration of constraints which refines
     the given constraint so that it also contradicts the formulas in [t]. *)
@@ -13,13 +13,10 @@ type ('a, 'b, 'c) t
 (** A type for accumulating constraints *)
 
 val make : 'a Gen.t -> ('a, 'b, 'c) refiner -> ('a, 'b, 'c) t
-(** Given a generator and a fold function, returns the associated constraint.
-    Forces evaluation of the first element of the generator, and returns [None]
-    is the given generator is empty. *)
+(** Given a generator and a fold function, returns the associated constraint. *)
 
 val add_constraint : ('a, 'b, 'c) t -> 'b -> ('a, 'b, 'c) t
-(** Add a new set of constraints, see the definition of the fold type. This function
-    forces the evaluation of the first element of the resulting enumeration of constraints. *)
+(** Add a new set of constraints, see the definition of the fold type. *)
 
 (** {2 Getters} *)
 

@@ -7,6 +7,7 @@ let section = Util.Section.make ~parent:Dispatcher.section "cstr"
 let unif_algo = ref `Bad
 
 let kind_list = [
+  "close", `Close;
   "unif_d", `Unif_depth;
   "unif_b", `Unif_breadth;
 ]
@@ -49,26 +50,24 @@ type constraints = (Unif.t, Ext_meta.state, Expr.formula) Constraints.t
 type t = {
   id : int;
   acc : constraints;
+  res : Expr.formula list;
 }
 
 let make =
   let c = ref 0 in
-  (fun acc -> { id = !c; acc; })
+  (fun acc res -> incr c; { id = !c; acc; res; })
 
 (* Builtin symbol *)
 (* ************************************************************************ *)
 
 type Expr.builtin += Acc of t
 
-let acc_list = ref []
-
 let make_builtin acc =
-  let l = !acc_list in
   let builtin = Acc acc in
-  let p = Expr.Id.term_fun ~builtin (Format.sprintf "acc#%d" acc.id) [] [] Expr.Ty.prop in
+  let p = Expr.Id.term_fun ~builtin
+      (Format.sprintf "acc#%d" acc.id) [] [] Expr.Ty.prop in
   let f = Expr.Formula.pred (Expr.Term.apply p [] []) in
-  acc_list := f :: l;
-  l, f
+  f
 
 (* Accumulators *)
 (* ************************************************************************ *)
@@ -80,6 +79,10 @@ let gen_of_state st =
       (of_list st.inequalities)
       (product (of_list st.true_preds) (of_list st.false_preds))
   )
+
+let close =
+  Constraints.make (Gen.singleton Unif.empty)
+    (fun _ u -> Gen.singleton (u, Expr.Formula.f_true))
 
 let unif_depth =
   let refine st =
@@ -112,6 +115,7 @@ let unif_breadth =
 let empty_cst () =
   match !unif_algo with
   | `Bad -> assert false
+  | `Close -> close
   | `Unif_depth -> unif_depth
   | `Unif_breadth -> unif_breadth
 
@@ -122,9 +126,12 @@ let parse iter =
   let acc = ref None in
   let st = Ext_meta.empty_st () in
   let aux = function
-    | { Expr.formula = Expr.Not { Expr.formula = Expr.Pred { Expr.term = Expr.App ({ Expr.builtin = Acc t }, _, _) } } } ->
+    | { Expr.formula = Expr.Not {
+        Expr.formula = Expr.Pred {
+            Expr.term = Expr.App ({ Expr.builtin = Acc t }, _, _) } } } ->
       ()
-    | { Expr.formula = Expr.Pred { Expr.term = Expr.App ({ Expr.builtin = Acc t }, _, _) } } ->
+    | { Expr.formula = Expr.Pred {
+        Expr.term = Expr.App ({ Expr.builtin = Acc t }, _, _) } } ->
       begin match !acc with
         | None -> acc := Some t
         | Some t' -> assert false
@@ -134,17 +141,25 @@ let parse iter =
   let () = iter aux in
   !acc, st
 
-let handle_aux iter acc st =
+let handle_aux iter acc old st =
   Ext_meta.debug_st ~section 30 st;
-  let c' = Constraints.add_constraint acc st in
-  dump_acc c';
-  match Constraints.gen c' () with
+  let c = Constraints.add_constraint acc st in
+  dump_acc c;
+  match Constraints.gen c () with
   | Some s ->
     Util.debug ~section 10 "New Constraint with subst : %a" Unif.debug s;
+    (* Old behavior, quite certainly incomplete. *)
+    (*
     let accs, acc = make_builtin (make c') in
     let l = Expr.Subst.fold (fun m t acc ->
         Expr.Formula.eq (Expr.Term.of_meta m) t :: acc) s.Unif.t_map [] in
     Solver.Assume (acc :: l @ (List.map Expr.Formula.neg accs))
+    *)
+    (* New behavior, close the current branch. *)
+    let new_f = Expr.Formula.neg (Expr.Formula.f_and st.Ext_meta.formulas) in
+    let l = new_f :: old in
+    let pred = make_builtin (make c l) in
+    Solver.Assume (pred :: l)
   | None ->
     Util.debug ~section 2 "Couldn't find a satisfiable constraint";
     if !Ext_meta.meta_start < !Ext_meta.meta_max then begin
@@ -158,18 +173,21 @@ let handle_aux iter acc st =
 let branches_closed = ref 0
 
 let handle : type ret. ret Dispatcher.msg -> ret option = function
+  | Solver.Restarting ->
+    branches_closed := 0;
+    Some ()
   | Solver.Found_sat iter ->
-    let cstr, st = match parse iter with
+    let cstr, old, st = match parse iter with
       | None, st ->
         Util.debug ~section 5 "Generating empty constraint";
         let t = empty_cst () in
         dump_new_acc t;
-        (t, st)
+        (t, [], st)
       | Some t, st ->
         Util.debug ~section 10 "Found previous constraint";
-        (t.acc, st)
+        (t.acc, t.res, st)
     in
-    let ret = handle_aux iter cstr st in
+    let ret = handle_aux iter cstr old st in
     begin match ret with
       | Solver.Assume _ ->
         incr branches_closed;
@@ -187,7 +205,7 @@ let options =
   let kind =
     let doc = CCPrint.sprintf "The constraint generation method to use,
     $(docv) may be %s" (Cmdliner.Arg.doc_alts_enum ~quoted:false kind_list) in
-    Cmdliner.Arg.(value & opt parse_kind `Unif_depth & info ["cstr.kind"] ~docv:"METHOD" ~docs ~doc)
+    Cmdliner.Arg.(value & opt parse_kind `Close & info ["cstr.kind"] ~docv:"METHOD" ~docs ~doc)
   in
   let dot =
     let doc = "Dump a dot graph of the accumulators to the given file" in

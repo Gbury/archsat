@@ -31,13 +31,13 @@ let print_exn opt fmt = function
 
   (** User interrupt *)
   | Options.Sigint ->
-    Format.fprintf fmt "User interrupt@."
+    print_status opt fmt "\nUser interrupt"
 
   (** Size and time limits *)
   | Options.Out_of_time ->
-    print_status opt fmt "Timeout@."
+    print_status opt fmt "\nTimeout"
   | Options.Out_of_space ->
-    print_status opt fmt "Out of space@."
+    print_status opt fmt "\nOut of space"
 
   (** Statement not implemented *)
   | Options.Stmt_not_implemented s ->

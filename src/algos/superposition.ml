@@ -11,7 +11,8 @@
 (* Type for unit clauses, i.e clauses with at most one equation *)
 type clause = {
   eq : bool;                (* is it an equality clause ? *)
-  weight : int;             (* weight of the clause (clauses with lesser wieght are selected first) *)
+  weight : int;             (* weight of the clause (clauses with lesser
+                               weight are selected first) *)
   lit : (Expr.Term.t * Expr.Term.t) option;
                             (* Pair of terms that constitutes the clause *)
   map : Unif.t;             (* Current mapping for linear variables *)

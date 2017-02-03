@@ -327,10 +327,11 @@ let help_secs ext_doc sext_doc = [
       and name, and then a short description of what the extension does. Extensions with higher priorities
       are called earlier than those with lower priorities.";
   ] @ ext_doc @ [
-    `S prof_sect;
+    `S proof_sect;
     `S model_sect;
     `S ext_sect;
       `P "Options primarily used by the extensions (use only if you know what you're doing !).";
+    `S prof_sect;
     `S "BUGS"; `P "TODO";
   ]
 

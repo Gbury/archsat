@@ -38,6 +38,7 @@ type sat_ret =
   | Assume of Expr.formula list
 
 type _ Dispatcher.msg +=
+  | Restarting : unit Dispatcher.msg
   | Found_sat : view -> sat_ret Dispatcher.msg
   | Found_unsat : proof -> unsat_ret Dispatcher.msg
   | Found_unknown : unit -> unit Dispatcher.msg
@@ -79,6 +80,7 @@ let rec solve_aux ?(assumptions = []) () =
     Sat (Dispatcher.model ())
   | Restart ->
     Util.debug ~section 1 "Restarting...";
+    Dispatcher.send Restarting;
     solve_aux ()
   | Assume assumptions ->
     Util.debug ~section 1 "New assumptions: %a"
