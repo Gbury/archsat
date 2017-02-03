@@ -261,7 +261,6 @@ let callback a b t =
 
 (* When adding a new rule, we have to try and instantiate it. *)
 let add_rule r =
-  Util.debug ~section 2 "Detected a new rewrite rule: %a" debug_rule r;
   let () = rules := r :: !rules in
   match r.trigger with
   | { Expr.term = Expr.Var _ }
@@ -281,8 +280,12 @@ let add_rule r =
 let assume f =
   (* Detect rewrite rules *)
   let () = match parse_rule f with
-    | None -> ()
-    | Some r -> add_rule r
+    | None ->
+      Util.debug ~section 50
+        "Failed to detect rewrite rule with: %a" Expr.Debug.formula f;
+    | Some r ->
+      Util.debug ~section 2 "Detected a new rewrite rule: %a" debug_rule r;
+      add_rule r
   in
   ()
 
