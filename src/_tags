@@ -18,10 +18,11 @@ true: color(always)
 # Package management
 <*/*.*>: for-pack(Archsat)
 
-<**/*>: package(unix), package(zarith), package(msat),     \
-        package(cmdliner), package(ocamlgraph),            \
-        package(containers), package(containers.data),     \
-        package(gen), package(oclock),                     \
-        package(dolmen), package(qcheck),                  \
-        package(sequence), package(spelll)
+<**/*>: package(unix), package(zarith), package(msat),      \
+        package(cmdliner), package(ocamlgraph),             \
+        package(containers), package(containers.data),      \
+        package(gen), package(oclock),                      \
+        package(dolmen), package(sequence), package(spelll)
+
+<test/*>: package(qcheck)
 
