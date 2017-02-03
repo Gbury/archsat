@@ -2,4 +2,4 @@
 
 include "bset.zf".
 
-goal forall a S. subset a S S.
+goal forall (a : type) (S : set a). subset a S S.

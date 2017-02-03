@@ -2,6 +2,8 @@
    Base modules that defines the terms used in the prover.
 *)
 
+let section = Util.Section.make "expr"
+
 (* Type definitions *)
 (* ************************************************************************ *)
 
@@ -385,7 +387,7 @@ module Id = struct
   let eval_vec = CCVector.create ()
   let assign_vec = CCVector.create ()
   let ty_skolems = Hashtbl.create 17
-  let term_skolems = Hashtbl.create 107
+  let term_skolems = Hashtbl.create 1007
 
   (* Constructors *)
   let mk_new ?(builtin=Base) id_name id_type =
@@ -478,6 +480,12 @@ module Id = struct
   let init_term_skolems l (ty_vars, t_vars) =
     let args_types = List.map (fun v -> v.id_type) t_vars in
     List.iter (fun v -> init_term_skolem v ty_vars args_types v.id_type) l
+
+  let copy_term_skolem v v' =
+    let old = term_skolem v in
+    let res = term_fun ("sk_" ^ v'.id_name)
+        old.id_type.fun_vars old.id_type.fun_args old.id_type.fun_ret in
+    Hashtbl.add term_skolems v'.index res
 
 end
 
@@ -993,7 +1001,7 @@ module Formula = struct
       mk_formula (Equal (b, a))
 
   let all l f =
-    if l = [] then f else
+    if l = [] then f else begin
       let l, f = match f.formula with
         | All (l', _, f') -> l @ l', f'
         | _ -> l, f
@@ -1001,9 +1009,10 @@ module Formula = struct
       let fv = fv (mk_formula (All (l, ([], []), f))) in
       Id.init_term_skolems l fv;
       mk_formula (All (l, to_free_args fv, f))
+    end
 
   let allty l f =
-    if l = [] then f else
+    if l = [] then f else begin
       let l, f = match f.formula with
         | AllTy (l', _, f') -> l @ l', f'
         | _ -> l, f
@@ -1011,6 +1020,7 @@ module Formula = struct
       let fv = fv (mk_formula (AllTy (l, ([], []), f))) in
       Id.init_ty_skolems l fv;
       mk_formula (AllTy (l, to_free_args fv, f))
+    end
 
   let ex l f =
     if l = [] then f else
@@ -1079,11 +1089,13 @@ module Formula = struct
       else equiv new_p new_q
     | All (l, (ty, t), p) ->
       let l', t_map = new_binder_subst ty_map t_map [] l in
+      List.iter2 Id.copy_term_skolem l l';
       let tys = List.map (Ty.subst ty_map) ty in
       let ts = List.map (Term.subst ty_map t_map) t in
       mk_formula (All (l', (tys, ts), (formula_subst ty_map t_map p)))
     | Ex (l, (ty, t), p) ->
       let l', t_map = new_binder_subst ty_map t_map [] l in
+      List.iter2 Id.copy_term_skolem l l';
       let tys = List.map (Ty.subst ty_map) ty in
       let ts = List.map (Term.subst ty_map t_map) t in
       mk_formula (Ex (l', (tys, ts), (formula_subst ty_map t_map p)))

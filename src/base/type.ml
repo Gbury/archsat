@@ -11,6 +11,28 @@ let stack = Backtrack.Stack.create (
 module Ast = Dolmen.Term
 module Id = Dolmen.Id
 
+(* Id def locations *)
+(* ************************************************************************ *)
+
+module E = Backtrack.Hashtbl(struct
+    type t = Expr.ty Expr.id
+    let hash = Expr.Id.hash
+    let equal = Expr.Id.equal
+  end)
+module F = Backtrack.Hashtbl(struct
+    type t = Expr.ty Expr.function_descr Expr.id
+    let hash = Expr.Id.hash
+    let equal = Expr.Id.equal
+  end)
+
+type reason =
+  | Inferred of Dolmen.ParseLocation.t
+  | Declared of Dolmen.ParseLocation.t
+
+(* We want to keep a map of id to location that define its type. *)
+let var_locs = E.create stack
+let fun_locs = F.create stack
+
 (* Fuzzy search maps *)
 (* ************************************************************************ *)
 
@@ -147,12 +169,15 @@ let _bad_id_arity id n t = raise (Typing_error (
 let _bad_term_arity f n t = raise (Typing_error (
     Format.asprintf "Bad arity for function '%a' (expected %d arguments)" Expr.Print.id f n, t))
 
+let _fo_term s t = raise (Typing_error (
+    Format.asprintf "Let-bound variable '%a' is applied to terms" Id.print s, t))
+
+(* For type mismatch, we try and get the head symbol and print its type declaration,
+   to help resolve typing errors. *)
+
 let _type_mismatch t ty ty' ast = raise (Typing_error (
     Format.asprintf "Type Mismatch: '%a' has type %a, but an expression of type %a was expected"
       Expr.Print.term t Expr.Print.ty ty Expr.Print.ty ty', ast))
-
-let _fo_term s t = raise (Typing_error (
-    Format.asprintf "Let-bound variable '%a' is applied to terms" Id.print s, t))
 
 (* Global Environment *)
 (* ************************************************************************ *)

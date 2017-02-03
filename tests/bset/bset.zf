@@ -11,9 +11,9 @@ val union : pi (a : type). set a -> set a -> set a.
 val inter : pi (a : type). set a -> set a -> set a.
 
 rewrite
-  forall (a : type) (b : type) (z : tup a b) (S : set a) (T : set b).
+  forall (a b : type) (z : tup a b) (S : set a) (T : set b).
     mem (tup a b) z (times a b S T) <=>
-      (exists x y. z = (pair a b x y) && mem a x S && mem b y T).
+      (exists (x : a) (y : b). z = (pair a b x y) && mem a x S && mem b y T).
 
 rewrite
   forall (a : type) (b : type) (x : a) (y : b) (S : set a) (T : set b).
@@ -25,13 +25,20 @@ rewrite
 #      mem (tup a b) (pair a b x y) S).
 
 rewrite
-  forall a S T.
-    mem (set a) S (power _ T) <=> (forall x. (mem _ x S) => (mem _ x T)).
+  forall (a : type) (S T : set a).
+    mem (set a) S (power a T) <=> (forall (x : a). (mem a x S) => (mem a x T)).
 
-rewrite forall a S T. subset a S T <=> mem _ S (power _ T).
+rewrite
+  forall (a : type) (S T : set a). subset a S T <=> mem (set a) S (power a T).
 
-rewrite forall a S T. S = T <=> (forall x. (mem _ x S) <=> (mem _ x T)).
+rewrite
+  forall (a : type) (S T : set a).
+    S = T <=> (forall (x : a). (mem a x S) <=> (mem a x T)).
 
-rewrite forall a x S T. mem a x (union _ S T) <=> mem _ x S || mem _ x T.
+rewrite
+  forall (a : type) (x : a) (S T : set a).
+    mem a x (union a S T) <=> mem a x S || mem a x T.
 
-rewrite forall a x S T. mem a x (inter _ S T) <=> mem _ x S && mem _ x T.
+rewrite
+  forall (a : type) (x : a) (S T : set a).
+    mem a x (inter a S T) <=> mem a x S && mem a x T.
