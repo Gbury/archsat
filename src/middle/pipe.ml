@@ -137,7 +137,8 @@ let type_wrap ?(goal=false) opt =
     | Type.Ty_fun c -> tys:= c :: !tys
     | Type.Term_fun f -> terms := f :: !terms
   in
-  let env = Type.empty_env ~status
+  let explain = Options.(opt.typing.explain) in
+  let env = Type.empty_env ~status ~explain
       ~infer_hook (Semantics.type_env l) in
   let aux res = {
     impl_types = !tys;

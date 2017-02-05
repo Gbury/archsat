@@ -28,6 +28,10 @@ type output_options = {
   fmt     : Format.formatter;
 }
 
+type typing_options = {
+  explain : [ `No | `Yes | `Full ];
+}
+
 type profile_options = {
   enabled : bool;
   max_depth : int option;
@@ -52,6 +56,9 @@ type opts = {
   (* Input&output options *)
   input   : input_options;
   output  : output_options;
+
+  (* Typing options *)
+  typing  : typing_options;
 
   (* Proof&model options *)
   proof   : proof_options;

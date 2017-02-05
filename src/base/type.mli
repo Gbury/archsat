@@ -3,8 +3,6 @@
     This module provides functions to parse terms from the untyped syntax tree
     defined in Dolmen, and generate formulas as defined in the Expr module. *)
 
-exception Typing_error of string * Dolmen.Term.t
-
 val section : Util.Section.t
 (** Debug section used in typechecking. *)
 
@@ -16,6 +14,9 @@ val stack : Backtrack.Stack.t
 type env
 (** The type of environments for typechecking. *)
 
+exception Typing_error of string * env * Dolmen.Term.t
+(** Exception raised when a typing error is encountered. *)
+
 type expect =
   | Nothing
   | Type
@@ -24,10 +25,11 @@ type expect =
     non-declared symbols. *)
 
 type res =
-  | Ttype
-  | Ty of Expr.ty
-  | Term of Expr.term
-  | Formula of Expr.formula (**)
+  | Ttype   : res
+  | Ty      : Expr.ty -> res
+  | Term    : Expr.term -> res
+  | Formula : Expr.formula -> res
+  | Tag     : 'a Tag.t * 'a -> res (**)
 (* The results of parsing an untyped term.  *)
 
 type inferred =
@@ -53,6 +55,7 @@ val empty_env :
   ?expect:expect ->
   ?status:Expr.status ->
   ?infer_hook:(env -> inferred -> unit) ->
+  ?explain:[ `No | `Yes | `Full ] ->
   builtin_symbols -> env
 (** Create a new environment. *)
 
@@ -106,5 +109,4 @@ val new_def :
 
 val new_formula : Expr.formula typer
 (** Parse a formula *)
-
 

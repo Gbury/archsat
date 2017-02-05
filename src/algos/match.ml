@@ -65,55 +65,14 @@ let print fmt s =
 (* Manipulation over variable substitutions *)
 (* ************************************************************************ *)
 
-(* Fixpoint voer variable substitution *)
-let rec type_subst_aux ~fix u = function
-  | { Expr.ty = Expr.TyVar v } as t ->
-    begin match get_ty u v with
-    | exception Not_found -> t
-    | t' -> if fix then type_subst_aux ~fix u t' else t'
-    end
-  | { Expr.ty = Expr.TyMeta _ } as t -> t
-  | { Expr.ty = Expr.TyApp (f, args) } as ty ->
-    let new_args = List.map (type_subst_aux ~fix u) args in
-    if List.for_all2 (==) args new_args then ty
-    else Expr.Ty.apply f new_args
+let type_apply t ty =
+  Expr.Ty.subst t.ty_map ty
 
-let type_apply u t =
-  if Expr.Subst.is_empty u.ty_map then t
-  else type_subst_aux ~fix:false u t
+let term_apply t term =
+  Expr.Term.subst t.ty_map t.t_map term
 
-let type_subst u t =
-  if Expr.Subst.is_empty u.ty_map then t
-  else type_subst_aux ~fix:true u t
-
-let rec term_subst_aux ~fix u = function
-  | { Expr.term = Expr.Var v } as t ->
-    begin match get_term u v with
-      | exception Not_found -> t
-      | t' -> if fix then term_subst_aux ~fix u t' else t'
-    end
-  | { Expr.term = Expr.Meta _ } as t -> t
-  | { Expr.term = Expr.App (f, tys, args) } as t ->
-    let new_tys = List.map (type_subst u) tys in
-    let new_args = List.map (term_subst_aux ~fix u) args in
-    if List.for_all2 (==) tys new_tys && List.for_all2 (==) args new_args then t
-    else Expr.Term.apply f new_tys new_args
-
-let term_apply u t =
-  if is_empty u then t
-  else term_subst_aux ~fix:false u t
-
-let term_subst u t =
-  if is_empty u then t
-  else term_subst_aux ~fix:true u t
-
-(* Fixpoint on meta substitutions *)
-let fixpoint u = {
-  ty_map = Expr.Subst.fold (fun m t acc ->
-      Expr.Subst.Id.bind acc m (type_subst u t)) u.ty_map Expr.Subst.empty;
-  t_map = Expr.Subst.fold (fun m t acc ->
-      Expr.Subst.Id.bind acc m (term_subst u t)) u.t_map Expr.Subst.empty;
-}
+let formula_apply t f =
+  Expr.Formula.subst t.ty_map t.t_map f
 
 (* Matching algorithm *)
 (* ************************************************************************ *)

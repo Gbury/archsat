@@ -73,7 +73,7 @@ let print_exn opt fmt = function
       (match msg with "" -> "Syntax error" | x -> x)
 
   (** Typing errors *)
-  | Type.Typing_error (msg, t) ->
+  | Type.Typing_error (msg, env, t) ->
     let default_loc = Dolmen.ParseLocation.mk
         (Options.input_to_string Options.(opt.input.file)) 0 0 0 0 in
     let loc = CCOpt.get default_loc t.Dolmen.Term.loc in

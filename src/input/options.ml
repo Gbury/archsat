@@ -36,6 +36,10 @@ type output_options = {
   fmt     : Format.formatter;
 }
 
+type typing_options = {
+  explain : [ `No | `Yes | `Full ];
+}
+
 type profile_options = {
   enabled       : bool;
   max_depth     : int option;
@@ -60,6 +64,9 @@ type opts = {
   (* Input&output options *)
   input   : input_options;
   output  : output_options;
+
+  (* Typing options *)
+  typing  : typing_options;
 
   (* Proof&model options *)
   proof   : proof_options;
@@ -88,6 +95,14 @@ let formatter_of_out_descr = function
   | `Stdout -> Some (Format.std_formatter)
   | `File s -> Some (Format.formatter_of_out_channel (open_out s))
 
+let explain_list = [
+  "no",   `No;
+  "yes",  `Yes;
+  "full", `Full;
+]
+
+let explain = Arg.enum explain_list
+
 (* Option values *)
 (* ************************************************************************ *)
 
@@ -109,6 +124,8 @@ let output_opts fd format =
     | None -> assert false
   in
   { format; fmt; }
+
+let typing_opts explain = { explain; }
 
 let profile_opts enable max_depth sections out print_stats =
   let enabled =
@@ -150,7 +167,7 @@ let set_opts gc bt quiet log debug opt =
   opt
 
 let mk_opts
-    input output
+    input output typing
     proof model profile
     type_only
     plugins addons
@@ -158,6 +175,7 @@ let mk_opts
   =
   {
     input; output;
+    typing;
     proof; model;
 
     solve = not type_only;
@@ -454,6 +472,16 @@ let unit_t =
   in
   Term.(pure set_opts $ gc $ bt $ quiet $ log $ debug)
 
+let type_t =
+  let docs = copts_sect in
+  let explain =
+    let doc = CCPrint.sprintf
+        "Explain more precisely typing conflicts, $(docv) may be %s"
+        (Arg.doc_alts_enum ~quoted:false explain_list) in
+    Arg.(value & opt explain `No & info ["type-explain"] ~docs ~docv:"EXPL" ~doc)
+  in
+  Term.(pure typing_opts $ explain)
+
 let copts_t () =
   let docs = copts_sect in
   let type_only =
@@ -487,7 +515,7 @@ let copts_t () =
   in
   Term.(unit_t $ (
       pure mk_opts
-      $ input_t $ output_t $ proof_t $ model_t $ profile_t
+      $ input_t $ output_t $ type_t $ proof_t $ model_t $ profile_t
       $ type_only $ plugins $ addons $ time $ size)
     )
 

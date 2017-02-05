@@ -39,12 +39,8 @@ val bind_term : t -> Expr.ty Expr.id -> Expr.term -> t
 
 val type_apply : t -> Expr.ty -> Expr.ty
 val term_apply : t -> Expr.term -> Expr.term
+val formula_apply : t -> Expr.formula -> Expr.formula
 (** Apply a subsitution on variables. *)
-
-val type_subst : t -> Expr.ty -> Expr.ty
-val term_subst : t -> Expr.term -> Expr.term
-(** Subsitutions of variables, given a unifier. May not terminate if the substitution
-    contains cycles. *)
 
 exception Impossible_ty of Expr.ty * Expr.ty
 exception Impossible_term of Expr.term * Expr.term

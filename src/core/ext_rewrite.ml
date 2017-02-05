@@ -132,7 +132,7 @@ let match_modulo = match_modulo_aux [Match.empty]
 
 type rule = {
   trigger : Expr.term;
-  result  : Expr.term;
+  result  : Expr.formula;
   guard   : Expr.term option;
   formula : Expr.formula;
 }
@@ -146,7 +146,7 @@ let debug_rule buf { trigger; result; guard; formula; } =
   Printf.bprintf buf "%a%a --> %a ( %a )"
     debug_guard guard
     Expr.Term.debug trigger
-    Expr.Term.debug result
+    Expr.Formula.debug result
     Expr.Formula.debug formula
 
 let rules = ref []
@@ -159,9 +159,9 @@ let rec parse_rule_aux = function
       | Comparison.Incomparable
       | Comparison.Eq -> None
       | Comparison.Lt ->
-        Some { guard = None; trigger = b; result = a; formula = f }
+        Some { guard = None; trigger = b; result = f; formula = f }
       | Comparison.Gt ->
-        Some { guard = None; trigger = a; result = b; formula = f }
+        Some { guard = None; trigger = a; result = f; formula = f }
     end
   | { Expr.formula = Expr.Equiv (
       { Expr.formula = Expr.Pred a },
@@ -171,9 +171,9 @@ let rec parse_rule_aux = function
       | Comparison.Incomparable
       | Comparison.Eq -> None
       | Comparison.Lt ->
-        Some { guard = None; trigger = b; result = a; formula = f }
+        Some { guard = None; trigger = b; result = f; formula = f }
       | Comparison.Gt ->
-        Some { guard = None; trigger = a; result = b; formula = f }
+        Some { guard = None; trigger = a; result = f; formula = f }
     end
   (* Polarised rewrite rule *)
   | { Expr.formula = Expr.Imply (
@@ -182,7 +182,7 @@ let rec parse_rule_aux = function
     } as f ->
     begin match Lpo.compare a b with
       | Comparison.Gt ->
-        Some { guard = Some a; trigger = a; result = b; formula = f }
+        Some { guard = Some a; trigger = a; result = f; formula = f }
       | Comparison.Lt | Comparison.Eq
       | Comparison.Incomparable ->
         None
@@ -213,9 +213,7 @@ let parse_rule = function
 (* ************************************************************************ *)
 
 let instanciate rule subst =
-  let res = Expr.Formula.eq
-      (Match.term_apply subst rule.trigger)
-      (Match.term_apply subst rule.result)
+  let res = Match.formula_apply subst rule.result
   in
   match rule.guard with
   | None ->

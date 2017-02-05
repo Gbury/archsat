@@ -389,19 +389,19 @@ module Arith = struct
   let parse_tptp env ast id args =
     let aux f =
       match List.map (Type.parse_term env) args with
-      | [] -> raise (Type.Typing_error ("Arithmetics function need arguments", ast))
+      | [] -> raise (Type.Typing_error ("Arithmetics function need arguments", env, ast))
       | (h :: _) as l ->
         begin match num_type h with
           | Some ty ->
             Some (Type.Term (Type.term_apply env ast (f ty) [] l))
           | None -> raise (Type.Typing_error (
-              "Expected an arithmetic expression", List.hd args))
+              "Expected an arithmetic expression", env, List.hd args))
         end
     in
     let aux_cast ty =
       match List.map (Type.parse_term env) args with
       | [x] -> Some (Type.Term (Misc.cast x ty))
-      | _ -> raise (Type.Typing_error ("Casts expect one argument", ast))
+      | _ -> raise (Type.Typing_error ("Casts expect one argument", env, ast))
     in
     if id.Id.ns = Id.Term then
       match id.Id.name with
