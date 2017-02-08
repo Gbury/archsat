@@ -131,6 +131,7 @@ let match_modulo = match_modulo_aux [Match.empty]
 (* ************************************************************************ *)
 
 type rule = {
+  manual  : bool;
   trigger : Expr.term;
   result  : Expr.formula;
   guard   : Expr.term option;
@@ -152,44 +153,42 @@ let debug_rule buf { trigger; result; guard; formula; } =
 let rules = ref []
 let () = Backtrack.Stack.attach Dispatcher.stack rules
 
-let rec parse_rule_aux = function
-  (* Equality as rewriting *)
-  | { Expr.formula = Expr.Equal (a, b) } as f ->
-    begin match Lpo.compare a b with
-      | Comparison.Incomparable
-      | Comparison.Eq -> None
-      | Comparison.Lt ->
-        Some { guard = None; trigger = b; result = f; formula = f }
-      | Comparison.Gt ->
-        Some { guard = None; trigger = a; result = f; formula = f }
-    end
-  | { Expr.formula = Expr.Equiv (
+let rec parse_rule_aux ~manual = function
+  (* Equality&Equivalence as rewriting *)
+  | ({ Expr.formula = Expr.Equal (a, b) } as f)
+  | ({ Expr.formula = Expr.Equiv (
       { Expr.formula = Expr.Pred a },
-      { Expr.formula = Expr.Pred b })
-    } as f ->
-    begin match Lpo.compare a b with
+      { Expr.formula = Expr.Pred b })} as f) ->
+    if manual then
+      Some { manual; guard = None; trigger = a; result = f; formula = f }
+    else begin match Lpo.compare a b with
       | Comparison.Incomparable
       | Comparison.Eq -> None
       | Comparison.Lt ->
-        Some { guard = None; trigger = b; result = f; formula = f }
+        Some { manual; guard = None; trigger = b; result = f; formula = f }
       | Comparison.Gt ->
-        Some { guard = None; trigger = a; result = f; formula = f }
+        Some { manual; guard = None; trigger = a; result = f; formula = f }
     end
-  (* Polarised rewrite rule *)
+  (* Maual rewrite rule for arbitrary formulas *)
+  | ({ Expr.formula = Expr.Equiv ({ Expr.formula = Expr.Pred a }, _) } as f) when manual ->
+    Some { manual; guard = None; trigger = a; result = f; formula = f }
+  (* Polarised rewrite rule as conditional rewrite *)
   | { Expr.formula = Expr.Imply (
       { Expr.formula = Expr.Pred a },
       { Expr.formula = Expr.Pred b })
     } as f ->
-    begin match Lpo.compare a b with
+    if manual then
+      Some { manual; guard = Some a; trigger = a; result = f; formula = f }
+    else begin match Lpo.compare a b with
       | Comparison.Gt ->
-        Some { guard = Some a; trigger = a; result = f; formula = f }
+        Some { manual; guard = Some a; trigger = a; result = f; formula = f }
       | Comparison.Lt | Comparison.Eq
       | Comparison.Incomparable ->
         None
     end
   (* Conditional rewriting *)
   | { Expr.formula = Expr.Imply ({ Expr.formula = Expr.Pred p }, r ) } as f ->
-    begin match parse_rule_aux r with
+    begin match parse_rule_aux ~manual r with
       | Some ({ guard = None; _ } as rule) ->
         Some { rule with guard = Some p; formula = f }
       | _ -> None
@@ -202,8 +201,14 @@ let parse_rule = function
   | ({ Expr.formula = Expr.All (_, _, r) } as formula)
   | ({ Expr.formula = Expr.AllTy (_, _, {
          Expr.formula = Expr.All (_, _, r) })} as formula) ->
-    begin match parse_rule_aux r with
-      | None -> None
+    let manual = CCOpt.is_some (Expr.Formula.get_tag formula Builtin.Tag.rwrt) in
+    begin match parse_rule_aux ~manual r with
+      | None ->
+        if manual then
+          Util.debug ~section 0
+            "Following formula couldn't be parsed as a rewrite rule despite tag: %a"
+            Expr.Formula.debug r;
+        None
       | Some rule ->
         Some { rule with formula }
     end
@@ -257,9 +262,37 @@ let callback a b t =
 (* Rule addition callback *)
 (* ************************************************************************ *)
 
+let analyze =
+  let rec aux acc = function
+    | [] -> acc
+    | { manual; _ } :: r ->
+      let acc' =
+        match acc with
+        | None ->
+          Some (if manual then `Manual else `Auto)
+        | Some `Mixed ->
+          Some `Mixed
+        | Some `Auto ->
+          Some (if manual then `Mixed else `Auto)
+        | Some `Manual ->
+          Some (if manual then `Manual else `Mixed)
+      in
+      aux acc' r
+  in aux None
+
 (* When adding a new rule, we have to try and instantiate it. *)
 let add_rule r =
   let () = rules := r :: !rules in
+  (* Check if the set of rules is manual *)
+  begin match analyze !rules with
+    | None -> assert false (* We just added a rule... *)
+    | Some `Manual -> ()
+    | Some `Auto -> () (* TODO: complete the rewrite rule system *)
+    | Some `Mixed ->
+      Util.debug ~section 0
+        "Mixed set of rewrite rules detected, removing auto rules";
+      rules := List.filter (fun { manual; _ } -> manual) !rules
+  end;
   match r.trigger with
   | { Expr.term = Expr.Var _ }
   (** A rewrite rule with a single var as trigger is impossile:

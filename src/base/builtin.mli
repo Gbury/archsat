@@ -1,12 +1,29 @@
 
+(** Builtin symbols
+
+    This module defines usual symbols that are not
+    part of the strict core of first-order terms.
+*)
+
+(** Standard tags for terms and formulas *)
+module Tag : sig
+
+  val rwrt : unit Tag.t
+  (** This tag denotes formulas that are specified as
+      rewrite rules in the source problem. *)
+
+end
+
+(** Misc symbols *)
 module Misc : sig
 
   (** {5 Builtin symbols} *)
 
   type Expr.builtin +=
-    | Cast
-    | True
-    | False
+    | Cast    (** cast function *)
+    | True    (** [true] as a term *)
+    | False   (** [false] as a term *)
+  (** New builtins symbols *)
 
   (** {5 Typing} *)
 
@@ -17,6 +34,7 @@ module Misc : sig
   (** {5 Tuples} *)
 
   val tuple : Expr.term list -> Expr.term
+  (** Create a tuple from a list of terms *)
 
   (** {5 Propositional calculus} *)
 
@@ -36,7 +54,10 @@ module Misc : sig
 
 end
 
+(** Arithmetic builtins *)
 module Arith : sig
+
+  (** {5 Arithmetic builtins declarations} *)
 
   type ty = Int | Rat | Real
 
@@ -55,6 +76,7 @@ module Arith : sig
     | Op of op
 
   (** {5 Operations on builtins} *)
+
   val cmp_types : ty -> ty -> int
 
   val add : value -> value -> value
