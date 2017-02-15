@@ -133,15 +133,15 @@ let match_modulo = match_modulo_aux [Match.empty]
 type rule = {
   manual  : bool;
   trigger : Expr.term;
+  guard   : Expr.formula option;
   result  : Expr.formula;
-  guard   : Expr.term option;
   formula : Expr.formula;
 }
 
 let debug_guard buf = function
   | None -> ()
   | Some e ->
-    Printf.bprintf buf "[%a] " Expr.Term.debug e
+    Printf.bprintf buf "[%a] " Expr.Formula.debug e
 
 let debug_rule buf { trigger; result; guard; formula; } =
   Printf.bprintf buf "%a%a --> %a ( %a )"
@@ -153,56 +153,80 @@ let debug_rule buf { trigger; result; guard; formula; } =
 let rules = ref []
 let () = Backtrack.Stack.attach Dispatcher.stack rules
 
-let rec parse_rule_aux ~manual = function
+(* Parse manually oriented rules *)
+let parse_manual_rule = function
+  (* Standard rewrite rules *)
+  | { Expr.formula = Expr.Equal (a, b) } as f ->
+    Some { manual = true; guard = None; trigger = a; result = f; formula = f }
+  | { Expr.formula = Expr.Equiv ({ Expr.formula = Expr.Pred a }, _) } as f ->
+    Some { manual = true; guard = None; trigger = a; result = f; formula = f }
+
+  (* Conditional rewriting *)
+  | { Expr.formula = Expr.Imply (
+      (* condition *)
+      (({ Expr.formula = Expr.Pred _ } | { Expr.formula = Expr.Equal _ }) as g),
+      (* Rewrite rule *)
+      (({ Expr.formula = Expr.Equal (a, _) } as f)
+      |({ Expr.formula = Expr.Equiv (
+            { Expr.formula = Expr.Pred a }, _) } as f))
+    )} ->
+    Some { manual = true; guard = Some g; trigger = a; result = f; formula = f }
+
+  (* Polarised rewrite as a conditional rule *)
+  | { Expr.formula = Expr.Imply (({ Expr.formula = Expr.Pred p } as g), f) } ->
+    Some { manual = true; guard = Some g; trigger = p; result = f; formula = f }
+
+  (* Not a rewrite rule, :p *)
+  | _ -> None
+
+
+(* Parse an arbitrary formula as a rerite rule *)
+let rec parse_rule_aux = function
+
   (* Equality&Equivalence as rewriting *)
   | ({ Expr.formula = Expr.Equal (a, b) } as f)
   | ({ Expr.formula = Expr.Equiv (
       { Expr.formula = Expr.Pred a },
       { Expr.formula = Expr.Pred b })} as f) ->
-    if manual then
-      Some { manual; guard = None; trigger = a; result = f; formula = f }
-    else begin match Lpo.compare a b with
+    begin match Lpo.compare a b with
       | Comparison.Incomparable
       | Comparison.Eq -> None
       | Comparison.Lt ->
-        Some { manual; guard = None; trigger = b; result = f; formula = f }
+        Some { manual = false; guard = None; trigger = b; result = f; formula = f }
       | Comparison.Gt ->
-        Some { manual; guard = None; trigger = a; result = f; formula = f }
+        Some { manual = false; guard = None; trigger = a; result = f; formula = f }
     end
-  (* Maual rewrite rule for arbitrary formulas *)
-  | ({ Expr.formula = Expr.Equiv ({ Expr.formula = Expr.Pred a }, _) } as f) when manual ->
-    Some { manual; guard = None; trigger = a; result = f; formula = f }
+
   (* Polarised rewrite rule as conditional rewrite *)
-  | { Expr.formula = Expr.Imply (
-      { Expr.formula = Expr.Pred a },
-      { Expr.formula = Expr.Pred b })
-    } as f ->
-    if manual then
-      Some { manual; guard = Some a; trigger = a; result = f; formula = f }
-    else begin match Lpo.compare a b with
+  | { Expr.formula = Expr.Imply (({ Expr.formula = Expr.Pred a } as g),
+                                 { Expr.formula = Expr.Pred b })} as f ->
+    begin match Lpo.compare a b with
       | Comparison.Gt ->
-        Some { manual; guard = Some a; trigger = a; result = f; formula = f }
+        Some { manual = false; guard = Some g; trigger = a; result = f; formula = f }
       | Comparison.Lt | Comparison.Eq
       | Comparison.Incomparable ->
         None
     end
+
   (* Conditional rewriting *)
-  | { Expr.formula = Expr.Imply ({ Expr.formula = Expr.Pred p }, r ) } as f ->
-    begin match parse_rule_aux ~manual r with
+  | { Expr.formula = Expr.Imply (({ Expr.formula = Expr.Pred _} as g), r ) } as f ->
+    begin match parse_rule_aux r with
       | Some ({ guard = None; _ } as rule) ->
-        Some { rule with guard = Some p; formula = f }
+        Some { rule with guard = Some g; formula = f }
       | _ -> None
     end
+
   (* Other formulas are not rewrite rules *)
   | _ -> None
 
 let parse_rule = function
-  (* TODO: check that some variabls are actually used in the rule ? *)
+  (* TODO: check that some variables are actually used in the rule ? *)
   | ({ Expr.formula = Expr.All (_, _, r) } as formula)
   | ({ Expr.formula = Expr.AllTy (_, _, {
          Expr.formula = Expr.All (_, _, r) })} as formula) ->
     let manual = CCOpt.is_some (Expr.Formula.get_tag formula Builtin.Tag.rwrt) in
-    begin match parse_rule_aux ~manual r with
+    if manual then begin
+      match parse_manual_rule r with
       | None ->
         if manual then
           Util.debug ~section 0
@@ -211,6 +235,10 @@ let parse_rule = function
         None
       | Some rule ->
         Some { rule with formula }
+    end else begin
+      match parse_rule_aux r with
+      | None -> None
+      | Some rule -> Some { rule with formula }
     end
   | _ -> None
 
@@ -222,10 +250,15 @@ let instanciate rule subst =
   in
   match rule.guard with
   | None ->
+    (* Instantiate the rule *)
     Dispatcher.consequence res [rule.formula]
       (Dispatcher.mk_proof name "rewrite")
   | Some g ->
-    let cond = Match.term_apply subst g in
+    (* Substitute to get the ground condition *)
+    let cond = Match.formula_apply subst g in
+    (* Ensure the condition is actually propagated/decided on *)
+    Solver.add_atom cond;
+    (* Add a watch to instantiate the rule when the condition is true *)
     Dispatcher.watch ~formula:rule.formula name 1 [cond]
       (fun () ->
          let t = Dispatcher.get_assign cond in
@@ -268,10 +301,9 @@ let analyze =
     | { manual; _ } :: r ->
       let acc' =
         match acc with
+        | Some `Mixed -> Some `Mixed
         | None ->
           Some (if manual then `Manual else `Auto)
-        | Some `Mixed ->
-          Some `Mixed
         | Some `Auto ->
           Some (if manual then `Mixed else `Auto)
         | Some `Manual ->

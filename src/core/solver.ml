@@ -109,6 +109,7 @@ let assume l =
   let () = S.assume l in
   Util.exit_prof section
 
+let add_atom = S.new_atom
 
 (* Model manipulation *)
 (* ************************************************************************ *)

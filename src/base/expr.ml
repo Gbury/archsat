@@ -432,7 +432,7 @@ module Id = struct
 
   let interpreter v =
     match CCVector.get eval_vec v.index with
-    | None -> (fun _ -> ())
+    | None -> (fun _ -> raise Exit)
     | Some (_, f) -> f
 
   let set_eval v (prio: int) (f: term -> unit) =
@@ -483,9 +483,7 @@ module Id = struct
 
   let copy_term_skolem v v' =
     let old = term_skolem v in
-    let res = term_fun ("sk_" ^ v'.id_name)
-        old.id_type.fun_vars old.id_type.fun_args old.id_type.fun_ret in
-    Hashtbl.add term_skolems v'.index res
+    Hashtbl.add term_skolems v'.index old
 
 end
 
@@ -788,10 +786,13 @@ module Term = struct
   let fv = free_vars Id.null_fv
 
   (* Evaluation & Assignment *)
-  let eval t = match t.term with
-    | Var v -> (Id.interpreter v) t
-    | Meta m -> (Id.interpreter m.meta_id) t
-    | App (f, _, _) -> (Id.interpreter f) t
+  let eval t =
+    try
+      match t.term with
+      | Var v -> (Id.interpreter v) t
+      | Meta m -> (Id.interpreter m.meta_id) t
+      | App (f, _, _) -> (Id.interpreter f) t
+    with Exit -> raise (Cannot_interpret t)
 
   let assign t =
     try match t.term with

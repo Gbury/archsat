@@ -424,7 +424,7 @@ let watch ?formula ext_name k args f =
       let j = new_job ?formula tag k section to_watch not_watched f in
       List.iter (add_job j) to_watch;
       call_job j
-    | y :: r ->
+    | y :: r (* i > 0 *) ->
       if is_assigned y then
         split (y :: assigned) not_assigned i r
       else
