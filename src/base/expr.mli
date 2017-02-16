@@ -256,10 +256,14 @@ module Id : sig
       WARNING: this function looks inside meta-variables, so it can yield unexpected results. *)
 
   val set_eval : 'a id -> int -> (term -> unit) -> unit
-  val set_assign : 'a id -> int -> (term -> term) -> unit
   (** [set_eval v n f] sets f as the handler to call in order to
-      eval or assign the given variable, with priority [n] (only the handler with
-      highest priority is called. *)
+      eval terms starting with the given variable, with priority [n]
+      (only the handler with highest priority is calledi). *)
+
+  val set_assign : 'a id -> int -> (term -> term) -> unit
+  (** [set_assign v n f] sets f as the handler to call in order to
+      assign terms starting with the given variable, with priority [n]
+      (only the handler with highest priority is calledi). *)
 
   val is_assignable : 'a id -> bool
   val is_interpreted : 'a id -> bool
@@ -445,13 +449,17 @@ module Term : sig
   (** Return the list of free variables in the given term. *)
 
   val eval : term -> unit
-  (** Makes sure the given expr will eventually be assigned. In casethe head
-      symbol is assignable, does nothing.If the head symbol is not assignable,
-      then its evaluation functionis called. *)
+  (** Try and call the evaluation function associated with the term's
+      head symbol. Returns [true] if the function has been succesfully
+      found and called, and [false] else.
+      @raise (Cannot_intepret t) if there is no evaluation handler
+  *)
 
   val assign : term -> term
   (** Return a valid assignment for the given term using the handler of the
-      head symbol of the expression, see the Var module. *)
+      head symbol of the expression, see the Var module.
+      @raise (Cannot_assign t) if there is no assign handler
+  *)
 
   val tag : term -> 'a tag -> 'a -> unit
   (** Insert a local type in the given type. Does not change the semantic

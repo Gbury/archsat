@@ -31,6 +31,10 @@ val assume : Expr.formula list list -> unit
 val solve : unit -> res
 (** Try and solve the current set of assumptions *)
 
+val add_atom : Expr.formula -> unit
+(** Add the given formula to the sat-solver to ensure
+    it is decided on (along with its subterms). *)
+
 
 (** {2 Dispatcher messages} *)
 
