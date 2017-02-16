@@ -89,9 +89,11 @@ let find_indexed f =
 (* ************************************************************************ *)
 
 let match_types pats args subst =
-  try Some (List.fold_left2 Match.ty subst args pats)
+  try Some (List.fold_left2 Match.ty subst pats args)
   with
-  | Match.Impossible_ty _ -> None
+  | Match.Impossible_ty (a, b) ->
+    Util.debug ~section 70 "Couldn't match %a <-> %a" Expr.Ty.debug a Expr.Ty.debug b;
+    None
   | Match.Impossible_term _ -> assert false
 
 let match_modulo_var v c subst =
