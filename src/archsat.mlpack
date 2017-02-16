@@ -2,6 +2,9 @@
 ##### Usefull Modules #####
 ###########################
 
+# Common module signatures
+Sig
+
 # Base modules
 Lpo
 Tag

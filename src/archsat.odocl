@@ -2,6 +2,9 @@
 ##### Usefull Modules #####
 ###########################
 
+# Common module signatures
+base/Sig
+
 # Base modules
 base/Ast
 base/Lpo
@@ -20,8 +23,8 @@ algos/Superposition
 algos/Constraints
 
 # Core modules
-core/Dispatcher
 core/Solver
+core/Dispatcher
 
 # Extensions
 core/Inst

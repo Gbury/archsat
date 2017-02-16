@@ -216,17 +216,15 @@ end
 (** {2 Identifiers & Metas} *)
 
 module Id : sig
-  type 'a t = 'a id
-  (* Type alias *)
 
-  val hash : 'a t -> int
-  val equal : 'a t -> 'a t -> bool
-  val compare : 'a t -> 'a t -> int
-  (** Usual functions for hash/comparison *)
+  include Sig.PolyFull with type 'a t = 'a id
+  (** Base signature for parametric types. *)
 
-  val print : Format.formatter -> 'a t -> unit
-  val debug : Buffer.t -> 'a t -> unit
-  (** Printing for variables *)
+  module Ty : Sig.Full with type t = ty id
+  module Ttype : Sig.Full with type t = ttype id
+  module Const : Sig.Full with type t = ty function_descr id
+  module TyCstr : Sig.Full with type t = ttype function_descr id
+  (** Concrete instances for functor application. *)
 
   val prop : ttype function_descr id
   val base : ttype function_descr id
@@ -274,17 +272,13 @@ module Id : sig
 end
 
 module Meta : sig
-  type 'a t = 'a meta
-  (** Type alias *)
 
-  val hash : 'a t -> int
-  val equal : 'a t -> 'a t -> bool
-  val compare : 'a t -> 'a t -> int
-  (** Usual functions for hash/comparison *)
+  include Sig.PolyFull with type 'a t = 'a meta
+  (** Base interface *)
 
-  val print : Format.formatter -> 'a t -> unit
-  val debug : Buffer.t -> 'a t -> unit
-  (** Printing for metavariables *)
+  module Ty : Sig.Full with type t = ty meta
+  module Ttype : Sig.Full with type t = ttype meta
+  (** Convenience modules *)
 
   val of_all_ty : formula -> ttype meta list
   (** Given a formula [f] which is either a universal quantification over types,
@@ -384,19 +378,12 @@ end
 (** {2 Types} *)
 
 module Ty : sig
-  type t = ty
-  (** Type alias *)
+
+  include Sig.Full with type t = ty
 
   type subst = (ttype id, ty) Subst.t
   (** The type of substitutions over types. *)
 
-  val hash : t -> int
-  val equal : t -> t -> bool
-  val compare : t -> t -> int
-  (** Usual hash/compare functions *)
-
-  val debug : Buffer.t -> t -> unit
-  val print : Format.formatter -> t -> unit
   val debug_subst : Buffer.t -> subst -> unit
   (** Printing functions *)
 
@@ -433,21 +420,14 @@ end
 (** {2 Terms} *)
 
 module Term : sig
-  type t = term
-  (** Type alias *)
+
+  include Sig.Full with type t = term
 
   type subst = (ty id, term) Subst.t
   (** The type of substitutions in types. *)
 
-  val hash : t -> int
-  val equal : t -> t -> bool
-  val compare : t -> t -> int
-  (**  Usual hash/compare functions *)
-
-  val debug : Buffer.t -> t -> unit
-  val print : Format.formatter -> t -> unit
   val debug_subst : Buffer.t -> subst -> unit
-  (** Printing functions *)
+  (** Printing function for substitution. *)
 
   val of_id : ?status:status -> ty id -> term
   (** Create a term from a variable *)
@@ -494,17 +474,8 @@ end
 (** {2 Formulas} *)
 
 module Formula : sig
-  type t = formula
-  (** Type alias *)
 
-  val hash : t -> int
-  val equal : t -> t -> bool
-  val compare : t -> t -> int
-  (** Usual hash/compare functions *)
-
-  val debug : Buffer.t -> t -> unit
-  val print : Format.formatter -> t -> unit
-  (** Printing functions *)
+  include Sig.Full with type t = formula
 
   val f_true : formula
   val f_false : formula
