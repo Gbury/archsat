@@ -180,6 +180,8 @@ let add_guards guards rule =
 
 let set_formula formula rule = { rule with formula }
 
+let is_manual { manual; } = manual
+
 let rec debug_guards buf = function
   | [] -> ()
   | g :: r ->
@@ -353,32 +355,21 @@ let callback_rule r =
 (* Rule addition callback *)
 (* ************************************************************************ *)
 
-let analyze =
-  let rec aux acc = function
-    | [] -> acc
-    | { manual; _ } :: r ->
-      let acc' =
-        match acc with
-        | Some `Mixed -> Some `Mixed
-        | None ->
-          Some (if manual then `Manual else `Auto)
-        | Some `Auto ->
-          Some (if manual then `Mixed else `Auto)
-        | Some `Manual ->
-          Some (if manual then `Manual else `Mixed)
-      in
-      aux acc' r
-  in aux None
-
 (* When adding a new rule, we have to try and instantiate it. *)
 let add_rule r =
   let () = rules := r :: !rules in
   (* Check if the set of rules is manual *)
-  begin match analyze !rules with
-    | None -> assert false (* We just added a rule... *)
-    | Some `Manual -> ()
-    | Some `Auto -> () (* TODO: complete the rewrite rule system *)
-    | Some `Mixed ->
+  begin match List.partition is_manual !rules with
+    (* No rules, shouldn't happen since we just added a rule *)
+    | [], []  -> assert false
+    (* No auto-detected rules, we're in the manual case, the user should
+       know what she's doing, thus evrything is ok. *)
+    | _, []   -> ()
+    (* No manual rules, we should make the rewrite system confluent.
+       TODO: complete the rewrite rule system *)
+    | [], _   -> ()
+    (* Mixed case, it really isn't clear what we should do in these cases... *)
+    | _, _    ->
       Util.debug ~section 0
         "Mixed set of rewrite rules detected, removing auto rules";
       rules := List.filter (fun { manual; _ } -> manual) !rules
