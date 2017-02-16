@@ -14,6 +14,14 @@ module M = Hashtbl.Make(Expr.Id.Const)
 
 let section = Util.Section.make ~parent:Dispatcher.section "rwrt"
 
+(* Callbacks on the set of known terms *)
+(* ************************************************************************ *)
+
+let add_callback, call =
+  let r = ref [] in
+  (function f -> r := f :: !r),
+  (function t -> List.iter ((|>) t) !r)
+
 (* Registering parent-child relations between terms *)
 (* ************************************************************************ *)
 
@@ -34,6 +42,7 @@ let add_parent parent child =
   H.replace parents child (S.add parent s)
 
 let add_to_index f t =
+  call t;
   let s = find_index f in
   M.replace index f (S.add t s)
 
@@ -312,12 +321,32 @@ let match_and_instantiate s ({ trigger; _ } as rule) =
       instanciate rule subst
     ) seq
 
-(* Rewriter callback *)
+(* Rewriter callbacks *)
 (* ************************************************************************ *)
 
-let callback a b t =
+(* Callback used when merging equivalence classes *)
+let callback_merge a b t =
   let l = find_all_parents (C.repr t) in
   List.iter (match_and_instantiate l) !rules
+
+(* Callback used on new terms *)
+let callback_term t =
+  let s = T.singleton (C.find t) in
+  List.iter (match_and_instantiate s) !rules
+
+(* Callback used on new rewrite rules *)
+let callback_rule r =
+  match r.trigger with
+  (** A rewrite rule with a single var as trigger is impossile:
+      what term could possibly be smaller than a single variable ? *)
+  | { Expr.term = Expr.Var _ } -> assert false
+  (** A trigger that consist of a single meta does not contain variable,
+      thus has no reason to be a rewrite rule... *)
+  | { Expr.term = Expr.Meta _ } -> assert false
+  (** Rewrite rules trigger starts with an application, we can work with that. *)
+  | { Expr.term = Expr.App (f, _, _) } ->
+    let s = find_indexed f in
+    match_and_instantiate s r
 
 (* Rule addition callback *)
 (* ************************************************************************ *)
@@ -352,17 +381,8 @@ let add_rule r =
         "Mixed set of rewrite rules detected, removing auto rules";
       rules := List.filter (fun { manual; _ } -> manual) !rules
   end;
-  match r.trigger with
-  | { Expr.term = Expr.Var _ }
-  (** A rewrite rule with a single var as trigger is impossile:
-      what term could possibly be smaller than a single variable ? *)
-  | { Expr.term = Expr.Meta _ }
-    (** A trigger that consist of a single meta does not contain variable,
-        thus has no reason to be a rewrite rule... *)
-    -> assert false
-  | { Expr.term = Expr.App (f, _, _) } ->
-    let s = find_indexed f in
-    match_and_instantiate s r
+  (* Call the callback *)
+  callback_rule r
 
 (* Plugin *)
 (* ************************************************************************ *)
@@ -390,7 +410,8 @@ let rec peek = function
   | _ -> ()
 
 let register () =
-  Ext_eq.register_callback name callback;
+  add_callback callback_term;
+  Ext_eq.register_callback name callback_merge;
   Dispatcher.Plugin.register name
     ~descr:"Detects rewrite rules and instantiate them (similarly to triggers)"
     (Dispatcher.mk_ext ~peek ~assume ~section ())
