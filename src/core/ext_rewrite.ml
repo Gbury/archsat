@@ -239,8 +239,8 @@ let rec parse_rule_aux = function
   (* Equality&Equivalence as rewriting *)
   | ({ Expr.formula = Expr.Equal (a, b) } as result)
   | ({ Expr.formula = Expr.Equiv (
-      { Expr.formula = Expr.Pred a },
-      { Expr.formula = Expr.Pred b })} as result) ->
+         { Expr.formula = Expr.Pred a },
+         { Expr.formula = Expr.Pred b })} as result) ->
     begin match Lpo.compare a b with
       | Comparison.Incomparable
       | Comparison.Eq -> None
@@ -287,7 +287,7 @@ let parse_rule = function
 (* ************************************************************************ *)
 
 let instanciate rule subst =
-  Util.debug 5 "Instancitate %a" debug_rule rule;
+  Util.debug 5 "Instanciate %a" debug_rule rule;
   Util.debug 5 " \ with %a" Match.debug subst;
   let res = Match.formula_apply subst rule.result in
   match rule.guards with
