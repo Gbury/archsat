@@ -838,13 +838,14 @@ module Term = struct
   let fv = free_vars Id.null_fv
 
   (* Evaluation & Assignment *)
-  let eval t =
+  let eval ?(strict=false) t =
     try
       match t.term with
       | Var v -> (Id.interpreter v) t
       | Meta m -> (Id.interpreter m.meta_id) t
       | App (f, _, _) -> (Id.interpreter f) t
-    with Exit -> raise (Cannot_interpret t)
+    with Exit ->
+      if strict then raise (Cannot_interpret t)
 
   let assign t =
     try match t.term with

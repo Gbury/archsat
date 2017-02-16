@@ -448,11 +448,13 @@ module Term : sig
   val fv : term -> ttype id list * ty id list
   (** Return the list of free variables in the given term. *)
 
-  val eval : term -> unit
+  val eval : ?strict:bool -> term -> unit
   (** Try and call the evaluation function associated with the term's
       head symbol. Returns [true] if the function has been succesfully
       found and called, and [false] else.
-      @raise (Cannot_intepret t) if there is no evaluation handler
+      @param strict if set, raise an exception when no handler is found (default: [false])
+      @raise (Cannot_intepret t) if there is no evaluation handler,
+        and [strict] is [true]
   *)
 
   val assign : term -> term

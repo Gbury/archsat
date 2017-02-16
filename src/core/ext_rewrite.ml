@@ -266,7 +266,7 @@ let parse_rule = function
             "Following formula couldn't be parsed as a rewrite rule despite tag: %a"
             Expr.Formula.debug r;
         None
-      | Some rule -> Some (set_formula r rule)
+      | Some rule -> Some (set_formula formula rule)
     end
   | _ -> None
 
