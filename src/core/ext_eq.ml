@@ -176,16 +176,16 @@ let assume = function
     wrap E.add_neq a b;
   | _ -> ()
 
+let set_handler_aux v =
+  if not Expr.(Ty.equal v.id_type Ty.prop) then
+    Expr.Id.set_assign v 0 eq_assign
+
 let rec set_handler t =
-  let aux v =
-    if not Expr.(Ty.equal v.id_type Ty.prop) then
-      Expr.Id.set_assign v 0 eq_assign
-  in
   if not Expr.(Ty.equal t.t_type Ty.prop) then
     watch 1 [t] (tag t);
   match t with
-  | { Expr.term = Expr.Var v } -> aux v
-  | { Expr.term = Expr.Meta m } -> aux Expr.(m.meta_id)
+  | { Expr.term = Expr.Var v } -> set_handler_aux v
+  | { Expr.term = Expr.Meta m } -> set_handler_aux Expr.(m.meta_id)
   | { Expr.term = Expr.App (f, _, l) } ->
     if not Expr.(Ty.equal f.id_type.fun_ret Ty.prop) then
       Expr.Id.set_assign f 0 eq_assign;
