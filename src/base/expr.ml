@@ -110,7 +110,7 @@ exception Bad_ty_arity of ttype function_descr id * ty list
 exception Cannot_assign of term
 exception Cannot_interpret of term
 
-(* status settings *)
+(* Status settings *)
 (* ************************************************************************ *)
 
 module Status = struct
@@ -383,6 +383,40 @@ module Id = struct
   let print = Print.id
   let debug = Debug.id
 
+  (* Some convenience modules for functor instanciation *)
+  module Ty = struct
+    type t = ty id
+    let hash = hash
+    let equal = equal
+    let compare = compare
+    let print = print
+    let debug = debug
+  end
+  module Ttype = struct
+    type t = ttype id
+    let hash = hash
+    let equal = equal
+    let compare = compare
+    let print = print
+    let debug = debug
+  end
+  module Const = struct
+    type t = ty function_descr id
+    let hash = hash
+    let equal = equal
+    let compare = compare
+    let print = print
+    let debug = debug
+  end
+  module TyCstr = struct
+    type t = ttype function_descr id
+    let hash = hash
+    let equal = equal
+    let compare = compare
+    let print = print
+    let debug = debug
+  end
+
   (* Internal state *)
   let eval_vec = CCVector.create ()
   let assign_vec = CCVector.create ()
@@ -509,6 +543,24 @@ module Meta = struct
   (* Printing functions *)
   let print = Print.meta
   let debug = Debug.meta
+
+  (* Some convenience modules for functor instanciation *)
+  module Ty = struct
+    type t = ty meta
+    let hash = hash
+    let equal = equal
+    let compare = compare
+    let print = print
+    let debug = debug
+  end
+  module Ttype = struct
+    type t = ttype meta
+    let hash = hash
+    let equal = equal
+    let compare = compare
+    let print = print
+    let debug = debug
+  end
 
   (* Free meta-variables *)
   let merge_metas (ty1, t1) (ty2, t2) =
