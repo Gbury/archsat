@@ -21,7 +21,8 @@ let only = ref []
 let log = ref Format.std_formatter
 
 let set_log s =
-  log := Format.formatter_of_out_channel (open_out s)
+  log := Format.formatter_of_out_channel (
+      open_out_gen [Open_append] 0x770 s)
 
 let add_only name =
   only := name :: !only
