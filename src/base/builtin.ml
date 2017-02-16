@@ -7,6 +7,15 @@ let log i fmt = Util.debug ~section i fmt
 module Id = Dolmen.Id
 module Ast = Dolmen.Term
 
+(* Builtins tags *)
+(* ************************************************************************ *)
+
+module Tag = struct
+
+  let rwrt = Tag.create ()
+
+end
+
 (* Some convenience functions *)
 (* ************************************************************************ *)
 
@@ -63,8 +72,10 @@ let parse_smtlib env ast s args =
   | _ -> None
 
 let parse_zf env ast s args =
-  match s with
-  | _ -> None
+  if Ast.equal Ast.rwrt_rule ast then
+    Some (Type.Tag (Tag.rwrt, ()))
+  else
+    None
 
 let _ =
   Semantics.Addon.register "base"

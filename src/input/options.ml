@@ -281,7 +281,7 @@ let log_opts opt =
     (bool_opt "prove" opt.proof.active)
     (bool_opt "interactive" opt.input.interactive)
     (bool_opt "profile" opt.profile.enabled)
-    (CCOpt.get "" @@ CCOpt.map In.string_of_language @@ opt.input.format)
+    (CCOpt.get "auto" @@ CCOpt.map In.string_of_language @@ opt.input.format)
     (output_string opt.output.format);
   log 0 "Input dir : '%s'" opt.input.dir;
   log 0 "Input file : %s" (input_to_string opt.input.file)

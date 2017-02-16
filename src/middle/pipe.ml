@@ -150,22 +150,22 @@ let type_wrap ?(goal=false) opt =
 let typecheck (opt, c) : typechecked stmt =
   match c with
   | { S.descr = S.Def (id, t) } ->
-    start_section 0 "Definition";
+    start_section 1 "Definition";
     let env, aux = type_wrap opt in
     let ret = Type.new_def env t id in
     (aux ret :> typechecked stmt)
   | { S.descr = S.Decl (id, t) } ->
-    start_section 0 "Declaration typing";
+    start_section 1 "Declaration typing";
     let env, aux = type_wrap opt in
     let ret = Type.new_decl env t id in
     (aux ret :> typechecked stmt)
   | { S.descr = S.Antecedent t } ->
-    start_section 0 "Hypothesis typing";
+    start_section 1 "Hypothesis typing";
     let env, aux = type_wrap opt in
     let ret = Type.new_formula env t in
     (aux (`Hyp ret) :> typechecked stmt)
   | { S.descr = S.Consequent t } ->
-    start_section 0 "Goal typing";
+    start_section 1 "Goal typing";
     let env, aux = type_wrap ~goal:true opt in
     let ret = Type.new_formula env t in
     (aux (`Goal ret) :> typechecked stmt)
@@ -186,13 +186,13 @@ let solve (opt, (c : typechecked stmt)) : solved stmt =
     res
   | ({ contents = `Hyp f; _ } as res) ->
     if opt.Options.solve then begin
-      start_section 0 "Assume hyp";
+      start_section 1 "Assume hyp";
       Solver.assume [[f]]
     end;
     res
   | ({ contents = `Goal f; _ } as res) ->
     if opt.Options.solve then begin
-      start_section 0 "Assume goal";
+      start_section 1 "Assume goal";
       Solver.assume [[Expr.Formula.neg f]]
     end;
     res
