@@ -8,10 +8,7 @@ module D = Dispatcher
 module E = Closure.Eq(Expr.Term)
 
 module S = Set.Make(Expr.Term)
-module M = Map.Make(struct
-    type t = Expr.ty Expr.function_descr Expr.id
-    let compare= Expr.Id.compare
-  end)
+module M = Map.Make(Expr.Id.Const)
 
 (* Union-find payloads and callbacks *)
 (* ************************************************************************ *)

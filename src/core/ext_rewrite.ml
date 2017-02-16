@@ -10,12 +10,7 @@ module T = Set.Make(C)
 module S = Set.Make(Expr.Term)
 
 module H = Hashtbl.Make(Expr.Term)
-(* TODO: Name the struct to avoid duplicating code (see ext_eq) *)
-module M = Hashtbl.Make(struct
-    type t = Expr.ty Expr.function_descr Expr.id
-    let hash = Expr.Id.hash
-    let equal = Expr.Id.equal
-  end)
+module M = Hashtbl.Make(Expr.Id.Const)
 
 let section = Util.Section.make ~parent:Dispatcher.section "rwrt"
 
@@ -127,94 +122,132 @@ and match_modulo_aux acc pat c =
 
 let match_modulo = match_modulo_aux [Match.empty]
 
-(* Detecting Rewrite rules *)
+(* Rewrite rules guards *)
+(* ************************************************************************ *)
+
+type guard =
+  | Pred of Expr.term
+  | Eq of Expr.term * Expr.term
+
+let debug_guard buf = function
+  | Pred p -> Printf.bprintf buf "%a" Expr.Term.debug p
+  | Eq (a, b) -> Printf.bprintf buf "%a=%a" Expr.Term.debug a Expr.Term.debug b
+
+let map_guard f = function
+  | Pred p -> Pred (f p)
+  | Eq (a, b) -> Eq (f a, f b)
+
+let guard_to_list = function
+  | Pred p -> [p]
+  | Eq (a, b) -> [a; b]
+
+let guard_to_formula = function
+  | Pred p -> Expr.Formula.pred p
+  | Eq (a, b) -> Expr.Formula.eq a b
+
+let check_guard = function
+  | Pred p -> Expr.Term.equal p Builtin.Misc.p_true
+  | Eq (a, b) -> Expr.Term.equal a b
+
+(* Rewrite rules definition *)
 (* ************************************************************************ *)
 
 type rule = {
   manual  : bool;
   trigger : Expr.term;
-  guard   : Expr.formula option;
+  guards  : guard list;
   result  : Expr.formula;
   formula : Expr.formula;
 }
 
-let debug_guard buf = function
-  | None -> ()
-  | Some e ->
-    Printf.bprintf buf "[%a] " Expr.Formula.debug e
+let mk ?(guards=[]) manual trigger result =
+  let formula = result in
+  { manual; trigger; guards; result; formula; }
 
-let debug_rule buf { trigger; result; guard; formula; } =
+let add_guards guards rule =
+  { rule with guards = guards @ rule.guards }
+
+let set_formula formula rule = { rule with formula }
+
+let rec debug_guards buf = function
+  | [] -> ()
+  | g :: r ->
+    Printf.bprintf buf "[%a]%a" debug_guard g debug_guards r
+
+let debug_rule buf { trigger; result; guards; formula; } =
   Printf.bprintf buf "%a%a --> %a ( %a )"
-    debug_guard guard
+    debug_guards guards
     Expr.Term.debug trigger
     Expr.Formula.debug result
     Expr.Formula.debug formula
 
+(* Detecting Rewrite rules *)
+(* ************************************************************************ *)
+
 let rules = ref []
 let () = Backtrack.Stack.attach Dispatcher.stack rules
+
+(* Parse an arbitrary formula as a rerite rule *)
+let parse_guard = function
+  | { Expr.formula = Expr.Pred p } -> Some (Pred p)
+  | { Expr.formula = Expr.Equal (a, b) } -> Some (Eq (a, b))
+  | _ -> None
+
+let parse_guards = function
+  | { Expr.formula = Expr.And l } ->
+    CCOpt.sequence_l (List.map parse_guard l)
+  | f ->
+    CCOpt.map (fun x -> [x]) (parse_guard f)
 
 (* Parse manually oriented rules *)
 let parse_manual_rule = function
   (* Standard rewrite rules *)
-  | { Expr.formula = Expr.Equal (a, b) } as f ->
-    Some { manual = true; guard = None; trigger = a; result = f; formula = f }
-  | { Expr.formula = Expr.Equiv ({ Expr.formula = Expr.Pred a }, _) } as f ->
-    Some { manual = true; guard = None; trigger = a; result = f; formula = f }
+  | ({ Expr.formula = Expr.Equal (trigger, _) } as result)
+  | ({ Expr.formula = Expr.Equiv ({ Expr.formula = Expr.Pred trigger }, _) } as result) ->
+    Some (mk true trigger result)
 
   (* Conditional rewriting *)
   | { Expr.formula = Expr.Imply (
-      (* condition *)
-      (({ Expr.formula = Expr.Pred _ } | { Expr.formula = Expr.Equal _ }) as g),
+      cond,
       (* Rewrite rule *)
-      (({ Expr.formula = Expr.Equal (a, _) } as f)
+      (({ Expr.formula = Expr.Equal (trigger, _) } as result)
       |({ Expr.formula = Expr.Equiv (
-            { Expr.formula = Expr.Pred a }, _) } as f))
-    )} ->
-    Some { manual = true; guard = Some g; trigger = a; result = f; formula = f }
+            { Expr.formula = Expr.Pred trigger }, _) } as result)))} ->
+    CCOpt.map (fun guards -> mk ~guards true trigger result) (parse_guards cond)
 
   (* Polarised rewrite as a conditional rule *)
-  | { Expr.formula = Expr.Imply (({ Expr.formula = Expr.Pred p } as g), f) } ->
-    Some { manual = true; guard = Some g; trigger = p; result = f; formula = f }
+  | { Expr.formula = Expr.Imply ({ Expr.formula = Expr.Pred trigger }, result) } ->
+    Some (mk ~guards:[Pred trigger] true trigger result)
 
   (* Not a rewrite rule, :p *)
   | _ -> None
 
-
-(* Parse an arbitrary formula as a rerite rule *)
 let rec parse_rule_aux = function
-
   (* Equality&Equivalence as rewriting *)
-  | ({ Expr.formula = Expr.Equal (a, b) } as f)
+  | ({ Expr.formula = Expr.Equal (a, b) } as result)
   | ({ Expr.formula = Expr.Equiv (
       { Expr.formula = Expr.Pred a },
-      { Expr.formula = Expr.Pred b })} as f) ->
+      { Expr.formula = Expr.Pred b })} as result) ->
     begin match Lpo.compare a b with
       | Comparison.Incomparable
       | Comparison.Eq -> None
-      | Comparison.Lt ->
-        Some { manual = false; guard = None; trigger = b; result = f; formula = f }
-      | Comparison.Gt ->
-        Some { manual = false; guard = None; trigger = a; result = f; formula = f }
+      | Comparison.Lt -> Some (mk false b result)
+      | Comparison.Gt -> Some (mk false a result)
     end
 
   (* Polarised rewrite rule as conditional rewrite *)
-  | { Expr.formula = Expr.Imply (({ Expr.formula = Expr.Pred a } as g),
-                                 { Expr.formula = Expr.Pred b })} as f ->
-    begin match Lpo.compare a b with
-      | Comparison.Gt ->
-        Some { manual = false; guard = Some g; trigger = a; result = f; formula = f }
+  | { Expr.formula = Expr.Imply ({ Expr.formula = Expr.Pred trigger },
+                                 ({ Expr.formula = Expr.Pred p } as result))} ->
+    begin match Lpo.compare trigger p with
+      | Comparison.Gt -> Some (mk false trigger result)
       | Comparison.Lt | Comparison.Eq
       | Comparison.Incomparable ->
         None
     end
 
   (* Conditional rewriting *)
-  | { Expr.formula = Expr.Imply (({ Expr.formula = Expr.Pred _} as g), r ) } as f ->
-    begin match parse_rule_aux r with
-      | Some ({ guard = None; _ } as rule) ->
-        Some { rule with guard = Some g; formula = f }
-      | _ -> None
-    end
+  | { Expr.formula = Expr.Imply (cond, r) } ->
+    CCOpt.map2 add_guards (parse_guards cond) (parse_rule_aux r)
 
   (* Other formulas are not rewrite rules *)
   | _ -> None
@@ -225,20 +258,15 @@ let parse_rule = function
   | ({ Expr.formula = Expr.AllTy (_, _, {
          Expr.formula = Expr.All (_, _, r) })} as formula) ->
     let manual = CCOpt.is_some (Expr.Formula.get_tag formula Builtin.Tag.rwrt) in
-    if manual then begin
-      match parse_manual_rule r with
+    let parse = if manual then parse_manual_rule else parse_rule_aux in
+    begin match parse r with
       | None ->
         if manual then
           Util.debug ~section 0
             "Following formula couldn't be parsed as a rewrite rule despite tag: %a"
             Expr.Formula.debug r;
         None
-      | Some rule ->
-        Some { rule with formula }
-    end else begin
-      match parse_rule_aux r with
-      | None -> None
-      | Some rule -> Some { rule with formula }
+      | Some rule -> Some (set_formula r rule)
     end
   | _ -> None
 
@@ -246,25 +274,22 @@ let parse_rule = function
 (* ************************************************************************ *)
 
 let instanciate rule subst =
-  let res = Match.formula_apply subst rule.result
-  in
-  match rule.guard with
-  | None ->
+  let res = Match.formula_apply subst rule.result in
+  match rule.guards with
+  | [] ->
     (* Instantiate the rule *)
     Dispatcher.consequence res [rule.formula]
       (Dispatcher.mk_proof name "rewrite")
-  | Some g ->
-    (* Substitute to get the ground condition *)
-    let cond = Match.formula_apply subst g in
-    (* Ensure the condition is actually propagated/decided on *)
-    Solver.add_atom cond;
+  | guards ->
+    let l = List.map (map_guard (Match.term_apply subst)) guards in
+    let watched = CCList.flat_map guard_to_list l in
     (* Add a watch to instantiate the rule when the condition is true *)
-    Dispatcher.watch ~formula:rule.formula name 1 [cond]
+    Dispatcher.watch ~formula:rule.formula name 1 watched
       (fun () ->
-         let t = Dispatcher.get_assign cond in
-         if Expr.Term.equal Builtin.Misc.p_true t then begin
+         let l' = List.map (map_guard Dispatcher.get_assign) l in
+         if List.for_all check_guard l' then begin
            Dispatcher.consequence res
-             [rule.formula; Expr.Formula.pred cond]
+             (rule.formula :: List.map guard_to_formula l)
              (Dispatcher.mk_proof name "rewrite_cond")
          end
       )
