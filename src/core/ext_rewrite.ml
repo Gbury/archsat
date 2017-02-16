@@ -274,6 +274,8 @@ let parse_rule = function
 (* ************************************************************************ *)
 
 let instanciate rule subst =
+  Util.debug 5 "Instancitate %a" debug_rule rule;
+  Util.debug 5 " \ with %a" Match.debug subst;
   let res = Match.formula_apply subst rule.result in
   match rule.guards with
   | [] ->
@@ -295,17 +297,17 @@ let instanciate rule subst =
       )
 
 let match_and_instantiate s ({ trigger; _ } as rule) =
-  Util.debug ~section 5 "Matches for rule %a" debug_rule rule;
+  Util.debug ~section 10 "Matches for rule %a" debug_rule rule;
   let seq = T.fold (fun c acc ->
       let repr = C.repr c in
-      Util.debug ~section 10 "Trying to match %a with %a"
+      Util.debug ~section 30 "Trying to match %a with %a"
         Expr.Term.debug trigger C.debug c;
       let s = match_modulo trigger c in
       let s' = List.map (fun x -> repr, x) s in
       List.append s' acc
     ) s [] in
   List.iter (fun (term, subst) ->
-      Util.debug ~section 5 "matched '%a' with %a"
+      Util.debug ~section 10 "matched '%a' with %a"
         Expr.Debug.term term Match.debug subst;
       instanciate rule subst
     ) seq
