@@ -124,7 +124,7 @@ let expand (opt, c) =
 (* Typechecking *)
 (* ************************************************************************ *)
 
-(* TODO, unwind backtrak stack on exceptions *)
+(* TODO, unwind backtrak stack on exceptions ? *)
 let type_wrap ?(goal=false) opt =
   let l = CCOpt.get_exn Options.(opt.input.format) in
   let tys = ref [] in
@@ -222,13 +222,34 @@ let print_res (opt, (c : solved stmt)) =
   | { contents = `Hyp _; _ }
   | { contents = `Goal _; _ } ->
     ()
-  | { contents = `Model _; _ }->
+  | { contents = `Model _; _ } ->
     Out.print_sat opt
-  | { contents = `Proof _; _ }->
+  | { contents = `Proof _; _ } ->
     Out.print_unsat opt
-  | { contents = `Unknown; _ }->
+  | { contents = `Unknown; _ } ->
     Out.print_unknown opt
 
+(* Printing proofs *)
+(* ************************************************************************ *)
+
+let print_proof (opt, (c : solved stmt)) =
+  match c with
+  | { contents = `Type_def _; _ }
+  | { contents = `Term_def _; _ }
+  | { contents = `Type_decl _; _ }
+  | { contents = `Term_decl _; _ }
+  | { contents = `Hyp _; _ }
+  | { contents = `Goal _; _ }
+  | { contents = `Model _; _ }
+  | { contents = `Unknown; _ } ->
+    ()
+  | { contents = `Proof p; _ } ->
+    ()
+
+(* Printing proofs *)
+(* ************************************************************************ *)
+
+(* Printing stats *)
 (* Printing stats *)
 (* ************************************************************************ *)
 
