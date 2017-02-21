@@ -3,7 +3,7 @@
 (* ************************************************************************ *)
 
 let section = Util.Section.make "type"
-let log i fmt = Util.debug ~section i fmt
+let log i fmt = Util.log ~section i fmt
 
 let stack = Backtrack.Stack.create (
     Util.Section.make ~parent:section "backtrack")
@@ -180,35 +180,36 @@ let find_global name =
 (* Symbol declarations *)
 let decl_ty_cstr id c reason =
   if H.mem global_env id then
-    log 0 "Symbol '%a' has already been defined, overwriting previous definition" Id.pp id;
+    log 0 "Symbol '%a' has already been defined, overwriting previous definition" Id.print id;
   H.add global_env id (`Ty c);
   R.add ttype_locs c reason;
-  log 1 "New type constructor : %a" Expr.Debug.const_ttype c
+  log 1 "New type constructor : %a" Expr.Print.const_ttype c
 
 let decl_term id c reason =
   if H.mem global_env id then
-    log 0 "Symbol '%a' has already been defined, overwriting previous definition" Id.pp id;
+    log 0 "Symbol '%a' has already been defined, overwriting previous definition" Id.print id;
   H.add global_env id (`Term c);
   S.add const_locs c reason;
-  log 1 "New constant : %a" Expr.Debug.const_ty c
+  log 1 "New constant : %a" Expr.Print.const_ty c
 
 (* Symbol definitions *)
 let def_ty id args body =
   if H.mem global_env id then
-    log 0 "Symbol '%a' has already been defined, overwriting previous definition" Id.pp id;
+    log 0 "Symbol '%a' has already been defined, overwriting previous definition" Id.print id;
   H.add global_env id (`Ty_alias (args, body));
-  log 1 "New type alias: %a(%a) = %a" Id.pp id
-    (CCPrint.list ~start:"" ~stop:"" ~sep:"," Expr.Debug.id_ttype) args
-    Expr.Debug.ty body
+  log 1 "New type alias: %a(%a) = %a"
+    Id.print id
+    (CCFormat.list ~start:"" ~stop:"" ~sep:"," Expr.Print.id_ttype) args
+    Expr.Print.ty body
 
 let def_term id ty_args args body =
   if H.mem global_env id then
-    log 0 "Symbol '%a' has already been defined, overwriting previous definition" Id.pp id;
+    log 0 "Symbol '%a' has already been defined, overwriting previous definition" Id.print id;
   H.add global_env id (`Term_alias (ty_args, args, body));
-  log 1 "New type alias: %a(%a;%a) = %a" Id.pp id
-    (CCPrint.list ~start:"" ~stop:"" ~sep:"," Expr.Debug.id_ttype) ty_args
-    (CCPrint.list ~start:"" ~stop:"" ~sep:"," Expr.Debug.id_ty) args
-    Expr.Debug.term body
+  log 1 "New type alias: %a(%a;%a) = %a" Id.print id
+    (CCFormat.list ~start:"" ~stop:"" ~sep:"," Expr.Print.id_ttype) ty_args
+    (CCFormat.list ~start:"" ~stop:"" ~sep:"," Expr.Print.id_ty) args
+    Expr.Print.term body
 
 (* Local Environment *)
 (* ************************************************************************ *)
@@ -247,7 +248,7 @@ let add_type_var env id v loc =
     else
       v
   in
-  log 1 "New binding : %a -> %a" Id.pp id Expr.Debug.id_ttype v';
+  log 1 "New binding : %a -> %a" Id.print id Expr.Print.id_ttype v';
   v', { env with
         type_vars = M.add id v' env.type_vars;
         type_locs = E.add v' (Declared loc) env.type_locs;
@@ -266,7 +267,7 @@ let add_term_var env id v loc =
     else
       v
   in
-  log 1 "New binding : %a -> %a" Id.pp id Expr.Debug.id_ty v';
+  log 1 "New binding : %a -> %a" Id.print id Expr.Print.id_ty v';
   v', { env with
         term_vars = M.add id v' env.term_vars;
         term_locs = F.add v' (Declared loc) env.term_locs;
@@ -284,11 +285,11 @@ let find_var env name =
 
 (* Add local bound variables to env *)
 let add_let_term env id t =
-  log 1 "New let-binding : %a -> %a" Id.pp id Expr.Debug.term t;
+  log 1 "New let-binding : %a -> %a" Id.print id Expr.Print.term t;
   { env with term_lets = M.add id t env.term_lets }
 
 let add_let_prop env id t =
-  log 1 "New let-binding : %a -> %a" Id.pp id Expr.Debug.formula t;
+  log 1 "New let-binding : %a -> %a" Id.print id Expr.Print.formula t;
   { env with prop_lets = M.add id t env.prop_lets }
 
 let find_let env name =
@@ -302,26 +303,29 @@ let find_let env name =
     end
 
 (* Printing *)
-let pp_expect b = function
-  | Nothing -> Printf.bprintf b "<>"
-  | Type -> Printf.bprintf b "<tType>"
-  | Typed ty -> Expr.Debug.ty b ty
+let print_expect fmt = function
+  | Nothing   -> Format.fprintf fmt "<>"
+  | Type      -> Format.fprintf fmt "<tType>"
+  | Typed ty  -> Expr.Print.ty fmt ty
 
-let pp_map pp b map =
-  M.iter (fun k v -> Printf.bprintf b "%a->%a;" Id.pp k pp v) map
+let print_map print fmt map =
+  let aux k v =
+    Format.fprintf fmt "%a ->@ @[<hov>%a@];@ " Id.print k print v
+  in
+  M.iter aux map
 
-let pp_env b env =
-  Printf.bprintf b "(%a) %a%a%a%a"
-    pp_expect env.expect
-    (pp_map Expr.Debug.id_ttype) env.type_vars
-    (pp_map Expr.Debug.id_ty) env.term_vars
-    (pp_map Expr.Debug.term) env.term_lets
-    (pp_map Expr.Debug.formula) env.prop_lets
+let pp_env fmt env =
+  Format.fprintf fmt "@[<hov 2>(%a) %a%a%a%a@]"
+    print_expect env.expect
+    (print_map Expr.Print.id_ttype) env.type_vars
+    (print_map Expr.Print.id_ty) env.term_vars
+    (print_map Expr.Print.term) env.term_lets
+    (print_map Expr.Print.formula) env.prop_lets
 
 (* Typo suggestion *)
 (* ************************************************************************ *)
 
-let suggest ~limit env buf id =
+let suggest ~limit env fmt id =
   let l =
     M.suggest ~limit id env.type_vars @
     M.suggest ~limit id env.term_vars @
@@ -330,9 +334,9 @@ let suggest ~limit env buf id =
     H.suggest ~limit global_env id
   in
   if l = [] then
-    Printf.bprintf buf "coming up empty, sorry, ^^"
+    Format.fprintf fmt "coming up empty, sorry, ^^"
   else
-    CCPrint.list Id.pp buf l
+    CCFormat.list Id.print fmt l
 
 (* Typing explanation *)
 (* ************************************************************************ *)
@@ -500,7 +504,7 @@ let apply_tag env ast tag v = function
 (* ************************************************************************ *)
 
 let rec parse_expr (env : env) t =
-  log 50 "parsing : %a" Ast.pp t;
+  log 50 "parsing : %a" Ast.print t;
   log 90 "env: %a" pp_env env;
   let res = match t with
 
@@ -621,9 +625,8 @@ and parse_attr env res ast = function
       | _ ->
         _expected env "tag" a
       | exception (Typing_error (msg, _, t)) ->
-        Util.debug ~section 2
-          "%a while parsing an attribute:%s"
-          Dolmen.ParseLocation.pp (get_loc t) msg;
+        Util.log ~section 2 "%a while parsing an attribute:@\n%s"
+          Dolmen.ParseLocation.fmt (get_loc t) msg;
         parse_attr env res ast r
     end
 
@@ -712,8 +715,8 @@ and parse_app env ast s args =
             begin match env.builtins env ast s args with
               | Some res -> res
               | None ->
-                Util.debug ~section 1 "Looking up %a failed, possibilities are: %a"
-                  Id.pp s (suggest ~limit:1 env) s;
+                Util.log ~section 1 "Looking up %a failed, possibilities are: %a"
+                  Id.print s (suggest ~limit:1 env) s;
                 begin match infer env s args (get_loc ast) with
                   | Some Ty_fun f -> parse_app_ty env ast f args
                   | Some Term_fun f -> parse_app_term env ast f args
@@ -847,7 +850,7 @@ let rec parse_fun ty_args t_args env = function
 
 let new_decl env t id =
   Util.enter_prof section;
-  log 5 "Typing declaration: %a : %a" Id.pp id Ast.pp t;
+  log 5 "Typing declaration: %a : %a" Id.print id Ast.print t;
   let res =
     match parse_sig env t with
     | `Ty_cstr n ->
@@ -864,7 +867,7 @@ let new_decl env t id =
 
 let new_def env t id =
   Util.enter_prof section;
-  log 5 "Typing definition: %a = %a" Id.pp id Ast.pp t;
+  log 5 "Typing definition: %a = %a" Id.print id Ast.print t;
   let res =
     match parse_fun [] [] env t with
     | `Ty (ty_args, body) ->
@@ -879,7 +882,7 @@ let new_def env t id =
 
 let new_formula env t =
   Util.enter_prof section;
-  log 5 "Typing top-level formula: %a" Ast.pp t;
+  log 5 "Typing top-level formula: %a" Ast.print t;
   let res = parse_formula env t in
   Util.exit_prof section;
   res

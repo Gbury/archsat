@@ -249,7 +249,8 @@ let push_stack = Stack.create ()
 let propagate_stack = Stack.create ()
 
 let push clause p  =
-  Util.debug ~section 50 "New clause to push (%s) : %a" p.proof_name (CCPrint.list ~sep:" || " Expr.Debug.formula) clause;
+  Util.log ~section 50 "New clause to push (%s) : %a"
+    p.proof_name (CCFormat.list ~sep:" || " Expr.Print.formula) clause;
   Stack.push (clause, p) push_stack
 
 let propagate f l =
@@ -261,7 +262,7 @@ let consequence f l p =
 let do_propagate propagate =
   while not (Stack.is_empty propagate_stack) do
     let (t, reason) = Stack.pop propagate_stack in
-    Util.debug ~section 10 "Propagating : %a" Expr.Debug.formula t;
+    Util.log ~section 10 "Propagating : %a" Expr.Print.formula t;
     propagate t reason
   done
 
@@ -271,7 +272,8 @@ let clean_propagate () =
 let do_push f =
   while not (Stack.is_empty push_stack) do
     let (a, p) = Stack.pop push_stack in
-    Util.debug ~section 2 "Pushing '%s' : %a" p.proof_name (CCPrint.list ~sep:" || " Expr.Debug.formula) a;
+    Util.log ~section 20 "Pushing '%s' : %a"
+      p.proof_name (CCFormat.list ~sep:" || " Expr.Print.formula) a;
     f a p
   done
 
@@ -280,7 +282,8 @@ let do_push f =
 
 let check_var v =
   if not (Expr.Id.is_interpreted v) && not (Expr.Id.is_assignable v) then
-    Util.debug ~section 0 "WARNING: Variable %a is neither interpreted nor assignable" Expr.Debug.id v
+    Util.log ~section 0
+      "WARNING: Variable %a is neither interpreted nor assignable" Expr.Print.id v
 
 let rec check_term = function
   | { Expr.term = Expr.Var v } -> check_var v

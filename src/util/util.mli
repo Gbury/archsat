@@ -68,11 +68,12 @@ val set_debug : int -> unit     (** Set debug level of [Section.root] *)
 val get_debug : unit -> int     (** Current debug level for [Section.root] *)
 val need_cleanup : bool ref     (** Cleanup line before printing? *)
 
-val debug : ?section:Section.t -> int ->
-  ('a, Buffer.t, unit, unit) format4 -> 'a
+val log :
+  ?section:Section.t -> int ->
+  ('a, Format.formatter, unit, unit) format4 ->
+  ('a -> unit) -> unit
 (** Print a debug message, with the given section and verbosity level.
-    The message might be dropped if its level is too high.
-    {b NOTE}: non-thread safe *)
+    The message might be dropped if its level is too high. *)
 
 (** {2 Statistics} *)
 module Stats : sig
