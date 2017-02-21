@@ -18,6 +18,9 @@ val compare : t -> t -> int
 val equal : t -> t -> bool
 (** Standard functions on substitutions. *)
 
+val print : Format.formatter -> t -> unit
+(** Printing function for substitutions. *)
+
 val get_ty : t -> Expr.ttype Expr.meta -> Expr.ty
 val get_term : t -> Expr.ty Expr.meta -> Expr.term
 (** Accessors.
@@ -73,12 +76,12 @@ val saturate : t -> t
 (** Binds all metavariables occuring in terms but not bound, to a constant of the correct type.
     WARNING: This is unsafe,and, as it seems, incomplete to use... *)
 
-val debug : Buffer.t -> t -> unit
-val print : Format.formatter -> t -> unit
-
 val combine : t -> t -> t option
+(** Try and merge two substitutions.
+    TODO: document more this funciton, :p *)
 
 val to_formula : t -> Expr.formula
+(** Generate a conjunction of all bindings of the substitution as equalities *)
 
 (** {2 Unification caching} *)
 

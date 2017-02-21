@@ -141,8 +141,10 @@ module Inst = struct
     }
 
   (* debug printing *)
-  let debug b t =
-    Printf.bprintf b "(%d) %a%a" t.hash Expr.Ty.debug_subst t.ty_subst Expr.Term.debug_subst t.term_subst
+  let print fmt t =
+    Format.fprintf fmt "@[<hov 2>(%d) %a%a@]" t.hash
+      (Expr.Subst.print Expr.Print.id_ttype Expr.Print.ty) t.ty_subst
+      (Expr.Subst.print Expr.Print.id_ty Expr.Print.term) t.term_subst
 
   (* Comparison for the Heap *)
   let leq t1 t2 = t1.score + t1.age <= t2.score + t2.age
@@ -169,14 +171,14 @@ let add ?(delay=0) ?(score=0) u =
   let t = Inst.mk u score in
   if not (H.mem inst_set t) then begin
     H.add inst_set t false;
-    Util.debug ~section 10 "New inst (%d) : %a" delay Inst.debug t;
+    Util.log ~section 10 "New inst (%d):@ %a" (fun k -> k delay Inst.print t);
     if delay <= 0 then
       heap := Q.add !heap t
     else
       delayed := (t, delay) :: !delayed;
     true
   end else begin
-    Util.debug ~section 15 "Redondant inst : %a" Inst.debug t;
+    Util.log ~section 15 "Redondant inst:@ %a" (fun k -> k Inst.print t);
     false
   end
 
@@ -184,7 +186,7 @@ let push acc inst =
   assert (not (H.find inst_set inst));
   H.replace inst_set inst true;
   let open Inst in
-  Util.debug ~section 5 "Pushing inst : %a" Inst.debug inst;
+  Util.log ~section 5 "Pushing inst:@ %a" (fun k -> k Inst.print inst);
   let cl, p = soft_subst inst.formula inst.ty_subst inst.term_subst in
   Dispatcher.push cl p;
   acc + 1
@@ -195,10 +197,12 @@ let decr_delay () =
   else begin
     delayed := CCList.filter_map (fun (u, d) ->
         if d > 1 then begin
-          Util.debug ~section 20 "Decreased delay (%d) : %a" (d - 1) Inst.debug u;
+          Util.log ~section 20 "Decreased delay (%d):@ %a"
+            (fun k -> k (d - 1) Inst.print u);
           Some (u, d - 1)
         end else begin
-          Util.debug ~section 10 "Promoted inst : %a" Inst.debug u;
+          Util.log ~section 10 "Promoted inst:@ %a"
+            (fun k -> k Inst.print u);
           heap := Q.add !heap u;
           None
         end

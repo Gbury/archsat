@@ -2,7 +2,9 @@
    Base modules that defines the terms used in the prover.
 *)
 
+(*
 let section = Util.Section.make "expr"
+*)
 
 (* Type definitions *)
 (* ************************************************************************ *)
@@ -121,6 +123,8 @@ end
 (* Debug printing functions *)
 (* ************************************************************************ *)
 
+(* Deprecated, use formatted function instead...
+
 module Debug = struct
   let id b v = Printf.bprintf b "%s#%d" v.id_name v.index
   let meta b m = Printf.bprintf b "m%d_%a" m.meta_index id m.meta_id
@@ -191,17 +195,24 @@ module Debug = struct
     | ExTy (l, _, f) -> Printf.bprintf b "∃ %a. %a"
                           (CCPrint.list ~start:"" ~stop:"" ~sep:", " id_ttype) l formula f
 end
+*)
 
 (* Printing functions *)
 (* ************************************************************************ *)
 
 module Print = struct
-  let rec list f sep fmt = function
+
+  let list ?(start="") ?(stop="") ~sep f fmt l =
+    let rec aux ~sep f fmt = function
+      | [] -> ()
+      | [x] -> f fmt x
+      | x :: ((y :: _) as r) ->
+        Format.fprintf fmt "%a%s@ " f x sep;
+        aux ~sep f fmt r
+    in
+    match l with
     | [] -> ()
-    | [x] -> f fmt x
-    | x :: ((y :: _) as r) ->
-      Format.fprintf fmt "%a%s" f x sep;
-      list f sep fmt r
+    | _ -> Format.fprintf fmt "%s@,%a%s" start (aux ~sep f) l stop
 
   let id fmt v = Format.fprintf fmt "%s" v.id_name
   let meta fmt m = Format.fprintf fmt "m%d_%a" m.meta_index id m.meta_id
@@ -210,25 +221,25 @@ module Print = struct
   let rec ty fmt t = match t.ty with
     | TyVar v -> id fmt v
     | TyMeta m -> meta fmt m
-    | TyApp (f, []) ->
-      Format.fprintf fmt "%a" id f
     | TyApp (f, l) ->
-      Format.fprintf fmt "%a(%a)" id f (list ty ", ") l
+      Format.fprintf fmt "@[<hov 2>%a%a@]"
+        id f (list ~start:"(" ~stop:")" ~sep:"," ty) l
 
   let params fmt = function
     | [] -> ()
-    | l -> Format.fprintf fmt "∀ %a. " (list id ", ") l
+    | l ->
+      Format.fprintf fmt "∀ @[<hov>%a@].@ " (list ~sep:"," id) l
 
   let signature print fmt f =
     match f.fun_args with
-    | [] -> Format.fprintf fmt "%a%a" params f.fun_vars print f.fun_ret
-    | l -> Format.fprintf fmt "%a%a -> %a" params f.fun_vars
-             (list print " -> ") l print f.fun_ret
+    | [] -> Format.fprintf fmt "@[<hov 2>%a%a@]" params f.fun_vars print f.fun_ret
+    | l -> Format.fprintf fmt "@[<hov 2>%a%a ->@ %a@]" params f.fun_vars
+             (list ~sep:" ->" print) l print f.fun_ret
 
   let fun_ty = signature ty
   let fun_ttype = signature ttype
 
-  let id_type print fmt v = Format.fprintf fmt "%a : %a" id v print v.id_type
+  let id_type print fmt v = Format.fprintf fmt "@[<hov 2>%a :@ %a@]" id v print v.id_type
 
   let id_ty = id_type ty
   let id_ttype = id_type ttype
@@ -238,15 +249,13 @@ module Print = struct
   let rec term fmt t = match t.term with
     | Var v -> id fmt v
     | Meta m -> meta fmt m
-    | App (f, [], []) ->
-      Format.fprintf fmt "%a" id f
     | App (f, [], args) ->
-      Format.fprintf fmt "%a(%a)" id f
-        (list term ", ") args
+      Format.fprintf fmt "@[<hov 2>%a%a@]"
+        id f (list ~start:"(" ~stop:")" ~sep:"," term) args
     | App (f, tys, args) ->
-      Format.fprintf fmt "%a(%a; %a)" id f
-        (list ty ", ") tys
-        (list term ", ") args
+      Format.fprintf fmt "@[<hov 2>%a(%a;@ %a)@]" id f
+        (list ~sep:"," ty) tys
+        (list ~sep:"," term) args
 
   let rec formula_aux fmt f =
     let aux fmt f = match f.formula with
@@ -254,25 +263,28 @@ module Print = struct
       | _ -> Format.fprintf fmt "(%a)" formula_aux f
     in
     match f.formula with
-    | Equal (a, b) -> Format.fprintf fmt "%a = %a" term a term b
     | Pred t -> Format.fprintf fmt "%a" term t
-    | True -> Format.fprintf fmt "⊤"
-    | False -> Format.fprintf fmt "⊥"
-    | Not f -> Format.fprintf fmt "¬ %a" aux f
-    | And l -> Format.fprintf fmt "%a" (list aux " ∧ ") l
-    | Or l -> Format.fprintf fmt "%a" (list aux " ∨ ") l
-    | Imply (p, q) -> Format.fprintf fmt "%a ⇒ %a" aux p aux q
-    | Equiv (p, q) -> Format.fprintf fmt "%a ⇔ %a" aux p aux q
-    | All (l, _, f) -> Format.fprintf fmt "∀ %a. %a"
-                         (list id_ty ", ") l formula_aux f
-    | AllTy (l, _, f) -> Format.fprintf fmt "∀ %a. %a"
-                           (list id_ttype ", ") l formula_aux f
-    | Ex (l, _, f) -> Format.fprintf fmt "∃ %a. %a"
-                        (list id_ty ", ") l formula_aux f
-    | ExTy (l, _, f) -> Format.fprintf fmt "∃ %a. %a"
-                          (list id_ttype ", ") l formula_aux f
+    | Equal (a, b) -> Format.fprintf fmt "@[<hov>%a =@ %a@]" term a term b
 
-  let formula fmt f = Format.fprintf fmt "⟦%a⟧" formula_aux f
+    | True  -> Format.fprintf fmt "⊤"
+    | False -> Format.fprintf fmt "⊥"
+    | Not f -> Format.fprintf fmt "@[hov 2>¬ %a@]" aux f
+    | And l -> Format.fprintf fmt "@[<hov>%a@]" (list ~sep:" ∧" aux) l
+    | Or l  -> Format.fprintf fmt "@[<hov>%a@]" (list ~sep:" ∨" aux) l
+
+    | Imply (p, q)    -> Format.fprintf fmt "@[<hov>%a ⇒@ %a@]" aux p aux q
+    | Equiv (p, q)    -> Format.fprintf fmt "@[<hov>%a ⇔@ %a@]" aux p aux q
+
+    | All (l, _, f)   -> Format.fprintf fmt "@[<hov 2>∀ @[<hov>%a@].@ %a@]"
+                           (list ~sep:"," id_ty) l formula_aux f
+    | AllTy (l, _, f) -> Format.fprintf fmt "@[<hov 2>∀ @[<hov>%a@].@ %a@]"
+                           (list ~sep:"," id_ttype) l formula_aux f
+    | Ex (l, _, f)    -> Format.fprintf fmt "@[<hov 2>∃ @[<hov>%a@].@ %a@]"
+                           (list ~sep:"," id_ty) l formula_aux f
+    | ExTy (l, _, f)  -> Format.fprintf fmt "@[<hov 2>∃ @[<hov>%a@].@ %a@]"
+                           (list ~sep:"," id_ttype) l formula_aux f
+
+  let formula fmt f = Format.fprintf fmt "⟦@[<hov>%a@]⟧" formula_aux f
 
 end
 
@@ -322,17 +334,11 @@ module Subst = struct
     with Exit ->
       false
 
-  let debug debug_key debug_value buf map =
-    let aux _ (key, value) =
-      Printf.bprintf buf "%a -> %a; " debug_key key debug_value value
-    in
-    Printf.bprintf buf "%a" (fun _ -> Mi.iter aux) map
-
   let print print_key print_value fmt map =
     let aux _ (key, value) =
-      Format.fprintf fmt "%a -> %a;@ " print_key key print_value value
+      Format.fprintf fmt "@[<hov>%a ->@ %a;@]@ " print_key key print_value value
     in
-    Format.fprintf fmt "@[<hov 0>%a@]" (fun _ -> Mi.iter aux) map
+    Format.fprintf fmt "@[<hov>%a@]" (fun _ -> Mi.iter aux) map
 
   module type S = sig
     type 'a key
@@ -381,7 +387,6 @@ module Id = struct
 
   (* Printing functions *)
   let print = Print.id
-  let debug = Debug.id
 
   (* Some convenience modules for functor instanciation *)
   module Ty = struct
@@ -390,7 +395,6 @@ module Id = struct
     let equal = equal
     let compare = compare
     let print = print
-    let debug = debug
   end
   module Ttype = struct
     type t = ttype id
@@ -398,7 +402,6 @@ module Id = struct
     let equal = equal
     let compare = compare
     let print = print
-    let debug = debug
   end
   module Const = struct
     type t = ty function_descr id
@@ -406,7 +409,6 @@ module Id = struct
     let equal = equal
     let compare = compare
     let print = print
-    let debug = debug
   end
   module TyCstr = struct
     type t = ttype function_descr id
@@ -414,7 +416,6 @@ module Id = struct
     let equal = equal
     let compare = compare
     let print = print
-    let debug = debug
   end
 
   (* Internal state *)
@@ -540,7 +541,6 @@ module Meta = struct
 
   (* Printing functions *)
   let print = Print.meta
-  let debug = Debug.meta
 
   (* Some convenience modules for functor instanciation *)
   module Ty = struct
@@ -549,7 +549,6 @@ module Meta = struct
     let equal = equal
     let compare = compare
     let print = print
-    let debug = debug
   end
   module Ttype = struct
     type t = ttype meta
@@ -557,7 +556,6 @@ module Meta = struct
     let equal = equal
     let compare = compare
     let print = print
-    let debug = debug
   end
 
   (* Free meta-variables *)
@@ -677,8 +675,6 @@ module Ty = struct
 
   (* Printing functions *)
   let print = Print.ty
-  let debug = Debug.ty
-  let debug_subst = Subst.debug Debug.id Debug.ty
 
   (* Constructors *)
   let mk_ty ?(status=Status.hypothesis) ty =
@@ -785,8 +781,6 @@ module Term = struct
 
   (* Printing functions *)
   let print = Print.term
-  let debug = Debug.term
-  let debug_subst = Subst.debug Debug.id Debug.term
 
   (* Constructors *)
   let mk_term ?(status=Status.hypothesis) term t_type =
@@ -964,7 +958,6 @@ module Formula = struct
 
   (* Printing functions *)
   let print = Print.formula
-  let debug = Debug.formula
 
   (* Tags *)
   let get_tag f k = Tag.get f.f_tags k

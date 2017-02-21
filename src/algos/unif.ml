@@ -52,13 +52,8 @@ let equal s u =
   Expr.Subst.equal Expr.Ty.equal s.ty_map u.ty_map &&
   Expr.Subst.equal Expr.Term.equal s.t_map u.t_map
 
-let debug b s =
-  Printf.bprintf b "{%a; %a}"
-    (Expr.Subst.debug Expr.Debug.meta Expr.Debug.ty) s.ty_map
-    (Expr.Subst.debug Expr.Debug.meta Expr.Debug.term) s.t_map
-
 let print fmt s =
-  Format.fprintf fmt "{%a; %a}"
+  Format.fprintf fmt "@<hov 1>{%a;@ %a}@]"
     (Expr.Subst.print Expr.Print.meta Expr.Print.ty) s.ty_map
     (Expr.Subst.print Expr.Print.meta Expr.Print.term) s.t_map
 

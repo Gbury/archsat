@@ -66,28 +66,28 @@ let if_sat acc = function
 
 let rec solve_aux ?(assumptions = []) () =
   match begin
-    Util.debug ~section 5 "Preparing solver";
+    Util.log ~section 5 "Preparing solver" (fun k -> k);
     let () = S.pop () in
     let () = S.push () in
     let () = S.local assumptions in
-    Util.debug ~section 5 "Solving problem";
+    Util.log ~section 5 "Solving problem" (fun k -> k);
     let () = S.solve () in
-    Util.debug ~section 1 "Found SAT";
+    Util.log ~section 1 "Found SAT" (fun k -> k);
     let view = if_sat_iter (S.full_slice ()) in
     Dispatcher.handle if_sat Sat_ok (Found_sat view)
   end with
   | Sat_ok ->
     Sat (Dispatcher.model ())
   | Restart ->
-    Util.debug ~section 1 "Restarting...";
+    Util.log ~section 1 "Restarting..." (fun k -> k);
     Dispatcher.send Restarting;
     solve_aux ()
   | Assume assumptions ->
-    Util.debug ~section 1 "New assumptions: %a"
-      (CCPrint.list ~start:"" ~stop:"" ~sep:" && " Expr.Debug.formula) assumptions;
+    Util.log ~section 1 "New assumptions:@ @[<hov>%a@]" (fun k ->
+      k (CCFormat.list ~start:"" ~stop:"" ~sep:" && " Expr.Print.formula) assumptions);
     solve_aux ~assumptions ()
   | exception S.Unsat ->
-    Util.debug ~section 1 "Found UNSAT";
+    Util.log ~section 1 "Found UNSAT" (fun k -> k);
     let proof =
       match S.unsat_conflict () with
       | None -> assert false
@@ -104,8 +104,10 @@ let solve () =
 let assume l =
   Util.enter_prof section;
   let l = List.map (List.map Dispatcher.pre_process) l in
-  List.iter (fun cl -> Util.debug ~section 1 "Assuming : %a"
-                (CCPrint.list ~sep:"; " Expr.Debug.formula) cl) l;
+  Util.log ~section 1 "@[<hov 2>New local assumptions:@ @[<hov>%a@]"
+    (fun k -> k
+        (CCFormat.list ~start:"" ~stop:"" ~sep:" && "
+           (CCFormat.list ~start:"[" ~stop:"]" ~sep:" || " Expr.Print.formula)) l);
   let () = S.assume l in
   Util.exit_prof section
 

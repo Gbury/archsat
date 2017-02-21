@@ -2,7 +2,7 @@
 let misc_section = Util.Section.make "misc"
 
 let section = Util.Section.make ~parent:misc_section "options"
-let log i fmt = Util.debug ~section i fmt
+let log i fmt = Util.log ~section i fmt
 
 open Cmdliner
 
@@ -275,16 +275,17 @@ let output_list = stringify output_string [Standard; SZS]
 let bool_opt s bool = if bool then Printf.sprintf "[%s]" s else ""
 
 let log_opts opt =
-  log 0 "Limits : %s / %s" (time_string opt.time_limit) (size_string opt.size_limit);
-  log 0 "Options : %s%s%s%s[in: %s][out: %s]"
-    (bool_opt "solve" opt.solve)
-    (bool_opt "prove" opt.proof.active)
-    (bool_opt "interactive" opt.input.interactive)
-    (bool_opt "profile" opt.profile.enabled)
-    (CCOpt.get "auto" @@ CCOpt.map In.string_of_language @@ opt.input.format)
-    (output_string opt.output.format);
-  log 0 "Input dir : '%s'" opt.input.dir;
-  log 0 "Input file : %s" (input_to_string opt.input.file)
+  log 0 "Limits : %s / %s"
+    (fun k -> k (time_string opt.time_limit) (size_string opt.size_limit));
+  log 0 "Options : %s%s%s%s[in: %s][out: %s]" (fun k ->
+      k (bool_opt "solve" opt.solve)
+        (bool_opt "prove" opt.proof.active)
+        (bool_opt "interactive" opt.input.interactive)
+        (bool_opt "profile" opt.profile.enabled)
+        (CCOpt.get "auto" @@ CCOpt.map In.string_of_language @@ opt.input.format)
+        (output_string opt.output.format));
+  log 0 "Input dir : '%s'" (fun k -> k opt.input.dir);
+  log 0 "Input file : %s" (fun k -> k (input_to_string opt.input.file))
 
 (* Other Argument converters *)
 (* ************************************************************************ *)

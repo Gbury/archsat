@@ -160,28 +160,6 @@ exception Cannot_interpret of term
 
 (** {2 Printing} *)
 
-module Debug : sig
-  (** Verbose printing functions for debug pruposes *)
-
-  val id : Buffer.t -> 'a id -> unit
-  val id_ty : Buffer.t -> ty id -> unit
-  val id_ttype : Buffer.t -> ttype id -> unit
-
-  val const_ty : Buffer.t -> ty function_descr id -> unit
-  val const_ttype : Buffer.t -> ttype function_descr id -> unit
-
-  val meta : Buffer.t -> 'a meta -> unit
-
-  val ty : Buffer.t -> ty -> unit
-  val fun_ty : Buffer.t -> ty function_descr -> unit
-
-  val ttype : Buffer.t -> ttype -> unit
-  val fun_ttype : Buffer.t -> ttype function_descr -> unit
-
-  val term : Buffer.t -> term -> unit
-  val formula : Buffer.t -> formula -> unit
-end
-
 module Print : sig
   (** Pretty printing functions *)
 
@@ -341,12 +319,6 @@ module Subst : sig
   val equal : ('b -> 'b -> bool) -> ('a, 'b) t -> ('a, 'b) t -> bool
   (** Comparison and hash functions, with a comparison/hash function on values as parameter *)
 
-  val debug :
-    (Buffer.t -> 'a -> unit) ->
-    (Buffer.t -> 'b -> unit) ->
-    Buffer.t -> ('a, 'b) t -> unit
-  (** Prints the substitution, using the given functions to print keys and values. *)
-
   val print :
     (Format.formatter -> 'a -> unit) ->
     (Format.formatter -> 'b -> unit) ->
@@ -383,9 +355,6 @@ module Ty : sig
 
   type subst = (ttype id, ty) Subst.t
   (** The type of substitutions over types. *)
-
-  val debug_subst : Buffer.t -> subst -> unit
-  (** Printing functions *)
 
   val prop : ty
   val base : ty
@@ -425,9 +394,6 @@ module Term : sig
 
   type subst = (ty id, term) Subst.t
   (** The type of substitutions in types. *)
-
-  val debug_subst : Buffer.t -> subst -> unit
-  (** Printing function for substitution. *)
 
   val of_id : ?status:status -> ty id -> term
   (** Create a term from a variable *)

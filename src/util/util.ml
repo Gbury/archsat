@@ -38,14 +38,7 @@ let ckid = match Oclock.process_cputime with
   | Some c -> c
   | None -> Oclock.realtime
 
-(** {2 Misc} *)
-
-let clear_line () =
-  output_string Pervasives.stdout
-    "\r                                                         \r";
-  flush Pervasives.stdout
-
-(** Debug section *)
+(** Sections *)
 module Section = struct
 
   let null_level = -1 (* absence of level *)
@@ -208,6 +201,7 @@ module Section = struct
     else profile_depth d root
 end
 
+(* Section statistics *)
 module Stats = struct
 
   type t = {
@@ -249,23 +243,18 @@ let set_debug = Section.set_debug Section.root
 let get_debug () = Section.root.Section.level
 let need_cleanup = ref false
 
-let debug_buf_ = Buffer.create 32 (* shared buffer (not thread safe)  *)
-let debug ?(section=Section.root) l format =
+let log ?(section=Section.root) l format k =
+  let fmt = Format.std_formatter in
   if l <= Section.cur_level section
-  then (
-    Buffer.clear debug_buf_;
-    if !need_cleanup then clear_line ();
-    (* print header *)
+  then begin
+    if !need_cleanup then Format.fprintf fmt "\r";
     let now = get_total_time () in
-    if section == Section.root
-    then Printf.bprintf debug_buf_ "%% [%.3f] " now
-    else Printf.bprintf debug_buf_ "%% [%.3f %s] "
-        now section.Section.full_name;
-    Printf.kbprintf
-      (fun b -> Buffer.output_buffer stdout b; print_char '\n'; flush stdout)
-      debug_buf_ format)
-  else
-    Printf.ifprintf debug_buf_ format
+    if section == Section.root then
+      Format.fprintf fmt "%% [%.3f] @[<hov>" now
+    else
+      Format.fprintf fmt "%% [%.3f %s] @[<hov>" now section.Section.full_name;
+    k @@ Format.kfprintf (fun fmt -> Format.fprintf fmt "@]@.") fmt format
+  end
 
 (* Profiling *)
 let active = ref []
@@ -332,10 +321,11 @@ let rec map_tree f = function
 
 let print_profiler () =
   if !active <> [] then begin
-    debug 0 "Debug sections not closed properly";
+    log 0 "Debug sections not closed properly" (fun k -> k);
     while !active <> [] do
-      debug 0 "Closing section %s forcefully" (List.hd !active).Section.full_name;
-      exit_prof (List.hd !active)
+      let section = List.hd !active in
+      log ~section 0 "Closing section forcefully" (fun k -> k);
+      exit_prof section
     done;
   end;
   let total_time = Int64.to_float @@ Oclock.gettime ckid in
