@@ -19,10 +19,7 @@ type load = {
 }
 
 let print fmt t =
-  Format.fprintf fmt "class<%a>" Expr.Term.print (E.repr t)
-
-let debug buf t =
-  Printf.bprintf buf "class<%a>" Expr.Term.debug (E.repr t)
+  Format.fprintf fmt "<< %a >>" Expr.Term.print (E.repr t)
 
 let gen = function
   | { Expr.term = Expr.Var _ } ->
@@ -44,8 +41,8 @@ let merge a b =
 let callback, register_callback =
   let l = ref [] in
   let callback a b c =
-    Util.debug ~section 10 "Merging %a / %a ==> %a"
-      debug a debug b debug c;
+    Util.debug ~section "Merging %a / %a ==> %a"
+      (fun k-> k print a print b print c);
     List.iter (fun (name, f) ->
         if Dispatcher.Plugin.(is_active (find name)) then
           f a b c) !l
@@ -75,7 +72,6 @@ module Class = struct
   let compare c c' = Expr.Term.compare (repr c) (repr c')
 
   let print = print
-  let debug = debug
 
   let mem t x =
     Expr.Term.equal (repr t) (repr (find x))
@@ -103,7 +99,8 @@ let eval_pred = function
     begin try
         let a' = D.get_assign a in
         let b' = D.get_assign b in
-        Util.debug ~section 30 "Eval [%a] %a == %a" Expr.Debug.formula f Expr.Debug.term a' Expr.Debug.term b';
+        Util.debug ~section "Eval [%a] %a == %a" (fun k ->
+            k Expr.Print.formula f Expr.Print.term a' Expr.Print.term b');
         Some (Expr.Term.equal a' b', [a; b])
       with D.Not_assigned _ ->
         None
@@ -112,7 +109,8 @@ let eval_pred = function
     begin try
         let a' = D.get_assign a in
         let b' = D.get_assign b in
-        Util.debug ~section 30 "Eval [%a] %a <> %a" Expr.Debug.formula f Expr.Debug.term a' Expr.Debug.term b';
+        Util.debug ~section "Eval [%a] %a <> %a" (fun k ->
+            k Expr.Print.formula f Expr.Print.term a' Expr.Print.term b');
         Some (not (Expr.Term.equal a' b'), [a; b])
       with D.Not_assigned _ ->
         None
@@ -141,16 +139,18 @@ let wrap f x y =
   try
     f st x y
   with E.Unsat (a, b, l) ->
-    Util.debug ~section 2 "Error while adding hypothesis : %a ~ %a" Expr.Debug.term x Expr.Debug.term y;
+    Util.info ~section "Error while adding hypothesis : %a ~ %a"
+      (fun k -> k Expr.Print.term x Expr.Print.term y);
     raise (D.Absurd (mk_expl (a, b, l), mk_proof l))
 
 let tag x = fun () ->
   try
-    Util.debug ~section 10 "Tagging %a -> %a"
-      Expr.Debug.term x Expr.Debug.term (D.get_assign x);
+    Util.debug ~section "Tagging %a -> %a"
+      (fun k -> k Expr.Print.term x Expr.Print.term (D.get_assign x));
     E.add_tag st x (D.get_assign x)
   with E.Unsat (a, b, l) ->
-    Util.debug ~section 2 "Error while tagging : %a -> %a" Expr.Debug.term x Expr.Debug.term (D.get_assign x);
+    Util.info ~section "Error while tagging : %a -> %a"
+      (fun k -> k Expr.Print.term x Expr.Print.term (D.get_assign x));
     let res = mk_expl (a, b, l) in
     let proof = mk_proof l in
     raise (D.Absurd (res, proof))
@@ -159,10 +159,10 @@ let eq_assign x =
   try
     begin match E.find_tag st x with
       | _, Some (_, v) ->
-        Util.debug ~section 5 "Found tag : %a" Expr.Debug.term v;
+        Util.debug ~section "Found tag : %a" (fun k -> k Expr.Print.term v);
         v
       | x, None ->
-        Util.debug ~section 5 "Looking up repr : %a" Expr.Debug.term x;
+        Util.debug ~section "Looking up repr : %a" (fun k -> k Expr.Print.term x);
         let res = try D.get_assign x with D.Not_assigned _ -> x in
         res
     end

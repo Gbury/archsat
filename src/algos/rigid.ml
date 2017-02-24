@@ -79,7 +79,7 @@ let compare_constr (a, b) (a', b') =
   | 0 -> Expr.Term.compare b b'
   | x -> x
 
-let compare_cl = CCOrd.list_ compare_constr
+let compare_cl = CCOrd.list compare_constr
 
 let sf_add_lt sf s t = (* Add s < t to sf *)
   { sf with

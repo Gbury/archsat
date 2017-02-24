@@ -171,14 +171,14 @@ let add ?(delay=0) ?(score=0) u =
   let t = Inst.mk u score in
   if not (H.mem inst_set t) then begin
     H.add inst_set t false;
-    Util.log ~section 10 "New inst (%d):@ %a" (fun k -> k delay Inst.print t);
+    Util.debug ~section "New inst (%d):@ %a" (fun k -> k delay Inst.print t);
     if delay <= 0 then
       heap := Q.add !heap t
     else
       delayed := (t, delay) :: !delayed;
     true
   end else begin
-    Util.log ~section 15 "Redondant inst:@ %a" (fun k -> k Inst.print t);
+    Util.debug ~section "Redondant inst:@ %a" (fun k -> k Inst.print t);
     false
   end
 
@@ -186,7 +186,7 @@ let push acc inst =
   assert (not (H.find inst_set inst));
   H.replace inst_set inst true;
   let open Inst in
-  Util.log ~section 5 "Pushing inst:@ %a" (fun k -> k Inst.print inst);
+  Util.debug ~section "Pushing inst:@ %a" (fun k -> k Inst.print inst);
   let cl, p = soft_subst inst.formula inst.ty_subst inst.term_subst in
   Dispatcher.push cl p;
   acc + 1
@@ -197,11 +197,11 @@ let decr_delay () =
   else begin
     delayed := CCList.filter_map (fun (u, d) ->
         if d > 1 then begin
-          Util.log ~section 20 "Decreased delay (%d):@ %a"
+          Util.debug ~section "Decreased delay (%d):@ %a"
             (fun k -> k (d - 1) Inst.print u);
           Some (u, d - 1)
         end else begin
-          Util.log ~section 10 "Promoted inst:@ %a"
+          Util.debug ~section "Promoted inst:@ %a"
             (fun k -> k Inst.print u);
           heap := Q.add !heap u;
           None

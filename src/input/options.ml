@@ -2,7 +2,6 @@
 let misc_section = Util.Section.make "misc"
 
 let section = Util.Section.make ~parent:misc_section "options"
-let log i fmt = Util.log ~section i fmt
 
 open Cmdliner
 
@@ -95,14 +94,6 @@ let formatter_of_out_descr = function
   | `Stdout -> Some (Format.std_formatter)
   | `File s -> Some (Format.formatter_of_out_channel (open_out s))
 
-let explain_list = [
-  "no",   `No;
-  "yes",  `Yes;
-  "full", `Full;
-]
-
-let explain = Arg.enum explain_list
-
 (* Option values *)
 (* ************************************************************************ *)
 
@@ -149,7 +140,7 @@ let model_opts active assign = {
 }
 
 (* Side-effects options *)
-let set_opts gc bt quiet log debug opt =
+let set_opts gc bt quiet lvl debug opt =
   if gc then
     at_exit (fun () -> Gc.print_stat stdout;);
   (* Backtrace printing *)
@@ -159,9 +150,12 @@ let set_opts gc bt quiet log debug opt =
   if quiet then
     Util.Section.clear_debug Util.Section.root
   else begin
+    (* Msat debugging is a bit hardcore...
     Msat.Log.set_debug log;
     Msat.Log.set_debug_out Format.std_formatter;
-    Util.set_debug (if opt.input.interactive then max 1 log else log);
+    *)
+    Util.set_debug (
+      if opt.input.interactive then Util.Level.(max log lvl) else lvl);
     List.iter (fun (s, lvl) -> Util.Section.set_debug s lvl) debug
   end;
   opt
@@ -275,17 +269,18 @@ let output_list = stringify output_string [Standard; SZS]
 let bool_opt s bool = if bool then Printf.sprintf "[%s]" s else ""
 
 let log_opts opt =
-  log 0 "Limits : %s / %s"
+  Util.log "Limits : %s / %s"
     (fun k -> k (time_string opt.time_limit) (size_string opt.size_limit));
-  log 0 "Options : %s%s%s%s[in: %s][out: %s]" (fun k ->
+  Util.log "Options : %s%s%s%s[in: %s][out: %s]" (fun k ->
       k (bool_opt "solve" opt.solve)
         (bool_opt "prove" opt.proof.active)
         (bool_opt "interactive" opt.input.interactive)
         (bool_opt "profile" opt.profile.enabled)
-        (CCOpt.get "auto" @@ CCOpt.map In.string_of_language @@ opt.input.format)
+        (CCOpt.get_or ~default:"auto" @@
+         CCOpt.map In.string_of_language @@ opt.input.format)
         (output_string opt.output.format));
-  log 0 "Input dir : '%s'" (fun k -> k opt.input.dir);
-  log 0 "Input file : %s" (fun k -> k (input_to_string opt.input.file))
+  Util.log "Input dir : '%s'" (fun k -> k opt.input.dir);
+  Util.log "Input file : %s" (fun k -> k (input_to_string opt.input.file))
 
 (* Other Argument converters *)
 (* ************************************************************************ *)
@@ -307,6 +302,26 @@ let parse_section arg =
   with Not_found -> `Error ("Invalid debug section '" ^ arg ^ "'")
 
 let section = parse_section, print_section
+
+(* Converter for logging level *)
+let level_list = [
+  "log", Util.Level.log;
+  "error", Util.Level.error;
+  "warn", Util.Level.warn;
+  "info", Util.Level.info;
+  "debug", Util.Level.debug;
+]
+
+let level = Arg.enum level_list
+
+(* Converter for explain option *)
+let explain_list = [
+  "no",   `No;
+  "yes",  `Yes;
+  "full", `Full;
+]
+
+let explain = Arg.enum explain_list
 
 (* Converter for output file descriptor (with stdout as special case) *)
 let print_descr fmt = function
@@ -367,7 +382,7 @@ let input_t =
     Arg.(value & pos 0 in_fd `Stdin & info [] ~docv:"FILE" ~doc)
   in
   let format =
-    let doc = CCPrint.sprintf
+    let doc = Format.asprintf
         "Set the format for the input file to $(docv) (%s)."
         (Arg.doc_alts_enum ~quoted:false In.enum) in
     Arg.(value & opt (some input) None & info ["i"; "input"] ~docs ~docv:"INPUT" ~doc)
@@ -381,7 +396,7 @@ let output_t =
     Arg.(value & opt out_descr `Stdout & info ["fmt"] ~docs ~doc)
   in
   let format =
-    let doc = CCPrint.sprintf
+    let doc = Format.asprintf
         "Set the output format to $(docv) (%s)."
         (Arg.doc_alts_enum ~quoted:false output_list) in
     Arg.(value & opt output Standard & info ["o"; "output"] ~docs ~docv:"OUTPUT" ~doc)
@@ -463,20 +478,20 @@ let unit_t =
   in
   let log =
     let doc = "Set the global level for debug outpout." in
-    Arg.(value & opt int 0 & info ["v"; "verbose"] ~docs ~docv:"LVL" ~doc)
+    Arg.(value & opt level Util.Level.log & info ["v"; "verbose"] ~docs ~docv:"LVL" ~doc)
   in
   let debug =
-    let doc = CCPrint.sprintf
+    let doc = Format.asprintf
         "Set the debug level of the given section, as a pair : '$(b,section),$(b,level)'.
         $(b,section) might be %s." (Arg.doc_alts ~quoted:false (log_sections ())) in
-    Arg.(value & opt_all (pair section int) [] & info ["debug"] ~docs:ext_sect ~docv:"NAME,LVL" ~doc)
+    Arg.(value & opt_all (pair section level) [] & info ["debug"] ~docs:ext_sect ~docv:"NAME,LVL" ~doc)
   in
   Term.(pure set_opts $ gc $ bt $ quiet $ log $ debug)
 
 let type_t =
   let docs = copts_sect in
   let explain =
-    let doc = CCPrint.sprintf
+    let doc = Format.asprintf
         "Explain more precisely typing conflicts, $(docv) may be %s"
         (Arg.doc_alts_enum ~quoted:false explain_list) in
     Arg.(value & opt explain `No & info ["type-explain"] ~docs ~docv:"EXPL" ~doc)

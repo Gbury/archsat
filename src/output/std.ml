@@ -43,7 +43,7 @@ let print_exn opt fmt = function
   | Options.Stmt_not_implemented s ->
     let default_loc = Dolmen.ParseLocation.mk
         (Options.input_to_string Options.(opt.input.file)) 0 0 0 0 in
-    let loc = CCOpt.get default_loc s.Dolmen.Statement.loc in
+    let loc = CCOpt.get_or ~default:default_loc s.Dolmen.Statement.loc in
     Format.fprintf Format.std_formatter
       "%a: the following statement is not yet treated:@\n%a@."
       Dolmen.ParseLocation.fmt loc Dolmen.Statement.print s
@@ -76,7 +76,7 @@ let print_exn opt fmt = function
   | Type.Typing_error (msg, env, t) ->
     let default_loc = Dolmen.ParseLocation.mk
         (Options.input_to_string Options.(opt.input.file)) 0 0 0 0 in
-    let loc = CCOpt.get default_loc t.Dolmen.Term.loc in
+    let loc = CCOpt.get_or ~default:default_loc t.Dolmen.Term.loc in
     Format.fprintf Format.std_formatter "While typing %a@\n" Dolmen.Term.print t;
     Format.fprintf Format.std_formatter "%a:@\n%s@." Dolmen.ParseLocation.fmt loc msg
 

@@ -48,10 +48,10 @@ let tau = function
   | { Expr.formula = Expr.Ex (l, (ty_args, t_args), p) } as f ->
     if not (has_been_seen f) then begin
       mark f;
-      Util.debug ~section 10 "New formula %a" Expr.Debug.formula f;
-      Util.debug ~section 10 "Free variables: %a ; %a"
-        (CCPrint.list Expr.Debug.ty) ty_args
-        (CCPrint.list Expr.Debug.term) t_args;
+      Util.debug ~section "@[<hov 2>New formula:@ %a@\nwith free variables:@ %a,@ %a"
+        (fun k -> k Expr.Print.formula f
+            (CCFormat.list Expr.Print.ty) ty_args
+            (CCFormat.list Expr.Print.term) t_args);
       let taus = get_term_taus ty_args t_args l in
       let subst = List.fold_left2 Expr.Subst.Id.bind Expr.Subst.empty l taus in
       let q = Expr.Formula.subst Expr.Subst.empty subst p in
@@ -60,10 +60,10 @@ let tau = function
   | { Expr.formula = Expr.Not { Expr.formula = Expr.All (l, (ty_args, t_args), p) } } as f ->
     if not (has_been_seen f) then begin
       mark f;
-      Util.debug ~section 10 "New formula %a" Expr.Debug.formula f;
-      Util.debug ~section 10 "Free variables: %a ; %a"
-        (CCPrint.list Expr.Debug.ty) ty_args
-        (CCPrint.list Expr.Debug.term) t_args;
+      Util.debug ~section "@[<hov 2>New formula:@ %a@\nwith free variables:@ %a,@ %a"
+        (fun k -> k Expr.Print.formula f
+            (CCFormat.list Expr.Print.ty) ty_args
+            (CCFormat.list Expr.Print.term) t_args);
       let taus = get_term_taus ty_args t_args l in
       let subst = List.fold_left2 Expr.Subst.Id.bind Expr.Subst.empty l taus in
       let q = Expr.Formula.subst Expr.Subst.empty subst p in
@@ -72,10 +72,10 @@ let tau = function
   | { Expr.formula = Expr.ExTy (l, (ty_args, t_args), p) } as f ->
     if not (has_been_seen f) then begin
       mark f;
-      Util.debug ~section 10 "New formula %a" Expr.Debug.formula f;
-      Util.debug ~section 10 "Free variables: %a ; %a"
-        (CCPrint.list Expr.Debug.ty) ty_args
-        (CCPrint.list Expr.Debug.term) t_args;
+      Util.debug ~section "@[<hov 2>New formula:@ %a@\nwith free variables:@ %a,@ %a"
+        (fun k -> k Expr.Print.formula f
+            (CCFormat.list Expr.Print.ty) ty_args
+            (CCFormat.list Expr.Print.term) t_args);
       let taus = get_ty_taus ty_args t_args l in
       let subst = List.fold_left2 Expr.Subst.Id.bind Expr.Subst.empty l taus in
       let q = Expr.Formula.subst subst Expr.Subst.empty p in
@@ -85,10 +85,10 @@ let tau = function
     assert (t_args = []);
     if not (has_been_seen f) then begin
       mark f;
-      Util.debug ~section 10 "New formula %a" Expr.Debug.formula f;
-      Util.debug ~section 10 "Free variables: %a ; %a"
-        (CCPrint.list Expr.Debug.ty) ty_args
-        (CCPrint.list Expr.Debug.term) t_args;
+      Util.debug ~section "@[<hov 2>New formula:@ %a@\nwith free variables:@ %a,@ %a"
+        (fun k -> k Expr.Print.formula f
+            (CCFormat.list Expr.Print.ty) ty_args
+            (CCFormat.list Expr.Print.term) t_args);
       let taus = get_ty_taus ty_args t_args l in
       let subst = List.fold_left2 Expr.Subst.Id.bind Expr.Subst.empty l taus in
       let q = Expr.Formula.subst subst Expr.Subst.empty p in
@@ -100,7 +100,7 @@ let tau = function
 let opts =
   let docs = Options.ext_sect in
   let kind =
-    let doc = CCPrint.sprintf
+    let doc = Format.asprintf
         "Decide the strategy to use for existencially quantified variables.
          $(docv) may be %s" (Cmdliner.Arg.doc_alts_enum ~quoted:false kind_list) in
     Cmdliner.Arg.(value & opt kind_conv Skolem & info ["skolem.kind"] ~docv:"KIND" ~docs ~doc)

@@ -108,6 +108,9 @@ val section : Util.Section.t
 val solver_section : Util.Section.t
 (** Debug Section for the Solver *)
 
+val plugin_section : Util.Section.t
+(** Debug section for dispatcher plugins. *)
+
 val stack : Backtrack.Stack.t
 (** The global undo stack. All extensions should either use datatypes
     compatible with it (like Backtrack.HashtblBack), or register

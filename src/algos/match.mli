@@ -16,7 +16,6 @@ val compare : t -> t -> int
 val equal : t -> t -> bool
 (** Standard functions on substitutions. *)
 
-val debug : Buffer.t -> t -> unit
 val print : Format.formatter -> t -> unit
 (** Substitution printers *)
 

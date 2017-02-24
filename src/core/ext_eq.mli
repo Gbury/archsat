@@ -15,7 +15,6 @@ module Class : sig
   val compare : t -> t -> int
   (** Usual functions *)
 
-  val debug : Buffer.t -> t -> unit
   val print : Format.formatter -> t -> unit
   (** Print a class. *)
 

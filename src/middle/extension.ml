@@ -1,4 +1,7 @@
 
+(* Exceptions and signature *)
+(* ************************************************************************ *)
+
 exception Abort of string * string
 exception Extension_not_found of string * string* string list
 
@@ -11,10 +14,10 @@ end
 
 module type S = Extension_intf.S
 
-module Make(E: K) : S with type ext = E.t = struct
+(* Extension Functor *)
+(* ************************************************************************ *)
 
-  let log_name = Util.Section.short_name E.section
-  let log i fmt = Util.log ~section:E.section i fmt
+module Make(E: K) : S with type ext = E.t = struct
 
   (* Type definitions *)
   type id = int
@@ -26,7 +29,6 @@ module Make(E: K) : S with type ext = E.t = struct
     name : string;
     descr : string;
     options : unit Cmdliner.Term.t;
-
     ext : E.t;
   }
 
@@ -41,11 +43,13 @@ module Make(E: K) : S with type ext = E.t = struct
   (* Get extensions *)
   let _not_found ext_name =
     raise (Extension_not_found (
-        log_name, ext_name, List.map (fun r -> r.name) (CCVector.to_list exts)))
+        Util.Section.short_name E.section,
+        ext_name, List.map (fun r -> r.name) (CCVector.to_list exts)))
 
   let get id = CCVector.get exts id
 
-  let find name = match CCVector.find (fun r -> r.name = name) exts with
+  let find name =
+    match CCVector.find (fun r -> r.name = name) exts with
     | Some x -> x
     | None -> _not_found name
 
@@ -55,7 +59,8 @@ module Make(E: K) : S with type ext = E.t = struct
       ?(options=(Cmdliner.Term.pure ())) ext =
     assert (not (CCVector.exists (fun r -> r.name = name) exts));
     if prio < 0 then
-      log 0 "WARNING: %s - extensions should have positive priority" (fun k -> k name);
+      Util.warn ~section:E.section
+        "WARNING: %s - extensions should have positive priority" (fun k -> k name);
     let id = CCVector.length exts in
     CCVector.push exts { id; prio; name; descr; options; ext }
 
@@ -74,7 +79,8 @@ module Make(E: K) : S with type ext = E.t = struct
         active := List.merge (fun r r' -> compare r'.prio r.prio) [r] !active;
         refresh ()
       end else
-        log 0 "WARNING: Extension %s already activated" (fun k -> k ext)
+        Util.warn ~section:E.section
+          "WARNING: Extension %s already activated" (fun k -> k ext)
     with Not_found -> _not_found ext
 
   let deactivate ext =
@@ -84,7 +90,8 @@ module Make(E: K) : S with type ext = E.t = struct
       let l1, l2 = List.partition aux !active in
       begin match l1 with
         | [] ->
-          log 0 "WARNING: Extension %s already deactivated" (fun k -> k ext)
+          Util.warn ~section:E.section
+            "WARNING: Extension %s already deactivated" (fun k -> k ext)
         | [r] ->
           active := l2;
           refresh ()
@@ -106,10 +113,8 @@ module Make(E: K) : S with type ext = E.t = struct
   let is_active t =
     List.exists (fun r -> r.name = t.name) !active
 
-  let log_active lvl =
-    log lvl "active: @[<hov>%a@]" (fun k ->
-      k CCFormat.(list string) (List.map (fun r -> r.name) !active))
-
+  let active () =
+    List.map (fun r -> r.name) !active
 
   (* Info about extensions *)
   let list () = CCVector.to_list exts
@@ -122,9 +127,10 @@ module Make(E: K) : S with type ext = E.t = struct
     List.sort (fun r r' -> match compare r'.prio r.prio with
         | 0 -> compare r.name r'.name | x -> x) @@ list ()
 
-  let add_opts t =
-    let combine = Cmdliner.Term.pure (fun x () -> x) in
+  let opts () =
+    let base = Cmdliner.Term.pure () in
+    let combine = Cmdliner.Term.pure (fun () () -> ()) in
     CCVector.fold (fun t r ->
-      Cmdliner.Term.(combine $ t $ r.options)) t exts
+      Cmdliner.Term.(combine $ t $ r.options)) base exts
 
 end

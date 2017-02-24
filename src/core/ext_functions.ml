@@ -8,7 +8,7 @@ let st = H.create Dispatcher.stack
 let mk_proof l = Dispatcher.mk_proof ~term_args:l "uf" "f-eq"
 
 let set_interpretation t = fun () ->
-  Util.debug ~section 10 "Check interpretation of %a" Expr.Debug.term t;
+  Util.debug ~section "Check interpretation of %a" (fun k -> k Expr.Print.term t);
     match t with
     | { Expr.term = Expr.App (f, tys, l) } ->
       let is_prop = Expr.(Ty.equal t.t_type Ty.prop) in

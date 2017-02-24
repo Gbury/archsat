@@ -3,7 +3,6 @@
 (* ************************************************************************ *)
 
 let section = Util.Section.make "type"
-let log i fmt = Util.log ~section i fmt
 
 let stack = Backtrack.Stack.create (
     Util.Section.make ~parent:section "backtrack")
@@ -13,7 +12,7 @@ module Id = Dolmen.Id
 
 let get_loc =
   let default_loc = Dolmen.ParseLocation.mk "<?>" 0 0 0 0 in
-  (fun t -> CCOpt.get default_loc t.Ast.loc)
+  (fun t -> CCOpt.get_or ~default:default_loc t.Ast.loc)
 
 module E = Map.Make(struct
     type t = Expr.ttype Expr.id
@@ -60,14 +59,14 @@ module M = struct
     | _ -> assert false
 
   let mem id t =
-    CCList.Assoc.mem ~eq (get t id) id
+    CCList.Assoc.mem ~eq id (get t id)
 
   let find id t =
-    CCList.Assoc.get_exn ~eq (get t id) id
+    CCList.Assoc.get_exn ~eq id (get t id)
 
   let add id v t =
     let l = get t id in
-    let l' = CCList.Assoc.set ~eq l id v in
+    let l' = CCList.Assoc.set ~eq id v l in
     I.add t Dolmen.Id.(id.name) l'
 
   let iter f t =
@@ -180,40 +179,45 @@ let find_global name =
 (* Symbol declarations *)
 let decl_ty_cstr id c reason =
   if H.mem global_env id then
-    log 0 "Symbol '%a' has already been defined, overwriting previous definition"
+    Util.warn ~section
+      "Symbol '%a' has already been defined, overwriting previous definition"
       (fun k -> k Id.print id);
   H.add global_env id (`Ty c);
   R.add ttype_locs c reason;
-  log 1 "New type constructor : @[<hov>%a@]" (fun k -> k Expr.Print.const_ttype c)
+  Util.info ~section
+    "New type constructor : @[<hov>%a@]" (fun k -> k Expr.Print.const_ttype c)
 
 let decl_term id c reason =
   if H.mem global_env id then
-    log 0 "Symbol '%a' has already been defined, overwriting previous definition"
+    Util.warn ~section
+      "Symbol '%a' has already been defined, overwriting previous definition"
       (fun k -> k Id.print id);
   H.add global_env id (`Term c);
   S.add const_locs c reason;
-  log 1 "New constant : @[<hov>%a@]" (fun k -> k Expr.Print.const_ty c)
+  Util.info ~section "New constant : @[<hov>%a@]" (fun k -> k Expr.Print.const_ty c)
 
 (* Symbol definitions *)
 let def_ty id args body =
   if H.mem global_env id then
-    log 0 "Symbol '%a' has already been defined, overwriting previous definition"
+    Util.warn ~section
+      "Symbol '%a' has already been defined, overwriting previous definition"
       (fun k -> k Id.print id);
   H.add global_env id (`Ty_alias (args, body));
-  log 1 "@[<hov 4>New type alias:@ @[<hov>%a(%a)@] =@ %a@]"
+  Util.info ~section "@[<hov 4>New type alias:@ @[<hov>%a(%a)@] =@ %a@]"
     (fun k -> k Id.print id
-        (CCFormat.list ~start:"" ~stop:"" ~sep:"," Expr.Print.id_ttype) args
+        (CCFormat.list Expr.Print.id_ttype) args
         Expr.Print.ty body)
 
 let def_term id ty_args args body =
   if H.mem global_env id then
-    log 0 "Symbol '%a' has already been defined, overwriting previous definition"
+    Util.warn ~section
+      "Symbol '%a' has already been defined, overwriting previous definition"
       (fun k -> k Id.print id);
   H.add global_env id (`Term_alias (ty_args, args, body));
-  log 1 "@[<hov 4>New term alias:@ @[<hov>%a(%a;%a)@] =@ %a@]"
+  Util.info ~section "@[<hov 4>New term alias:@ @[<hov>%a(%a;%a)@] =@ %a@]"
     (fun k -> k Id.print id
-        (CCFormat.list ~start:"" ~stop:"" ~sep:"," Expr.Print.id_ttype) ty_args
-        (CCFormat.list ~start:"" ~stop:"" ~sep:"," Expr.Print.id_ty) args
+        (CCFormat.list Expr.Print.id_ttype) ty_args
+        (CCFormat.list Expr.Print.id_ty) args
         Expr.Print.term body)
 
 (* Local Environment *)
@@ -253,7 +257,7 @@ let add_type_var env id v loc =
     else
       v
   in
-  log 1 "New binding: @[<hov>%a ->@ %a@]"
+  Util.info ~section "New binding: @[<hov>%a ->@ %a@]"
     (fun k -> k Id.print id Expr.Print.id_ttype v');
   v', { env with
         type_vars = M.add id v' env.type_vars;
@@ -273,7 +277,7 @@ let add_term_var env id v loc =
     else
       v
   in
-  log 1 "New binding: @[<hov>%a ->@ %a@]"
+  Util.info ~section "New binding: @[<hov>%a ->@ %a@]"
     (fun k -> k Id.print id Expr.Print.id_ty v');
   v', { env with
         term_vars = M.add id v' env.term_vars;
@@ -292,11 +296,11 @@ let find_var env name =
 
 (* Add local bound variables to env *)
 let add_let_term env id t =
-  log 1 "New let-binding: @[<hov>%a ->@ %a@]" (fun k -> k Id.print id Expr.Print.term t);
+  Util.info ~section "New let-binding: @[<hov>%a ->@ %a@]" (fun k -> k Id.print id Expr.Print.term t);
   { env with term_lets = M.add id t env.term_lets }
 
 let add_let_prop env id t =
-  log 1 "New let-binding: @[<hov>%a ->@ %a@]" (fun k -> k Id.print id Expr.Print.formula t);
+  Util.info ~section "New let-binding: @[<hov>%a ->@ %a@]" (fun k -> k Id.print id Expr.Print.formula t);
   { env with prop_lets = M.add id t env.prop_lets }
 
 let find_let env name =
@@ -511,8 +515,9 @@ let apply_tag env ast tag v = function
 (* ************************************************************************ *)
 
 let rec parse_expr (env : env) t =
-  log 50 "parsing: @[<hov>%a@]" (fun k -> k Ast.print t);
-  log 90 "env: %a" (fun k -> k pp_env env);
+  Util.debug ~section
+    "parsing: @[<hov>%a@]@\nin env: @[<hov>%a@]"
+    (fun k -> k Ast.print t pp_env env);
   let res = match t with
 
     (* Ttype & builtin types *)
@@ -632,7 +637,7 @@ and parse_attr env res ast = function
       | _ ->
         _expected env "tag" a
       | exception (Typing_error (msg, _, t)) ->
-        log 2 "%a while parsing an attribute:@\n%s"
+        Util.warn ~section "%a while parsing an attribute:@\n%s"
           (fun k -> k Dolmen.ParseLocation.fmt (get_loc t) msg);
         parse_attr env res ast r
     end
@@ -722,7 +727,8 @@ and parse_app env ast s args =
             begin match env.builtins env ast s args with
               | Some res -> res
               | None ->
-                log 1 "Looking up '%a' failed, possibilities are:@ @[<hov>%a@]"
+                Util.info ~section
+                  "Looking up '%a' failed, possibilities were:@ @[<hov>%a@]"
                   (fun k -> k Id.print s (suggest ~limit:1 env) s);
                 begin match infer env s args (get_loc ast) with
                   | Some Ty_fun f -> parse_app_ty env ast f args
@@ -857,7 +863,7 @@ let rec parse_fun ty_args t_args env = function
 
 let new_decl env t id =
   Util.enter_prof section;
-  log 5 "Typing declaration:@ @[<hov>%a :@ %a@]"
+  Util.info ~section "Typing declaration:@ @[<hov>%a :@ %a@]"
     (fun k -> k Id.print id Ast.print t);
   let res =
     match parse_sig env t with
@@ -875,7 +881,7 @@ let new_decl env t id =
 
 let new_def env t id =
   Util.enter_prof section;
-  log 5 "Typing definition:@ @[<hov>%a =@ %a@]"
+  Util.info ~section "Typing definition:@ @[<hov>%a =@ %a@]"
     (fun k -> k Id.print id Ast.print t);
   let res =
     match parse_fun [] [] env t with
@@ -891,7 +897,7 @@ let new_def env t id =
 
 let new_formula env t =
   Util.enter_prof section;
-  log 5 "Typing top-level formula:@ %a" (fun k -> k Ast.print t);
+  Util.info ~section "Typing top-level formula:@ %a" (fun k -> k Ast.print t);
   let res = parse_formula env t in
   Util.exit_prof section;
   res

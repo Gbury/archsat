@@ -56,7 +56,7 @@ module Ty = struct
     | Arg _, { Expr.ty = Expr.TyVar _ }
     | Arg _, { Expr.ty = Expr.TyMeta _ } -> Possible, None
     | Arg (k, p'), { Expr.ty = Expr.TyApp(_, l) } ->
-      begin match CCList.Idx.get l k with
+      begin match CCList.get_at_idx k l with
         | None -> Impossible, None
         | Some ty -> apply p' ty
       end
@@ -73,7 +73,7 @@ module Ty = struct
     let acc' = f acc (cur_pos Here) t in
     match t with
     | { Expr.ty = Expr.TyApp (_, l) } ->
-      CCList.Idx.foldi (fun acc i t ->
+      CCList.foldi (fun acc i t ->
           fold_aux f acc (fun p -> cur_pos (Arg(i, p))) t) acc' l
     | _ -> acc'
 
@@ -105,7 +105,7 @@ module Term = struct
     | Arg _, { Expr.term = Expr.Var _ }
     | Arg _, { Expr.term = Expr.Meta _ } -> Possible, None
     | Arg (k, p'), { Expr.term = Expr.App(_, _, l) } ->
-      begin match CCList.Idx.get l k with
+      begin match CCList.get_at_idx k l with
         | None -> Impossible, None
         | Some term -> apply p' term
       end
@@ -122,7 +122,7 @@ module Term = struct
     let acc' = f acc (cur_pos Here) t in
     match t with
     | { Expr.term = Expr.App (_, _, l) } ->
-      CCList.Idx.foldi (fun acc i t ->
+      CCList.foldi (fun acc i t ->
           fold_aux f acc (fun p -> cur_pos (Arg(i, p))) t) acc' l
     | _ -> acc'
 

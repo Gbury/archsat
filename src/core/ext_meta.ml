@@ -7,7 +7,6 @@ exception Found_unif
 (* ************************************************************************ *)
 
 let section = Util.Section.make ~parent:Dispatcher.section "meta"
-let log i fmt = Util.debug ~section i fmt
 
 let sup_section = Util.Section.make ~parent:section "sup"
 let unif_section = Util.Section.make ~parent:section "unif"
@@ -115,13 +114,23 @@ let fold_diff f start st =
         ) acc' st.false_preds
     ) acc st.true_preds
 
-let debug_st ~section n st =
-  Util.debug ~section n "Found : %d true preds, %d false preds, %d equalities, %d inequalities"
-    (List.length st.true_preds) (List.length st.false_preds) (List.length st.equalities) (List.length st.inequalities);
-  List.iter (fun (a, b) -> Util.debug ~section n " |- %a == %a" Expr.Debug.term a Expr.Debug.term b) st.equalities;
-  List.iter (fun (a, b) -> Util.debug ~section n " |- %a <> %a" Expr.Debug.term a Expr.Debug.term b) st.inequalities;
-  List.iter (fun p -> Util.debug ~section n " |- %a: %a" Expr.Debug.formula Expr.Formula.f_true Expr.Debug.term p) st.true_preds;
-  List.iter (fun p -> Util.debug ~section n " |- %a: %a" Expr.Debug.formula Expr.Formula.f_false Expr.Debug.term p) st.false_preds
+let print fmt st =
+  Format.fprintf fmt
+    "@[<hov 2>Found : %d true preds, %d false preds, %d equalities, %d inequalities@\n%a%a%a%a@]"
+    (List.length st.true_preds) (List.length st.false_preds)
+    (List.length st.equalities) (List.length st.inequalities)
+    CCFormat.(list ~sep:(return "") (fun fmt (a, b) ->
+        Format.fprintf fmt "|- @[<hov>%a ==@ %a@]@\n"
+          Expr.Print.term a Expr.Print.term b)) st.equalities
+    CCFormat.(list ~sep:(return "") (fun fmt (a, b) ->
+        Format.fprintf fmt "|- @[<hov>%a <>@ %a@]@\n"
+          Expr.Print.term a Expr.Print.term b)) st.inequalities
+    CCFormat.(list ~sep:(return "") (fun fmt p ->
+        Format.fprintf fmt "|- @[<hov>%a:@ %a@]@\n"
+          Expr.Print.formula Expr.Formula.f_true Expr.Print.term p)) st.true_preds
+    CCFormat.(list ~sep:(return "") (fun fmt p ->
+        Format.fprintf fmt "|- @[<hov>%a:@ %a@]@\n"
+          Expr.Print.formula Expr.Formula.f_false Expr.Print.term p)) st.false_preds
 
 let parse_aux res = function
   | { Expr.formula = Expr.Pred p } as f ->
@@ -199,7 +208,8 @@ let do_formula =
       let i = get_nb_metas f in
       while !i < !meta_start do
         incr i;
-        Util.debug ~section 5 "start meta (%d/%d) %a" !i !meta_start Expr.Debug.formula f;
+        Util.debug ~section "start meta (%d/%d) %a"
+          (fun k -> k !i !meta_start Expr.Print.formula f);
         aux f
       done
     | _ -> ()
@@ -209,7 +219,8 @@ let do_meta_inst = function
     let i = get_nb_metas f in
     if !i < !meta_max then begin
       incr i;
-      Util.debug ~section 5 "new_meta (%d/%d) : %a" !i !meta_max Expr.Debug.formula f;
+      Util.debug ~section "new_meta (%d/%d) : %a"
+        (fun k -> k !i !meta_max Expr.Print.formula f);
       let metas = Expr.Meta.of_all f in
       let u = List.fold_left (fun s m -> Unif.bind_term s m (Expr.Term.of_meta m)) Unif.empty metas in
       if not (Inst.add ~delay:(delay !i) u) then assert false
@@ -218,7 +229,8 @@ let do_meta_inst = function
     let i = get_nb_metas f in
     if !i < !meta_max then begin
       incr i;
-      Util.debug ~section 5 "new_meta (%d/%d) : %a" !i !meta_max Expr.Debug.formula f;
+      Util.debug ~section "new_meta (%d/%d) : %a"
+        (fun k -> k !i !meta_max Expr.Print.formula f);
       let metas = Expr.Meta.of_all f in
       let u = List.fold_left (fun s m -> Unif.bind_term s m (Expr.Term.of_meta m)) Unif.empty metas in
       if not (Inst.add ~delay:(delay !i) u) then assert false
@@ -227,7 +239,8 @@ let do_meta_inst = function
     let i = get_nb_metas f in
     if !i < !meta_max then begin
       incr i;
-      Util.debug ~section 5 "new_meta (%d/%d) : %a" !i !meta_max Expr.Debug.formula f;
+      Util.debug ~section "new_meta (%d/%d) : %a"
+        (fun k -> k !i !meta_max Expr.Print.formula f);
       let metas = Expr.Meta.of_all_ty f in
       let u = List.fold_left (fun s m -> Unif.bind_ty s m (Expr.Ty.of_meta m)) Unif.empty metas in
       if not (Inst.add ~delay:(delay !i) u) then assert false
@@ -236,7 +249,8 @@ let do_meta_inst = function
     let i = get_nb_metas f in
     if !i < !meta_max then begin
       incr i;
-      Util.debug ~section 5 "new_meta (%d/%d) : %a" !i !meta_max Expr.Debug.formula f;
+      Util.debug ~section "new_meta (%d/%d) : %a"
+        (fun k -> k !i !meta_max Expr.Print.formula f);
       let metas = Expr.Meta.of_all_ty f in
       let u = List.fold_left (fun s m -> Unif.bind_ty s m (Expr.Ty.of_meta m)) Unif.empty metas in
       if not (Inst.add ~delay:(delay !i) u) then assert false
@@ -263,7 +277,7 @@ let insts r l =
   let l = List.map do_inst l in
   if List.exists CCFun.id l then begin
     decr r;
-    log 10 "Waiting for %d other insts" !r;
+    Util.debug ~section "Waiting for %d other insts" (fun k -> k !r);
     if !r <= 0 then raise Found_unif
   end
 
@@ -319,7 +333,8 @@ let find_all_insts : type ret. ret Dispatcher.msg -> ret option = function
   | Solver.Found_sat model ->
     (* Create new metas *)
     if !meta_incr then begin
-      Util.debug 1 "New metas to generate (%d formulas to inspect)" (H.length metas);
+      Util.debug ~section "New metas to generate (%d formulas to inspect)"
+        (fun k -> k (H.length metas));
       iter do_meta_inst
     end;
     (* Look at instanciation settings *)
@@ -327,11 +342,11 @@ let find_all_insts : type ret. ret Dispatcher.msg -> ret option = function
       | No_unif -> ()
       | _ ->
         (* Analysing assummed formulas *)
-        log 5 "Parsing input formulas";
+        Util.debug ~section "Parsing input formulas" (fun k -> k);
         let st = parse_slice model in
-        debug_st ~section 30 st;
+        Util.debug ~section "%a" (fun k -> k print st);
         (* Search for instanciations *)
-        log 5 "Applying unification";
+        Util.debug ~section "Applying unification" (fun k -> k);
         unif_f st !unif_setting
     end;
     Some Solver.Sat_ok
@@ -343,7 +358,7 @@ let find_all_insts : type ret. ret Dispatcher.msg -> ret option = function
 let opts =
   let docs = Options.ext_sect in
   let inst =
-    let doc = CCPrint.sprintf
+    let doc = Format.asprintf
         "Select unification method to use in order to find instanciations
        $(docv) may be %s." (Cmdliner.Arg.doc_alts_enum ~quoted:false unif_list) in
     Cmdliner.Arg.(value & opt unif_conv No_unif & info ["meta.find"] ~docv:"METHOD" ~docs ~doc)
@@ -365,7 +380,7 @@ let opts =
     Cmdliner.Arg.(value & opt (pair int int) (1, 3) & info ["meta.delay"] ~docs ~doc)
   in
   let heuristic =
-    let doc = CCPrint.sprintf
+    let doc = Format.asprintf
         "Select heuristic to use when assigning scores to possible unifiers/instanciations.
        $(docv) may be %s" (Cmdliner.Arg.doc_alts_enum ~quoted:true heur_list) in
     Cmdliner.Arg.(value & opt heur_conv No_heuristic & info ["meta.heur"] ~docv:"HEUR" ~docs ~doc)

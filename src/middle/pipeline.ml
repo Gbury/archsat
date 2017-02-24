@@ -35,17 +35,17 @@ let delete_alarm alarm =
 let () =
   Sys.set_signal Sys.sigalrm (
     Sys.Signal_handle (fun _ ->
-      Util.need_cleanup := true;
-      raise Options.Out_of_time)
+        Util.cleanup ();
+        raise Options.Out_of_time)
   )
 
 (* We also want to catch user interruptions *)
 let () =
   Sys.set_signal Sys.sigint (
     Sys.Signal_handle (fun _ ->
-      Util.need_cleanup := true;
-      raise Options.Sigint)
-    )
+        Util.cleanup ();
+        raise Options.Sigint)
+  )
 
 (* Pipeline and execution *)
 (* ************************************************************************ *)

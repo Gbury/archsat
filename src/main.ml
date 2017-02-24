@@ -10,7 +10,12 @@ let () =
   (* Argument parsing *)
   let man = Options.help_secs (Dispatcher.Plugin.ext_doc ()) (Semantics.Addon.ext_doc ()) in
   let info = Cmdliner.Term.(info ~sdocs:Options.copts_sect ~man ~version:"0.1" "archsat") in
-  let opts = Semantics.Addon.add_opts (Dispatcher.Plugin.add_opts (Options.copts_t ())) in
+  let opts = Cmdliner.Term.(
+      pure (fun () () x -> x)
+      $ Semantics.Addon.opts ()
+      $ Dispatcher.Plugin.opts ()
+      $ (Options.copts_t ())
+    ) in
   let opt = match Cmdliner.Term.eval (opts, info) with
     | `Version | `Help -> exit 0
     | `Error `Parse | `Error `Term | `Error `Exn -> exit 1
@@ -19,10 +24,12 @@ let () =
 
   let opt', g =
     try
+      Format.set_margin 100;
       (* Profiling *)
       if opt.profile.enabled then begin
         Util.enable_profiling ();
-        Util.Section.set_profile_depth (CCOpt.get 0 opt.profile.max_depth);
+        Util.Section.set_profile_depth
+          (CCOpt.get_or ~default:0 opt.profile.max_depth);
         List.iter Util.Section.profile_section opt.profile.sections
       end;
       if opt.profile.print_stats then
@@ -38,8 +45,10 @@ let () =
 
       (* Print the current options *)
       Options.log_opts opt;
-      Semantics.Addon.log_active 0;
-      Dispatcher.Plugin.log_active 0;
+      Util.log ~section:Semantics.section "active: @[<hov>%a@]"
+        (fun k -> k CCFormat.(list string) (Semantics.Addon.active ()));
+      Util.log ~section:Dispatcher.plugin_section "active: @[<hov>%a@]"
+        (fun k -> k CCFormat.(list string) (Dispatcher.Plugin.active ()));
 
       Pipe.parse opt
     with e ->
