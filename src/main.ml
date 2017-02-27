@@ -56,7 +56,7 @@ let () =
       exit 2
   in
   Pipeline.(
-    run ~handle_exn:Out.print_exn g opt' (
+    run ~print_exn:Out.print_exn g opt' (
       (
         (fix (apply ~name:"expand" Pipe.expand) (
             (apply ~name:"execute" Pipe.execute)
