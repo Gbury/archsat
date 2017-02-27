@@ -52,7 +52,7 @@ module Stack = struct
     List.iter (function Ref r -> register_ref t r) t.refs;
     (* Then push a new level on the stack *)
     let level = !curr in
-    Util.debug ~section:t.section "Push (#%d)" (fun k -> k level);
+    Util.debug ~section:t.section "Push (#%d)" level;
     t.stack <- Level (t.stack, level);
     t.last <- level;
     incr curr
@@ -78,7 +78,7 @@ module Stack = struct
       | Call3 (f, x, y, z, op) -> f x y z; pop op
     in
     Util.enter_prof t.section;
-    Util.debug ~section:t.section "Backtracking to point #%d" (fun k -> k lvl);
+    Util.debug ~section:t.section "Backtracking to point #%d" lvl;
     pop t.stack;
     Util.exit_prof t.section
 

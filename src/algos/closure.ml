@@ -138,7 +138,7 @@ module Eq(T : Key) = struct
           | Some (z, t1), Some (w, t2) ->
             if not (T.equal t1 t2) then begin
               Util.debug ~section:h.section "Tag shenanigan:@ @[<hov>%a@ (%a)@ <>@ %a@ (%a)@]"
-                (fun k -> k T.print t1 T.print z T.print t2 T.print w);
+                T.print t1 T.print z T.print t2 T.print w;
               raise (Equal (z, w))
             end else Some (z, t1)
           | Some t, None | None, Some t -> Some t

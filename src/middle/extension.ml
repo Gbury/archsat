@@ -60,7 +60,7 @@ module Make(E: K) : S with type ext = E.t = struct
     assert (not (CCVector.exists (fun r -> r.name = name) exts));
     if prio < 0 then
       Util.warn ~section:E.section
-        "WARNING: %s - extensions should have positive priority" (fun k -> k name);
+        "WARNING: %s - extensions should have positive priority" name;
     let id = CCVector.length exts in
     CCVector.push exts { id; prio; name; descr; options; ext }
 
@@ -80,7 +80,7 @@ module Make(E: K) : S with type ext = E.t = struct
         refresh ()
       end else
         Util.warn ~section:E.section
-          "WARNING: Extension %s already activated" (fun k -> k ext)
+          "WARNING: Extension %s already activated" ext
     with Not_found -> _not_found ext
 
   let deactivate ext =
@@ -91,7 +91,7 @@ module Make(E: K) : S with type ext = E.t = struct
       begin match l1 with
         | [] ->
           Util.warn ~section:E.section
-            "WARNING: Extension %s already deactivated" (fun k -> k ext)
+            "WARNING: Extension %s already deactivated" ext
         | [r] ->
           active := l2;
           refresh ()

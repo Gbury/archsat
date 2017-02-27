@@ -142,12 +142,12 @@ let parse iter =
   !acc, st
 
 let handle_aux iter acc old st =
-  Util.debug ~section "state:@ @[<hov>%a@]" (fun k -> k Ext_meta.print st);
+  Util.debug ~section "state:@ @[<hov>%a@]" Ext_meta.print st;
   let c = Constraints.add_constraint acc st in
   dump_acc c;
   match Constraints.gen c () with
   | Some s ->
-    Util.debug ~section "New Constraint with subst : %a" (fun k -> k Unif.print s);
+    Util.debug ~section "New Constraint with subst : %a" Unif.print s;
     (* Old behavior, quite certainly incomplete. *)
     (*
     let accs, acc = make_builtin (make c') in
@@ -161,9 +161,9 @@ let handle_aux iter acc old st =
     let pred = make_builtin (make c l) in
     Solver.Assume (pred :: l)
   | None ->
-    Util.debug ~section "Couldn't find a satisfiable constraint" (fun k -> k);
+    Util.debug ~section "Couldn't find a satisfiable constraint";
     if !Ext_meta.meta_start < !Ext_meta.meta_max then begin
-      Util.debug ~section "Adding new meta (total: %d)" (fun k -> k !Ext_meta.meta_start);
+      Util.debug ~section "Adding new meta (total: %d)" !Ext_meta.meta_start;
       incr Ext_meta.meta_start;
       Ext_meta.iter Ext_meta.do_formula;
       Solver.Restart
@@ -179,19 +179,19 @@ let handle : type ret. ret Dispatcher.msg -> ret option = function
   | Solver.Found_sat iter ->
     let cstr, old, st = match parse iter with
       | None, st ->
-        Util.info ~section "Generating empty constraint" (fun k -> k);
+        Util.info ~section "Generating empty constraint";
         let t = empty_cst () in
         dump_new_acc t;
         (t, [], st)
       | Some t, st ->
-        Util.info ~section "Found previous constraint" (fun k -> k);
+        Util.info ~section "Found previous constraint";
         (t.acc, t.res, st)
     in
     let ret = handle_aux iter cstr old st in
     begin match ret with
       | Solver.Assume _ ->
         incr branches_closed;
-        Util.debug ~section "Closed %d branches" (fun k -> k !branches_closed)
+        Util.debug ~section "Closed %d branches" !branches_closed
       | _ -> ()
     end;
     Some ret

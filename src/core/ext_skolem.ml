@@ -49,9 +49,9 @@ let tau = function
     if not (has_been_seen f) then begin
       mark f;
       Util.debug ~section "@[<hov 2>New formula:@ %a@\nwith free variables:@ %a,@ %a"
-        (fun k -> k Expr.Print.formula f
+        Expr.Print.formula f
             (CCFormat.list Expr.Print.ty) ty_args
-            (CCFormat.list Expr.Print.term) t_args);
+            (CCFormat.list Expr.Print.term) t_args;
       let taus = get_term_taus ty_args t_args l in
       let subst = List.fold_left2 Expr.Subst.Id.bind Expr.Subst.empty l taus in
       let q = Expr.Formula.subst Expr.Subst.empty subst p in
@@ -61,9 +61,9 @@ let tau = function
     if not (has_been_seen f) then begin
       mark f;
       Util.debug ~section "@[<hov 2>New formula:@ %a@\nwith free variables:@ %a,@ %a"
-        (fun k -> k Expr.Print.formula f
+        Expr.Print.formula f
             (CCFormat.list Expr.Print.ty) ty_args
-            (CCFormat.list Expr.Print.term) t_args);
+            (CCFormat.list Expr.Print.term) t_args;
       let taus = get_term_taus ty_args t_args l in
       let subst = List.fold_left2 Expr.Subst.Id.bind Expr.Subst.empty l taus in
       let q = Expr.Formula.subst Expr.Subst.empty subst p in
@@ -73,9 +73,9 @@ let tau = function
     if not (has_been_seen f) then begin
       mark f;
       Util.debug ~section "@[<hov 2>New formula:@ %a@\nwith free variables:@ %a,@ %a"
-        (fun k -> k Expr.Print.formula f
+        Expr.Print.formula f
             (CCFormat.list Expr.Print.ty) ty_args
-            (CCFormat.list Expr.Print.term) t_args);
+            (CCFormat.list Expr.Print.term) t_args;
       let taus = get_ty_taus ty_args t_args l in
       let subst = List.fold_left2 Expr.Subst.Id.bind Expr.Subst.empty l taus in
       let q = Expr.Formula.subst subst Expr.Subst.empty p in
@@ -86,9 +86,9 @@ let tau = function
     if not (has_been_seen f) then begin
       mark f;
       Util.debug ~section "@[<hov 2>New formula:@ %a@\nwith free variables:@ %a,@ %a"
-        (fun k -> k Expr.Print.formula f
+        Expr.Print.formula f
             (CCFormat.list Expr.Print.ty) ty_args
-            (CCFormat.list Expr.Print.term) t_args);
+            (CCFormat.list Expr.Print.term) t_args;
       let taus = get_ty_taus ty_args t_args l in
       let subst = List.fold_left2 Expr.Subst.Id.bind Expr.Subst.empty l taus in
       let q = Expr.Formula.subst subst Expr.Subst.empty p in

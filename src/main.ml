@@ -46,9 +46,9 @@ let () =
       (* Print the current options *)
       Options.log_opts opt;
       Util.log ~section:Semantics.section "active: @[<hov>%a@]"
-        (fun k -> k CCFormat.(list string) (Semantics.Addon.active ()));
+        CCFormat.(list string) (Semantics.Addon.active ());
       Util.log ~section:Dispatcher.plugin_section "active: @[<hov>%a@]"
-        (fun k -> k CCFormat.(list string) (Dispatcher.Plugin.active ()));
+        CCFormat.(list string) (Dispatcher.Plugin.active ());
 
       Pipe.parse opt
     with e ->

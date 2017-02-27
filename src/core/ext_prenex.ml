@@ -32,7 +32,7 @@ let add_ty_var env v =
     if env.num <= 0 then Expr.Ty.of_id v
     else Expr.(Ty.of_id (Id.ttype (name env v.id_name)))
   in
-  Util.debug ~section "%a -> %a" (fun k -> k Expr.Print.id_ttype v Expr.Print.ty ty);
+  Util.debug ~section "%a -> %a" Expr.Print.id_ttype v Expr.Print.ty ty;
   { env with type_vars = Expr.Subst.Id.bind env.type_vars v ty }
 
 let add_term_var env v =
@@ -40,7 +40,7 @@ let add_term_var env v =
     if env.num <= 0 then Expr.Term.of_id v
     else Expr.(Term.of_id (Id.ty (name env v.id_name) v.id_type))
   in
-  Util.debug ~section "%a -> %a" (fun k -> k Expr.Print.id_ty v Expr.Print.term t);
+  Util.debug ~section "%a -> %a" Expr.Print.id_ty v Expr.Print.term t;
   { env with term_vars = Expr.Subst.Id.bind env.term_vars v t }
 
 let add_ty_vars = List.fold_left add_ty_var
@@ -142,24 +142,23 @@ let rec generalize = function
   | f ->
     let ty_vars, t_vars = Expr.Formula.fv f in
     Util.debug ~section "@[<hov 2>generalizing:@ %a@\nFree_vars :@ %a%a@]"
-      (fun k ->
-         k Expr.Print.formula f
+         Expr.Print.formula f
            CCFormat.(list ~sep:(return "") (fun fmt v ->
                Format.fprintf fmt "|- %a" Expr.Print.id_ttype v)) ty_vars
            CCFormat.(list ~sep:(return "") (fun fmt v ->
-               Format.fprintf fmt "|- %a" Expr.Print.id_ty v)) t_vars);
+               Format.fprintf fmt "|- %a" Expr.Print.id_ty v)) t_vars;
     Expr.Formula.allty ty_vars (Expr.Formula.all t_vars f)
 
 let prenex = function f -> generalize (specialize empty_env f)
 
 let do_formula f =
   let f' = prenex f in
-  Util.debug ~section "input: %a" (fun k -> k Expr.Print.formula f);
+  Util.debug ~section "input: %a" Expr.Print.formula f;
   if Expr.Formula.equal f f' then begin
-    Util.debug ~section "output: not changed." (fun k -> k);
+    Util.debug ~section "output: not changed.";
     None
   end else begin
-    Util.debug ~section "output: %a" (fun k -> k Expr.Print.formula f');
+    Util.debug ~section "output: %a" Expr.Print.formula f';
     Some (f', Dispatcher.mk_proof "prenex" "todo")
   end
 

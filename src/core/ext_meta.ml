@@ -209,7 +209,7 @@ let do_formula =
       while !i < !meta_start do
         incr i;
         Util.debug ~section "start meta (%d/%d) %a"
-          (fun k -> k !i !meta_start Expr.Print.formula f);
+          !i !meta_start Expr.Print.formula f;
         aux f
       done
     | _ -> ()
@@ -220,7 +220,7 @@ let do_meta_inst = function
     if !i < !meta_max then begin
       incr i;
       Util.debug ~section "new_meta (%d/%d) : %a"
-        (fun k -> k !i !meta_max Expr.Print.formula f);
+        !i !meta_max Expr.Print.formula f;
       let metas = Expr.Meta.of_all f in
       let u = List.fold_left (fun s m -> Unif.bind_term s m (Expr.Term.of_meta m)) Unif.empty metas in
       if not (Inst.add ~delay:(delay !i) u) then assert false
@@ -230,7 +230,7 @@ let do_meta_inst = function
     if !i < !meta_max then begin
       incr i;
       Util.debug ~section "new_meta (%d/%d) : %a"
-        (fun k -> k !i !meta_max Expr.Print.formula f);
+        !i !meta_max Expr.Print.formula f;
       let metas = Expr.Meta.of_all f in
       let u = List.fold_left (fun s m -> Unif.bind_term s m (Expr.Term.of_meta m)) Unif.empty metas in
       if not (Inst.add ~delay:(delay !i) u) then assert false
@@ -240,7 +240,7 @@ let do_meta_inst = function
     if !i < !meta_max then begin
       incr i;
       Util.debug ~section "new_meta (%d/%d) : %a"
-        (fun k -> k !i !meta_max Expr.Print.formula f);
+        !i !meta_max Expr.Print.formula f;
       let metas = Expr.Meta.of_all_ty f in
       let u = List.fold_left (fun s m -> Unif.bind_ty s m (Expr.Ty.of_meta m)) Unif.empty metas in
       if not (Inst.add ~delay:(delay !i) u) then assert false
@@ -250,7 +250,7 @@ let do_meta_inst = function
     if !i < !meta_max then begin
       incr i;
       Util.debug ~section "new_meta (%d/%d) : %a"
-        (fun k -> k !i !meta_max Expr.Print.formula f);
+        !i !meta_max Expr.Print.formula f;
       let metas = Expr.Meta.of_all_ty f in
       let u = List.fold_left (fun s m -> Unif.bind_ty s m (Expr.Ty.of_meta m)) Unif.empty metas in
       if not (Inst.add ~delay:(delay !i) u) then assert false
@@ -277,7 +277,7 @@ let insts r l =
   let l = List.map do_inst l in
   if List.exists CCFun.id l then begin
     decr r;
-    Util.debug ~section "Waiting for %d other insts" (fun k -> k !r);
+    Util.debug ~section "Waiting for %d other insts" !r;
     if !r <= 0 then raise Found_unif
   end
 
@@ -334,7 +334,7 @@ let find_all_insts : type ret. ret Dispatcher.msg -> ret option = function
     (* Create new metas *)
     if !meta_incr then begin
       Util.debug ~section "New metas to generate (%d formulas to inspect)"
-        (fun k -> k (H.length metas));
+        (H.length metas);
       iter do_meta_inst
     end;
     (* Look at instanciation settings *)
@@ -342,11 +342,11 @@ let find_all_insts : type ret. ret Dispatcher.msg -> ret option = function
       | No_unif -> ()
       | _ ->
         (* Analysing assummed formulas *)
-        Util.debug ~section "Parsing input formulas" (fun k -> k);
+        Util.debug ~section "Parsing input formulas";
         let st = parse_slice model in
-        Util.debug ~section "%a" (fun k -> k print st);
+        Util.debug ~section "%a" print st;
         (* Search for instanciations *)
-        Util.debug ~section "Applying unification" (fun k -> k);
+        Util.debug ~section "Applying unification";
         unif_f st !unif_setting
     end;
     Some Solver.Sat_ok

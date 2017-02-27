@@ -94,7 +94,7 @@ let match_types pats args subst =
   | Match.Impossible_term _ -> assert false
   | Match.Impossible_ty (a, b) ->
     Util.debug ~section "Couldn't match %a <-> %a"
-      (fun k -> k Expr.Print.ty a Expr.Print.ty b);
+      Expr.Print.ty a Expr.Print.ty b;
     None
 
 let match_modulo_var v c subst =
@@ -271,7 +271,7 @@ let parse_rule = function
         if manual then
           Util.warn ~section
             "Following formula couldn't be parsed as a rewrite rule despite tag: %a"
-            (fun k -> k Expr.Print.formula r);
+            Expr.Print.formula r;
         None
       | Some rule -> Some (set_formula formula rule)
     end
@@ -282,7 +282,7 @@ let parse_rule = function
 
 let instanciate rule subst =
   Util.debug ~section "@[<hov 2>Instanciate %a@ with@ %a"
-    (fun k -> k print_rule rule Match.print subst);
+    print_rule rule Match.print subst;
   let res = Match.formula_apply subst rule.result in
   match rule.guards with
   | [] ->
@@ -304,18 +304,18 @@ let instanciate rule subst =
       )
 
 let match_and_instantiate s ({ trigger; _ } as rule) =
-  Util.debug ~section "Matches for rule %a" (fun k -> k print_rule rule);
+  Util.debug ~section "Matches for rule %a" print_rule rule;
   let seq = T.fold (fun c acc ->
       let repr = C.repr c in
       Util.debug ~section "Trying to match %a with %a"
-        (fun k -> k Expr.Print.term trigger C.print c);
+        Expr.Print.term trigger C.print c;
       let s = match_modulo trigger c in
       let s' = List.map (fun x -> repr, x) s in
       List.append s' acc
     ) s [] in
   List.iter (fun (term, subst) ->
       Util.debug ~section "matched '%a' with %a"
-        (fun k -> k Expr.Print.term term Match.print subst);
+        Expr.Print.term term Match.print subst;
       instanciate rule subst
     ) seq
 
@@ -365,7 +365,7 @@ let add_rule r =
     (* Mixed case, it really isn't clear what we should do in these cases... *)
     | _, _    ->
       Util.warn ~section
-        "Mixed set of rewrite rules detected, removing auto rules" (fun k -> k);
+        "Mixed set of rewrite rules detected, removing auto rules";
       rules := List.filter (fun { manual; _ } -> manual) !rules
   end;
   (* Call the callback *)
@@ -379,10 +379,10 @@ let assume f =
   let () = match parse_rule f with
     | None ->
       Util.debug ~section "Failed to detect rewrite rule with: %a"
-        (fun k -> k Expr.Print.formula f);
+        Expr.Print.formula f;
     | Some r ->
       Util.info ~section "@[<hov 2>Detected a new rewrite rule:@ %a@]"
-        (fun k -> k print_rule r);
+        print_rule r;
       add_rule r
   in
   ()

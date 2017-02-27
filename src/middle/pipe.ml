@@ -6,7 +6,7 @@ module S = Dolmen.Statement
 
 (* Logging *)
 let start_section (logger: _ Util.logger) s =
-  logger "=== %s %s" (fun k -> k s (String.make (84 - String.length s) '='))
+  logger "=== %s %s" s (String.make (84 - String.length s) '=')
 
 (* Types used in Pipes *)
 (* ************************************************************************ *)

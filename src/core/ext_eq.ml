@@ -42,7 +42,7 @@ let callback, register_callback =
   let l = ref [] in
   let callback a b c =
     Util.debug ~section "Merging %a / %a ==> %a"
-      (fun k-> k print a print b print c);
+      print a print b print c;
     List.iter (fun (name, f) ->
         if Dispatcher.Plugin.(is_active (find name)) then
           f a b c) !l
@@ -99,8 +99,8 @@ let eval_pred = function
     begin try
         let a' = D.get_assign a in
         let b' = D.get_assign b in
-        Util.debug ~section "Eval [%a] %a == %a" (fun k ->
-            k Expr.Print.formula f Expr.Print.term a' Expr.Print.term b');
+        Util.debug ~section "Eval [%a] %a == %a"
+            Expr.Print.formula f Expr.Print.term a' Expr.Print.term b';
         Some (Expr.Term.equal a' b', [a; b])
       with D.Not_assigned _ ->
         None
@@ -109,8 +109,8 @@ let eval_pred = function
     begin try
         let a' = D.get_assign a in
         let b' = D.get_assign b in
-        Util.debug ~section "Eval [%a] %a <> %a" (fun k ->
-            k Expr.Print.formula f Expr.Print.term a' Expr.Print.term b');
+        Util.debug ~section "Eval [%a] %a <> %a"
+            Expr.Print.formula f Expr.Print.term a' Expr.Print.term b';
         Some (not (Expr.Term.equal a' b'), [a; b])
       with D.Not_assigned _ ->
         None
@@ -140,17 +140,17 @@ let wrap f x y =
     f st x y
   with E.Unsat (a, b, l) ->
     Util.info ~section "Error while adding hypothesis : %a ~ %a"
-      (fun k -> k Expr.Print.term x Expr.Print.term y);
+      Expr.Print.term x Expr.Print.term y;
     raise (D.Absurd (mk_expl (a, b, l), mk_proof l))
 
 let tag x = fun () ->
   try
     Util.debug ~section "Tagging %a -> %a"
-      (fun k -> k Expr.Print.term x Expr.Print.term (D.get_assign x));
+      Expr.Print.term x Expr.Print.term (D.get_assign x);
     E.add_tag st x (D.get_assign x)
   with E.Unsat (a, b, l) ->
     Util.info ~section "Error while tagging : %a -> %a"
-      (fun k -> k Expr.Print.term x Expr.Print.term (D.get_assign x));
+      Expr.Print.term x Expr.Print.term (D.get_assign x);
     let res = mk_expl (a, b, l) in
     let proof = mk_proof l in
     raise (D.Absurd (res, proof))
@@ -159,10 +159,10 @@ let eq_assign x =
   try
     begin match E.find_tag st x with
       | _, Some (_, v) ->
-        Util.debug ~section "Found tag : %a" (fun k -> k Expr.Print.term v);
+        Util.debug ~section "Found tag : %a" Expr.Print.term v;
         v
       | x, None ->
-        Util.debug ~section "Looking up repr : %a" (fun k -> k Expr.Print.term x);
+        Util.debug ~section "Looking up repr : %a" Expr.Print.term x;
         let res = try D.get_assign x with D.Not_assigned _ -> x in
         res
     end

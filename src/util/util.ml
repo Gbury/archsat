@@ -184,7 +184,9 @@ module Section = struct
   (* inlinable function *)
   let cur_level s =
     if s.level = Level.null then
-      cur_level_rec s
+      let r = cur_level_rec s in
+      set_debug s r;
+      r
     else
       s.level
 
@@ -271,26 +273,23 @@ end
 
 type 'a logger =
   ?section:Section.t ->
-  ('a, Format.formatter, unit, unit) format4 ->
-  ('a -> unit) -> unit
+  ('a, Format.formatter, unit, unit) format4 -> 'a
 
 let set_debug = Section.set_debug Section.root
 let get_debug () = Section.root.Section.level
 let need_cleanup = ref false
 let cleanup () = need_cleanup := true
 
-let aux ?(section=Section.root) l format k =
+let aux ?(section=Section.root) l format =
   let fmt = Format.std_formatter in
   if l <= Section.cur_level section
   then begin
     if !need_cleanup then Format.fprintf fmt "\r";
     let now = get_total_time () in
-    if section == Section.root then
-      Format.fprintf fmt "%% [%.3f] @[<hov>" now
-    else
-      Format.fprintf fmt "%% [%.3f %s] @[<hov>" now section.Section.full_name;
-    k @@ Format.kfprintf (fun fmt -> Format.fprintf fmt "@]@.") fmt format
-  end
+    Format.fprintf fmt ("%% [%.3f %s] @[<hov>" ^^ format ^^ "@]@.")
+      now section.Section.full_name
+  end else
+    Format.ifprintf fmt format
 
 let error ?section = aux ?section Level.error
 let log ?section = aux ?section Level.log
@@ -367,10 +366,10 @@ let rec map_tree f = function
 
 let print_profiler () =
   if !active <> [] then begin
-    log "Debug sections not closed properly" (fun k -> k);
+    log "Debug sections not closed properly";
     while !active <> [] do
       let section = List.hd !active in
-      info ~section "Closing section forcefully" (fun k -> k);
+      info ~section "Closing section forcefully";
       exit_prof section
     done;
   end;

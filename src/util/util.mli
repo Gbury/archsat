@@ -116,7 +116,7 @@ val cleanup : unit -> unit
 type 'a logger =
   ?section:Section.t ->
   ('a, Format.formatter, unit, unit) format4 ->
-  ('a -> unit) -> unit
+  'a
 
 val error   : 'a logger
 val log     : 'a logger

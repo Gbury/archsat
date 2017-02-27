@@ -19,7 +19,7 @@ let print_state state =
   let (i, r) = CCVector.get state.instanciations s in
   if i > 0 || r > 0 then
     Util.log ~section "Round %d : instanciations %d (remaining : %d)"
-      (fun k -> k s i r)
+      s i r
 
 let init_round state =
   state.cur_round <- state.cur_round + 1;
