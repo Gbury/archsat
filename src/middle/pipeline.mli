@@ -49,7 +49,7 @@ val eval : ('a, 'b) t -> 'a -> 'b
 (** Evaluate a pipeline to a function. *)
 
 val run :
-  ?handle_exn:(Options.opts -> exn -> unit) ->
+  ?print_exn:(Options.opts -> Format.formatter -> exn -> unit) ->
   (Options.opts -> 'a option) -> Options.opts ->
   (Options.opts * 'a, Options.opts) t -> unit
 (** Loop the evaluation of a pipeline over a generator, and starting options.

@@ -2,8 +2,8 @@
 (* Default exception handler *)
 (* ************************************************************************ *)
 
-let default_handler opt exn =
-  Format.eprintf "Exception: @<hov>%s@]@." (Printexc.to_string exn)
+let default_handler opt fmt exn =
+  Format.fprintf fmt "Exception: @<hov>%s@]@." (Printexc.to_string exn)
 
 (* GC alarm for time/space limits *)
 (* ************************************************************************ *)
@@ -35,17 +35,17 @@ let delete_alarm alarm =
 let () =
   Sys.set_signal Sys.sigalrm (
     Sys.Signal_handle (fun _ ->
-      Util.need_cleanup := true;
-      raise Options.Out_of_time)
+        Util.cleanup ();
+        raise Options.Out_of_time)
   )
 
 (* We also want to catch user interruptions *)
 let () =
   Sys.set_signal Sys.sigint (
     Sys.Signal_handle (fun _ ->
-      Util.need_cleanup := true;
-      raise Options.Sigint)
-    )
+        Util.cleanup ();
+        raise Options.Sigint)
+  )
 
 (* Pipeline and execution *)
 (* ************************************************************************ *)
@@ -126,9 +126,9 @@ let run_aux : type a. (opt * a, opt) t -> (opt -> a option) -> opt -> opt option
     Time/size limits apply for the complete evaluation of each input
     (so all expanded values count toward the same limit). *)
 let rec run : type a.
-  ?handle_exn:(opt -> exn -> unit) ->
+  ?print_exn:(opt -> Format.formatter -> exn -> unit) ->
   (opt -> a option) -> opt -> (opt * a, opt) t -> unit =
-  fun ?(handle_exn=default_handler) g opt pipe ->
+  fun ?(print_exn=default_handler) g opt pipe ->
     let time = opt.Options.time_limit in
     let size = opt.Options.size_limit in
     let al = setup_alarm time size in
@@ -138,12 +138,12 @@ let rec run : type a.
         delete_alarm al
       | Some opt' ->
         delete_alarm al;
-        run ~handle_exn g opt' pipe
+        run ~print_exn g opt' pipe
       | exception exn ->
         delete_alarm al;
         if Printexc.backtrace_status () then
           Printexc.print_backtrace stdout;
-        handle_exn opt exn;
-        run ~handle_exn g opt pipe
+        Util.error "%a" (print_exn opt) exn;
+        run ~print_exn g opt pipe
     end
 

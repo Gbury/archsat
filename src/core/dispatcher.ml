@@ -1,6 +1,7 @@
 
 let section = Util.Section.make "core"
 let solver_section = Util.Section.make "solver"
+let plugin_section = Util.Section.make ~parent:section "plugin"
 
 let dummy_section = Util.Section.make "DUMMY"
 
@@ -188,7 +189,7 @@ module Plugin = Extension.Make(struct
     type t = ext
     let neutral = mk_ext ~section ()
     let merge = merge_exts
-    let section = Util.Section.make ~parent:section "plugins"
+    let section = plugin_section
   end)
 
 let plugin_peek f =
@@ -249,8 +250,9 @@ let push_stack = Stack.create ()
 let propagate_stack = Stack.create ()
 
 let push clause p  =
-  Util.log ~section 50 "New clause to push (%s) : %a"
-    p.proof_name (CCFormat.list ~sep:" || " Expr.Print.formula) clause;
+  Util.debug ~section "New clause to push (%s):@ @[<hov>%a@]"
+    p.proof_name
+        CCFormat.(list ~sep:(return " ||@ ") Expr.Print.formula) clause;
   Stack.push (clause, p) push_stack
 
 let propagate f l =
@@ -262,7 +264,7 @@ let consequence f l p =
 let do_propagate propagate =
   while not (Stack.is_empty propagate_stack) do
     let (t, reason) = Stack.pop propagate_stack in
-    Util.log ~section 10 "Propagating : %a" Expr.Print.formula t;
+    Util.debug ~section "Propagating:@ @[<hov>%a@]" Expr.Print.formula t;
     propagate t reason
   done
 
@@ -272,8 +274,9 @@ let clean_propagate () =
 let do_push f =
   while not (Stack.is_empty push_stack) do
     let (a, p) = Stack.pop push_stack in
-    Util.log ~section 20 "Pushing '%s' : %a"
-      p.proof_name (CCFormat.list ~sep:" || " Expr.Print.formula) a;
+    Util.debug ~section "Pushing '%s':@ @[<hov>%a@]"
+      p.proof_name
+          CCFormat.(list ~sep:(return " ||@ ") Expr.Print.formula) a;
     f a p
   done
 
@@ -282,8 +285,9 @@ let do_push f =
 
 let check_var v =
   if not (Expr.Id.is_interpreted v) && not (Expr.Id.is_assignable v) then
-    Util.log ~section 0
-      "WARNING: Variable %a is neither interpreted nor assignable" Expr.Print.id v
+    Util.warn ~section
+      "WARNING: Variable '%a' is neither interpreted nor assignable"
+      Expr.Print.id v
 
 let rec check_term = function
   | { Expr.term = Expr.Var v } -> check_var v
@@ -306,14 +310,17 @@ let peek_at f =
 
 let pre_process f =
   Util.enter_prof section;
-  Util.debug ~section 10 "  %a" Expr.Debug.formula f;
-  Util.debug ~section 10 "Pre-processing :";
   let f' =
     match plugin_preprocess f with
-    | None -> f
-    | Some (f', _) -> f'
+    | None ->
+      Util.debug ~section "Pre-processing (idem):@ @[<hov>%a@]"
+        Expr.Print.formula f;
+      f
+    | Some (f', _) ->
+      Util.debug ~section "@[<hov>Pre-processing (changes): %a@ --->%a@]"
+        Expr.Print.formula f Expr.Print.formula f';
+      f'
   in
-  Util.debug ~section 10 "  %a" Expr.Debug.formula f';
   Util.exit_prof section;
   f'
 
@@ -366,7 +373,7 @@ let add_job job t =
   H.replace watch_map t (job :: l)
 
 let call_job j =
-  if CCOpt.(get true (j.job_formula >>= eval_f))
+  if CCOpt.(get_or ~default:true (j.job_formula >>= eval_f))
   && j.job_done < !last_backtrack then begin
     j.job_done <- !last_backtrack;
     profile j.job_section j.job_callback ()
@@ -382,20 +389,23 @@ let update_watch x j =
     let _, old_watched = find (Expr.Term.equal x) [] j.watched in
     try
       let y, old_not_watched = find (fun y -> not (is_assigned y)) [] j.not_watched in
-      Util.debug ~section 10 "New watcher (%a) for job from %s"
-        Expr.Debug.term y Plugin.((get j.job_ext).name);
+      Util.debug ~section "New watcher for job from %s:@ @[<hov>%a@]"
+        Plugin.((get j.job_ext).name) Expr.Print.term y;
       j.not_watched <- x :: old_not_watched;
       j.watched <- y :: old_watched;
       add_job j y
     with Not_found ->
       add_job j x;
-      Util.debug ~section 10 "Calling job from %s" Plugin.((get j.job_ext).name);
+      Util.debug ~section "Calling job from %s"
+        Plugin.((get j.job_ext).name);
       call_job j
   with Not_found ->
     let ext = Plugin.get j.job_ext in
-    Util.debug ~section 0 "Error for job from %s, looking for %d, called by %a" ext.Plugin.name j.job_n Expr.Debug.term x;
-    Util.debug ~section 0 "watched : %a" (CCPrint.list ~sep:" || " Expr.Debug.term) j.watched;
-    Util.debug ~section 0 "not_watched : %a" (CCPrint.list ~sep:" || " Expr.Debug.term) j.not_watched;
+    Util.error ~section
+      "Error for job from %s@ looking for %d, called by %a@\nwatched:@ @[<hov>%a@]@\nnot_watched:@ @[<hov>%a@]"
+      ext.Plugin.name j.job_n Expr.Print.term x
+          CCFormat.(list ~sep:(return " ||@ ") Expr.Print.term) j.watched
+          CCFormat.(list ~sep:(return " ||@ ") Expr.Print.term) j.not_watched;
     assert false
 
 let new_job ?formula id k section watched not_watched f =
@@ -423,7 +433,7 @@ let watch ?formula ext_name k args f =
       List.iter (add_job j) not_assigned
     | [] (* i > 0 *) ->
       let l = List.rev_append not_assigned assigned in
-      let to_watch, not_watched = CCList.split k l in
+      let to_watch, not_watched = CCList.take_drop k l in
       let j = new_job ?formula tag k section to_watch not_watched f in
       List.iter (add_job j) to_watch;
       call_job j
@@ -436,7 +446,9 @@ let watch ?formula ext_name k args f =
   let t' = Builtin.Misc.tuple args in
   let l = try H.find watchers t' with Not_found -> [] in
   if not (List.mem tag l) then begin
-    Util.debug ~section 10 "New watch from %s, %d among : %a" Plugin.((get tag).name) k (CCPrint.list ~sep:" || " Expr.Debug.term) args;
+    Util.debug ~section "New watch from %s, %d among:@ @[<hov>%a@]"
+      Plugin.((get tag).name) k
+          CCFormat.(list ~sep:(return " ||@ ") Expr.Print.term) args;
     H.add watchers t' (tag :: l);
     split [] [] k (List.sort_uniq Expr.Term.compare args)
   end
@@ -458,16 +470,18 @@ and set_assign t v =
   Util.enter_prof section;
   try
     let v' = M.find eval_map t in
-    Util.debug ~section 5 "Assigned : %a -> %a / %a"
-      Expr.Debug.term t Expr.Debug.term v' Expr.Debug.term v;
+    Util.debug ~section "Assigned:@ @[<hov>%a ->@ %a@]@\nAssigning:@ @[<hov>%a ->@ %a@]"
+          Expr.Print.term t Expr.Print.term v'
+          Expr.Print.term t Expr.Print.term v;
     if not (Expr.Term.equal v v') then
       _fail "Incoherent assignments";
     Util.exit_prof section
   with Not_found ->
-    Util.debug ~section 5 "Assign : %a -> %a" Expr.Debug.term t Expr.Debug.term v;
+    Util.debug ~section "Assign:@ @[<hov>%a ->@ %a@]"
+      Expr.Print.term t Expr.Print.term v;
     M.add eval_map t v;
     let l = try hpop watch_map t with Not_found -> [] in
-    Util.debug ~section 10 " Found %d watchers" (List.length l);
+    Util.debug ~section "Found %d watchers" (List.length l);
     assign_watch t l
 
 let model () =
@@ -490,7 +504,7 @@ module SolverTheory = struct
   let current_level () = Backtrack.Stack.level stack
 
   let backtrack lvl =
-    Util.debug ~section 10 "Backtracking";
+    Util.debug ~section "Backtracking";
     incr last_backtrack;
     Stack.clear propagate_stack;
     Backtrack.Stack.backtrack stack lvl
@@ -498,27 +512,29 @@ module SolverTheory = struct
   let assume s =
     let open Msat.Plugin_intf in
     Util.enter_prof section;
-    Util.debug ~section 5 "New slice of length %d" s.length;
+    Util.info ~section "New slice of length %d" s.length;
     try
       let assume_aux = plugin_assume () in
       for i = s.start to s.start + s.length - 1 do
         match s.get i with
         | Lit f ->
-          Util.debug ~section 5 " Assuming %a" Expr.Debug.formula f;
+          Util.info ~section "(slice) assuming:@ @[<hov>%a@]"
+            Expr.Print.formula f;
           assume_aux f
         | Assign (t, v) ->
-          Util.debug ~section 5 " Assuming %a -> %a" Expr.Debug.term t Expr.Debug.term v;
+          Util.info ~section "(slice) assuming: @[<hov>%a ->@ %a@]"
+            Expr.Print.term t Expr.Print.term v;
           set_assign t v
       done;
       Util.exit_prof section;
-      Util.debug ~section 8 "Propagating %d lits" (Stack.length propagate_stack);
+      Util.debug ~section "Propagating %d lits" (Stack.length propagate_stack);
       do_propagate s.propagate;
       do_push s.push;
       Sat
     with Absurd (l, p) ->
       clean_propagate ();
-      Util.debug ~section 5 "Conflict '%s'" p.proof_name;
-      List.iter (fun f -> Util.debug ~section 5 " |- %a" Expr.Debug.formula f) l;
+      Util.info ~section "Conflict(%s):@ @[<hov>%a@]"
+          p.proof_name CCFormat.(list ~sep:(return " ||@ ") Expr.Print.formula) l;
       Util.exit_prof section;
       Unsat (l, p)
 
@@ -532,7 +548,7 @@ module SolverTheory = struct
 
   let if_sat s =
     Util.enter_prof section;
-    Util.debug ~section 0 "Iteration with complete model";
+    Util.log ~section "Iteration with complete model";
     try
       send (If_sat (if_sat_iter s));
       assert (Stack.is_empty propagate_stack);
@@ -541,22 +557,26 @@ module SolverTheory = struct
       Msat.Plugin_intf.Sat
     with Absurd (l, p) ->
       clean_propagate ();
-      Util.debug ~section 5 "Conflict '%s'" p.proof_name;
-      List.iter (fun f -> Util.debug ~section 5 " |- %a" Expr.Debug.formula f) l;
+      Util.info ~section "Conflict(%s):@ @[<hov>%a@]"
+          p.proof_name CCFormat.(list ~sep:(return " ||@ ") Expr.Print.formula) l;
       Util.exit_prof section;
       Msat.Plugin_intf.Unsat (l, p)
 
   let assign t =
     Util.enter_prof section;
-    Util.debug ~section 5 "Finding assignment for %a" Expr.Debug.term t;
+    Util.debug ~section "Finding assignment for:@ @[<hov>%a@]"
+      Expr.Print.term t;
     try
       let res = Expr.Term.assign t in
-      Util.debug ~section 5 " -> %a" Expr.Debug.term res;
+      Util.info ~section "%a ->@ @[<hov>%a@]"
+          Expr.Print.term t Expr.Print.term res;
       Util.exit_prof section;
       res
     with Expr.Cannot_assign _ ->
-      _fail (CCPrint.sprintf
-               "Expected to be able to assign symbol %a\nYou may have forgotten to activate an extension" Expr.Debug.term t)
+      _fail (
+        Format.asprintf
+          "Expected to be able to assign symbol %a\nYou may have forgotten to activate an extension"
+          Expr.Print.term t)
 
   let rec iter_assign_aux f e = match Expr.(e.term) with
     | Expr.App (p, _, l) ->
@@ -566,7 +586,7 @@ module SolverTheory = struct
 
   let iter_assignable f e =
     Util.enter_prof section;
-    Util.debug ~section 5 "Iter_assign on %a" Expr.Debug.formula e;
+    Util.debug ~section "Iter_assign on:@ %a" Expr.Print.formula e;
     peek_at e;
     begin match Expr.(e.formula) with
       | Expr.Equal (a, b) -> iter_assign_aux f a; iter_assign_aux f b
@@ -575,11 +595,11 @@ module SolverTheory = struct
     end;
     Util.exit_prof section
 
-  let debug_eval_res buf = function
+  let print_eval_res fmt = function
     | Msat.Plugin_intf.Unknown ->
-      Printf.bprintf buf "<unknown>"
+      Format.fprintf fmt "<unknown>"
     | Msat.Plugin_intf.Valued (b, l) ->
-      Printf.bprintf buf "%B (%a)" b (CCPrint.list Expr.Term.debug) l
+      Format.fprintf fmt "%B@ @[<hov 1>(%a)@]" b (CCFormat.list Expr.Print.term) l
 
   let eval_aux f =
     match plugin_eval_pred f with
@@ -588,9 +608,9 @@ module SolverTheory = struct
 
   let eval formula =
     Util.enter_prof section;
-    Util.debug ~section 5 "Evaluating formula : %a" Expr.Debug.formula formula;
+    Util.debug ~section "Evaluating formula:@ %a" Expr.Print.formula formula;
     let res = eval_aux formula in
-    Util.debug ~section 15 "Res : %a" debug_eval_res res;
+    Util.debug ~section "Eval res:@ @[<hov>%a@]" print_eval_res res;
     Util.exit_prof section;
     res
 

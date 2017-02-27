@@ -142,12 +142,12 @@ let parse iter =
   !acc, st
 
 let handle_aux iter acc old st =
-  Ext_meta.debug_st ~section 30 st;
+  Util.debug ~section "state:@ @[<hov>%a@]" Ext_meta.print st;
   let c = Constraints.add_constraint acc st in
   dump_acc c;
   match Constraints.gen c () with
   | Some s ->
-    Util.debug ~section 10 "New Constraint with subst : %a" Unif.debug s;
+    Util.debug ~section "New Constraint with subst : %a" Unif.print s;
     (* Old behavior, quite certainly incomplete. *)
     (*
     let accs, acc = make_builtin (make c') in
@@ -161,9 +161,9 @@ let handle_aux iter acc old st =
     let pred = make_builtin (make c l) in
     Solver.Assume (pred :: l)
   | None ->
-    Util.debug ~section 2 "Couldn't find a satisfiable constraint";
+    Util.debug ~section "Couldn't find a satisfiable constraint";
     if !Ext_meta.meta_start < !Ext_meta.meta_max then begin
-      Util.debug ~section 2 "Adding new meta (total: %d)" !Ext_meta.meta_start;
+      Util.debug ~section "Adding new meta (total: %d)" !Ext_meta.meta_start;
       incr Ext_meta.meta_start;
       Ext_meta.iter Ext_meta.do_formula;
       Solver.Restart
@@ -179,19 +179,19 @@ let handle : type ret. ret Dispatcher.msg -> ret option = function
   | Solver.Found_sat iter ->
     let cstr, old, st = match parse iter with
       | None, st ->
-        Util.debug ~section 5 "Generating empty constraint";
+        Util.info ~section "Generating empty constraint";
         let t = empty_cst () in
         dump_new_acc t;
         (t, [], st)
       | Some t, st ->
-        Util.debug ~section 10 "Found previous constraint";
+        Util.info ~section "Found previous constraint";
         (t.acc, t.res, st)
     in
     let ret = handle_aux iter cstr old st in
     begin match ret with
       | Solver.Assume _ ->
         incr branches_closed;
-        Util.debug ~section 0 "Closed %d branches" !branches_closed
+        Util.debug ~section "Closed %d branches" !branches_closed
       | _ -> ()
     end;
     Some ret
@@ -203,7 +203,7 @@ let handle : type ret. ret Dispatcher.msg -> ret option = function
 let options =
   let docs = Options.ext_sect in
   let kind =
-    let doc = CCPrint.sprintf "The constraint generation method to use,
+    let doc = Format.asprintf "The constraint generation method to use,
     $(docv) may be %s" (Cmdliner.Arg.doc_alts_enum ~quoted:false kind_list) in
     Cmdliner.Arg.(value & opt parse_kind `Close & info ["cstr.kind"] ~docv:"METHOD" ~docs ~doc)
   in

@@ -31,7 +31,7 @@ val parse_aux : state -> Expr.formula -> unit
 val parse_slice : ((Expr.formula -> unit) -> unit) -> state
 (** Create a slice from the iterator on formulas *)
 
-val debug_st : section:Util.Section.t -> int -> state -> unit
+val print : Format.formatter -> state -> unit
 (** Output some debug info on the output *)
 
 (** {2 Extension Options} *)

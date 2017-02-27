@@ -91,10 +91,11 @@ let find_indexed f =
 let match_types pats args subst =
   try Some (List.fold_left2 Match.ty subst pats args)
   with
-  | Match.Impossible_ty (a, b) ->
-    Util.debug ~section 70 "Couldn't match %a <-> %a" Expr.Ty.debug a Expr.Ty.debug b;
-    None
   | Match.Impossible_term _ -> assert false
+  | Match.Impossible_ty (a, b) ->
+    Util.debug ~section "Couldn't match %a <-> %a"
+      Expr.Print.ty a Expr.Print.ty b;
+    None
 
 let match_modulo_var v c subst =
   match Match.get_term_opt subst v with
@@ -109,26 +110,18 @@ let match_modulo_var v c subst =
 let rec match_modulo_app acc (ty_pats, pats) = function
   | { Expr.term = Expr.App (_, ty_args, args) } ->
     let acc' = CCList.filter_map (match_types ty_pats ty_args) acc in
-    Util.debug ~section 50 "     + type matching: %d results" (List.length acc');
     let l = List.map C.find args in
     List.fold_left2 match_modulo_aux acc' pats l
   | _ -> assert false
 
 and match_modulo_aux acc pat c =
-  Util.debug ~section 50 " - matching %a <--> %a"
-    Expr.Term.debug pat C.debug c;
   match pat with
   | { Expr.term = Expr.Var v } ->
-    Util.debug ~section 50 "   > variable";
     CCList.filter_map (match_modulo_var v (C.repr c)) acc
   | { Expr.term = Expr.Meta _ } as t ->
-    Util.debug ~section 50 "   > meta";
     if C.mem c t then acc else []
   | { Expr.term = Expr.App (f, ty_pats, pats) } ->
     let l = C.find_top c f in
-    Util.debug ~section 50 "   * in %a starting with %a: %a"
-      C.debug c Expr.Debug.id f (CCPrint.list Expr.Term.debug) l;
-    Util.debug ~section 50 "   * length: %d" (List.length l);
     CCList.flat_map (match_modulo_app acc (ty_pats, pats)) l
 
 let match_modulo = match_modulo_aux [Match.empty]
@@ -140,9 +133,11 @@ type guard =
   | Pred of Expr.term
   | Eq of Expr.term * Expr.term
 
-let debug_guard buf = function
-  | Pred p -> Printf.bprintf buf "%a" Expr.Term.debug p
-  | Eq (a, b) -> Printf.bprintf buf "%a=%a" Expr.Term.debug a Expr.Term.debug b
+let print_guard fmt = function
+  | Pred p ->
+    Format.fprintf fmt "%a" Expr.Print.term p
+  | Eq (a, b) ->
+    Format.fprintf fmt "%a=%a" Expr.Print.term a Expr.Print.term b
 
 let map_guard f = function
   | Pred p -> Pred (f p)
@@ -182,17 +177,16 @@ let set_formula formula rule = { rule with formula }
 
 let is_manual { manual; } = manual
 
-let rec debug_guards buf = function
+let rec print_guards fmt = function
   | [] -> ()
   | g :: r ->
-    Printf.bprintf buf "[%a]%a" debug_guard g debug_guards r
+    Format.fprintf fmt "@[<hov>[%a]@,%a@]" print_guard g print_guards r
 
-let debug_rule buf { trigger; result; guards; formula; } =
-  Printf.bprintf buf "%a%a --> %a ( %a )"
-    debug_guards guards
-    Expr.Term.debug trigger
-    Expr.Formula.debug result
-    Expr.Formula.debug formula
+let print_rule fmt { trigger; result; guards; formula; } =
+  Format.fprintf fmt "@[<hov 2>%a@ %a -->@ %a@]"
+    print_guards guards
+    Expr.Print.term trigger
+    Expr.Print.formula result
 
 (* Detecting Rewrite rules *)
 (* ************************************************************************ *)
@@ -275,9 +269,9 @@ let parse_rule = function
     begin match parse r with
       | None ->
         if manual then
-          Util.debug ~section 0
+          Util.warn ~section
             "Following formula couldn't be parsed as a rewrite rule despite tag: %a"
-            Expr.Formula.debug r;
+            Expr.Print.formula r;
         None
       | Some rule -> Some (set_formula formula rule)
     end
@@ -287,8 +281,8 @@ let parse_rule = function
 (* ************************************************************************ *)
 
 let instanciate rule subst =
-  Util.debug 5 "Instanciate %a" debug_rule rule;
-  Util.debug 5 " \ with %a" Match.debug subst;
+  Util.debug ~section "@[<hov 2>Instanciate %a@ with@ %a"
+    print_rule rule Match.print subst;
   let res = Match.formula_apply subst rule.result in
   match rule.guards with
   | [] ->
@@ -310,18 +304,18 @@ let instanciate rule subst =
       )
 
 let match_and_instantiate s ({ trigger; _ } as rule) =
-  Util.debug ~section 10 "Matches for rule %a" debug_rule rule;
+  Util.debug ~section "Matches for rule %a" print_rule rule;
   let seq = T.fold (fun c acc ->
       let repr = C.repr c in
-      Util.debug ~section 30 "Trying to match %a with %a"
-        Expr.Term.debug trigger C.debug c;
+      Util.debug ~section "Trying to match %a with %a"
+        Expr.Print.term trigger C.print c;
       let s = match_modulo trigger c in
       let s' = List.map (fun x -> repr, x) s in
       List.append s' acc
     ) s [] in
   List.iter (fun (term, subst) ->
-      Util.debug ~section 10 "matched '%a' with %a"
-        Expr.Debug.term term Match.debug subst;
+      Util.debug ~section "matched '%a' with %a"
+        Expr.Print.term term Match.print subst;
       instanciate rule subst
     ) seq
 
@@ -370,7 +364,7 @@ let add_rule r =
     | [], _   -> ()
     (* Mixed case, it really isn't clear what we should do in these cases... *)
     | _, _    ->
-      Util.debug ~section 0
+      Util.warn ~section
         "Mixed set of rewrite rules detected, removing auto rules";
       rules := List.filter (fun { manual; _ } -> manual) !rules
   end;
@@ -384,10 +378,11 @@ let assume f =
   (* Detect rewrite rules *)
   let () = match parse_rule f with
     | None ->
-      Util.debug ~section 50
-        "Failed to detect rewrite rule with: %a" Expr.Debug.formula f;
+      Util.debug ~section "Failed to detect rewrite rule with: %a"
+        Expr.Print.formula f;
     | Some r ->
-      Util.debug ~section 2 "Detected a new rewrite rule: %a" debug_rule r;
+      Util.info ~section "@[<hov 2>Detected a new rewrite rule:@ %a@]"
+        print_rule r;
       add_rule r
   in
   ()

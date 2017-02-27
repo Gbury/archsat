@@ -22,8 +22,8 @@ let print_unknown opt =
   | Options.SZS -> Szs.print_unknown opt Options.(opt.output.fmt)
   | Options.Standard -> Std.print_unknown opt Options.(opt.output.fmt)
 
-let print_exn opt exn =
+let print_exn opt fmt exn =
   match Options.(opt.output.format) with
-  | Options.SZS -> Szs.print_exn opt Options.(opt.output.fmt) exn
-  | Options.Standard -> Std.print_exn opt Options.(opt.output.fmt) exn
+  | Options.SZS -> Szs.print_exn opt fmt exn
+  | Options.Standard -> Std.print_exn opt fmt exn
 

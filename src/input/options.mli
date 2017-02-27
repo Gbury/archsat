@@ -11,16 +11,25 @@ exception Stmt_not_implemented of Dolmen.Statement.t
 
 val misc_section : Util.Section.t
 
+type input = In.language
+(* Type alias for input languages *)
+
 type output =
   | Standard
   | SZS
-(** Type for choosing model output *)
+(** Type for output format *)
+
+type mode =
+  | Debug
+  | Regular
+  | Interactive
+(** Type for modes of running. *)
 
 type input_options = {
-  format        : In.language option;
-  dir           : string;
-  file          : [ `Stdin | `File of string];
-  interactive   : bool;
+  mode    : mode;
+  format  : input option;
+  dir     : string;
+  file    : [ `Stdin | `File of string];
 }
 
 type output_options = {

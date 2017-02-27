@@ -260,7 +260,7 @@ module Print = struct
   let rec formula_aux fmt f =
     let aux fmt f = match f.formula with
       | Equal _ | Pred _ | True | False -> formula_aux fmt f
-      | _ -> Format.fprintf fmt "(%a)" formula_aux f
+      | _ -> Format.fprintf fmt "(@ %a@ )" formula_aux f
     in
     match f.formula with
     | Pred t -> Format.fprintf fmt "%a" term t
@@ -272,8 +272,8 @@ module Print = struct
     | And l -> Format.fprintf fmt "@[<hov>%a@]" (list ~sep:" ∧" aux) l
     | Or l  -> Format.fprintf fmt "@[<hov>%a@]" (list ~sep:" ∨" aux) l
 
-    | Imply (p, q)    -> Format.fprintf fmt "@[<hov>%a ⇒@ %a@]" aux p aux q
-    | Equiv (p, q)    -> Format.fprintf fmt "@[<hov>%a ⇔@ %a@]" aux p aux q
+    | Imply (p, q)    -> Format.fprintf fmt "@[<hov>%a@ ⇒@ %a@]" aux p aux q
+    | Equiv (p, q)    -> Format.fprintf fmt "@[<hov>%a@ ⇔@ %a@]" aux p aux q
 
     | All (l, _, f)   -> Format.fprintf fmt "@[<hov 2>∀ @[<hov>%a@].@ %a@]"
                            (list ~sep:"," id_ty) l formula_aux f
@@ -336,9 +336,9 @@ module Subst = struct
 
   let print print_key print_value fmt map =
     let aux _ (key, value) =
-      Format.fprintf fmt "%a -> %a;@ " print_key key print_value value
+      Format.fprintf fmt "@[<hov>%a ->@ %a;@]@ " print_key key print_value value
     in
-    Format.fprintf fmt "@[<hov 0>%a@]" (fun _ -> Mi.iter aux) map
+    Format.fprintf fmt "@[<hov>%a@]" (fun _ -> Mi.iter aux) map
 
   module type S = sig
     type 'a key
@@ -377,8 +377,7 @@ module Id = struct
   type 'a t = 'a id
 
   (* Hash & comparisons *)
-  let hash_aux v = CCHash.int_ v.index
-  let hash v = CCHash.apply hash_aux v
+  let hash v = CCHash.int v.index
 
   let compare: 'a. 'a id -> 'a id -> int =
     fun v1 v2 -> compare v1.index v2.index
@@ -453,8 +452,8 @@ module Id = struct
     CCList.sorted_merge_uniq ~cmp:compare t1 t2
 
   let remove_fv (ty1, t1) (ty2, t2) =
-    List.filter (fun v -> not (CCList.Set.mem ~eq:equal v ty2)) ty1,
-    List.filter (fun v -> not (CCList.Set.mem ~eq:equal v t2)) t1
+    List.filter (fun v -> not (CCList.mem ~eq:equal v ty2)) ty1,
+    List.filter (fun v -> not (CCList.mem ~eq:equal v t2)) t1
 
   (* Variable occurs in a term *)
   let rec occurs_in_term var t = match t.term with
@@ -529,8 +528,7 @@ module Meta = struct
   type 'a t = 'a meta
 
   (* Hash & Comparisons *)
-  let hash_aux m = CCHash.int_ m.meta_id.index
-  let hash m = CCHash.apply hash_aux m
+  let hash m = CCHash.int m.meta_id.index
 
   let compare m1 m2 =
     match compare m1.meta_index m2.meta_index with
@@ -641,15 +639,14 @@ module Ty = struct
   type subst = (ttype id, ty) Subst.t
 
   (* Hash & Comparisons *)
-  let rec hash_aux t h = match t.ty with
-    | TyVar v -> Id.hash_aux v h
-    | TyMeta m -> Meta.hash_aux m h
+  let rec hash_aux t = match t.ty with
+    | TyVar v -> Id.hash v
+    | TyMeta m -> Meta.hash m
     | TyApp (f, args) ->
-      h |> Id.hash_aux f |> CCHash.(list_ int_) (List.map hash args)
+      CCHash.combine2 (Id.hash f) (CCHash.list hash args)
 
   and hash t =
-    if t.ty_hash = -1 then
-      t.ty_hash <- CCHash.apply hash_aux t;
+    if t.ty_hash = -1 then t.ty_hash <- hash_aux t;
     t.ty_hash
 
   let discr ty = match ty.ty with
@@ -664,10 +661,8 @@ module Ty = struct
       | TyVar v1, TyVar v2 -> Id.compare v1 v2
       | TyMeta m1, TyMeta m2 -> Meta.compare m1 m2
       | TyApp (f1, args1), TyApp (f2, args2) ->
-        begin match Id.compare f1 f2 with
-          | 0 -> CCOrd.list_ compare args1 args2
-          | x -> x
-        end
+        CCOrd.Infix.(Id.compare f1 f2
+                     <?> (CCOrd.list compare, args1, args2))
       | _, _ -> Pervasives.compare (discr u) (discr v)
 
   let equal u v =
@@ -741,17 +736,17 @@ module Term = struct
   type subst = (ty id, term) Subst.t
 
   (* Hash & Comparisons *)
-  let rec hash_aux t h = match t.term with
-    | Var v -> Id.hash_aux v h
-    | Meta m -> Meta.hash_aux m h
+  let rec hash_aux t = match t.term with
+    | Var v -> Id.hash v
+    | Meta m -> Meta.hash m
     | App (f, tys, args) ->
-      h |> Id.hash_aux f
-      |> CCHash.(list_ int_) (List.map Ty.hash tys)
-      |> CCHash.(list_ int_) (List.map hash args)
+      CCHash.combine3
+        (Id.hash f)
+        (CCHash.list Ty.hash tys)
+        (CCHash.list hash args)
 
   and hash t =
-    if t.t_hash = -1 then
-      t.t_hash <- CCHash.apply hash_aux t;
+    if t.t_hash = -1 then t.t_hash <- hash_aux t;
     t.t_hash
 
   let discr t = match t.term with
@@ -766,14 +761,9 @@ module Term = struct
       | Var v1, Var v2 -> Id.compare v1 v2
       | Meta m1, Meta m2 -> Meta.compare m1 m2
       | App (f1, tys1, args1), App (f2, tys2, args2) ->
-        begin match Id.compare f1 f2 with
-          | 0 ->
-            begin match CCOrd.list_ Ty.compare tys1 tys2 with
-              | 0 -> CCOrd.list_ compare args1 args2
-              | x -> x
-            end
-          | x -> x
-        end
+        CCOrd.Infix.(Id.compare f1 f2
+                     <?> (CCOrd.list Ty.compare, tys1, tys2)
+                     <?> (CCOrd.list compare, args1, args2))
       | _, _ -> Pervasives.compare (discr u) (discr v)
 
   let equal u v =
@@ -871,37 +861,36 @@ module Formula = struct
   let h_ex    = 37
   let h_exty  = 41
 
-  let rec hash_aux f h = match f.formula with
-    | Equal (t1, t2) ->
-      h |> CCHash.int_ h_eq |> CCHash.int_ (Term.hash t1) |> CCHash.int_ (Term.hash t2)
+  let rec hash_aux f = match f.formula with
     | Pred t ->
-      h |> CCHash.int_ h_pred |> CCHash.int_ (Term.hash t)
+      CCHash.combine2 h_pred (Term.hash t)
+    | Equal (t1, t2) ->
+      CCHash.combine3 h_eq (Term.hash t1) (Term.hash t2)
     | True ->
-      h |> CCHash.int_ h_true
+      CCHash.int h_true
     | False ->
-      h |> CCHash.int_ h_false
+      CCHash.int h_false
     | Not f ->
-      h |> CCHash.int_ h_not |> CCHash.int_ (hash f)
+      CCHash.combine2 h_not (hash f)
     | And l ->
-      h |> CCHash.int_ h_and |> CCHash.(list_ int_) (List.map hash l)
+      CCHash.combine2 h_and (CCHash.list hash l)
     | Or l ->
-      h |> CCHash.int_ h_or |> CCHash.(list_ int_) (List.map hash l)
+      CCHash.combine2 h_or (CCHash.list hash l)
     | Imply (f1, f2) ->
-      h |> CCHash.int_ h_imply |> CCHash.int_ (hash f1) |> CCHash.int_ (hash f2)
+      CCHash.combine3 h_imply (hash f1) (hash f2)
     | Equiv (f1, f2) ->
-      h |> CCHash.int_ h_equiv |> CCHash.int_ (hash f1) |> CCHash.int_ (hash f2)
+      CCHash.combine3 h_equiv (hash f1) (hash f2)
     | All (l, _, f) ->
-      h |> CCHash.int_ h_all |> CCHash.list_ Id.hash_aux l |> CCHash.int_ (hash f)
+      CCHash.combine3 h_all (CCHash.list Id.hash l) (hash f)
     | AllTy (l, _, f) ->
-      h |> CCHash.int_ h_allty |> CCHash.list_ Id.hash_aux l |> CCHash.int_ (hash f)
+      CCHash.combine3 h_allty (CCHash.list Id.hash l) (hash f)
     | Ex (l, _, f) ->
-      h |> CCHash.int_ h_ex |> CCHash.list_ Id.hash_aux l |> CCHash.int_ (hash f)
+      CCHash.combine3 h_ex (CCHash.list Id.hash l) (hash f)
     | ExTy (l, _, f) ->
-      h |> CCHash.int_ h_exty |> CCHash.list_ Id.hash_aux l |> CCHash.int_ (hash f)
+      CCHash.combine3 h_exty (CCHash.list Id.hash l) (hash f)
 
   and hash f =
-    if f.f_hash = -1 then
-      f.f_hash <- CCHash.apply hash_aux f;
+    if f.f_hash = -1 then f.f_hash <- hash_aux f;
     f.f_hash
 
   let discr f = match f.formula with
@@ -924,33 +913,23 @@ module Formula = struct
     if hf <> hg then Pervasives.compare hf hg
     else match f.formula, g.formula with
       | True, True | False, False -> 0
-      | Equal (u1, v1), Equal(u2, v2) -> CCOrd.list_ Term.compare [u1; v1] [u2; v2]
-      | Pred t1, Pred t2 -> Term.compare t1 t2
-      | Not h1, Not h2 -> compare h1 h2
-      | And l1, And l2 -> CCOrd.list_ compare l1 l2
-      | Or l1, Or l2 -> CCOrd.list_ compare l1 l2
-      | Imply (h1, i1), Imply (h2, i2) -> CCOrd.list_ compare [h1; i1] [h2; i2]
-      | Equiv (h1, i1), Equiv (h2, i2) -> CCOrd.list_ compare [h1; i1] [h2; i2]
+      | Equal (u1, v1), Equal(u2, v2) ->
+        CCOrd.pair Term.compare Term.compare (u1, v1) (u2, v2)
+      | Pred t1, Pred t2  -> Term.compare t1 t2
+      | Not h1, Not h2    -> compare h1 h2
+      | And l1, And l2    -> CCOrd.list compare l1 l2
+      | Or l1, Or l2      -> CCOrd.list compare l1 l2
+      | Imply (h1, i1), Imply (h2, i2)
+      | Equiv (h1, i1), Equiv (h2, i2) ->
+        CCOrd.pair compare compare (h1, i1) (h2, i2)
+      | Ex (l1, _, h1), Ex (l2, _, h2)
       | All (l1, _, h1), All (l2, _, h2) ->
-        begin match CCOrd.list_ Id.compare l1 l2 with
-          | 0 -> compare h1 h2
-          | x -> x
-        end
+        CCOrd.Infix.(CCOrd.list Id.compare l1 l2
+                       <?> (compare, h1, h2))
+      | ExTy (l1, _, h1), ExTy (l2, _, h2)
       | AllTy (l1, _, h1), AllTy (l2, _, h2) ->
-        begin match CCOrd.list_ Id.compare l1 l2 with
-          | 0 -> compare h1 h2
-          | x -> x
-        end
-      | Ex (l1, _, h1), Ex (l2, _, h2) ->
-        begin match CCOrd.list_ Id.compare l1 l2 with
-          | 0 -> compare h1 h2
-          | x -> x
-        end
-      | ExTy (l1, _, h1), ExTy (l2, _, h2) ->
-        begin match CCOrd.list_ Id.compare l1 l2 with
-          | 0 -> compare h1 h2
-          | x -> x
-        end
+        CCOrd.Infix.(CCOrd.list Id.compare l1 l2
+                       <?> (compare, h1, h2))
       | _, _ -> Pervasives.compare (discr f) (discr g)
 
   let equal u v =

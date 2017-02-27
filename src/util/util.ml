@@ -23,25 +23,47 @@ OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *)
 
-(** {1 Some helpers} *)
-
-(** {2 Time facilities} *)
-
-(** Time elapsed since initialization of the program, and time of start *)
-let get_total_time =
-  let start = Oclock.gettime Oclock.realtime in
-  (function () ->
-    let stop = Oclock.gettime Oclock.realtime in
-    Int64.to_float (Int64.sub stop start) /. (10. ** 9.))
+(** Time facilities *)
+(* ************************************************************************ *)
 
 let ckid = match Oclock.process_cputime with
   | Some c -> c
   | None -> Oclock.realtime
 
-(** Sections *)
+let get_total_clock =
+  let start = Oclock.gettime ckid in
+  (fun () ->
+     let stop = Oclock.gettime ckid in
+     Int64.sub stop start
+  )
+
+(** Time elapsed since initialization of the program, and time of start *)
+let get_total_time () =
+  (Int64.to_float (get_total_clock ())) /. (10. ** 9.)
+
+(** Logging levels *)
+(* ************************************************************************ *)
+
+module Level = struct
+
+  type t = int
+
+  let null = -2
+  let error = -1
+  let log = 0
+  let warn = 1
+  let info = 5
+  let debug = 10
+
+  let max = max
+
+end
+
+(** Debugging Sections *)
+(* ************************************************************************ *)
+
 module Section = struct
 
-  let null_level = -1 (* absence of level *)
   let max_stats = 100
 
   type t = {
@@ -64,7 +86,7 @@ module Section = struct
 
   let root = {
     descr = Root;
-    level = 0;
+    level = Level.log;
     stats = Array.make max_stats 0;
     profile = false;
     prof_in = false;
@@ -101,8 +123,8 @@ module Section = struct
 
   (* full name -> section *)
   let nb_section = ref 1
-  let section_table = Hashtbl.create 15
-  let section_children = Hashtbl.create 15
+  let section_table = Hashtbl.create 47
+  let section_children = Hashtbl.create 47
 
   let get_children s =
     try Hashtbl.find section_children s.full_name
@@ -111,16 +133,18 @@ module Section = struct
       Hashtbl.add section_children s.full_name l;
       l
 
-  let set_debug s i = s.level <- if i < 0 then null_level else i
-  let clear_debug s = s.level <- null_level
+  let set_debug s i = s.level <- i
+
   let get_debug s =
-    if s.level=null_level then None else Some s.level
+    if s.level = Level.null then None else Some (s.level)
+
+  let clear_debug s = s.level <- Level.null
 
   let make ?(parent=root) ?(inheriting=[]) name =
     if name = "" then invalid_arg "Section.make: empty name";
     let sec = {
       descr = Sub (name, parent, inheriting);
-      level = null_level;
+      level = Level.null;
       stats = Array.make max_stats 0;
       profile = false;
       prof_in = false;
@@ -150,22 +174,26 @@ module Section = struct
 
   (* recursive lookup, with inheritance from parent *)
   let rec cur_level_rec s =
-    if s.level = null_level
-    then match s.descr with
-      | Root -> null_level
+    if s.level = Level.null then
+      match s.descr with
+      | Root -> Level.error
       | Sub (_, parent, []) -> cur_level_rec parent
       | Sub (_, parent, [i]) -> max (cur_level_rec parent) (cur_level_rec i)
       | Sub (_, parent, inheriting) ->
         List.fold_left
           (fun m i -> max m (cur_level_rec i))
           (cur_level_rec parent) inheriting
-    else s.level
+    else
+      s.level
 
   (* inlinable function *)
   let cur_level s =
-    if s.level = null_level
-    then cur_level_rec s
-    else s.level
+    if s.level = Level.null then
+      let r = cur_level_rec s in
+      set_debug s r;
+      r
+    else
+      s.level
 
   (* Entering a profiler *)
   let prof_enter s =
@@ -207,6 +235,8 @@ module Section = struct
 end
 
 (* Section statistics *)
+(* ************************************************************************ *)
+
 module Stats = struct
 
   type t = {
@@ -238,42 +268,55 @@ module Stats = struct
   let attach t group =
     group.sections <-
       CCList.sort_uniq ~cmp:(fun t t' ->
-        compare (Section.full_name t) (Section.full_name t'))
+          compare (Section.full_name t) (Section.full_name t'))
         (t :: group.sections)
 
 end
 
 (* Debug output functions *)
+(* ************************************************************************ *)
+
+type 'a logger =
+  ?section:Section.t ->
+  ('a, Format.formatter, unit, unit) format4 -> 'a
+
 let set_debug = Section.set_debug Section.root
 let get_debug () = Section.root.Section.level
 let need_cleanup = ref false
+let cleanup () = need_cleanup := true
 
-let log ?(section=Section.root) l format k =
+let aux ?(section=Section.root) l format =
   let fmt = Format.std_formatter in
   if l <= Section.cur_level section
   then begin
     if !need_cleanup then Format.fprintf fmt "\r";
     let now = get_total_time () in
-    if section == Section.root then
-      Format.fprintf fmt "%% [%.3f] @[<hov>" now
-    else
-      Format.fprintf fmt "%% [%.3f %s] @[<hov>" now section.Section.full_name;
-    k @@ Format.kfprintf (fun fmt -> Format.fprintf fmt "@]@.") fmt format
-  end
+    Format.fprintf fmt ("%% [%.3f %s] @[<hov>" ^^ format ^^ "@]@.")
+      now section.Section.full_name
+  end else
+    Format.ifprintf fmt format
+
+let error ?section = aux ?section Level.error
+let log ?section = aux ?section Level.log
+let warn ?section = aux ?section Level.warn
+let info ?section = aux ?section Level.info
+let debug ?section = aux ?section Level.debug
 
 (* Profiling *)
+(* ************************************************************************ *)
+
 let active = ref []
 
 let curr () = match !active with
   | s :: _ -> Some s | [] -> None
 
-(** Enter the profiler *)
 let rec is_parent_active s =
   s.Section.prof_in ||
   (match s.Section.descr with
    | Section.Root -> false
    | Section.Sub (_, s', _) -> is_parent_active s')
 
+(** Enter the profiler *)
 let enter_prof section =
   let open Section in
   if section.profile then begin
@@ -302,7 +345,9 @@ let exit_prof section =
     | [] -> assert false
   end
 
-(** Print the profiler results *)
+(* Profiling results printing *)
+(* ************************************************************************ *)
+
 let parent_time s =
   match s.Section.descr with
   | Section.Root -> s.Section.prof_total
@@ -326,14 +371,14 @@ let rec map_tree f = function
 
 let print_profiler () =
   if !active <> [] then begin
-    log 0 "Debug sections not closed properly" (fun k -> k);
+    log "Debug sections not closed properly";
     while !active <> [] do
       let section = List.hd !active in
-      log ~section 0 "Closing section forcefully" (fun k -> k);
+      info ~section "Closing section forcefully";
       exit_prof section
     done;
   end;
-  let total_time = Int64.to_float @@ Oclock.gettime ckid in
+  let total_time = Int64.to_float @@ get_total_clock () in
   let s_tree = section_tree (fun s ->
       Int64.to_float s.Section.prof_total > (Int64.to_float @@ parent_time s) /. 100.
     ) Section.root in
@@ -354,6 +399,9 @@ let print_profiler () =
       |]) in
   print_newline ();
   PrintBox.output stdout b
+
+(* Print statistics *)
+(* ************************************************************************ *)
 
 let print_stats_group g =
   let l = "Sections" :: (List.map (fun s -> s.Stats.name) g.Stats.stats) in
@@ -378,6 +426,9 @@ let csv_prof_data fmt =
       let name = match full_name s with "" -> "root" | s -> s in
       Format.fprintf fmt "%s,%f@." name (Int64.to_float s.prof_total)
     ) (flatten tree)
+
+(* Enable printing of stats/profiling info *)
+(* ************************************************************************ *)
 
 let enable_profiling () = at_exit print_profiler
 let enable_statistics () = at_exit print_stats

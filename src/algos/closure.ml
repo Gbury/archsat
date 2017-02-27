@@ -8,7 +8,7 @@ module type Key = sig
   val hash : t -> int
   val equal : t -> t -> bool
   val compare : t -> t -> int
-  val debug : Buffer.t -> t -> unit
+  val print : Format.formatter -> t -> unit
 end
 
 (** Union-find algorithm signature *)
@@ -137,7 +137,8 @@ module Eq(T : Key) = struct
       tag = (match mx.tag, my.tag with
           | Some (z, t1), Some (w, t2) ->
             if not (T.equal t1 t2) then begin
-              Util.debug ~section:h.section 20 "Tag shenanigan : %a (%a) <> %a (%a)" T.debug t1 T.debug z T.debug t2 T.debug w;
+              Util.debug ~section:h.section "Tag shenanigan:@ @[<hov>%a@ (%a)@ <>@ %a@ (%a)@]"
+                T.print t1 T.print z T.print t2 T.print w;
               raise (Equal (z, w))
             end else Some (z, t1)
           | Some t, None | None, Some t -> Some t
