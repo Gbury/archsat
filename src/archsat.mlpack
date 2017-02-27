@@ -43,6 +43,9 @@ Ext_rewrite
 Ext_functions
 Ext_constraints
 
+# Debug modules
+Logs
+
 ##### Misc modules #####
 ########################
 

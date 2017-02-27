@@ -74,6 +74,11 @@ module Section = struct
     full_name = "";
   }
 
+  (* Usual functions *)
+  let equal s s' = s.full_name = s'.full_name
+  let compare s s' = compare s.full_name s'.full_name
+  let hash { full_name; _ } = Hashtbl.hash full_name
+
   (* computes full name of section *)
   let compute_full_name s =
     let buf = Buffer.create 15 in

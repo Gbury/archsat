@@ -36,6 +36,11 @@ val get_total_time : unit -> float
 module Section : sig
   type t
 
+  val hash : t -> int
+  val equal : t -> t -> bool
+  val compare : t -> t -> int
+  (** Usual functions. *)
+
   val full_name : t -> string  (** Full path to the section *)
   val short_name : t -> string
 

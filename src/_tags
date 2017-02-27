@@ -6,6 +6,7 @@ true: color(always)
 <misc>: include
 <core>: include
 <test>: include
+<debug>: include
 <algos>: include
 <input>: include
 <middle>: include
