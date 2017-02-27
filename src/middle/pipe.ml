@@ -55,7 +55,7 @@ let simple contents = { contents; impl_types = []; impl_terms = []; }
 
 let wrap_parser g =
   fun opt ->
-    if Options.(opt.input.interactive) then
+    if Options.(opt.input.mode = Interactive) then
       Format.printf "%s@?" (Out.prelude opt);
     g ()
 
@@ -114,7 +114,7 @@ let expand (opt, c) =
             opt with input = {
             opt.input with format = Some l;
                            file = `File file;
-                           interactive = false }
+                           mode = Regular }
           } ) in
         opt', `Gen (false, gen)
     end

@@ -52,7 +52,7 @@ let () =
 
       Pipe.parse opt
     with e ->
-      Out.print_exn opt e;
+      Util.error "%a" (Out.print_exn opt) e;
       exit 2
   in
   Pipeline.(

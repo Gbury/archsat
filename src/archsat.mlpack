@@ -43,11 +43,13 @@ Ext_rewrite
 Ext_functions
 Ext_constraints
 
-# Debug modules
-Logs
-
 ##### Misc modules #####
 ########################
+
+# Debug modules
+Time
+Logs
+Level
 
 # Random generation
 Misc_test

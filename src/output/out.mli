@@ -14,6 +14,6 @@ val print_unsat     : Options.opts -> unit
 val print_unknown   : Options.opts -> unit
 (** Prints the resulton the formatter according to the output format set. *)
 
-val print_exn       : Options.opts -> exn -> unit
+val print_exn       : Options.opts -> Format.formatter -> exn -> unit
 (** Print the given error format string ot output. *)
 

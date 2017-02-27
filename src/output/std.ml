@@ -50,14 +50,14 @@ let print_exn opt fmt = function
 
   (** Parsing errors *)
   | Dolmen.ParseLocation.Uncaught (loc, exn) ->
-    if Options.(opt.input.interactive) then
+    if Options.(opt.input.mode = Interactive) then
       Format.fprintf Format.std_formatter "%s%a@\n"
         (if Dolmen.ParseLocation.(loc.start_line = 1) then prelude_space opt else "")
         Dolmen.ParseLocation.fmt_hint loc;
     Format.fprintf Format.std_formatter "%a:@\n%s@."
       Dolmen.ParseLocation.fmt loc (Printexc.to_string exn)
   | Dolmen.ParseLocation.Lexing_error (loc, msg) ->
-    if Options.(opt.input.interactive) then
+    if Options.(opt.input.mode = Interactive) then
       Format.fprintf Format.std_formatter "%s%a@\n"
         (if Dolmen.ParseLocation.(loc.start_line = 1) then prelude_space opt else "")
         Dolmen.ParseLocation.fmt_hint loc;
@@ -65,7 +65,7 @@ let print_exn opt fmt = function
       Dolmen.ParseLocation.fmt loc
       (match msg with | "" -> "Lexing error: invalid character" | x -> x)
   | Dolmen.ParseLocation.Syntax_error (loc, msg) ->
-    if Options.(opt.input.interactive) then
+    if Options.(opt.input.mode = Interactive) then
       Format.fprintf Format.std_formatter "%s%a@\n"
         (if Dolmen.ParseLocation.(loc.start_line = 1) then prelude_space opt else "")
         Dolmen.ParseLocation.fmt_hint loc;

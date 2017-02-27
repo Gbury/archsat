@@ -6,6 +6,3 @@
 
 (** {2 Mutable state} *)
 
-val active : bool ref
-(** Is the debug mode active ? *)
-
