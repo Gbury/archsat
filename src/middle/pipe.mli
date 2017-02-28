@@ -80,6 +80,3 @@ val print_res : Options.opts * solved stmt -> unit
 val print_proof : Options.opts * solved stmt -> unit
 (** Print the proof according to the options *)
 
-val print_stats : Options.opts -> unit
-(** Print statistics *)
-

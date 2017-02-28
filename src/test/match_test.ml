@@ -2,7 +2,7 @@
 open Misc_test.Infix
 module E = Expr_test
 
-let section = Util.Section.make "match_test"
+let section = Section.make "match_test"
 
 (* Substitution generation (no type subst for now) *)
 (* ************************************************************************ *)

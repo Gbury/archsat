@@ -1,5 +1,11 @@
 
-(* Debug output functions *)
+(* Output functions *)
+(* ************************************************************************ *)
+
+let printf format =
+  Format.fprintf Format.std_formatter format
+
+(* Logging functions *)
 (* ************************************************************************ *)
 
 let need_cleanup = ref false

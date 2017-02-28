@@ -46,7 +46,10 @@ type profile_options = {
   max_depth     : int option;
   sections      : Section.t list;
   raw_data      : Format.formatter option;
-  print_stats   : bool;
+}
+
+type stats_options = {
+  enabled       : bool;
 }
 
 type proof_options = {
@@ -82,6 +85,7 @@ type opts = {
   time_limit  : float;
   size_limit  : float;
   profile     : profile_options;
+  stats       : stats_options;
 }
 
 (* Misc *)
@@ -127,15 +131,18 @@ let output_opts fd format =
 
 let typing_opts explain = { explain; }
 
-let profile_opts enable max_depth sections out print_stats =
+let profile_opts enable max_depth sections out =
   let enabled =
     enable
     || max_depth <> None
     || sections <> []
     || out <> `None
   in
-  { enabled; max_depth; sections; print_stats;
+  { enabled; max_depth; sections;
     raw_data = formatter_of_out_descr out; }
+
+let stats_opts enabled =
+  { enabled; }
 
 let proof_opts prove dot unsat_core =
   let dot = formatter_of_out_descr dot in
@@ -174,21 +181,24 @@ let set_opts gc bt quiet lvl debug opt =
 
 let mk_opts
     input output typing
-    proof model profile
+    proof model
+    profile stats
     type_only
     plugins addons
     time size
   =
   {
-    input; output;
+    input;
+    output;
     typing;
-    proof; model;
+    proof;
+    model;
 
     solve = not type_only;
     addons = List.concat addons;
     plugins = List.concat plugins;
 
-    profile = profile;
+    profile; stats;
     time_limit = time;
     size_limit = size;
   }
@@ -367,14 +377,16 @@ let out_descr = parse_descr, print_descr
 
 let copts_sect = "COMMON OPTIONS"
 let prof_sect = "PROFILING OPTIONS"
+let stats_sect = "STATISTICS OPTIONS"
 let ext_sect = "ADVANCED OPTIONS"
 let proof_sect = "PROOF OPTIONS"
 let model_sect = "MODEL OPTIONS"
 
 let help_secs ext_doc sext_doc = [
-  `S copts_sect; `P "Common options for the prover";
-  `S "ADDONS"; `P "Addons are typing/semantic extensions that extend typing
-  to include builtins of languages.";
+  `S copts_sect;
+    `P "Common options for the prover";
+  `S "ADDONS";
+    `P "Addons are typing/semantic extensions that extend typing to include builtins of languages.";
 ] @ sext_doc @ [
     `S "PLUGINS"; `P "Available extensions are listed in this section. Each paragraph starts with the extension's priority
       and name, and then a short description of what the extension does. Extensions with higher priorities
@@ -383,9 +395,11 @@ let help_secs ext_doc sext_doc = [
     `S proof_sect;
     `S model_sect;
     `S ext_sect;
-    `P "Options primarily used by the extensions (use only if you know what you're doing !).";
+      `P "Options primarily used by the extensions (use only if you know what you're doing !).";
     `S prof_sect;
-    `S "BUGS"; `P "TODO";
+    `S stats_sect;
+    `S "BUGS";
+      `P "TODO";
   ]
 
 let log_sections () =
@@ -446,11 +460,15 @@ let profile_t =
                A special 'stdout' value can be used to use standard output." in
     Arg.(value & opt out_descr `None & info ["pdata"] ~docs ~doc)
   in
-  let stats =
+  Term.(const profile_opts $ profile $ depth $ sects $ raw_data)
+
+let stats_t =
+  let docs = stats_sect in
+  let enabled =
     let doc = "Print statistics" in
     Arg.(value & flag & info ["stats"] ~docs ~doc)
   in
-  Term.(const profile_opts $ profile $ depth $ sects $ raw_data $ stats)
+  Term.(const stats_opts $ enabled)
 
 let proof_t =
   let docs = proof_sect in
@@ -555,7 +573,9 @@ let copts_t () =
   in
   Term.(unit_t $ (
       const mk_opts
-      $ input_t $ output_t $ type_t $ proof_t $ model_t $ profile_t
+      $ input_t $ output_t $ type_t
+      $ proof_t $ model_t
+      $ profile_t $ stats_t
       $ type_only $ plugins $ addons $ time $ size)
     )
 

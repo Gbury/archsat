@@ -2,13 +2,6 @@
 (* Some helper functions *)
 (* ************************************************************************ *)
 
-let start = ref 0.
-
-let set_start () = start := Util.get_total_time ()
-
-let flush fmt () =
-  Format.fprintf fmt "@."
-
 let prelude opt =
   match Options.(opt.input.format) with
   | None -> ""
@@ -21,11 +14,11 @@ let prelude_space opt =
 (* ************************************************************************ *)
 
 let print_status opt fmt status =
-  Format.fprintf fmt "%s (%.3f)@." status (Util.get_total_time () -. !start)
+  Format.fprintf fmt "%s (%.3f)" status (Time.get_total_time ())
 
-let print_sat opt fmt = print_status opt fmt "Sat"
-let print_unsat opt fmt = print_status opt fmt "Unsat"
-let print_unknown opt fmt = print_status opt fmt "Unknown"
+let print_sat fmt opt = print_status opt fmt "Sat"
+let print_unsat fmt opt = print_status opt fmt "Unsat"
+let print_unknown fmt opt = print_status opt fmt "Unknown"
 
 let print_exn opt fmt = function
 

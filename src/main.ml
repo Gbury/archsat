@@ -32,8 +32,15 @@ let () =
           (CCOpt.get_or ~default:0 opt.profile.max_depth);
         List.iter Section.profile_section opt.profile.sections
       end;
-      if opt.profile.print_stats then
+
+      (* Statistics *)
+      if opt.stats.enabled then
         at_exit Stats.print;
+
+      (* Clean state when exiting.
+         Called after profiling and statistics to make sure it is called
+         before upon exit. *)
+      at_exit Util.clean_exit;
 
       (* Syntax extensions *)
       Semantics.Addon.set_exts "+base,+arith";
@@ -64,8 +71,6 @@ let () =
             @>>> (f_map ~name:"solve" Pipe.solve)
             @>>> (iter_ ~name:"print_res" Pipe.print_res)
             @>>> (apply fst) @>>> _end)
-        ) @||| (
-          (iter_ ~name:"print_stats" Pipe.print_stats) @>>> _end
         )
       )
     )

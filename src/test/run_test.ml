@@ -78,7 +78,7 @@ type res =
   | Res : 'a QCheck.Test.cell * 'a QCheck.TestResult.t -> res
 
 let create cell = {
-  start = Util.get_total_time ();
+  start = Time.get_total_time ();
   expected = begin
     let count = QCheck.Test.get_count cell in
     if !long
@@ -92,7 +92,7 @@ let create cell = {
 }
 
 let pp_counter fmt c =
-  let t = Util.get_total_time () -. c.start in
+  let t = Time.get_total_time () -. c.start in
   Format.fprintf fmt "(%4d) %4d ; %4d ; %4d / %4d -- %7.1fs"
     c.gen c.fail c.error c.pass c.expected t
 

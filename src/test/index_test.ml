@@ -1,5 +1,5 @@
 
-let section = Util.Section.make "index_test"
+let section = Section.make "index_test"
 
 (* Module definitions and initialisation *)
 (* ************************************************************************ *)

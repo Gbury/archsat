@@ -9,10 +9,10 @@
 val prelude         : Options.opts -> string
 (** Prelude to print before the interactive prompt. *)
 
-val print_sat       : Options.opts -> unit
-val print_unsat     : Options.opts -> unit
-val print_unknown   : Options.opts -> unit
-(** Prints the resulton the formatter according to the output format set. *)
+val print_sat       : Format.formatter -> Options.opts -> unit
+val print_unsat     : Format.formatter -> Options.opts -> unit
+val print_unknown   : Format.formatter -> Options.opts -> unit
+(** Prints a result on the formatter according to the output format set. *)
 
 val print_exn       : Options.opts -> Format.formatter -> exn -> unit
 (** Print the given error format string ot output. *)

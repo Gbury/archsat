@@ -223,11 +223,11 @@ let print_res (opt, (c : solved stmt)) =
   | { contents = `Goal _; _ } ->
     ()
   | { contents = `Model _; _ } ->
-    Out.print_sat opt
+    Util.printf "%a@." Out.print_sat opt
   | { contents = `Proof _; _ } ->
-    Out.print_unsat opt
+    Util.printf "%a@." Out.print_unsat opt
   | { contents = `Unknown; _ } ->
-    Out.print_unknown opt
+    Util.printf "%a@." Out.print_unknown opt
 
 (* Printing proofs *)
 (* ************************************************************************ *)
@@ -248,11 +248,4 @@ let print_proof (opt, (c : solved stmt)) =
 
 (* Printing proofs *)
 (* ************************************************************************ *)
-
-(* Printing stats *)
-(* Printing stats *)
-(* ************************************************************************ *)
-
-let print_stats opt =
-  CCOpt.iter Util.csv_prof_data Options.(opt.profile.raw_data)
 

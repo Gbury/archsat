@@ -4,6 +4,11 @@
     This module defines utilitiy functions.
 *)
 
+(** {2 Output functions} *)
+
+val printf : ('a, Format.formatter, unit) format -> 'a
+(** Print the given format string on the program output *)
+
 (** {2 Logging functions} *)
 
 val cleanup : unit -> unit
@@ -27,3 +32,6 @@ val enter_prof : Section.t -> unit
 val exit_prof : Section.t -> unit
 (** Enter & Exit the profiler *)
 
+val clean_exit : unit -> unit
+(** Properly closes evrything that might have not be closed.
+    Cuerrently closes all still active profiling section upon exit. *)

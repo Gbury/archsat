@@ -42,11 +42,14 @@ type typing_options = {
 }
 
 type profile_options = {
-  enabled : bool;
+  enabled   : bool;
   max_depth : int option;
-  sections : Section.t list;
-  raw_data : Format.formatter option;
-  print_stats : bool;
+  sections  : Section.t list;
+  raw_data  : Format.formatter option;
+}
+
+type stats_options = {
+  enabled       : bool;
 }
 
 type proof_options = {
@@ -82,6 +85,7 @@ type opts = {
   time_limit  : float;
   size_limit  : float;
   profile     : profile_options;
+  stats       : stats_options;
 }
 (** Common options for theorem proving. *)
 
