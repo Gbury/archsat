@@ -1,5 +1,5 @@
 
-let section = Util.Section.make ~parent:Dispatcher.section "cstr"
+let section = Section.make ~parent:Dispatcher.section "cstr"
 
 (* Options *)
 (* ************************************************************************ *)

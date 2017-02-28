@@ -51,7 +51,7 @@ val term : t -> Expr.term -> Expr.term -> t
     @raise Impossible_ty if the pattern does not match a type.
     @raise Impossible_term if the pattern does not match a term. *)
 
-val find : section:Util.Section.t -> Expr.term -> Expr.term -> t option
+val find : section:Section.t -> Expr.term -> Expr.term -> t option
 (** [find ~section pat term] try and find a substitution [u] such that
     [term_subst u pat = term]. *)
 

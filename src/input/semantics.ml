@@ -2,7 +2,7 @@
 (* Semantic extensions *)
 (* ************************************************************************ *)
 
-let section = Util.Section.make ~parent:Type.section "addons"
+let section = Section.make ~parent:Type.section "addons"
 
 type ext = {
   builtins : In.language -> Type.builtin_symbols;

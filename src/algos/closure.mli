@@ -56,7 +56,7 @@ module type S = sig
   val create :
     gen:(var -> 'a) -> merge:('a -> 'a -> 'a) ->
     ?callback:('a eq_class -> 'a eq_class -> 'a eq_class -> unit) ->
-    section:Util.Section.t -> Backtrack.Stack.t -> 'a t
+    section:Section.t -> Backtrack.Stack.t -> 'a t
   (** Creates an empty state which uses the given backtrack stack *)
 
   val get_class : 'a t -> var -> 'a eq_class

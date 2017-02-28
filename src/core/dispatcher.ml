@@ -1,16 +1,16 @@
 
-let section = Util.Section.make "core"
-let solver_section = Util.Section.make "solver"
-let plugin_section = Util.Section.make ~parent:section "plugin"
+let section = Section.make "core"
+let solver_section = Section.make "solver"
+let plugin_section = Section.make ~parent:section "plugin"
 
-let dummy_section = Util.Section.make "DUMMY"
+let dummy_section = Section.make "DUMMY"
 
 (* Statistics *)
 (* ************************************************************************ *)
 
-let stats_watchers = Util.Stats.mk "watchers"
+let stats_watchers = Stats.mk "watchers"
 
-let stats_group = Util.Stats.bundle [stats_watchers]
+let stats_group = Stats.bundle [stats_watchers]
 
 (* Type definitions *)
 (* ************************************************************************ *)
@@ -30,7 +30,7 @@ type lemma = {
 type 'a job = {
   job_ext : 'a;
   job_n : int;
-  job_section : Util.Section.t;
+  job_section : Section.t;
   job_callback : unit -> unit;
   job_formula : Expr.formula option;
   mutable job_done : int;
@@ -101,7 +101,7 @@ type handle = {
 
 type ext = {
   (* Section for the extension (used for profiling) *)
-  section : Util.Section.t;
+  section : Section.t;
 
   (* Called once on each new formula *)
   peek : (Expr.formula -> unit) option;
@@ -124,7 +124,7 @@ type ext = {
 let mk_ext
     ~section ?(handle: handle option)
     ?peek ?assume ?eval_pred ?preprocess () =
-  Util.Stats.attach section stats_group;
+  Stats.attach section stats_group;
   {
     section;
     peek = CCOpt.map (profile section) peek;
@@ -328,7 +328,7 @@ let pre_process f =
 (* ************************************************************************ *)
 
 let stack = Backtrack.Stack.create (
-    Util.Section.make ~parent:section "backtrack")
+    Section.make ~parent:section "backtrack")
 
 let last_backtrack = ref 0
 
@@ -409,7 +409,7 @@ let update_watch x j =
     assert false
 
 let new_job ?formula id k section watched not_watched f =
-  Util.Stats.incr stats_watchers section;
+  Stats.incr stats_watchers section;
   {
     job_ext = id;
     job_n = k;

@@ -1,5 +1,5 @@
 
-let section = Util.Section.make ~parent:Dispatcher.section "prenex"
+let section = Section.make ~parent:Dispatcher.section "prenex"
 
 (* Local environments *)
 (* ************************************************************************ *)

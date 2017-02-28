@@ -3,7 +3,7 @@
     This module provides functions to parse terms from the untyped syntax tree
     defined in Dolmen, and generate formulas as defined in the Expr module. *)
 
-val section : Util.Section.t
+val section : Section.t
 (** Debug section used in typechecking. *)
 
 val stack : Backtrack.Stack.t

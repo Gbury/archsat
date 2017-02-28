@@ -1,5 +1,5 @@
 
-let section = Util.Section.make ~parent:Dispatcher.section "logic"
+let section = Section.make ~parent:Dispatcher.section "logic"
 
 module H = Hashtbl.Make(Expr.Formula)
 

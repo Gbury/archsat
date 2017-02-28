@@ -7,7 +7,7 @@ type ext
 module Addon : Extension.S with type ext = ext
 (** Module for registering addons *)
 
-val section : Util.Section.t
+val section : Section.t
 (** Section for semantics extensions. *)
 
 val type_env : In.language -> Type.builtin_symbols

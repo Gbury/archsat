@@ -1,5 +1,5 @@
 
-let section = Util.Section.make "closure_test"
+let section = Section.make "closure_test"
 
 (* Problem generation *)
 (* ************************************************************************ *)

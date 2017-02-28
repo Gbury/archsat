@@ -1,5 +1,5 @@
 
-let section = Util.Section.make ~parent:Dispatcher.section "functions"
+let section = Section.make ~parent:Dispatcher.section "functions"
 
 module H = Backtrack.Hashtbl(Expr.Term)
 

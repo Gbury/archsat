@@ -9,7 +9,7 @@ exception Stmt_not_implemented of Dolmen.Statement.t
 
 (** Some exceptions *)
 
-val misc_section : Util.Section.t
+val misc_section : Section.t
 
 type input = In.language
 (* Type alias for input languages *)
@@ -44,7 +44,7 @@ type typing_options = {
 type profile_options = {
   enabled : bool;
   max_depth : int option;
-  sections : Util.Section.t list;
+  sections : Section.t list;
   raw_data : Format.formatter option;
   print_stats : bool;
 }

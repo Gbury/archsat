@@ -77,7 +77,7 @@ type handle = { handle : 'ret. 'ret msg -> 'ret option; }
 (** Type for message handlers. Enclosed in a record to ensure full polymorphism *)
 
 val mk_ext :
-  section:Util.Section.t ->
+  section:Section.t ->
   ?handle:handle ->
   ?peek:(Expr.formula -> unit) ->
   ?assume:(Expr.formula -> unit) ->
@@ -102,13 +102,13 @@ val pre_process : Expr.formula -> Expr.formula
 
 (** {2 Extension-side helpers} *)
 
-val section : Util.Section.t
+val section : Section.t
 (** Debug Section for the dispatcher *)
 
-val solver_section : Util.Section.t
+val solver_section : Section.t
 (** Debug Section for the Solver *)
 
-val plugin_section : Util.Section.t
+val plugin_section : Section.t
 (** Debug section for dispatcher plugins. *)
 
 val stack : Backtrack.Stack.t

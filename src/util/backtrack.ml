@@ -18,7 +18,7 @@ module Stack = struct
   type aref = Ref : 'a ref -> aref
 
   type t = {
-    section : Util.Section.t;
+    section : Section.t;
     mutable stack : op;
     mutable last  : int;
     mutable refs  : aref list;

@@ -8,11 +8,11 @@ module Mt = Map.Make(Expr.Term)
 (* Statistics *)
 (* ************************************************************************ *)
 
-let s_tries = Util.Stats.mk "tries"
-let s_found = Util.Stats.mk "found"
-let s_success = Util.Stats.mk "success"
+let s_tries = Stats.mk "tries"
+let s_found = Stats.mk "found"
+let s_success = Stats.mk "success"
 
-let s_group = Util.Stats.bundle [s_success; s_found; s_tries]
+let s_group = Stats.bundle [s_success; s_found; s_tries]
 
 (* Common signature *)
 (* ************************************************************************ *)
@@ -38,7 +38,7 @@ module Simple(T: Set.OrderedType) = struct
   module S = Set.Make(T)
 
   type t = {
-    section : Util.Section.t;
+    section : Section.t;
     map: S.t Mt.t;
   }
 
@@ -112,8 +112,8 @@ module Make(T: Set.OrderedType) = struct
   type t = {
     key : Position.t list;
     trie : node;
-    section : Util.Section.t;
-    unif_section : Util.Section.t;
+    section : Section.t;
+    unif_section : Section.t;
   }
 
   let rec of_list = function
@@ -123,12 +123,12 @@ module Make(T: Set.OrderedType) = struct
   let master_key = [[]; [0]; [1]; [2]; [0; 0]; [0; 1]]
 
   let empty ?(key=master_key) section =
-    Util.Stats.attach section s_group;
+    Stats.attach section s_group;
     {
       section;
       trie = Empty;
       key = List.map of_list key;
-      unif_section = Util.Section.make ~parent:section "unif";
+      unif_section = Section.make ~parent:section "unif";
     }
 
   let fp_aux e p = fst @@ Position.Term.apply p e
@@ -201,28 +201,28 @@ module Make(T: Set.OrderedType) = struct
 
   let find_unify e t =
     Util.enter_prof t.section;
-    Util.Stats.incr s_tries t.section;
+    Stats.incr s_tries t.section;
     let l = find compat_unif [] (fp t.key e) t.trie in
-    Util.Stats.incr ~k:(List.length l) s_found t.section;
+    Stats.incr ~k:(List.length l) s_found t.section;
     let res = CCList.filter_map (fun (e', s) ->
         match Unif.Robinson.find ~section:t.unif_section e e' with
         | Some u -> Some (e', u, S.elements s) | None -> None
       ) l in
-    Util.Stats.incr ~k:(List.length res) s_success t.section;
+    Stats.incr ~k:(List.length res) s_success t.section;
     Util.exit_prof t.section;
     res
 
   let find_match pat t =
     Util.enter_prof t.section;
-    Util.Stats.incr s_tries t.section;
+    Stats.incr s_tries t.section;
     let l = find compat_match [] (fp t.key pat) t.trie in
-    Util.Stats.incr ~k:(List.length l) s_found t.section;
+    Stats.incr ~k:(List.length l) s_found t.section;
     let res =
       CCList.filter_map (fun (e, s) ->
           match Match.find ~section:t.unif_section pat e with
           | Some m -> Some (e, m, S.elements s) | None -> None
         ) l in
-    Util.Stats.incr ~k:(List.length res) s_success t.section;
+    Stats.incr ~k:(List.length res) s_success t.section;
     Util.exit_prof t.section;
     res
 

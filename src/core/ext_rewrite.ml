@@ -12,7 +12,7 @@ module S = Set.Make(Expr.Term)
 module H = Hashtbl.Make(Expr.Term)
 module M = Hashtbl.Make(Expr.Id.Const)
 
-let section = Util.Section.make ~parent:Dispatcher.section "rwrt"
+let section = Section.make ~parent:Dispatcher.section "rwrt"
 
 (* Callbacks on the set of known terms *)
 (* ************************************************************************ *)

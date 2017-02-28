@@ -22,7 +22,7 @@ module type S = sig
   val create :
     gen:(var -> 'a) -> merge:('a -> 'a -> 'a) ->
     ?callback:('a eq_class -> 'a eq_class -> 'a eq_class -> unit) ->
-    section:Util.Section.t -> Backtrack.Stack.t -> 'a t
+    section:Section.t -> Backtrack.Stack.t -> 'a t
   val get_class : 'a t -> var -> 'a eq_class
   val find : 'a t -> var -> var
   val add_eq : 'a t -> var -> var -> unit
@@ -63,7 +63,7 @@ module Eq(T : Key) = struct
     table : 'a node H.t;
     gen  : var -> 'a;
     merge : 'a -> 'a -> 'a;
-    section : Util.Section.t;
+    section : Section.t;
     callback : 'a eq_class -> 'a eq_class -> 'a eq_class -> unit;
   }
 

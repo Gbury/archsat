@@ -35,7 +35,7 @@ module Simple(T: Set.OrderedType) : sig
 
   include S with type value := T.t
 
-  val empty : Util.Section.t -> t
+  val empty : Section.t -> t
   (** Create a new empty index. *)
 
 end
@@ -58,7 +58,7 @@ module Make(T: Set.OrderedType) : sig
 
   include S with type value := T.t
 
-  val empty : ?key:int list list -> Util.Section.t -> t
+  val empty : ?key:int list list -> Section.t -> t
   (** Create a new empty index. *)
 
   val fingerprint : t -> Expr.term -> Fingerprint.t list

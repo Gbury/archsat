@@ -1,5 +1,5 @@
 
-let section = Util.Section.make ~parent:Dispatcher.section "inst"
+let section = Section.make ~parent:Dispatcher.section "inst"
 
 (* Instanciation helpers *)
 (* ************************************************************************ *)
@@ -237,8 +237,8 @@ let inst_aux f acc k =
 let inst_sat : type ret. ret Dispatcher.msg -> ret option = function
   | Solver.Found_sat _ ->
     let n = inst_aux push 0 !inst_incr in
-    Stats.inst_remaining (Q.size !heap + List.length !delayed);
-    Stats.inst_done n;
+    Ext_stats.inst_remaining (Q.size !heap + List.length !delayed);
+    Ext_stats.inst_done n;
     Inst.clock ();
     if n > 0 then
       Some (Solver.Assume [])

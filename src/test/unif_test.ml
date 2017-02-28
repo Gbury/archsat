@@ -2,7 +2,7 @@
 open Misc_test.Infix
 module E = Expr_test
 
-let section = Util.Section.make "unif_test"
+let section = Section.make "unif_test"
 
 (* Unifier generation (no type subst for now) *)
 (* ************************************************************************ *)

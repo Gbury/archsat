@@ -5,7 +5,7 @@
 type t = {
   time : int64;
   msg : string;
-  lvl : Util.Level.t;
+  lvl : Level.t;
 }
 
 type log = t CCVector.vector
@@ -16,13 +16,13 @@ type log = t CCVector.vector
 let dummy = {
   time = 0L;
   msg = "";
-  lvl = Util.Level.log;
+  lvl = Level.log;
 }
 
 (* Log storage *)
 (* ************************************************************************ *)
 
-module H = Hashtbl.Make(Util.Section)
+module H = Hashtbl.Make(Section)
 
 let tbl = Hashtbl.create 137
 

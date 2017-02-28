@@ -1,5 +1,5 @@
 
-let section = Util.Section.make ~parent:Dispatcher.section "prop"
+let section = Section.make ~parent:Dispatcher.section "prop"
 
 let sat_assume = function
   | { Expr.formula = Expr.Pred ({Expr.term = Expr.App (p, _, _)} as t)} ->

@@ -6,11 +6,11 @@ exception Found_unif
 (* Logging sections *)
 (* ************************************************************************ *)
 
-let section = Util.Section.make ~parent:Dispatcher.section "meta"
+let section = Section.make ~parent:Dispatcher.section "meta"
 
-let sup_section = Util.Section.make ~parent:section "sup"
-let unif_section = Util.Section.make ~parent:section "unif"
-let rigid_section = Util.Section.make ~parent:section "rigid"
+let sup_section = Section.make ~parent:section "sup"
+let unif_section = Section.make ~parent:section "unif"
+let rigid_section = Section.make ~parent:section "rigid"
 
 (* Create the necessary sections for superposition *)
 (* let () = ignore (Superposition.empty (fun _ -> assert false) sup_section) *)
@@ -77,7 +77,7 @@ let unif_conv = Cmdliner.Arg.enum unif_list
 
 (* Unification parameters *)
 let rigid_depth () =
-  !rigid_max_depth + (Stats.current_round () / !rigid_round_incr)
+  !rigid_max_depth + (Ext_stats.current_round () / !rigid_round_incr)
 
 (* Assumed formula parsing *)
 (* ************************************************************************ *)

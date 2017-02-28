@@ -1,5 +1,5 @@
 
-let section = Util.Section.make ~parent:Dispatcher.section "eq"
+let section = Section.make ~parent:Dispatcher.section "eq"
 
 (* Module initialisation *)
 (* ************************************************************************ *)
@@ -53,7 +53,7 @@ let callback, register_callback =
   callback, register
 
 let st = E.create
-    ~section:(Util.Section.make ~parent:section "union-find")
+    ~section:(Section.make ~parent:section "union-find")
     ~gen ~merge ~callback D.stack
 
 (* Accessors to the equality closure *)

@@ -31,12 +31,12 @@ Solver
 
 # Extensions
 Inst
-Stats
 Ext_eq
 Ext_meta
 Ext_prop
 Ext_logic
 Ext_arith
+Ext_stats
 Ext_prenex
 Ext_skolem
 Ext_rewrite
@@ -50,6 +50,8 @@ Ext_constraints
 Time
 Logs
 Level
+Stats
+Section
 
 # Random generation
 Misc_test

@@ -8,7 +8,7 @@ end
 
 let all_exts = [
   (module Inst                : S);
-  (module Stats               : S);
+  (module Ext_stats           : S);
   (module Ext_eq              : S);
   (module Ext_meta            : S);
   (module Ext_prop            : S);

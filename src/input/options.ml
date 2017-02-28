@@ -1,8 +1,5 @@
 
-let misc_section = Util.Section.make "misc"
-(*
-let section = Util.Section.make ~parent:misc_section "options"
-*)
+let misc_section = Section.make "misc"
 open Cmdliner
 
 (* Exceptions *)
@@ -47,7 +44,7 @@ type typing_options = {
 type profile_options = {
   enabled       : bool;
   max_depth     : int option;
-  sections      : Util.Section.t list;
+  sections      : Section.t list;
   raw_data      : Format.formatter option;
   print_stats   : bool;
 }
@@ -160,15 +157,18 @@ let set_opts gc bt quiet lvl debug opt =
     Printexc.record_backtrace true;
   (* Set up debug levels *)
   if quiet then
-    Util.Section.clear_debug Util.Section.root
+    Section.clear_debug Section.root
   else begin
     (* Msat debugging is a bit hardcore...
        Msat.Log.set_debug log;
        Msat.Log.set_debug_out Format.std_formatter;
     *)
-    Util.set_debug (
-      if (opt.input.mode = Interactive) then Util.Level.(max log lvl) else lvl);
-    List.iter (fun (s, lvl) -> Util.Section.set_debug s lvl) debug
+    let level =
+      if (opt.input.mode = Interactive)
+      then Level.(max log lvl) else lvl
+    in
+    Section.set_debug Section.root level;
+    List.iter (fun (s, lvl) -> Section.set_debug s lvl) debug
   end;
   opt
 
@@ -313,20 +313,22 @@ let in_fd =
   parse, print
 
 (* Converter for sections *)
-let print_section fmt s = Format.fprintf fmt "%s" (Util.Section.full_name s)
+let print_section fmt s =
+  Format.fprintf fmt "%s" (Section.full_name s)
+
 let parse_section arg =
-  try `Ok (Util.Section.find arg)
+  try `Ok (Section.find arg)
   with Not_found -> `Error ("Invalid debug section '" ^ arg ^ "'")
 
 let section = parse_section, print_section
 
 (* Converter for logging level *)
 let level_list = [
-  "log", Util.Level.log;
-  "error", Util.Level.error;
-  "warn", Util.Level.warn;
-  "info", Util.Level.info;
-  "debug", Util.Level.debug;
+  "log",    Level.log;
+  "error",  Level.error;
+  "warn",   Level.warn;
+  "info",   Level.info;
+  "debug",  Level.debug;
 ]
 
 let level = Arg.enum level_list
@@ -388,7 +390,8 @@ let help_secs ext_doc sext_doc = [
 
 let log_sections () =
   let l = ref [] in
-  Util.Section.iter (fun (name, _) -> if name <> "" then l := name :: !l);
+  Section.iter (fun s ->
+      if not Section.(equal root s) then l := Section.full_name s :: !l);
   List.sort Pervasives.compare !l
 
 let input_t =
@@ -499,7 +502,7 @@ let unit_t =
   in
   let log =
     let doc = "Set the global level for debug outpout." in
-    Arg.(value & opt level Util.Level.log & info ["v"; "verbose"] ~docs ~docv:"LVL" ~doc)
+    Arg.(value & opt level Level.log & info ["v"; "verbose"] ~docs ~docv:"LVL" ~doc)
   in
   let debug =
     let doc = Format.asprintf

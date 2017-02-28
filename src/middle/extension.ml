@@ -9,7 +9,7 @@ module type K = sig
   type t
   val neutral : t
   val merge : high:t -> low:t -> t
-  val section : Util.Section.t
+  val section : Section.t
 end
 
 module type S = Extension_intf.S
@@ -43,7 +43,7 @@ module Make(E: K) : S with type ext = E.t = struct
   (* Get extensions *)
   let _not_found ext_name =
     raise (Extension_not_found (
-        Util.Section.short_name E.section,
+        Section.short_name E.section,
         ext_name, List.map (fun r -> r.name) (CCVector.to_list exts)))
 
   let get id = CCVector.get exts id

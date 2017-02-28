@@ -1,5 +1,5 @@
 
-let section = Util.Section.make ~parent:Dispatcher.section "arith"
+let section = Section.make ~parent:Dispatcher.section "arith"
 
 module B = Builtin.Arith
 

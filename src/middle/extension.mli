@@ -9,7 +9,7 @@ module type K = sig
 
   val merge : high:t -> low:t -> t
 
-  val section : Util.Section.t
+  val section : Section.t
 
 end
 

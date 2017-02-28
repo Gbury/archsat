@@ -27,13 +27,13 @@ let () =
       Format.set_margin 100;
       (* Profiling *)
       if opt.profile.enabled then begin
-        Util.enable_profiling ();
-        Util.Section.set_profile_depth
+        at_exit Section.print_profiling_info;
+        Section.set_profile_depth
           (CCOpt.get_or ~default:0 opt.profile.max_depth);
-        List.iter Util.Section.profile_section opt.profile.sections
+        List.iter Section.profile_section opt.profile.sections
       end;
       if opt.profile.print_stats then
-        Util.enable_statistics ();
+        at_exit Stats.print;
 
       (* Syntax extensions *)
       Semantics.Addon.set_exts "+base,+arith";

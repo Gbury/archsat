@@ -2,10 +2,10 @@
 (* Log&Module Init *)
 (* ************************************************************************ *)
 
-let section = Util.Section.make "type"
+let section = Section.make "type"
 
 let stack = Backtrack.Stack.create (
-    Util.Section.make ~parent:section "backtrack")
+    Section.make ~parent:section "backtrack")
 
 module Ast = Dolmen.Term
 module Id = Dolmen.Id
