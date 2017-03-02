@@ -26,6 +26,7 @@ B _build/middle
 
 PKG gen
 PKG msat
+PKG notty
 PKG spelll
 PKG qcheck
 PKG dolmen

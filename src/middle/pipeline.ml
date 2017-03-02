@@ -1,6 +1,8 @@
 
-(* Default exception handler *)
+(* Default functions *)
 (* ************************************************************************ *)
+
+let default_finally opt = opt
 
 let default_handler opt fmt exn =
   Format.fprintf fmt "Exception: @<hov>%s@]@." (Printexc.to_string exn)
@@ -125,25 +127,32 @@ let run_aux : type a. (opt * a, opt) t -> (opt -> a option) -> opt -> opt option
 (** Effectively run a pipeline on all values that come from a generator.
     Time/size limits apply for the complete evaluation of each input
     (so all expanded values count toward the same limit). *)
-let rec run : type a.
+let rec run :
+  type a.
+  ?finally:(opt -> opt) ->
   ?print_exn:(opt -> Format.formatter -> exn -> unit) ->
-  (opt -> a option) -> opt -> (opt * a, opt) t -> unit =
-  fun ?(print_exn=default_handler) g opt pipe ->
+  (opt -> a option) -> opt -> (opt * a, opt) t -> unit
+  =
+  fun
+    ?(finally=default_finally)
+    ?(print_exn=default_handler)
+    g opt pipe ->
     let time = opt.Options.time_limit in
     let size = opt.Options.size_limit in
     let al = setup_alarm time size in
     begin
       match run_aux pipe g opt with
-      | None ->
-        delete_alarm al
+      | None -> delete_alarm al
       | Some opt' ->
         delete_alarm al;
-        run ~print_exn g opt' pipe
+        let opt'' = try finally opt' with _ -> opt' in
+        run ~finally ~print_exn g opt'' pipe
       | exception exn ->
         delete_alarm al;
         if Printexc.backtrace_status () then
           Printexc.print_backtrace stdout;
         Util.error "%a" (print_exn opt) exn;
-        run ~print_exn g opt pipe
+        let opt' = try finally opt with _ -> opt in
+        run ~finally ~print_exn g opt' pipe
     end
 

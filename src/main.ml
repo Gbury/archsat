@@ -24,7 +24,10 @@ let () =
 
   let opt', g =
     try
+      (* Set better margins *)
       Format.set_margin 100;
+      (* Initialize debug mode *)
+      Pipe.init_debug opt;
       (* Profiling *)
       if opt.profile.enabled then begin
         at_exit Section.print_profiling_info;
@@ -63,7 +66,10 @@ let () =
       exit 2
   in
   Pipeline.(
-    run ~print_exn:Out.print_exn g opt' (
+    run
+      ~finally:Pipe.debug
+      ~print_exn:Out.print_exn
+      g opt' (
       (
         (fix (apply ~name:"expand" Pipe.expand) (
             (apply ~name:"execute" Pipe.execute)

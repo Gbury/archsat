@@ -244,8 +244,15 @@ let print_proof (opt, (c : solved stmt)) =
   | { contents = `Unknown; _ } ->
     ()
   | { contents = `Proof p; _ } ->
-    ()
+    () (* TODO *)
 
-(* Printing proofs *)
+(* Debug display *)
 (* ************************************************************************ *)
+
+let init_debug opt =
+  if Options.(opt.input.mode = Debug) then Display.display ()
+
+let debug opt =
+  if Options.(opt.input.mode = Debug) then Display.display ();
+  opt
 

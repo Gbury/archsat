@@ -22,8 +22,10 @@ true: color(always)
 <**/*>: package(unix), package(zarith), package(msat),      \
         package(cmdliner), package(ocamlgraph),             \
         package(containers), package(containers.data),      \
+        package(dolmen), package(sequence),                 \
         package(gen), package(oclock),                      \
-        package(dolmen), package(sequence), package(spelll)
+        package(notty), package(notty.unix),                \
+        package(spelll)
 
 <test/*>: package(qcheck)
 

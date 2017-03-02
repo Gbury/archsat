@@ -3,9 +3,10 @@
 (* ************************************************************************ *)
 
 type t = {
-  time : int64;
-  msg : string;
-  lvl : Level.t;
+  time    : int64;
+  section : Section.t;
+  lvl     : Level.t;
+  msg     : string;
 }
 
 type log = t CCVector.vector
@@ -17,19 +18,28 @@ let dummy = {
   time = 0L;
   msg = "";
   lvl = Level.log;
+  section = Section.root;
 }
+
+let make ~section ~lvl msg =
+  let time = Time.get_total_clock () in
+  { time; msg; lvl; section; }
 
 (* Log storage *)
 (* ************************************************************************ *)
 
-module H = Hashtbl.Make(Section)
+let tbl : log = CCVector.create_with ~capacity:4096 dummy
 
-let tbl = Hashtbl.create 137
+let add ~section ~lvl msg =
+  CCVector.push tbl (make ~section ~lvl msg)
 
-let get_logs s =
-  try Hashtbl.find tbl s
-  with Not_found ->
-    let v = CCVector.create () in
-    Hashtbl.add tbl s v;
-    v
+let log ~section ~lvl format =
+  Format.kasprintf (add ~section ~lvl) format
+
+(* Log access *)
+(* ************************************************************************ *)
+
+let get = CCVector.get tbl
+let length () = CCVector.length tbl
+
 
