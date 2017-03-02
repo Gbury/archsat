@@ -38,6 +38,7 @@ depends: [
   "oclock"
   "sequence"
   "spelll"
+  "notty"
 ]
 tags: [ "sat" "smt" "solver" "theorem prover" "tptp" "logic" "smtlib" "dimacs" ]
 homepage: "https://gforge.inria.fr/projects/archsat"
