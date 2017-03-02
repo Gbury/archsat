@@ -53,12 +53,6 @@ Level
 Stats
 Section
 
-# Random generation
-Misc_test
-Expr_test
-Unif_test
-Closure_test
-
 # Utilities modules
 Util
 Arith

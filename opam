@@ -7,11 +7,22 @@ license: "BSD-2-clauses"
 build: [
   [make "bin"]
 ]
+build-test: [
+  [make "test"]
+]
 install:[
-  [make "MANDIR=%{man}%" "BINDIR=%{bin}%" "SHAREDIR=%{share}%" "install"]
+  [make
+    "MANDIR=%{man}%"
+    "BINDIR=%{archsat:bin}%"
+    "SHAREDIR=%{archsat:share}%"
+    "install"]
 ]
 remove: [
-  [make "MANDIR=%{man}%" "BINDIR=%{bin}%" "SHAREDIR=%{share}%" "uninstall"]
+  [make
+    "MANDIR=%{man}%"
+    "BINDIR=%{archsat:bin}%"
+    "SHAREDIR=%{archsat:share}%"
+    "uninstall"]
 ]
 depends: [
   "ocamlfind" { build }

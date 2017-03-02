@@ -8,8 +8,14 @@ doc:
 	cd doc && $(MAKE)
 
 bin:
-	cd src && $(MAKE) bin
+	$(MAKE) -C src bin
 	cp $(MAIN) $(BIN)
+
+lib:
+	$(MAKE) -C src lib
+
+test:
+	$(MAKE) -C src test
 
 install: bin
 	./$(BIN) --help=groff > $(MANDIR)/man1/$(BIN).1
