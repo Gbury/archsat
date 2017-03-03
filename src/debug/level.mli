@@ -18,6 +18,9 @@ val compare : t -> t -> int
 val max : t -> t -> t
 (** Compute the max of two debug levels *)
 
+val to_string : t -> string
+(** Convert a level to a string. *)
+
 (** {2 Existing levels} *)
 
 val null : t

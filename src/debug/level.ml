@@ -25,3 +25,15 @@ let info = 5
 
 let debug = 10
 
+(* Conversions *)
+(* ************************************************************************ *)
+
+let to_string = function
+  | -2 -> "null"
+  | -1 -> "error"
+  | 0 -> "log"
+  | 1 -> "warn"
+  | 5 -> "info"
+  | 10 -> "debug"
+  | _ -> assert false
+
