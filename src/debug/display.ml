@@ -10,6 +10,7 @@ type state = {
   (* Current cursor. *)
   mutable cursor_row : int;   (* printed line of the cursor *)
   mutable cursor_col : int;   (* printed column of the cursor *)
+  mutable cursor_log : Logs.t option;
 
   (* Opened sections *)
   mutable section_row : int;  (* starting log index *)
@@ -27,11 +28,12 @@ let st = {
 
   cursor_row = 0;
   cursor_col = 0;
+  cursor_log = None;
 
   section_row = 0;
-  section_num = 1;
+  section_num = 2;
   section_col = 0;
-  section_tbl = CCVector.create ();
+  section_tbl = CCVector.make 2 Section.root;
 
   overlay = Notty.I.empty;
 }
@@ -42,10 +44,15 @@ let st = {
 let bg_pad bg img (w, h) =
   Notty.I.(img </> char bg ' ' w h)
 
-let sized img (w, h) =
-  let w' = Notty.I.height img in
-  let h' = Notty.I.width img in
+let sized (w, h) img =
+  let w' = Notty.I.width img in
+  let h' = Notty.I.height img in
   Notty.I.pad ~r:(w - w') ~b:(h - h') img
+
+let first_line s =
+  match CCString.Split.left ~by:"\n" s with
+  | Some (res, _) -> res
+  | None -> s
 
 (* Colors *)
 (* ************************************************************************ *)
@@ -60,7 +67,7 @@ let bg_yellow = Notty.A.(bg yellow ++ fg white ++ st bold)
 let render_header w =
   let name = Notty.I.(string bg_blue "Archsat") in
   let count = Notty.I.(string bg_black (
-      Format.sprintf ""
+      Format.sprintf "%d messages in logs" (Logs.length ())
     )) in
   Notty.I.(bg_pad bg_blue name (w,1) <->
            bg_pad bg_black count (w,1))
@@ -95,28 +102,78 @@ let render_footer w =
 (* Body *)
 (* ************************************************************************ *)
 
-let render_panel_aux col acc i x =
-  let bg =
-    if col = st.cursor_col && i = st.cursor_row
-    then bg_yellow else bg_black
-  in
-  match x with
-  | None -> Notty.I.(acc <-> string bg " - ")
-  | Some s -> Notty.I.(acc <-> string bg s)
+let rec render_row w line col t j =
+  if j >= st.section_num then Notty.I.empty
+  else begin
+    let bg =
+      if line = st.cursor_row && j = st.cursor_col then begin
+        st.cursor_log <- if j = col then Some t else None;
+        bg_yellow
+      end else
+        bg_black
+    in
+    let msg =
+      if j = col then first_line t.Logs.msg else " - "
+    in
+    Notty.I.(sized (w - 1, 1) (string bg msg)
+             <|> char bg_black '|' 1 1
+             <|> render_row w line col t (j + 1))
+  end
 
-let render_panel (w, h) col (section, a) =
-  let img = CCArray.foldi (render_panel_aux col) Notty.I.empty a in
-  Notty.I.(string bg_black (Section.full_name section) <->
-           char bg_black '-' w 1 <-> img)
+let render_line w i j t =
+  Notty.I.(
+    string bg_black (Format.sprintf "%8.3f " (Time.time_of_clock t.Logs.time))
+    <|> char bg_black '|' 1 1
+    <|> render_row w i j t 0)
+
+
+let rec render_lines p (w, h) acc line i =
+  if line >= h then acc
+  else if i >= Logs.length () then
+    Notty.I.(acc <-> void 0 (h - line))
+  else begin
+    let t = Logs.get i in
+    let j = p t in
+    if j < 0 then render_lines p (w, h) acc line (i + 1)
+    else begin
+      let acc' = Notty.I.(acc <-> render_line w line j t) in
+      render_lines p (w, h) acc' (line + 1) (i + 1)
+    end
+  end
+
+let rec render_top_row w j =
+  if j >= st.section_num then Notty.I.empty
+  else begin
+    let section = CCVector.get st.section_tbl (st.section_col + j) in
+    Notty.I.(
+      sized (w - 1, 1) (string bg_black (Section.short_name section))
+      <|> char bg_black '|' 1 1
+      <|> render_top_row w (j + 1))
+  end
+
+let render_top_line w =
+  Notty.I.(
+    void 9 1
+    <|> char bg_black '|' 1 1
+    <|> render_top_row w 0)
 
 let render_body (w, h) =
-  let time, panels = compute_panels (h - 2) in
-  let w = w / st.section_num - 1 in
-  let img =
-    CCArray.foldi (fun acc i panel ->
-        Notty.I.(acc <|> char bg_black ' ' 1 h <|> render_panel (w, h) i panel)
-      ) (render_time time) panels in
-  img
+  let filter t =
+    let rec aux i t =
+      if i >= st.section_num then -1
+      else begin
+        let s = CCVector.get st.section_tbl i in
+        if Section.equal t.Logs.section s
+        then i else aux (i + 1) t
+      end
+    in aux 0 t
+  in
+  let w' = (w - 10) / st.section_num in
+  Notty.I.(
+    render_top_line w' <->
+    char bg_black '-' w 1 <->
+    render_lines filter (w', h - 2) Notty.I.empty 0 st.section_row
+  )
 
 (* Rendering *)
 (* ************************************************************************ *)
@@ -132,7 +189,7 @@ let render term =
   (* Render body *)
   let body_h = h - header_h - footer_h - 2 in
   let body = render_body (w, body_h) in
-  assert (Notty.I.height body = body_h);
+  (* assert (Notty.I.height body = body_h); *)
   let img = Notty.I.(
       header <-> void 0 1 <->
       body <-> void 0 1 <->
@@ -153,7 +210,9 @@ let init () =
 
 let rec loop term =
   match Notty_unix.Term.event term with
-  | `Key (`Escape, _) -> exit 0
+  | `Key (`Escape, _)
+  | `Key (`Uchar 113, _) (* 'q' *) ->
+    exit 0
   | `Key (`Uchar 114, _) (* 'r' *) as event ->
     update event;
     ()

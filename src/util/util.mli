@@ -14,6 +14,9 @@ val printf : ('a, Format.formatter, unit) format -> 'a
 val cleanup : unit -> unit
 (** Inform the logger that the current line need cleanup. *)
 
+val enable_debug : unit -> unit
+(** Enable debug mode. *)
+
 type 'a logger =
   ?section:Section.t ->
   ('a, Format.formatter, unit, unit) format4 ->

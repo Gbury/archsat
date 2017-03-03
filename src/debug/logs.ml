@@ -42,4 +42,3 @@ let log ~section ~lvl format =
 let get = CCVector.get tbl
 let length () = CCVector.length tbl
 
-

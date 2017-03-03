@@ -26,8 +26,10 @@ let () =
     try
       (* Set better margins *)
       Format.set_margin 100;
-      (* Initialize debug mode *)
-      Pipe.init_debug opt;
+      (* Enable debug mode *)
+      if Options.(opt.input.mode = Debug) then
+        Util.enable_debug ();
+
       (* Profiling *)
       if opt.profile.enabled then begin
         at_exit Section.print_profiling_info;
@@ -60,7 +62,12 @@ let () =
       Util.log ~section:Dispatcher.plugin_section "active: @[<hov>%a@]"
         CCFormat.(list string) (Dispatcher.Plugin.active ());
 
+      (* Initialize debug mode *)
+      Pipe.init_debug opt;
+
+      (* Return the parsor generator *)
       Pipe.parse opt
+
     with e ->
       Util.error "%a" (Out.print_exn opt) e;
       exit 2

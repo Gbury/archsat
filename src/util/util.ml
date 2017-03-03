@@ -10,6 +10,8 @@ let printf format =
 
 let debug = ref false
 let need_cleanup = ref false
+
+let enable_debug () = debug := true
 let cleanup () = need_cleanup := true
 
 type 'a logger =
