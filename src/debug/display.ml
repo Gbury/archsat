@@ -9,6 +9,7 @@ type 'a selection = {
 
 type overlay =
   | Empty
+  | Running
   | Log of Logs.t
   | SSelection of Section.t selection
 
@@ -85,7 +86,20 @@ let bordered img =
       char bg_black '+' 1 1) in
   let col = Notty.I.(char bg_black '|' 1 h) in
   Notty.I.
-    (line <-> (col <|> (img </> char bg_black ' ' w h) <|> col) <-> line)
+    (line <-> (col <|> img <|> col) <-> line)
+
+let blacked img =
+  let w = Notty.I.width img in
+  let h = Notty.I.height img in
+  Notty.I.(img </> char bg_black ' ' w h)
+
+let popup (w, h) img =
+  centered (w, h) @@
+  blacked @@
+  Notty.I.pad ~l:2 ~r:2 ~t:1 ~b:1 @@
+  bordered @@
+  Notty.I.pad ~l:2 ~r:2 ~t:1 ~b:1 @@
+  img
 
 let first_line s =
   match CCString.Split.left ~by:"\n" s with
@@ -236,7 +250,7 @@ let render_body (w, h) =
 
 let render_log (w, h) t =
   let open Notty.I in
-  centered (w, h) @@ bordered @@ pad ~l:1 ~r:1 ~t:1 ~b:1 @@
+  popup (w, h) @@
   table [|
     [| string bg_black "Time";
        string bg_black (Format.sprintf "%.3f" (Time.time_of_clock t.Logs.time))|];
@@ -253,11 +267,15 @@ let render_sselection (w, h) s =
       let bg = if i = s.idx then bg_yellow else bg_black in
       Notty.I.(acc <-> string bg (Section.full_name section))
     ) Notty.I.empty s.choices in
-  centered (w, h) @@ bordered @@ Notty.I.pad ~l:1 ~r:1 ~t:1 ~b:1 @@ img
+  popup (w, h) img
+
+let render_running (w, h) =
+  popup (w, h) Notty.I.(string bg_black "Running ...")
 
 let render_overlay (w, h) =
   match st.overlay with
   | Empty -> Notty.I.empty
+  | Running -> render_running (w, h)
   | Log t -> render_log (w, h) t
   | SSelection s -> render_sselection (w, h) s
 
@@ -303,20 +321,29 @@ let move_cursor = function
       st.cursor_col <- st.cursor_col + 1
 
 let init_sselection () =
-  Empty
+  let l = ref [] in
+  Section.iter (fun t -> l := t :: !l);
+  let list = List.sort Section.compare !l in
+  SSelection { choices = Array.of_list list; idx = 0; }
 
 let update (w, h) mods = function
-  | `Escape
+  | `Uchar 99 (* 'c' *) ->
+    st.overlay <- init_sselection ();
+    `Continue
   | `Uchar 113 (* 'q' *) ->
     `Exit
   | `Uchar 114 (* 'r' *) ->
     `Stop
-  | `Uchar 99 (* 'c' *) ->
-    st.overlay <- init_sselection ();
+  | `Uchar 115 (* 's' *) ->
+    CCVector.push st.section_tbl (
+      CCVector.get st.section_tbl (CCVector.length st.section_tbl - 1));
+    st.panel_cols <- st.panel_cols + 1;
     `Continue
   | `Arrow dir ->
     move_cursor dir;
     `Continue
+  | `Escape ->
+    `Exit
   | `Enter ->
     begin match st.cursor_log with
       | None -> ()
@@ -339,13 +366,14 @@ let update_sselection s = function
     `Continue
   | `Enter ->
     let s = s.choices.(s.idx) in
-    CCVector.set st.section_tbl st.section_col s;
+    CCVector.set st.section_tbl (st.section_col + st.cursor_col) s;
     `Clear
   | _ ->
     `Continue
 
 let react (w, h) mods key =
   match st.overlay with
+  | Running -> `Clear
   | Empty -> update (w, h) mods key
   | Log _ -> update_log (w, h)  mods key
   | SSelection s -> update_sselection s key
@@ -361,7 +389,8 @@ let rec loop term =
   | `End -> ()
   | `Key (k, mods) ->
     begin match react (Notty_unix.Term.size term) mods k with
-      | `Stop -> ()
+      | `Stop ->
+        st.overlay <- Running
       | `Exit -> exit 0
       | `Clear ->
         st.overlay <- Empty;
@@ -376,6 +405,7 @@ and refresh term =
   loop term
 
 let rec display () =
+  st.overlay <- Empty;
   match st.term with
   | None -> init (); display ()
   | Some term -> refresh term
