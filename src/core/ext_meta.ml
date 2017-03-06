@@ -327,7 +327,13 @@ let rec unif_f st = function
     else
       unif_f st SuperAll
      *)
-  | _ -> unif_f st Simple
+  | SuperEach | SuperAll ->
+    raise (Dispatcher.Bad_assertion "Meta: superposition disabled.")
+  | Auto ->
+    if st.equalities = [] then
+      unif_f st Simple
+    else
+      unif_f st ERigid
 
 let find_all_insts : type ret. ret Dispatcher.msg -> ret option = function
   | Solver.Found_sat model ->
