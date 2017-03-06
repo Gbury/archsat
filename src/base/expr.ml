@@ -264,11 +264,11 @@ module Print = struct
     in
     match f.formula with
     | Pred t -> Format.fprintf fmt "%a" term t
-    | Equal (a, b) -> Format.fprintf fmt "@[<hov>%a =@ %a@]" term a term b
+    | Equal (a, b) -> Format.fprintf fmt "@[<hov>%a@ =@ %a@]" term a term b
 
     | True  -> Format.fprintf fmt "⊤"
     | False -> Format.fprintf fmt "⊥"
-    | Not f -> Format.fprintf fmt "@[hov 2>¬ %a@]" aux f
+    | Not f -> Format.fprintf fmt "@[<hov 2>¬ %a@]" aux f
     | And l -> Format.fprintf fmt "@[<hov>%a@]" (list ~sep:" ∧" aux) l
     | Or l  -> Format.fprintf fmt "@[<hov>%a@]" (list ~sep:" ∨" aux) l
 
