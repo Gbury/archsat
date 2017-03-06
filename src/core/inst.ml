@@ -213,7 +213,10 @@ let decr_delay () =
 let inst_aux f acc k =
   let rec fold f acc i =
     if i <= 0 then
-      acc
+      if acc <= 0 && decr_delay () then
+        fold f acc i
+      else
+        acc
     else begin
       let acc' =
         match Q.take !heap with
@@ -229,13 +232,17 @@ let inst_aux f acc k =
       fold f acc' (i - 1)
     end
   in
-  if k > 0 then
+  if k > 0 then begin
+    Util.debug ~section "Folding over %d insts" k;
     fold f acc k
-  else
-    fold f acc (Q.size !heap + k)
+  end else begin
+    Util.debug ~section "Folding over %d insts" (Q.size !heap + k);
+    fold f acc (max 1 (Q.size !heap + k))
+  end
 
 let inst_sat : type ret. ret Dispatcher.msg -> ret option = function
   | Solver.Found_sat _ ->
+    Util.info ~section "Treating instanciations (k=%d)" !inst_incr;
     let n = inst_aux push 0 !inst_incr in
     Ext_stats.inst_remaining (Q.size !heap + List.length !delayed);
     Ext_stats.inst_done n;
