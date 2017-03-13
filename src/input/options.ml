@@ -526,7 +526,7 @@ let unit_t =
     let doc = Format.asprintf
         "Set the debug level of the given section, as a pair : '$(b,section),$(b,level)'.
         $(b,section) might be %s." (Arg.doc_alts ~quoted:false (log_sections ())) in
-    Arg.(value & opt_all (pair section level) [] & info ["debug"] ~docs:ext_sect ~docv:"NAME,LVL" ~doc)
+    Arg.(value & opt_all (pair section level) [] & info ["log"] ~docs:ext_sect ~docv:"NAME,LVL" ~doc)
   in
   Term.(const set_opts $ gc $ bt $ quiet $ log $ debug)
 
