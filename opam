@@ -30,10 +30,10 @@ depends: [
   "qcheck" { test & >= "dev" }
   "dolmen" { >= "dev" }
   "msat" { >= "dev" }
+  "containers" { >= "1.0" }
   "zarith"
   "cmdliner"
   "ocamlgraph"
-  "containers"
   "gen"
   "oclock"
   "sequence"
