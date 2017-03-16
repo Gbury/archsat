@@ -70,6 +70,12 @@ val find_var : env -> Dolmen.Id.t ->
 
 (** {2 Parsing helpers} *)
 
+val wildcard : (Dolmen.Id.t -> Dolmen.Term.t list -> res) typer
+(** Parse a term as a wildcard (only allowed in types).
+    Accepts as argument the list of arguments given to the widcard symbol in the
+    Dolmen AST. If that list if non_empty, an expcetion is raised.
+    *)
+
 val ty_apply :
   (Expr.ttype Expr.function_descr Expr.id -> Expr.ty list -> Expr.ty) typer
 val term_apply :

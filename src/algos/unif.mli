@@ -72,10 +72,6 @@ val fixpoint : t -> t
     contains cylces. Consequently, occurs_check should return true on any subsitution
     used with this function. *)
 
-val saturate : t -> t
-(** Binds all metavariables occuring in terms but not bound, to a constant of the correct type.
-    WARNING: This is unsafe,and, as it seems, incomplete to use... *)
-
 val combine : t -> t -> t option
 (** Try and merge two substitutions.
     TODO: document more this funciton, :p *)

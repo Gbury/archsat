@@ -428,27 +428,79 @@ let _type_mismatch env t ty ty' ast =
   in
   raise (Typing_error (msg, env, ast))
 
+let _cannot_unify env ast ty t =
+  let msg = Format.asprintf
+      "A term of type '%a'@ was expected, but could not unify it with@ %a:@ %a"
+      Expr.Print.ty ty Expr.Print.term t Expr.Print.ty Expr.(t.t_type)
+  in
+  raise (Typing_error (msg, env, ast))
+
+let _cannot_infer_quant_var env t =
+  raise (Typing_error ("Cannot infer the types of quantified variables", env, t))
+
 (* Wrappers for expression building *)
 (* ************************************************************************ *)
+
+(* Generate metas for wildcards in types. *)
+let gen_wildcard =
+  let f = Expr.Formula.allty [Expr.Id.ttype "wildcard"] Expr.Formula.f_true in
+  (function () -> (* TODO: add location information *)
+   match Expr.Meta.of_all_ty f with
+   | [ m ] -> m
+   | _ -> assert false)
+
+let wildcard =
+  (fun env ast id l ->
+     match l with
+     | [] ->
+       let m = gen_wildcard () in
+       Ty (Expr.Ty.of_meta m)
+     | _ -> _bad_id_arity env id 0 ast
+  )
 
 let arity f =
   List.length Expr.(f.id_type.fun_vars) +
   List.length Expr.(f.id_type.fun_args)
 
+(* Wrapper around type application *)
 let ty_apply env ast f args =
   try
     Expr.Ty.apply ~status:env.status f args
   with Expr.Bad_ty_arity _ ->
     _bad_term_arity env f (arity f) ast
 
+(* Wrapper aroun term application. Since wildcards are allowed in types,
+   there may be some metas in [ty_args], so we have to find an appropriate
+   substitution for these metas. To do that, we try and unify the expected type
+   and the actual argument types. *)
 let term_apply env ast f ty_args t_args =
-  try
-    Expr.Term.apply ~status:env.status f ty_args t_args
-  with
-  | Expr.Bad_arity _ ->
+  if List.length Expr.(f.id_type.fun_vars) <> List.length ty_args ||
+     List.length Expr.(f.id_type.fun_args) <> List.length t_args then
     _bad_term_arity env f (arity f) ast
-  | Expr.Type_mismatch (t, ty, ty') ->
-    _type_mismatch env t ty ty' ast
+  else
+    let map =
+      List.fold_left2
+        Expr.Subst.Id.bind Expr.Subst.empty
+        Expr.(f.id_type.fun_vars) ty_args
+    in
+    let expected_types =
+      List.map (Expr.Ty.subst map) Expr.(f.id_type.fun_args)
+    in
+    let subst =
+      List.fold_left2 (fun subst expected term ->
+          try
+            Unif.Robinson.ty subst expected Expr.(term.t_type)
+          with
+          | Unif.Robinson.Impossible_ty _ ->
+            _cannot_unify env ast expected term
+        ) Unif.empty expected_types t_args
+    in
+    let actual_ty_args = List.map (Unif.type_subst subst) ty_args in
+    try
+      Expr.Term.apply ~status:env.status f actual_ty_args t_args
+    with
+    | Expr.Bad_arity _ | Expr.Type_mismatch _ ->
+      assert false
 
 let ty_subst env ast_term id args f_args body =
   match List.fold_left2 Expr.Subst.Id.bind Expr.Subst.empty f_args args with
@@ -525,6 +577,10 @@ let rec parse_expr (env : env) t =
       Ttype
     | { Ast.term = Ast.Builtin Ast.Prop } ->
       Ty Expr.Ty.prop
+
+    (* Wildcards (only allowed in types *)
+    | { Ast.term = Ast.Builtin Ast.Wildcard } ->
+      Ty (Expr.Ty.of_meta (gen_wildcard ()))
 
     (* Basic formulas *)
     | { Ast.term = Ast.App ({ Ast.term = Ast.Builtin Ast.True }, []) }
@@ -649,9 +705,9 @@ and parse_var env = function
       | Ty ty -> `Term (s, Expr.Id.ty (Id.full_name s) ty)
       | _ -> _expected env "type (or Ttype)" e
     end
-  | { Ast.term = Ast.Symbol s } ->
+  | { Ast.term = Ast.Symbol s } as t ->
     begin match env.expect with
-      | Nothing -> assert false
+      | Nothing -> _cannot_infer_quant_var env t
       | Type -> `Ty (s, Expr.Id.ttype (Id.full_name s))
       | Typed ty -> `Term (s, Expr.Id.ty (Id.full_name s) ty)
     end
@@ -667,7 +723,7 @@ and parse_quant_vars env l =
         | `Term (id, v') ->
           let v'', acc' = add_term_var acc id v' (get_loc v) in
           (l1, v'' :: l2, acc')
-    ) ([], [], env) l in
+    ) ([], [], (expect env Nothing)) l in
   List.rev ttype_vars, List.rev typed_vars, env'
 
 and parse_let env f = function
@@ -727,7 +783,7 @@ and parse_app env ast s args =
             begin match env.builtins env ast s args with
               | Some res -> res
               | None ->
-                Util.info ~section
+                Util.warn ~section
                   "Looking up '%a' failed, possibilities were:@ @[<hov>%a@]"
                   Id.print s (suggest ~limit:1 env) s;
                 begin match infer env s args (get_loc ast) with
@@ -781,7 +837,7 @@ and parse_formula env ast =
   | _ -> _expected env "formula" ast
 
 let parse_ttype_var env t =
-  match parse_var env t with
+  match parse_var (expect env Type) t with
   | `Ty (id, v) -> (id, v, get_loc t)
   | `Term _ -> _expected env "type variable" t
 

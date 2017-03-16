@@ -156,15 +156,11 @@ let model_opts active assign = {
 }
 
 (* Side-effects options *)
-let set_opts gc bt quiet lvl debug opt =
-  if gc then
-    at_exit (fun () -> Gc.print_stat stdout;);
-  (* Backtrace printing *)
-  if bt then
-    Printexc.record_backtrace true;
-  (* Set up debug levels *)
-  if quiet then
-    Section.clear_debug Section.root
+let set_opts gc bt quiet lvl debug colors opt =
+  CCFormat.set_color_default colors;
+  if gc then at_exit (fun () -> Gc.print_stat stdout;);
+  if bt then Printexc.record_backtrace true;
+  if quiet then Section.clear_debug Section.root
   else begin
     (* Msat debugging is a bit hardcore...
        Msat.Log.set_debug log;
@@ -384,9 +380,9 @@ let model_sect = "MODEL OPTIONS"
 
 let help_secs ext_doc sext_doc = [
   `S copts_sect;
-    `P "Common options for the prover";
+  `P "Common options for the prover";
   `S "ADDONS";
-    `P "Addons are typing/semantic extensions that extend typing to include builtins of languages.";
+  `P "Addons are typing/semantic extensions that extend typing to include builtins of languages.";
 ] @ sext_doc @ [
     `S "PLUGINS"; `P "Available extensions are listed in this section. Each paragraph starts with the extension's priority
       and name, and then a short description of what the extension does. Extensions with higher priorities
@@ -395,11 +391,11 @@ let help_secs ext_doc sext_doc = [
     `S proof_sect;
     `S model_sect;
     `S ext_sect;
-      `P "Options primarily used by the extensions (use only if you know what you're doing !).";
+    `P "Options primarily used by the extensions (use only if you know what you're doing !).";
     `S prof_sect;
     `S stats_sect;
     `S "BUGS";
-      `P "TODO";
+    `P "TODO";
   ]
 
 let log_sections () =
@@ -528,7 +524,11 @@ let unit_t =
         $(b,section) might be %s." (Arg.doc_alts ~quoted:false (log_sections ())) in
     Arg.(value & opt_all (pair section level) [] & info ["log"] ~docs:ext_sect ~docv:"NAME,LVL" ~doc)
   in
-  Term.(const set_opts $ gc $ bt $ quiet $ log $ debug)
+  let colors =
+    let doc = "Activate coloring of output" in
+    Arg.(value & opt bool true & info ["color"] ~docs ~doc)
+  in
+  Term.(const set_opts $ gc $ bt $ quiet $ log $ debug $ colors)
 
 let type_t =
   let docs = copts_sect in

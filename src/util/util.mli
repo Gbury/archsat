@@ -21,6 +21,7 @@ type 'a logger =
   ?section:Section.t ->
   ('a, Format.formatter, unit, unit) format4 ->
   'a
+(** Th type of a logger. *)
 
 val error   : 'a logger
 val log     : 'a logger

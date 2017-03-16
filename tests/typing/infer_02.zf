@@ -11,7 +11,7 @@ def union : pi a. set a -> set a -> set a where
 
 def  subeq : pi a. set a -> set a -> prop where
   forall (a : type) (s1 s2 : set a).
-    subeq a s1 s2 <=> (forall x. mem a x s1 => mem a x s2).
+    subeq a s1 s2 <=> (forall (x : a). mem a x s1 => mem a x s2).
 
 goal
   forall (a : type) (A B C : set a).

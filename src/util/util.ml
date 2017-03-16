@@ -24,13 +24,18 @@ type 'a logger =
   ?section:Section.t ->
   ('a, Format.formatter, unit, unit) format4 -> 'a
 
+let pp_time ~lvl fmt section =
+  if not (Level.equal Level.error lvl) then
+    Format.fprintf fmt "%% [%.3f %s] "
+      (Time.get_total_time ()) (Section.full_name section)
+
 let pp_aux ~section ~lvl format =
   if !need_cleanup then
     Format.fprintf Format.std_formatter "\r";
-  let now = Time.get_total_time () in
-  Format.fprintf Format.std_formatter
-    ("%% [%.3f %s] @[<hov>" ^^ format ^^ "@]@.")
-    now (Section.full_name section)
+  CCFormat.with_colorf
+    (Level.color lvl) Format.std_formatter
+    ("%a%a@[<hov>" ^^ format ^^ "@]@.")
+    (pp_time ~lvl) section Level.prefix lvl
 
 let aux ?(section=Section.root) lvl format =
   if lvl <= Section.cur_level section then
