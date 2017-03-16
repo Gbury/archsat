@@ -31,8 +31,8 @@ depends: [
   "dolmen" { >= "dev" }
   "msat" { >= "dev" }
   "containers" { >= "1.0" }
+  "cmdliner" { >= "0.9.8" }
   "zarith"
-  "cmdliner"
   "ocamlgraph"
   "gen"
   "oclock"
