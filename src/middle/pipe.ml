@@ -5,8 +5,8 @@
 module S = Dolmen.Statement
 
 (* Logging *)
-let start_section (logger: _ Util.logger) s =
-  logger "=== %s %s" s (String.make (84 - String.length s) '=')
+let start_section ~section (logger: _ Util.logger) s =
+  logger ~section "=== %s %s" s (String.make (84 - String.length s) '=')
 
 (* Types used in Pipes *)
 (* ************************************************************************ *)
@@ -150,22 +150,22 @@ let type_wrap ?(goal=false) opt =
 let typecheck (opt, c) : typechecked stmt =
   match c with
   | { S.descr = S.Def (id, t) } ->
-    start_section Util.info "Definition";
+    start_section ~section:Type.section Util.info "Definition";
     let env, aux = type_wrap opt in
     let ret = Type.new_def env t id in
     (aux ret :> typechecked stmt)
   | { S.descr = S.Decl (id, t) } ->
-    start_section Util.info "Declaration typing";
+    start_section ~section:Type.section Util.info "Declaration typing";
     let env, aux = type_wrap opt in
     let ret = Type.new_decl env t id in
     (aux ret :> typechecked stmt)
   | { S.descr = S.Antecedent t } ->
-    start_section Util.info "Hypothesis typing";
+    start_section ~section:Type.section Util.info "Hypothesis typing";
     let env, aux = type_wrap opt in
     let ret = Type.new_formula env t in
     (aux (`Hyp ret) :> typechecked stmt)
   | { S.descr = S.Consequent t } ->
-    start_section Util.info "Goal typing";
+    start_section ~section:Type.section Util.info "Goal typing";
     let env, aux = type_wrap ~goal:true opt in
     let ret = Type.new_formula env t in
     (aux (`Goal ret) :> typechecked stmt)
@@ -186,20 +186,20 @@ let solve (opt, (c : typechecked stmt)) : solved stmt =
     res
   | ({ contents = `Hyp f; _ } as res) ->
     if opt.Options.solve then begin
-      start_section Util.info "Assume hyp";
+      start_section ~section:Dispatcher.section Util.info "Assume hyp";
       Solver.assume [[f]]
     end;
     res
   | ({ contents = `Goal f; _ } as res) ->
     if opt.Options.solve then begin
-      start_section Util.info "Assume goal";
+      start_section ~section:Dispatcher.section Util.info "Assume goal";
       Solver.assume [[Expr.Formula.neg f]]
     end;
     res
   | { contents = `Solve; _ } ->
     let ret =
       if opt.Options.solve then begin
-        start_section Util.log "Solve";
+        start_section ~section:Dispatcher.section Util.log "Solve";
         begin match Solver.solve () with
           | Solver.Sat m -> `Model m
           | Solver.Unsat p -> `Proof p
@@ -245,14 +245,4 @@ let print_proof (opt, (c : solved stmt)) =
     ()
   | { contents = `Proof p; _ } ->
     () (* TODO *)
-
-(* Debug display *)
-(* ************************************************************************ *)
-
-let init_debug opt =
-  if Options.(opt.input.mode = Debug) then Display.display ()
-
-let debug opt =
-  if Options.(opt.input.mode = Debug) then Display.display ();
-  opt
 
