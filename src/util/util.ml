@@ -15,7 +15,7 @@ let printf format =
   if !debug then
     Logs.log ~section:Section.root ~lvl:Level.log format
   else
-    Format.fprintf Format.std_formatter format
+    CCFormat.with_colorf "reset" Format.std_formatter format
 
 (* Logging functions *)
 (* ************************************************************************ *)
