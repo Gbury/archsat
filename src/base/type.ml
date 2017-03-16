@@ -451,7 +451,7 @@ let _cannot_unify env ast ty t =
   raise (Typing_error (msg, env, ast))
 
 let _cannot_infer_quant_var env t =
-  raise (Typing_error ("Cannot infer the types of quantified variables", env, t))
+  raise (Typing_error ("Cannot infer the type of a quantified variable", env, t))
 
 (* Wrappers for expression building *)
 (* ************************************************************************ *)
