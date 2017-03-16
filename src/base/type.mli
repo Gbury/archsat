@@ -30,7 +30,7 @@ type res =
   | Term    : Expr.term -> res
   | Formula : Expr.formula -> res
   | Tag     : 'a Tag.t * 'a -> res (**)
-(* The results of parsing an untyped term.  *)
+(** The results of parsing an untyped term.  *)
 
 type inferred =
   | Ty_fun of Expr.ttype Expr.function_descr Expr.id
@@ -59,8 +59,9 @@ val empty_env :
   builtin_symbols -> env
 (** Create a new environment. *)
 
-val expect : env -> expect -> env
-(** Returns the same environment but with the given expectation. *)
+val expect : ?force:bool -> env -> expect -> env
+(** Returns the same environment but with the given expectation,
+    except if the environnement already except [Nothing]. *)
 
 val find_var : env -> Dolmen.Id.t ->
   [ `Not_found

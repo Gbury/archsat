@@ -239,7 +239,9 @@ let empty_env
   builtins; expect; infer_hook; status; explain;
 }
 
-let expect env expect = { env with expect = expect }
+let expect ?(force=false) env expect =
+  if env.expect = Nothing && not force then env
+  else { env with expect = expect }
 
 (* Generate new fresh names for shadowed variables *)
 let new_name pre =
@@ -634,7 +636,7 @@ let rec parse_expr (env : env) t =
     (* Binders *)
     | { Ast.term = Ast.Binder (Ast.All, vars, f) } ->
       let ttype_vars, ty_vars, env' =
-        parse_quant_vars { env with expect = Typed Expr.Ty.base } vars in
+        parse_quant_vars (expect env (Typed Expr.Ty.base)) vars in
       Formula (
         Expr.Formula.allty ttype_vars
           (Expr.Formula.all ty_vars (parse_formula env' f))
@@ -642,7 +644,7 @@ let rec parse_expr (env : env) t =
 
     | { Ast.term = Ast.Binder (Ast.Ex, vars, f) } ->
       let ttype_vars, ty_vars, env' =
-        parse_quant_vars { env with expect = Typed Expr.Ty.base } vars in
+        parse_quant_vars (expect env (Typed Expr.Ty.base)) vars in
       Formula (
         Expr.Formula.exty ttype_vars
           (Expr.Formula.ex ty_vars (parse_formula env' f))
@@ -723,7 +725,7 @@ and parse_quant_vars env l =
         | `Term (id, v') ->
           let v'', acc' = add_term_var acc id v' (get_loc v) in
           (l1, v'' :: l2, acc')
-    ) ([], [], (expect env Nothing)) l in
+    ) ([], [], env) l in
   List.rev ttype_vars, List.rev typed_vars, env'
 
 and parse_let env f = function
