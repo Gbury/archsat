@@ -24,12 +24,14 @@ module C : sig
   val f_a : Expr.ty Expr.function_descr Expr.id
   val g_a : Expr.ty Expr.function_descr Expr.id
   val h_a : Expr.ty Expr.function_descr Expr.id
+  val k_a : Expr.ty Expr.function_descr Expr.id
   val b_0 : Expr.ty Expr.function_descr Expr.id
   val b_1 : Expr.ty Expr.function_descr Expr.id
   val b_2 : Expr.ty Expr.function_descr Expr.id
   val f_b : Expr.ty Expr.function_descr Expr.id
   val g_b : Expr.ty Expr.function_descr Expr.id
   val h_b : Expr.ty Expr.function_descr Expr.id
+  val k_b : Expr.ty Expr.function_descr Expr.id
   val p_0 : Expr.ty Expr.function_descr Expr.id
   val p_1 : Expr.ty Expr.function_descr Expr.id
   val p_2 : Expr.ty Expr.function_descr Expr.id
