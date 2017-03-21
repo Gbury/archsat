@@ -44,6 +44,7 @@ type unsat_ret =
 type sat_ret =
   | Sat_ok
   | Restart
+  | Incomplete
   | Assume of Expr.formula list
 
 type _ Dispatcher.msg +=

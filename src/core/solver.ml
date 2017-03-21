@@ -35,6 +35,7 @@ type unsat_ret =
 type sat_ret =
   | Sat_ok
   | Restart
+  | Incomplete
   | Assume of Expr.formula list
 
 type _ Dispatcher.msg +=
@@ -54,15 +55,23 @@ let if_sat_iter s f =
     | _ -> ()
   done
 
-let if_sat acc = function
-  | None | Some Sat_ok -> acc
-  | Some Restart -> Restart
-  | Some Assume l ->
-    begin match acc with
-      | Restart -> Restart
-      | Sat_ok -> Assume l
-      | Assume l' -> Assume (l @ l')
-    end
+(* Priority of extensions instructions:
+   Sat_ok < Incomplete < Assume _ < Restart
+   We are interested in computing the maximum during folding.
+*)
+let if_sat acc res =
+  match acc, res with
+  (* Neutral case *)
+  | _, (None | Some Sat_ok) -> acc
+  (* Incompleteness is stronger than sat_ok, but weaker than everything else *)
+  | Sat_ok, Some Incomplete -> Incomplete
+  | _, Some Incomplete -> acc
+  (* When encountering assume, we want to merge the assume lists if possible *)
+  | Assume l', Some Assume l -> Assume (l @ l')
+  | (Sat_ok | Incomplete), Some ((Assume _) as r) -> r
+  | Restart, Some Assume _ -> Restart
+  (* Restart is stronger than everything *)
+  | _, Some Restart -> Restart
 
 let rec solve_aux ?(assumptions = []) () =
   match begin
@@ -76,6 +85,8 @@ let rec solve_aux ?(assumptions = []) () =
     let view = if_sat_iter (S.full_slice ()) in
     Dispatcher.handle if_sat Sat_ok (Found_sat view)
   end with
+  | Incomplete ->
+    Unknown
   | Sat_ok ->
     Sat (Dispatcher.model ())
   | Restart ->
