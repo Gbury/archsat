@@ -62,9 +62,6 @@ let () =
       Util.log ~section:Dispatcher.plugin_section "active: @[<hov>%a@]"
         CCFormat.(list string) (Dispatcher.Plugin.active ());
 
-      (* Initialize debug mode *)
-      Pipe.init_debug opt;
-
       (* Return the parsor generator *)
       Pipe.parse opt
 
@@ -74,7 +71,6 @@ let () =
   in
   Pipeline.(
     run
-      ~finally:Pipe.debug
       ~print_exn:Out.print_exn
       g opt' (
       (

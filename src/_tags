@@ -16,15 +16,24 @@ true: color(always)
 <**/*.ml>: warn_K, warn_Y, warn_X, warn(-58)
 <**/*.cm*>: debug
 
-# Package management
-<*/*.*>: for-pack(Archsat)
+# Pack management
+<util/*.*>: for-pack(Archsat)
+<base/*.*>:for-pack(Archsat)
+<misc/*.*>: for-pack(Archsat)
+<core/*.*>: for-pack(Archsat)
+<test/*.*>: for-pack(Archsat)
+<debug/*.*>: for-pack(Archsat)
+<algos/*.*>: for-pack(Archsat)
+<input/*.*>: for-pack(Archsat)
+<middle/*.*>: for-pack(Archsat)
+<output/*.*>: for-pack(Archsat)
 
+# Package dependencies
 <**/*>: package(unix), package(zarith), package(msat),      \
         package(cmdliner), package(ocamlgraph),             \
         package(containers), package(containers.data),      \
         package(dolmen), package(sequence),                 \
         package(gen), package(oclock),                      \
-        package(notty), package(notty.unix),                \
         package(spelll)
 
 <test/*>: package(qcheck)

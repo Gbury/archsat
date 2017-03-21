@@ -67,6 +67,7 @@ module C = struct
   let f_a = Expr.Id.term_fun "f_a" [] [ type_a ] type_a
   let g_a = Expr.Id.term_fun "g_a" [] [ type_a; type_b] type_a
   let h_a = Expr.Id.term_fun "h_a" [] [ mk_list_type type_a ] type_a
+  let k_a = Expr.Id.term_fun "f_p" [] [ type_a; type_a ] type_a
 
   let b_0 = Expr.Id.term_fun "b_0" [] [] type_b
   let b_1 = Expr.Id.term_fun "b_1" [] [] type_b
@@ -75,6 +76,7 @@ module C = struct
   let f_b = Expr.Id.term_fun "f_b" [] [ type_b ] type_b
   let g_b = Expr.Id.term_fun "g_b" [] [ type_b; type_a ] type_b
   let h_b = Expr.Id.term_fun "h_b" [] [ mk_pair_type type_a type_b ] type_b
+  let k_b = Expr.Id.term_fun "f_p" [] [ type_b; type_b ] type_b
 
   let p_0 = Expr.Id.term_fun "p_0" [] [] type_prop
   let p_1 = Expr.Id.term_fun "p_1" [] [] type_prop

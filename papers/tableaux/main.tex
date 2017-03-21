@@ -1,31 +1,30 @@
 
 \documentclass{article}
 
+\usepackage[utf8]{inputenc}
 \usepackage[T1]{fontenc}
 \usepackage{makeidx}
 \usepackage{bussproofs}
 \usepackage{amsmath,amssymb}
 \usepackage{tabularx}
 \usepackage{pgf, tikz}
+% \usepackage[margin=4cm]{geometry}
+
+\usepackage{float}
+\floatstyle{boxed}
+\restylefloat{figure}
 
 \usepackage{listings}
 \lstset{language=[Objective]caml}
 
-\input{macros}
-
 \usetikzlibrary{arrows, automata}
-
 
 \begin{document}
 
-\title{TabSat: A Proof of Concept.}
-\author{Guillaume~Bury}
+\title{Archsat}
+\author{}
 
 \maketitle
-
-\input{mcsat}
-\input{archsat}
-\input{plugins}
 
 \bibliographystyle{plain}
 \bibliography{biblio}

@@ -80,11 +80,4 @@ val print_res : Options.opts * solved stmt -> unit
 val print_proof : Options.opts * solved stmt -> unit
 (** Print the proof according to the options *)
 
-val init_debug : Options.opts -> unit
-(** Initialize the debug display (if in debug mode). *)
-
-val debug : Options.opts -> Options.opts
-(** Display the debug console (if in debug mode). *)
-
-
 

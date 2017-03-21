@@ -23,5 +23,5 @@ open Archsat;;
 #install_printer Expr.Print.formula;;
 #install_printer Unif.print;;
 #install_printer Index.Fingerprint.print;;
-#install_printer Ext_eq.print;;
+#install_printer Ext_eq.Class.print;;
 

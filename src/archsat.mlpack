@@ -43,6 +43,26 @@ Ext_rewrite
 Ext_functions
 Ext_constraints
 
+
+##### Testing Modules #####
+###########################
+
+# Easy parsing of expressions
+Parse
+
+# Generators and helpers
+Expr_test
+Misc_test
+
+# Matching and unification
+Unif_test
+Match_test
+Index_test
+
+# Union-find
+Closure_test
+
+
 ##### Misc modules #####
 ########################
 
@@ -52,7 +72,6 @@ Logs
 Level
 Stats
 Section
-Display
 
 # Utilities modules
 Util

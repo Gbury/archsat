@@ -1,7 +1,0 @@
-(assert (= a b))
-(check-sat)
-(push 1)
-(assert (not (= (f a) (f b))))
-(check-sat)
-(pop 1)
-(check-sat)

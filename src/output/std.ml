@@ -54,9 +54,8 @@ let print_exn opt fmt = function
       Format.fprintf Format.std_formatter "%s%a@\n"
         (if Dolmen.ParseLocation.(loc.start_line = 1) then prelude_space opt else "")
         Dolmen.ParseLocation.fmt_hint loc;
-    Format.fprintf Format.std_formatter "%a:@\n%s@."
-      Dolmen.ParseLocation.fmt loc
-      (match msg with | "" -> "Lexing error: invalid character" | x -> x)
+    Format.fprintf Format.std_formatter "%a:@\nLexing error: invalid character '%s'@."
+      Dolmen.ParseLocation.fmt loc msg
   | Dolmen.ParseLocation.Syntax_error (loc, msg) ->
     if Options.(opt.input.mode = Interactive) then
       Format.fprintf Format.std_formatter "%s%a@\n"
@@ -70,7 +69,7 @@ let print_exn opt fmt = function
     let default_loc = Dolmen.ParseLocation.mk
         (Options.input_to_string Options.(opt.input.file)) 0 0 0 0 in
     let loc = CCOpt.get_or ~default:default_loc t.Dolmen.Term.loc in
-    Format.fprintf Format.std_formatter "While typing %a@\n" Dolmen.Term.print t;
+    Format.fprintf Format.std_formatter "While typing: '%a'@\n" Dolmen.Term.print t;
     Format.fprintf Format.std_formatter "%a:@\n%s@." Dolmen.ParseLocation.fmt loc msg
 
   (** Extension not found *)
@@ -89,8 +88,8 @@ let print_exn opt fmt = function
 
   (** Generic catch *)
   | exn ->
-    Format.fprintf fmt "%a%s@."
-      (print_status opt) "Uncaught exception" (Printexc.to_string exn)
+    Format.fprintf fmt "%s@\n%s@."
+      "Uncaught exception:" (Printexc.to_string exn)
 
 
 

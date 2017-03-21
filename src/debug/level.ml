@@ -2,38 +2,50 @@
 (* Level definition *)
 (* ************************************************************************ *)
 
-type t = int
+type t =
+  | Null
+  | Error
+  | Warn
+  | Log
+  | Info
+  | Debug
 
-let equal (x: int) y = x = y
+let equal (x: t) y = x = y
 
-let compare (x: int) y = compare x y
+let compare (x: t) y = compare x y
 
-let max (x: int) y = max x y
+let max (x: t) y = max x y
 
 (* Logging levels *)
 (* ************************************************************************ *)
 
-let null = -2
+let null = Null
+let error = Error
+let warn = Warn
+let log = Log
+let info = Info
+let debug = Debug
 
-let error = -1
+(* Colors for logging *)
+(* ************************************************************************ *)
 
-let log = 0
+let color = function
+  | Error | Warn -> "White"
+  | _ -> "reset"
 
-let warn = 1
-
-let info = 5
-
-let debug = 10
+let prefix fmt = function
+  | Error -> CCFormat.with_colorf "Red" fmt "[ERROR] "
+  | Warn -> CCFormat.with_colorf "Magenta" fmt "[WARNING] "
+  | _ -> ()
 
 (* Conversions *)
 (* ************************************************************************ *)
 
 let to_string = function
-  | -2 -> "null"
-  | -1 -> "error"
-  | 0 -> "log"
-  | 1 -> "warn"
-  | 5 -> "info"
-  | 10 -> "debug"
-  | _ -> assert false
+  | Null -> "null"
+  | Error -> "error"
+  | Warn -> "warn"
+  | Log -> "log"
+  | Info -> "info"
+  | Debug -> "debug"
 

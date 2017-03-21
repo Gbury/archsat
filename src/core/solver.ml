@@ -108,7 +108,14 @@ let rec solve_aux ?(assumptions = []) () =
 
 let solve () =
   Util.enter_prof section;
-  let res = solve_aux () in
+  let res =
+    try
+      solve_aux ()
+    with
+    | Extension.Abort (ext, msg) ->
+      Util.warn ~section "Extension '%s' aborted proof search with message:@\n%s" ext msg;
+      Unknown
+  in
   Util.exit_prof section;
   res
 

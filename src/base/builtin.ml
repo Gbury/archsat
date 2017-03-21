@@ -34,6 +34,8 @@ let parse_f env ast cstr args =
 
 let parse_tptp env ast s args =
   match s with
+  | { Id.name = "$_"; ns = Id.Term } ->
+    Some (Type.wildcard env ast s args)
   | { Id.name = "$tType"; ns = Id.Term } ->
     Some Type.Ttype
   | { Id.name = "$o"; ns = Id.Term } ->

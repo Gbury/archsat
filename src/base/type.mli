@@ -30,7 +30,7 @@ type res =
   | Term    : Expr.term -> res
   | Formula : Expr.formula -> res
   | Tag     : 'a Tag.t * 'a -> res (**)
-(* The results of parsing an untyped term.  *)
+(** The results of parsing an untyped term.  *)
 
 type inferred =
   | Ty_fun of Expr.ttype Expr.function_descr Expr.id
@@ -59,8 +59,9 @@ val empty_env :
   builtin_symbols -> env
 (** Create a new environment. *)
 
-val expect : env -> expect -> env
-(** Returns the same environment but with the given expectation. *)
+val expect : ?force:bool -> env -> expect -> env
+(** Returns the same environment but with the given expectation,
+    except if the environnement already except [Nothing]. *)
 
 val find_var : env -> Dolmen.Id.t ->
   [ `Not_found
@@ -69,6 +70,12 @@ val find_var : env -> Dolmen.Id.t ->
 (** Lookup a variable in an environment. *)
 
 (** {2 Parsing helpers} *)
+
+val wildcard : (Dolmen.Id.t -> Dolmen.Term.t list -> res) typer
+(** Parse a term as a wildcard (only allowed in types).
+    Accepts as argument the list of arguments given to the widcard symbol in the
+    Dolmen AST. If that list if non_empty, an expcetion is raised.
+    *)
 
 val ty_apply :
   (Expr.ttype Expr.function_descr Expr.id -> Expr.ty list -> Expr.ty) typer

@@ -53,7 +53,7 @@ let equal s u =
   Expr.Subst.equal Expr.Term.equal s.t_map u.t_map
 
 let print fmt s =
-  Format.fprintf fmt "@<hov 1>{%a;@ %a}@]"
+  Format.fprintf fmt "@[<hov 1>{%a;@ %a}@]"
     (Expr.Subst.print Expr.Print.meta Expr.Print.ty) s.ty_map
     (Expr.Subst.print Expr.Print.meta Expr.Print.term) s.t_map
 
@@ -118,7 +118,7 @@ let occurs_check t =
 
 (* Substitutes meta instead of variables *)
 let rec type_subst_aux u = function
-  | { Expr.ty = Expr.TyVar _ } -> assert false
+  | { Expr.ty = Expr.TyVar _ } as t -> t
   | { Expr.ty = Expr.TyMeta m } as t ->
     begin match Expr.Subst.Meta.get m u.ty_map with
     | exception Not_found -> t
@@ -132,7 +132,7 @@ let rec type_subst_aux u = function
 let type_subst u t = if Expr.Subst.is_empty u.ty_map then t else type_subst_aux u t
 
 let rec term_subst_aux u = function
-  | { Expr.term = Expr.Var _ } -> assert false
+  | { Expr.term = Expr.Var _ } as t -> t
   | { Expr.term = Expr.Meta m } as t ->
     begin match Expr.Subst.Meta.get m u.t_map with
       | exception Not_found -> t
@@ -155,22 +155,6 @@ let fixpoint u = {
       Expr.Subst.Meta.bind acc m (term_subst u t)) u.t_map Expr.Subst.empty;
 }
 
-(* Assign dangling metas to constants *)
-let saturate_aux_term l u =
-  List.fold_left (fun acc m ->
-      if not (Expr.Subst.Meta.mem m acc) then
-        Expr.Subst.Meta.bind acc m (Builtin.Misc.const Expr.(m.meta_id.id_type))
-      else
-        acc) u l
-
-let saturate u = {
-  ty_map = u.ty_map;
-  t_map = Expr.Subst.fold (fun m t acc ->
-      let _, l = Expr.Meta.in_term t in
-      saturate_aux_term l acc
-    ) u.t_map u.t_map;
-}
-
 (* Robinson unification *)
 (* ************************************************************************ *)
 
@@ -183,6 +167,12 @@ module Robinson = struct
     let s = follow_ty subst s in
     let t = follow_ty subst t in
     match s, t with
+    | { Expr.ty = Expr.TyVar v },
+      { Expr.ty = Expr.TyVar v' } ->
+      if Expr.Id.equal v v' then
+        subst
+      else
+        raise (Impossible_ty (s, t))
     | ({ Expr.ty = Expr.TyMeta v } as m), u
     | u, ({ Expr.ty = Expr.TyMeta v } as m) ->
       if Expr.Ty.equal m u then
@@ -197,12 +187,19 @@ module Robinson = struct
         List.fold_left2 ty subst f_args g_args
       else
         raise (Impossible_ty (s, t))
-    | _ -> assert false
+    | _ ->
+      raise (Impossible_ty (s, t))
 
   let rec term subst s t =
     let s = follow_term subst s in
     let t = follow_term subst t in
     match s, t with
+    | { Expr.term = Expr.Var v },
+      { Expr.term = Expr.Var v' } ->
+      if Expr.Id.equal v v' then
+        subst
+      else
+        raise (Impossible_term (s, t))
     | ({ Expr.term = Expr.Meta v } as m), u
     | u, ({ Expr.term = Expr.Meta v } as m) ->
       if Expr.Term.equal m u then
@@ -220,7 +217,8 @@ module Robinson = struct
           f_t_args g_t_args
       else
         raise (Impossible_term (s, t))
-    | _ -> assert false
+    | _ ->
+      raise (Impossible_term (s, t))
 
   let unify_ty ~section f s t =
     try

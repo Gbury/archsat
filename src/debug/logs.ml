@@ -34,7 +34,7 @@ let add ~section ~lvl msg =
   CCVector.push tbl (make ~section ~lvl msg)
 
 let log ~section ~lvl format =
-  Format.kasprintf (add ~section ~lvl) format
+  CCFormat.ksprintf ~f:(add ~section ~lvl) format
 
 (* Log access *)
 (* ************************************************************************ *)

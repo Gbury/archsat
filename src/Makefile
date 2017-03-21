@@ -2,7 +2,7 @@
 
 LOG=build.log
 COMP=ocamlbuild -log $(LOG) # -classic-display
-FLAGS=-use-ocamlfind -yaccflag '--table'
+FLAGS=-use-ocamlfind
 
 DOC=archsat.docdir/index.html
 TEST=run_test.native

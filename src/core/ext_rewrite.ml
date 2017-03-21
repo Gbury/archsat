@@ -304,17 +304,17 @@ let instanciate rule subst =
       )
 
 let match_and_instantiate s ({ trigger; _ } as rule) =
-  Util.debug ~section "Matches for rule %a" print_rule rule;
+  Util.debug ~section "Matching rule@ %a" print_rule rule;
   let seq = T.fold (fun c acc ->
       let repr = C.repr c in
-      Util.debug ~section "Trying to match %a with %a"
+      Util.debug ~section "Trying to match@ %a@ <--@ %a"
         Expr.Print.term trigger C.print c;
       let s = match_modulo trigger c in
       let s' = List.map (fun x -> repr, x) s in
       List.append s' acc
     ) s [] in
   List.iter (fun (term, subst) ->
-      Util.debug ~section "matched '%a' with %a"
+      Util.debug ~section "match:@ %a@ <--@ %a"
         Expr.Print.term term Match.print subst;
       instanciate rule subst
     ) seq
@@ -378,7 +378,7 @@ let assume f =
   (* Detect rewrite rules *)
   let () = match parse_rule f with
     | None ->
-      Util.debug ~section "Failed to detect rewrite rule with: %a"
+      Util.debug ~section "@[<hov 2>Failed to detect rewrite rule with:@ %a@]"
         Expr.Print.formula f;
     | Some r ->
       Util.info ~section "@[<hov 2>Detected a new rewrite rule:@ %a@]"
