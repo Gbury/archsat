@@ -29,7 +29,7 @@ depends: [
   "ocamlbuild" { build }
   "qcheck" { test & >= "dev" }
   "dolmen" { >= "dev" }
-  "msat" { >= "dev" }
+  "msat" { >= "0.6.1" }
   "containers" { >= "1.0" }
   "cmdliner" { >= "0.9.8" }
   "zarith"
