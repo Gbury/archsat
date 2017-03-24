@@ -358,13 +358,16 @@ let parse_descr = function
   | "stdout" -> `Ok `Stdout
   | f ->
     try
-      if Sys.is_directory f then
-        `Error (Format.sprintf "File %s is a directory" f)
+      if Sys.file_exists f then
+        if Sys.is_directory f then
+          `Error (Format.sprintf "File '%s' is a directory" f)
+        else
+          `Error (Format.sprintf "File '%s' already exists" f)
       else
         `Ok (`File f)
     with Sys_error _ ->
       `Error (Format.sprintf
-                "system error while asserting wether '%s' is a directory" f)
+                "system error while asserting wether '%s' is an existing file or directory" f)
 
 let out_descr = parse_descr, print_descr
 
