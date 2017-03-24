@@ -46,13 +46,13 @@ let inst_remaining r =
 
 (* Print stats and prep for next round *)
 let handle : type ret. ret Dispatcher.msg -> ret option = function
-  | Dispatcher.If_sat _ ->
+  | Solver.Found_sat _ ->
     print_state state;
     if !max_rounds >= 0 && state.cur_round >= !max_rounds then
       raise (Extension.Abort (
           "stats", Format.sprintf "Maximum number of rounds reached (%d)" !max_rounds));
     init_round state;
-    Some ()
+    Some Solver.Sat_ok
   | _ -> None
 
 (* Extension registering *)

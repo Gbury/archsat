@@ -39,3 +39,4 @@ val attach : Section.t -> group -> unit
 
 val print : unit -> unit
 (** Print statistics on the standard output. *)
+
