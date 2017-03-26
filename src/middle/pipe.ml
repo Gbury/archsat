@@ -238,6 +238,11 @@ let print_res (opt, (c : solved stmt)) =
 (* Printing proofs *)
 (* ************************************************************************ *)
 
+let pp_opt pp o x =
+  match o with
+  | None -> ()
+  | Some fmt -> pp fmt x
+
 let print_proof (opt, (c : solved stmt)) =
   match c with
   | { contents = `Type_def _; _ }
@@ -250,5 +255,5 @@ let print_proof (opt, (c : solved stmt)) =
   | { contents = `Unknown; _ } ->
     ()
   | { contents = `Proof p; _ } ->
-    () (* TODO *)
+    pp_opt Unsat_core.print Options.(opt.proof.unsat_core) p
 

@@ -9,6 +9,8 @@ module S = Msat.Internal.Make
     (Dispatcher.SolverTheory)
     ()
 
+module Proof = S.Proof
+
 (* Proof replay helpers *)
 (* ************************************************************************ *)
 

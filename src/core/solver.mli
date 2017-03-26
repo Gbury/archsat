@@ -5,13 +5,29 @@
    for more information on mSAT.
 *)
 
+(** {2 Proofs & Models} *)
+
+module Proof : Msat.Res.S with module St = Dispatcher.SolverTypes
+(** Msat proof module *)
+
+module Model : sig
+  (** Model manipulations. *)
+
+  type t
+  (** The type of models *)
+
+  val print : Format.formatter -> t -> unit
+  (** Print a model on the given formatter. *)
+
+end
+
 (** {2 Type defs} *)
 
-type proof
-(** The type of proofs. *)
-
-type model
+type model = Model.t
 (** The type of models. *)
+
+type proof = Proof.proof
+(** The type of proofs. *)
 
 type view = (Expr.formula -> unit) -> unit
 (** A view of the trail when the solver has reached SAT *)
@@ -54,16 +70,4 @@ type _ Dispatcher.msg +=
   | Found_unknown : unit -> unit Dispatcher.msg
 (** Dispatcher messages. *)
 
-
-(** {2 Model manipulation} *)
-
-module Model : sig
-
-  type t = model
-  (** The type of models *)
-
-  val print : Format.formatter -> t -> unit
-  (** Print a model on the given formatter. *)
-
-end
 

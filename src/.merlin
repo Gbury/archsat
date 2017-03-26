@@ -4,6 +4,7 @@ S ./base
 S ./core
 S ./test
 S ./misc
+S ./proof
 S ./debug
 S ./algos
 S ./tools
@@ -17,6 +18,7 @@ B _build/base
 B _build/core
 B _build/test
 B _build/misc
+B _build/proof
 B _build/debug
 B _build/algos
 B _build/tools

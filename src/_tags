@@ -6,6 +6,7 @@ true: color(always)
 <misc>: include
 <core>: include
 <test>: include
+<proof>: include
 <debug>: include
 <algos>: include
 <input>: include
@@ -22,6 +23,7 @@ true: color(always)
 <misc/*.*>: for-pack(Archsat)
 <core/*.*>: for-pack(Archsat)
 <test/*.*>: for-pack(Archsat)
+<proof/*.*>: for-pack(Archsat)
 <debug/*.*>: for-pack(Archsat)
 <algos/*.*>: for-pack(Archsat)
 <input/*.*>: for-pack(Archsat)

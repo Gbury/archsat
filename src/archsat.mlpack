@@ -1,5 +1,5 @@
 
-##### Usefull Modules #####
+##### Useful  Modules #####
 ###########################
 
 # Common module signatures
@@ -43,6 +43,8 @@ Ext_rewrite
 Ext_functions
 Ext_constraints
 
+# Proof manipulations
+Unsat_core
 
 ##### Testing Modules #####
 ###########################
