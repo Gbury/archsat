@@ -8,6 +8,12 @@ module S = Dolmen.Statement
 let start_section ~section (logger: _ Util.logger) s =
   logger ~section "=== %s %s" s (String.make (84 - String.length s) '=')
 
+(* Printing on optional formatters *)
+let pp_opt pp o x =
+  match o with
+  | None -> ()
+  | Some fmt -> pp fmt x
+
 (* Types used in Pipes *)
 (* ************************************************************************ *)
 
@@ -206,7 +212,8 @@ let solve (opt, (c : typechecked stmt)) : solved stmt =
     let ret =
       if opt.Options.solve then begin
         start_section ~section:Dispatcher.section Util.log "Solve";
-        begin match Solver.solve () with
+        let export = Options.(opt.output.icnf) in
+        begin match Solver.solve ?export () with
           | Solver.Sat m -> `Model m
           | Solver.Unsat p -> `Proof p
           | Solver.Unknown -> `Unknown
@@ -235,13 +242,26 @@ let print_res (opt, (c : solved stmt)) =
   | { contents = `Unknown; _ } ->
     Util.printf "%a@." Out.print_unknown opt
 
-(* Printing proofs *)
+(* Export information *)
 (* ************************************************************************ *)
 
-let pp_opt pp o x =
-  match o with
-  | None -> ()
-  | Some fmt -> pp fmt x
+let export (opt, (c : solved stmt)) =
+  match c with
+  | { contents = `Type_def _; _ }
+  | { contents = `Term_def _; _ }
+  | { contents = `Type_decl _; _ }
+  | { contents = `Term_decl _; _ }
+  | { contents = `Hyp _; _ }
+  | { contents = `Goal _; _ }
+  | { contents = `Unknown; _ } ->
+    ()
+  | { contents = `Model _; _ }
+  | { contents = `Proof _; _ } ->
+    Util.info "Exporting problem to dimacs format";
+    pp_opt Solver.export_dimacs Options.(opt.output.dimacs) ()
+
+(* Printing proofs *)
+(* ************************************************************************ *)
 
 let print_proof (opt, (c : solved stmt)) =
   match c with

@@ -35,6 +35,8 @@ type input_options = {
 type output_options = {
   format  : output;
   fmt     : Format.formatter;
+  icnf    : Format.formatter option;
+  dimacs  : Format.formatter option;
 }
 
 type typing_options = {

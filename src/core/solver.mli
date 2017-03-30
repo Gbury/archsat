@@ -44,13 +44,17 @@ type res =
 val assume : Expr.formula list list -> unit
 (** Add some clauses to the current problem. *)
 
-val solve : unit -> res
-(** Try and solve the current set of assumptions *)
+val solve : ?export:Format.formatter -> unit -> res
+(** Try and solve the current set of assumptions.
+    @param export output an iCNF problem file equivalent to
+        the solved problems on the formatter. *)
 
 val add_atom : Expr.formula -> unit
 (** Add the given formula to the sat-solver to ensure
     it is decided on (along with its subterms). *)
 
+val export_dimacs : Format.formatter -> unit -> unit
+(** Export the current problem in dimacs format. *)
 
 (** {2 Dispatcher messages} *)
 

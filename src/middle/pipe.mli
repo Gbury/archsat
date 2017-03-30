@@ -77,6 +77,9 @@ val solve : Options.opts * typechecked stmt -> solved stmt
 val print_res : Options.opts * solved stmt -> unit
 (** Print the results of solved statements *)
 
+val export : Options.opts * solved stmt -> unit
+(** Export various information; usually for debugging purposes. *)
+
 val print_proof : Options.opts * solved stmt -> unit
 (** Print the proof according to the options *)
 

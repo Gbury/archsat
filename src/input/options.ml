@@ -35,6 +35,8 @@ type input_options = {
 type output_options = {
   format  : output;
   fmt     : Format.formatter;
+  icnf    : Format.formatter option;
+  dimacs  : Format.formatter option;
 }
 
 type typing_options = {
@@ -121,13 +123,15 @@ let input_opts fd format debug =
   | `Stdin, true ->
     `Error (false, "Cannot read stdin and use debug mode")
 
-let output_opts fd format =
+let output_opts fd format export_dimacs export_icnf =
   let fmt =
     match formatter_of_out_descr fd with
     | Some fmt -> fmt
     | None -> assert false
   in
-  { format; fmt; }
+  let dimacs = formatter_of_out_descr export_dimacs in
+  let icnf = formatter_of_out_descr export_icnf in
+  { format; fmt; dimacs; icnf; }
 
 let typing_opts explain = { explain; }
 
@@ -438,7 +442,15 @@ let output_t =
         (Arg.doc_alts_enum ~quoted:false output_list) in
     Arg.(value & opt output Standard & info ["o"; "output"] ~docs ~docv:"OUTPUT" ~doc)
   in
-  Term.(const output_opts $ fd $ format)
+  let export_dimacs =
+    let doc = "Export the full SAT problem to dimacs format in the given file" in
+    Arg.(value & opt out_descr `None & info ["export-dimacs"] ~docs ~doc)
+  in
+  let export_icnf =
+    let doc = "Export the full SAT problem to icnf format in the given file" in
+    Arg.(value & opt out_descr `None & info ["export-icnf"] ~docs ~doc)
+  in
+  Term.(const output_opts $ fd $ format $ export_dimacs $ export_icnf)
 
 let profile_t =
   let docs = prof_sect in
@@ -486,7 +498,7 @@ let proof_t =
     let doc = "Set the file to which the program sould output theunsat core, i.e the list
                of hypothesis used in the proof.
                A special 'stdout' value can be used to use standard output." in
-    Arg.(value & opt out_descr `None & info ["core"] ~docs ~doc)
+    Arg.(value & opt out_descr `None & info ["unsat-core"] ~docs ~doc)
   in
   Term.(const proof_opts $ check_proof $ dot_proof $ unsat_core)
 

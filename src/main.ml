@@ -57,9 +57,9 @@ let () =
 
       (* Print the current options *)
       Options.log_opts opt;
-      Util.log ~section:Semantics.section "active: @[<hov>%a@]"
+      Util.log "addons: @[<hov>%a@]"
         CCFormat.(list string) (Semantics.Addon.active ());
-      Util.log ~section:Dispatcher.plugin_section "active: @[<hov>%a@]"
+      Util.log "plugins: @[<hov>%a@]"
         CCFormat.(list string) (Dispatcher.Plugin.active ());
 
       (* Return the parsor generator *)
@@ -79,6 +79,8 @@ let () =
             @>>> (f_map ~name:"typecheck" Pipe.typecheck)
             @>>> (f_map ~name:"solve" Pipe.solve)
             @>>> (iter_ ~name:"print_res" Pipe.print_res)
+            @>>> (iter_ ~name:"export" Pipe.export)
+            @>>> (iter_ ~name:"print_proof" Pipe.print_proof)
             @>>> (apply fst) @>>> _end)
         )
       )

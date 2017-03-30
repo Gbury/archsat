@@ -1,7 +1,7 @@
 
 let section = Dispatcher.solver_section
 
-(* Msat instanciation *)
+(* Module instanciation *)
 (* ************************************************************************ *)
 
 module S = Msat.Internal.Make
@@ -9,9 +9,26 @@ module S = Msat.Internal.Make
     (Dispatcher.SolverTheory)
     ()
 
-module Proof = S.Proof
+module Dimacs = Msat.Dimacs.Make
+    (Dispatcher.SolverTypes)
+    ()
 
-(* Proof replay helpers *)
+(* Problem export *)
+(* ************************************************************************ *)
+
+let export_dimacs fmt () =
+  let hyps = S.hyps () in
+  let history = S.history () in
+  let local = S.temp () in
+  Dimacs.export fmt ~hyps ~history ~local
+
+let export_icnf fmt () =
+  let hyps = S.hyps () in
+  let history = S.history () in
+  let local = S.temp () in
+  Dimacs.export_icnf fmt ~hyps ~history ~local
+
+(* Type definitions *)
 (* ************************************************************************ *)
 
 type model = (Expr.term * Expr.term) list
@@ -28,7 +45,7 @@ type res =
   | Unsat of proof
   | Unknown
 
-(* Proof replay helpers *)
+(* Messages *)
 (* ************************************************************************ *)
 
 type unsat_ret =
@@ -75,32 +92,42 @@ let if_sat acc res =
   (* Restart is stronger than everything *)
   | _, Some Restart -> Restart
 
-let rec solve_aux ?(assumptions = []) () =
+let report ?export status =
+  Util.log ~section "Found %s" status;
+  begin match export with
+  | None -> ()
+  | Some fmt -> export_icnf fmt ()
+  end
+
+let rec solve_aux
+    ?export ?(assumptions = []) () =
   match begin
     Util.info ~section "Preparing solver";
     let () = S.pop () in
     let () = S.push () in
     let () = S.local assumptions in
     Util.log ~section "Solving problem";
-    let () = S.solve () in
-    Util.log ~section "Found SAT";
-    let view = if_sat_iter (S.full_slice ()) in
-    Dispatcher.handle if_sat Sat_ok (Found_sat view)
+    S.solve ()
   end with
-  | Incomplete ->
-    Unknown
-  | Sat_ok ->
-    Sat (Dispatcher.model ())
-  | Restart ->
-    Util.info ~section "Restarting...";
-    Dispatcher.send Restarting;
-    solve_aux ()
-  | Assume assumptions ->
-    Util.info ~section "New assumptions:@ @[<hov>%a@]"
-      CCFormat.(list ~sep:(return " &&@ ") Expr.Print.formula) assumptions;
-    solve_aux ~assumptions ()
+  | () ->
+    report ?export "SAT";
+    let view = if_sat_iter (S.full_slice ()) in
+    begin match Dispatcher.handle if_sat Sat_ok (Found_sat view) with
+      | Incomplete ->
+        Unknown
+      | Sat_ok ->
+        Sat (Dispatcher.model ())
+      | Restart ->
+        Util.info ~section "Restarting...";
+        Dispatcher.send Restarting;
+        solve_aux ?export ()
+      | Assume assumptions ->
+        Util.info ~section "New assumptions:@ @[<hov>%a@]"
+          CCFormat.(list ~sep:(return " &&@ ") Expr.Print.formula) assumptions;
+        solve_aux ?export ~assumptions ()
+    end
   | exception S.Unsat ->
-    Util.log ~section "Found UNSAT";
+    report ?export "UNSAT";
     let proof =
       match S.unsat_conflict () with
       | None -> assert false
@@ -108,11 +135,11 @@ let rec solve_aux ?(assumptions = []) () =
     in
     Unsat proof
 
-let solve () =
+let solve ?export () =
   Util.enter_prof section;
   let res =
     try
-      solve_aux ()
+      solve_aux ?export ()
     with
     | Extension.Abort (ext, msg) ->
       Util.warn ~section "Extension '%s' aborted proof search with message:@\n%s" ext msg;
@@ -133,6 +160,11 @@ let assume l =
   Util.exit_prof section
 
 let add_atom = S.new_atom
+
+(* Proof manipulation *)
+(* ************************************************************************ *)
+
+module Proof = S.Proof
 
 (* Model manipulation *)
 (* ************************************************************************ *)
