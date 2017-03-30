@@ -44,7 +44,8 @@ let evaluate t = CCOpt.map evaluate_aux @@ Arith.Lit.parse_num t
 (* ************************************************************************ *)
 
 let is_arith_term = function
-  | { Expr.term = Expr.App ({ Expr.builtin = Builtin.Arith.Op _ }, _, _)} ->
+  | { Expr.term = Expr.App (
+      { Expr.builtin = (Builtin.Arith.Op _ | Builtin.Arith.Val _) }, _, _)} ->
     true
   | _ -> false
 
