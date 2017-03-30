@@ -42,6 +42,10 @@ let parse_tptp env ast s args =
     Some (Type.parse_app_ty env ast Expr.Id.prop args)
   | { Id.name = "$i"; ns = Id.Term } ->
     Some (Type.parse_app_ty env ast Expr.Id.base args)
+  | { Id.name = "$true"; ns = Id.Term } ->
+    Some (Type.parse_app_formula env ast Expr.Formula.f_true args)
+  | { Id.name = "$false"; ns = Id.Term } ->
+    Some (Type.parse_app_formula env ast Expr.Formula.f_false args)
   | _ -> None
 
 let parse_smtlib env ast s args =

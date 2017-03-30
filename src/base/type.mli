@@ -98,6 +98,10 @@ val parse_app_term : (Expr.ty Expr.function_descr Expr.id -> Dolmen.Term.t list 
 (** Function used for parsing applications. The first dolmen term given
     is the application term being parsed (used for reporting errors). *)
 
+val parse_app_formula : (Expr.formula -> Dolmen.Term.t list -> res) typer
+(** Aply a formula to a list of terms. Will raise an error if the list is not
+    empty. Useful during parsing of formulas constants such as [true] or [false]. *)
+
 (** {2 High-level functions} *)
 
 val new_decl :

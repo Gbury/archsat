@@ -432,9 +432,13 @@ let _bad_term_arity env f n t =
   in
   raise (Typing_error (msg, env, t))
 
-let _fo_term env s t =
+let _fo_let env s t =
   let msg = Format.asprintf "Let-bound variable '%a' is applied to terms" Id.print s in
   raise (Typing_error (msg, env, t))
+
+let _fo_formula env f ast =
+  let msg = Format.asprintf "Cannot apply formula '%a' to arguments" Expr.Print.formula f in
+  raise (Typing_error (msg, env, ast))
 
 let _type_mismatch env t ty ty' ast =
   let msg = Format.asprintf
@@ -772,18 +776,18 @@ and parse_app env ast s args =
   match find_let env s with
   | `Term t ->
     if args = [] then Term t
-    else _fo_term env s ast
+    else _fo_let env s ast
   | `Prop p ->
     if args = [] then Formula p
-    else _fo_term env s ast
+    else _fo_let env s ast
   | `Not_found ->
     begin match find_var env s with
       | `Ty f ->
         if args = [] then Ty (Expr.Ty.of_id f)
-        else _fo_term env s ast
+        else _fo_let env s ast
       | `Term f ->
         if args = [] then Term (Expr.Term.of_id f)
-        else _fo_term env s ast
+        else _fo_let env s ast
       | `Not_found ->
         begin match find_global s with
           | `Ty f ->
@@ -822,6 +826,10 @@ and parse_app_term env ast f args =
   let ty_args = List.map (parse_ty env) ty_l in
   let t_args = List.map (parse_term env) t_l in
   Term (term_apply env ast f ty_args t_args)
+
+and parse_app_formula env ast f args =
+  if args = [] then Formula f
+  else _fo_formula env f ast
 
 and parse_app_subst_ty env ast id args f_args body =
   let l = List.map (parse_ty env) args in
