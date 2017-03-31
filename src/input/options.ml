@@ -160,16 +160,19 @@ let model_opts active assign = {
 }
 
 (* Side-effects options *)
-let set_opts gc bt quiet lvl debug colors opt =
+let set_opts gc bt quiet lvl debug msat_log colors opt =
   CCFormat.set_color_default colors;
   if gc then at_exit (fun () -> Gc.print_stat stdout;);
   if bt then Printexc.record_backtrace true;
   if quiet then Section.clear_debug Section.root
   else begin
-    (* Msat debugging is a bit hardcore...
-       Msat.Log.set_debug log;
-       Msat.Log.set_debug_out Format.std_formatter;
-    *)
+    let () =
+      match formatter_of_out_descr msat_log with
+      | None -> ()
+      | Some fmt ->
+        Msat.Log.set_debug 9999;
+        Msat.Log.set_debug_out fmt
+    in
     let level =
       if (opt.input.mode = Interactive)
       then Level.(max log lvl) else lvl
@@ -539,11 +542,15 @@ let unit_t =
         $(b,section) might be %s." (Arg.doc_alts ~quoted:false (log_sections ())) in
     Arg.(value & opt_all (pair section level) [] & info ["log"] ~docs:ext_sect ~docv:"NAME,LVL" ~doc)
   in
+  let msat_log =
+    let doc = "File to output full msat log into" in
+    Arg.(value & opt out_descr `None & info ["msat"] ~docs ~doc)
+  in
   let colors =
     let doc = "Activate coloring of output" in
     Arg.(value & opt bool true & info ["color"] ~docs ~doc)
   in
-  Term.(const set_opts $ gc $ bt $ quiet $ log $ debug $ colors)
+  Term.(const set_opts $ gc $ bt $ quiet $ log $ debug $ msat_log $ colors)
 
 let type_t =
   let docs = copts_sect in
