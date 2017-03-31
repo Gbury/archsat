@@ -44,10 +44,18 @@ type res =
 val assume : Expr.formula list list -> unit
 (** Add some clauses to the current problem. *)
 
-val solve : ?export:Format.formatter -> unit -> res
+val solve :
+  ?check_model:bool ->
+  ?check_proof:bool ->
+  ?export:Format.formatter -> unit -> res
 (** Try and solve the current set of assumptions.
     @param export output an iCNF problem file equivalent to
-        the solved problems on the formatter. *)
+        the solved problems on the formatter.
+    @param check_model if [true] then checks every model that
+        the SAT solver outputs (using mSAT internal functions).
+    @param check_proof if [true] then checks every proof that
+        the SAT solver outputs (using mSAT internal functions).
+*)
 
 val add_atom : Expr.formula -> unit
 (** Add the given formula to the sat-solver to ensure

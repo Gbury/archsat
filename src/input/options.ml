@@ -487,7 +487,7 @@ let proof_t =
     let doc = "If set, compute and check the resolution proofs for unsat results. This option
                does not trigger printing of the proof, for that a proof format printing option
                (such as the $(b,--dot) option) must be used." in
-    Arg.(value & flag & info ["c"; "check"] ~docs ~doc)
+    Arg.(value & flag & info ["proof"] ~docs ~doc)
   in
   let dot_proof =
     let doc = "Set the file to which the program sould output a proof in dot format.
@@ -510,7 +510,7 @@ let model_t =
     Arg.(value & flag & info ["m"; "model"] ~docs ~doc)
   in
   let assign =
-    let doc ="" in
+    let doc = "TODO" in
     Arg.(value & opt out_descr `None & info ["assign"] ~docs ~doc)
   in
   Term.(const model_opts $ active $ assign)

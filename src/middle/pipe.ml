@@ -212,8 +212,10 @@ let solve (opt, (c : typechecked stmt)) : solved stmt =
     let ret =
       if opt.Options.solve then begin
         start_section ~section:Dispatcher.section Util.log "Solve";
+        let check_model = Options.(opt.model.active) in
+        let check_proof = Options.(opt.proof.active) in
         let export = Options.(opt.output.icnf) in
-        begin match Solver.solve ?export () with
+        begin match Solver.solve ~check_model ~check_proof ?export () with
           | Solver.Sat m -> `Model m
           | Solver.Unsat p -> `Proof p
           | Solver.Unknown -> `Unknown

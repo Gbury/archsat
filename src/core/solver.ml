@@ -100,7 +100,11 @@ let report ?export status =
   end
 
 let rec solve_aux
-    ?export ?(assumptions = []) () =
+    ?export
+    ?(check_model=false)
+    ?(check_proof=false)
+    ?(assumptions = [])
+    () =
   match begin
     Util.info ~section "Preparing solver";
     let () = S.pop () in
@@ -111,6 +115,12 @@ let rec solve_aux
   end with
   | () ->
     report ?export "SAT";
+    if check_model then begin
+      if S.check () then
+        Util.info ~section "SAT model checked"
+      else
+        Util.error ~section "Invalid SAT model"
+    end;
     let view = if_sat_iter (S.full_slice ()) in
     begin match Dispatcher.handle if_sat Sat_ok (Found_sat view) with
       | Incomplete ->
@@ -120,11 +130,11 @@ let rec solve_aux
       | Restart ->
         Util.info ~section "Restarting...";
         Dispatcher.send Restarting;
-        solve_aux ?export ()
+        solve_aux ?export ~check_model ~check_proof ()
       | Assume assumptions ->
         Util.info ~section "New assumptions:@ @[<hov>%a@]"
           CCFormat.(list ~sep:(return " &&@ ") Expr.Print.formula) assumptions;
-        solve_aux ?export ~assumptions ()
+        solve_aux ?export ~check_model ~check_proof ~assumptions ()
     end
   | exception S.Unsat ->
     report ?export "UNSAT";
@@ -133,13 +143,17 @@ let rec solve_aux
       | None -> assert false
       | Some c -> S.Proof.prove_unsat c
     in
+    if check_proof then begin
+      Util.info "Checking UNSAT proof...";
+      S.Proof.check proof
+    end;
     Unsat proof
 
-let solve ?export () =
+let solve ?check_model ?check_proof ?export () =
   Util.enter_prof section;
   let res =
     try
-      solve_aux ?export ()
+      solve_aux ?check_model ?check_proof ?export ()
     with
     | Extension.Abort (ext, msg) ->
       Util.warn ~section "Extension '%s' aborted proof search with message:@\n%s" ext msg;
