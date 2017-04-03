@@ -2,8 +2,8 @@
 (* Unification module *)
 
 (* WARNING : In our case,
- * what are usually called 'variables' in litterature are
- * actually the metavariables in the terms *)
+ * what are usually called 'variables' in literature are
+ * actually the meta-variables in the terms *)
 
 (* Unifiers *)
 (* ************************************************************************ *)
