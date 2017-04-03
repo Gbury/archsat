@@ -218,18 +218,15 @@ let inst_aux f acc k =
       else
         acc
     else begin
-      let acc' =
-        match Q.take !heap with
-        | None ->
-          if decr_delay () then
-            fold f acc i
-          else
-            acc
-        | Some (new_h, min) ->
-          heap := new_h;
-          f acc min
-      in
-      fold f acc' (i - 1)
+      match Q.take !heap with
+      | None ->
+        if decr_delay () then
+          fold f acc i
+        else
+          fold f acc (i - 1)
+      | Some (new_h, min) ->
+        heap := new_h;
+        fold f (f acc min) (i - 1)
     end
   in
   if k > 0 then begin
