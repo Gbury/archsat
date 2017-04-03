@@ -221,14 +221,24 @@ module Robinson = struct
       raise (Impossible_term (s, t))
 
   let unify_ty ~section f s t =
-    try
-      f (ty empty s t)
-    with Impossible_ty _ -> ()
+    Util.enter_prof section;
+    match ty empty s t with
+    | res ->
+      Util.exit_prof section;
+      f res
+    | exception Impossible_ty _ ->
+      Util.exit_prof section
 
   let unify_term ~section f s t =
-    try
-      f (term empty s t)
-    with Impossible_ty _ | Impossible_term _ -> ()
+    Util.enter_prof section;
+    match term empty s t with
+    | res ->
+      Util.exit_prof section;
+      f res
+    | exception Impossible_ty _ ->
+      Util.exit_prof section
+    | exception Impossible_term _ ->
+      Util.exit_prof section
 
   let find ~section s t =
     Util.enter_prof section;
