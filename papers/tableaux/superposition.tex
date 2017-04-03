@@ -62,7 +62,7 @@ Note:~$\sigma \cup \text{mgu}(e,f) \approx \text{unify}(\sigma, e, f)$.
     \AXC{$s \approx t | \sigma$}
     \AXC{$u \not\approx v | \sigma'$}
     \LL{SN}
-    \BIC{$sigma''(u[p \leftarrow t] \not\approx v) | \sigma''$}
+    \BIC{$\sigma''(u[p \leftarrow t] \not\approx v) | \sigma''$}
     \DP{}
     $\begin{matrix}
         \sigma'' = \sigma \cup \sigma' \cup \text{mgu}(u_{|p}, s) \\
@@ -74,8 +74,8 @@ Note:~$\sigma \cup \text{mgu}(e,f) \approx \text{unify}(\sigma, e, f)$.
     % SP
     \AXC{$s \approx t | \sigma$}
     \AXC{$u \approx v | \sigma'$}
-    \LL{SN}
-    \BIC{$sigma''(u[p \leftarrow t] \approx v) | \sigma''$}
+    \LL{SP}
+    \BIC{$\sigma''(u[p \leftarrow t] \approx v) | \sigma''$}
     \DP{}
     $\begin{matrix}
         \sigma'' = \sigma \cup \sigma' \cup \text{mgu}(u_{|p}, s) \\
@@ -92,20 +92,20 @@ Note:~$\sigma \cup \text{mgu}(e,f) \approx \text{unify}(\sigma, e, f)$.
     \DP{} \\[12pt]
 
     % PS
-    \AXC{$s \approx t |\sigma$}
-    \AXC{$u[p \leftarrow \sigma''(s)] \not\approx u[p \leftarrow \sigma''(t)] | \sigma' $}
-    \LL{PS}
-    \doubleLine{}
-    \BIC{$s \approx t | \sigma$ \qquad $\emptyset | \sigma \cup \sigma' \cup \sigma''$}
-    \DP{} \\[12pt]
+    %\AXC{$s \approx t |\sigma$}
+    %\AXC{$u[p \leftarrow \sigma''(s)] \not\approx u[p \leftarrow \sigma''(t)] | \sigma' $}
+    %\LL{PS}
+    %\doubleLine{}
+    %\BIC{$s \approx t | \sigma$ \qquad $\emptyset | \sigma \cup \sigma' \cup \sigma''$}
+    %\DP{} \\[12pt]
 
     % NS
-    \AXC{$s \not\approx t | \sigma$}
-    \AXC{$\sigma''(s \approx t) | \sigma'$}
-    \LL{NS}
-    \doubleLine{}
-    \BIC{$s \not\approx t | \sigma$ \qquad $\emptyset | \sigma \cup \sigma' \cup \sigma''$}
-    \DP{} \\[12pt]
+    %\AXC{$s \not\approx t | \sigma$}
+    %\AXC{$\sigma''(s \approx t) | \sigma'$}
+    %\LL{NS}
+    %\doubleLine{}
+    %\BIC{$s \not\approx t | \sigma$ \qquad $\emptyset | \sigma \cup \sigma' \cup \sigma''$}
+    %\DP{} \\[12pt]
 
     % ES
     \AXC{$s \approx t | \sigma$}
