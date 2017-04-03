@@ -1,0 +1,149 @@
+
+\section{Superposistion rigide}
+
+\EnableBpAbbreviations{}
+
+We will write $s \approx t | \sigma$ (resp. $s \not\approx t | \sigma$),
+the unitary clause that contains exactly one equation (resp.~inequation)
+under hypothesis $\sigma$ (which is a subtitution).
+We will wirte $\emptyset | \sigma$ for the empty clause under hypothesis $\sigma$.
+
+
+We want to express a notion of compatibility on substitutions, using a
+partial ordering $\leq$, such that $\sigma \leq \sigma'$ means that $\sigma$ is
+less general thatn $\sigma'$.
+
+
+To that end we first define a partial ordering $\ll$, such that $\sigma \ll \sigma'$
+iff for every binding $x \mapsto e \in \sigma$, then $x \mapsto e \in \sigma'$
+(i.e the set inclusion of the bindings). However, this relation is not large enough,
+since these subsitutions are not comparable event hough we'd like them to be:
+\begin{eqnarray*}
+  \sigma_1 &= \left\{ x \mapsto a \right. \\
+  \sigma_2 &= \left\{
+    \begin{matrix}
+      x & \mapsto & y \\
+      y & \mapsto & a \\
+    \end{matrix}\right. \\
+\end{eqnarray*}
+
+
+We now define the $\text{unify}$ function, such that $\text{unify}(\sigma, e, f)$
+returns, if it exists, the smallest substitution $\sigma'$ (according to $\ll$)
+that is greater thant $\sigma$ (still according to $\ll$), and such that
+$\sigma'(e) = \sigma'(f)$. We can then extend that notation to sets of pairs
+of terms: $\text{unify}(\sigma, \{ (e_1, f_1), \ldots, (e_n, f_n)\})$.
+TODO:~remark that order does not matter and thus:
+$\text{unify}(\sigma, \{ (e_1, f_1), \ldots, (e_n, f_n)\})
+  = \text{unify}((\ldots (\text{unify}(\sigma, e_1, f_1)), \ldots), e_n, f_n)$
+
+
+We then define the $\leq$ relation on substituions the following way:
+$\sigma \leq \sigma'$ iff there exists a subtitution $\sigma''$ such that
+$\sigma'' = \text{unify}(\sigma, \cup_{x \mapsto e \in \sigma'} (x, e))$.
+If we take the example above, we can see that $\sigma_1 < \sigma_2$, since
+$\sigma_3 = \{ x \mapsto a; y \mapsto a\} = \text{unify}(\sigma_1, \{ (x, y), (y, a)\})$
+We note $\sigma \approx \sigma'$ iff $\sigma \leq \sigma'$ and $\sigma' \leq \sigma$.
+
+We also define $\sigma \cup \sigma' = \text{sup}({\sigma, \sigma'})$.
+Note:~$\sigma \cup \text{mgu}(e,f) \approx \text{unify}(\sigma, e, f)$.
+
+\begin{figure}
+  \begin{center}
+
+    % ER
+    \AXC{$s \not\approx t |\sigma$}
+    \LL{ER}
+    \RL{if $\sigma' = \sigma \cup \text{mgu}(s, t)$}
+    \UIC{$\emptyset | \sigma'$}
+    \DP{} \\[12pt]
+
+    % SN
+    \AXC{$s \approx t | \sigma$}
+    \AXC{$u \not\approx v | \sigma'$}
+    \LL{SN}
+    \BIC{$sigma''(u[p \leftarrow t] \not\approx v) | \sigma''$}
+    \DP{}
+    $\begin{matrix}
+        \sigma'' = \sigma \cup \sigma' \cup \text{mgu}(u_{|p}, s) \\
+        \sigma''(s) \not\leq \sigma''(t) \\
+        \sigma''(u) \not\leq \sigma''(v) \\
+        u_{|p} \not\in V \\
+    \end{matrix}$ \\[12pt]
+
+    % SP
+    \AXC{$s \approx t | \sigma$}
+    \AXC{$u \approx v | \sigma'$}
+    \LL{SN}
+    \BIC{$sigma''(u[p \leftarrow t] \approx v) | \sigma''$}
+    \DP{}
+    $\begin{matrix}
+        \sigma'' = \sigma \cup \sigma' \cup \text{mgu}(u_{|p}, s) \\
+        \sigma''(s) \not\leq \sigma''(t) \\
+        \sigma''(u) \not\leq \sigma''(v) \\
+        u_{|p} \not\in V \\
+    \end{matrix}$ \\[12pt]
+
+    % TD1
+    \AXC{$s \approx s | \_ $}
+    \LL{TD1}
+    \doubleLine{}
+    \UIC{}
+    \DP{} \\[12pt]
+
+    % PS
+    \AXC{$s \approx t |\sigma$}
+    \AXC{$u[p \leftarrow \sigma''(s)] \not\approx u[p \leftarrow \sigma''(t)] | \sigma' $}
+    \LL{PS}
+    \doubleLine{}
+    \BIC{$s \approx t | \sigma$ \qquad $\emptyset | \sigma \cup \sigma' \cup \sigma''$}
+    \DP{} \\[12pt]
+
+    % NS
+    \AXC{$s \not\approx t | \sigma$}
+    \AXC{$\sigma''(s \approx t) | \sigma'$}
+    \LL{NS}
+    \doubleLine{}
+    \BIC{$s \not\approx t | \sigma$ \qquad $\emptyset | \sigma \cup \sigma' \cup \sigma''$}
+    \DP{} \\[12pt]
+
+    % ES
+    \AXC{$s \approx t | \sigma$}
+    \AXC{$u[p \leftarrow s] \approx u[p \leftarrow t] | \sigma'$}
+    \LL{ES}
+    \RL{$\sigma < \sigma'$}
+    \doubleLine{}
+    \BIC{$s\approx t | \sigma$}
+    \DP{} \\[12pt]
+
+    % RP
+    \AXC{$s \approx t | \emptyset$}
+    \AXC{$u \approx v | \sigma$}
+    \LL{RP}
+    \doubleLine{}
+    \BIC{$s \approx t | \emptyset$ \qquad $u[p \leftarrow t] \approx v | \sigma$}
+    \DP{}
+    $\begin{matrix}
+      u_{|p} = s \\
+      s \geq t \\
+      \left\{ \begin{matrix} u \not\geq v \\ \text{or}\; p \neq \lambda\end{matrix}\right. \\
+    \end{matrix}$ \\[12pt]
+
+    % RN
+    \AXC{$s \approx t | \sigma$}
+    \AXC{$u \not\approx v | \sigma$}
+    \LL{RN}
+    \doubleLine{}
+    \BIC{$s \approx t | \emptyset$ \qquad $u[p \leftarrow t] \not\approx | \sigma$}
+    \DP{}
+    $\begin{matrix}
+      u_{|p} = s \\
+      s \geq t \\
+    \end{matrix}$ 
+
+  \end{center}
+\end{figure}
+
+Il me semble qu'il y a un conflit entre PS et NS, non~? i.e il y a des situations ou les
+deux s'appliquent de donnent des résultats différents, c'est un problème~?
+
