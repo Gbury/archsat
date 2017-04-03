@@ -38,7 +38,8 @@ let pp_aux ~section ~lvl format =
     (pp_time ~lvl) section Level.prefix lvl
 
 let aux ?(section=Section.root) lvl format =
-  if lvl <= Section.cur_level section then
+  let cur_lvl = Section.cur_level section in
+  if Level.compare lvl cur_lvl <= 0 then
     if !debug then
       Logs.log ~section ~lvl format
     else

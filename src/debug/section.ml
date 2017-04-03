@@ -70,7 +70,7 @@ let clear_debug s =
 
 (* recursive lookup, with inheritance from parent *)
 let rec cur_level_rec s =
-  if s.level = Level.null then
+  if Level.equal s.level Level.null then
     match s.descr with
     | Root -> Level.error
     | Sub (_, parent, []) -> cur_level_rec parent
@@ -84,7 +84,7 @@ let rec cur_level_rec s =
 
 (* inlinable function *)
 let cur_level s =
-  if s.level = Level.null then
+  if Level.equal s.level Level.null then
     let r = cur_level_rec s in
     set_debug s r;
     r
