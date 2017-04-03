@@ -74,6 +74,10 @@ val print_profiling_info : unit -> unit
 
 (** {2 Statistics access} *)
 
+val max_stats : int
+(** The maximum number of stats that can be recorded, i.e the size
+    of the array returned by the {stats} funciton. *)
+
 val stats : t -> int array
 (** Statistics aray. Should only be directly accessed in module {Stats}. *)
 

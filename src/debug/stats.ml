@@ -1,4 +1,6 @@
 
+exception Out_of_stats
+
 (* Debug output functions *)
 (* ************************************************************************ *)
 
@@ -9,7 +11,13 @@ type t = {
 
 let mk =
   let curr = ref ~-1 in
-  (fun name -> incr curr; { name; index = !curr })
+  (fun name ->
+     if !curr >= Section.max_stats then
+       raise Out_of_stats
+     else begin
+       incr curr;
+       { name; index = !curr }
+     end)
 
 let get t s = (Section.stats s).(t.index)
 let set t s v = (Section.stats s).(t.index) <- v

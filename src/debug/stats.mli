@@ -9,8 +9,13 @@
 type t
 (** The type of a statistics counter. *)
 
+exception Out_of_stats
+(** Raised when trying to create a statistics but there are already
+    Debug.max_stats that have been created. *)
+
 val mk : string -> t
-(** Create a stats counter with the given name. *)
+(** Create a stats counter with the given name.
+    @raise Out_of_stats if cannot create stats anymore. *)
 
 val get : t -> Section.t -> int
 (** Get the current value of a stats counter *)
