@@ -72,6 +72,9 @@ val set_profile_depth : int -> unit
 val print_profiling_info : unit -> unit
 (** Print profiling info *)
 
+val csv_prof_data : Format.formatter -> unit
+(** Outputs profiling info as csv to the given formatter. *)
+
 (** {2 Statistics access} *)
 
 val max_stats : int

@@ -2,7 +2,7 @@
 let section = Section.make ~parent:Dispatcher.section "arith"
 
 module B = Builtin.Arith
-
+(*
 (* Type definitions *)
 (* ************************************************************************ *)
 
@@ -39,7 +39,7 @@ let evaluate_aux t =
     ) t.Arith.Lit.sum (Some (val_to_q t.Arith.Lit.const))
 
 let evaluate t = CCOpt.map evaluate_aux @@ Arith.Lit.parse_num t
-
+*)
 (* Incomplete extension *)
 (* ************************************************************************ *)
 

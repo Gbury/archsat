@@ -10,6 +10,8 @@ type t = {
 
 val empty : t
 (** The empty substitution. *)
+val is_empty : t -> bool
+(** Returns wether the substitution is empty. *)
 
 val hash : t -> int
 val compare : t -> t -> int
