@@ -24,6 +24,7 @@ module type S = sig
 
   val add : Expr.term -> value -> t -> t
   val remove : Expr.term -> value -> t -> t
+  val find_equal : Expr.term -> t -> (Expr.term * value list) list
   val find_unify : Expr.term -> t -> (Expr.term * Unif.t * value list) list
   val find_match : Expr.term -> t -> (Expr.term * Match.t * value list) list
 end
@@ -55,6 +56,15 @@ module Simple(T: Set.OrderedType) = struct
   let remove t x m =
     let s = find t m in
     { m with map = Mt.add t (S.remove x s) m.map }
+
+  let find_equal pat m =
+    let aux t s acc =
+      if Expr.Term.equal pat t then
+        (t, S.elements s) :: acc
+      else
+        acc
+    in
+    Mt.fold aux m.map []
 
   let find_unify pat m =
     let aux t s acc =
@@ -221,6 +231,21 @@ module Make(T: Set.OrderedType) = struct
       CCList.filter_map (fun (e, s) ->
           match Match.find ~section:t.unif_section pat e with
           | Some m -> Some (e, m, S.elements s) | None -> None
+        ) l in
+    Stats.incr ~k:(List.length res) s_success t.section;
+    Util.exit_prof t.section;
+    res
+
+  let find_equal pat t =
+    Util.enter_prof t.section;
+    Stats.incr s_tries t.section;
+    let l = find compat_match [] (fp t.key pat) t.trie in
+    Stats.incr ~k:(List.length l) s_found t.section;
+    let res =
+      CCList.filter_map (fun (e, s) ->
+          if Expr.Term.equal pat e
+          then Some (e, S.elements s)
+          else None
         ) l in
     Stats.incr ~k:(List.length res) s_success t.section;
     Util.exit_prof t.section;

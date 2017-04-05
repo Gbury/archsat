@@ -31,6 +31,16 @@ let fold f l acc =
 (* Correctness check *)
 (* ************************************************************************ *)
 
+let naive_correct_equal =
+  QCheck.Test.make ~count:10 ~long_factor:100
+    ~name:"naive_correct_equal" pb_match
+    (fun (pat, l) ->
+       let t = fold N.add l (N.empty section) in
+       List.for_all (fun (t, _) ->
+           Expr.Term.equal t pat)
+         (N.find_equal pat t)
+    )
+
 let naive_correct_match =
   QCheck.Test.make ~count:10 ~long_factor:100
     ~name:"naive_correct_match" pb_match
@@ -52,6 +62,16 @@ let naive_correct_unify =
          (N.find_unify pat t)
     )
 
+let index_correct_equal =
+  QCheck.Test.make ~count:10 ~long_factor:100
+    ~name:"index_correct_equal" pb_match
+    (fun (pat, l) ->
+       let t = fold I.add l (I.empty ~key:[] section) in
+       List.for_all (fun (t, _) ->
+           Expr.Term.equal t pat)
+         (I.find_equal pat t)
+    )
+
 let index_correct_match =
   QCheck.Test.make ~count:10 ~long_factor:100
     ~name:"index_correct_match" pb_match
@@ -71,6 +91,16 @@ let index_correct_unify =
            Unif.occurs_check u &&
            Expr.Term.equal (Unif.term_subst u t) (Unif.term_subst u pat))
          (I.find_unify pat t)
+    )
+
+let fingerprint_correct_equal =
+  QCheck.Test.make ~count:10 ~long_factor:100
+    ~name:"fingerprint_correct_equal" pb_match
+    (fun (pat, l) ->
+       let t = fold I.add l (I.empty section) in
+       List.for_all (fun (t, _) ->
+           Expr.Term.equal t pat)
+         (I.find_equal pat t)
     )
 
 let fingerprint_correct_match =
@@ -95,10 +125,16 @@ let fingerprint_correct_unify =
     )
 
 let correct_qtests = [
+  (* naive index *)
+  naive_correct_equal;
   naive_correct_match;
   naive_correct_unify;
+  (* bare index (no fingerprint actually usedà *)
+  index_correct_equal;
   index_correct_match;
   index_correct_unify;
+  (* full ingerprinted index *)
+  fingerprint_correct_equal;
   fingerprint_correct_match;
   fingerprint_correct_unify;
 ]
@@ -129,7 +165,24 @@ let eq_match res1 res2 =
       Match.equal u u' &&
       CCList.equal (=) l l') l1 l2
 
+let eq_equal res1 res2 =
+  let cmp (t, _) (t', _) = Expr.Term.compare t t' in
+  let l1 = List.sort cmp res1 in
+  let l2 = List.sort cmp res2 in
+  CCList.equal (fun (t, l) (t', l') ->
+      Expr.Term.equal t t' &&
+      CCList.equal (=) l l') l1 l2
+
 (* We assume here that the naive implementation is complete. *)
+
+let index_complete_equal =
+  QCheck.Test.make ~count:10 ~long_factor:100
+    ~name: "index_complete_equal" pb_match
+    (fun (pat, l) ->
+       let ref = fold N.add l (N.empty section) in
+       let t = fold I.add l (I.empty ~key:[] section) in
+       eq_equal (N.find_equal pat ref) (I.find_equal pat t)
+    )
 
 let index_complete_match =
   QCheck.Test.make ~count:10 ~long_factor:100
@@ -147,6 +200,15 @@ let index_complete_unify =
        let ref = fold N.add l (N.empty section) in
        let t = fold I.add l (I.empty ~key:[] section) in
        eq_unif (N.find_unify pat ref) (I.find_unify pat t)
+    )
+
+let fingerprint_complete_equal =
+  QCheck.Test.make ~count:10 ~long_factor:100
+    ~name: "fingerprint_complete_equal" pb_match
+    (fun (pat, l) ->
+       let ref = fold N.add l (N.empty section) in
+       let t = fold I.add l (I.empty section) in
+       eq_equal (N.find_equal pat ref) (I.find_equal pat t)
     )
 
 let fingerprint_complete_match =
@@ -168,8 +230,10 @@ let fingerprint_complete_unify =
     )
 
 let complete_qtests = [
+  index_complete_equal;
   index_complete_match;
   index_complete_unify;
+  fingerprint_complete_equal;
   fingerprint_complete_match;
   fingerprint_complete_unify;
 ]

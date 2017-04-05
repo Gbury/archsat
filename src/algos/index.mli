@@ -21,6 +21,9 @@ module type S = sig
   val remove : Expr.term -> value -> t -> t
   (** Remove a term (and its payload) from the index. *)
 
+  val find_equal : Expr.term -> t -> (Expr.term * value list) list
+  (** Find all terms (and payloads) in the index that are equal to a given pattern *)
+
   val find_unify : Expr.term -> t -> (Expr.term * Unif.t * value list) list
   (** Find all terms (and payloads) in the index that unify with a given pattern. *)
 
