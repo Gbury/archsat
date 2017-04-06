@@ -19,7 +19,6 @@ let rec path = function
   | [] -> root
   | k :: r -> arg k (path r)
 
-
 (* Comparison, equality, printing. *)
 let equal = (=)
 let compare = Pervasives.compare

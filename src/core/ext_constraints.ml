@@ -106,7 +106,7 @@ let unif_breadth =
       let r = Unif.Robinson.find ~section t t' in
       begin match r with Some x -> ignore (Inst.add x) | _ -> () end;
       r) (gen_of_state st) in
-  let merger t t' = match Unif.combine t t' with
+  let merger t t' = match Unif.merge t t' with
     | Some s -> Gen.singleton (s, Unif.to_formula t')
     | None -> (fun () -> None)
   in

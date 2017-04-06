@@ -12,6 +12,8 @@ type t = {
 
 val empty : t
 (** The empty substitution. *)
+val is_empty : t -> bool
+(** Test if the substitution is empty *)
 
 val hash : t -> int
 val compare : t -> t -> int
@@ -72,7 +74,7 @@ val fixpoint : t -> t
     contains cylces. Consequently, occurs_check should return true on any subsitution
     used with this function. *)
 
-val combine : t -> t -> t option
+val merge : t -> t -> t option
 (** Try and merge two substitutions.
     TODO: document more this funciton, :p *)
 

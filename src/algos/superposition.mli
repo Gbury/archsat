@@ -5,7 +5,7 @@
 type t
 (** Persistent type for supperposisiton. *)
 
-val empty : (Unif.t -> unit) -> Util.Section.t -> t
+val empty : Section.t -> (Unif.t -> unit) -> t
 (** Create an empty supperposisiton state. The function provided will
     be called on all unifiers found during solving. *)
 

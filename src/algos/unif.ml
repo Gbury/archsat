@@ -254,7 +254,7 @@ end
 (* Combine substitutions *)
 (* ************************************************************************ *)
 
-let combine t t' =
+let merge t t' =
   try
     Some (
       Expr.Subst.fold (fun key value s -> Robinson.term s (Expr.Term.of_meta key) value) t'.t_map (
