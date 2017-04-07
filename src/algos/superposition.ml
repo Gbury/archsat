@@ -547,7 +547,7 @@ let rec discount_loop p_set =
       Util.debug ~section:p_set.section "Redundant clause : %a" pp c;
       discount_loop { p_set with queue = u }
     end else begin
-      Util.debug ~section:p_set.section "Adding clause : %a" pp c;
+      Util.debug ~section:p_set.section "@{<yellow>Adding clause@} : %a" pp c;
       if c.lit = Empty then begin
         Util.debug ~section:p_set.section
           "Empty clause reached, %d clauses in state" (S.cardinal p_set.clauses);
@@ -569,7 +569,7 @@ let rec discount_loop p_set =
           ) p_set.clauses (p_set, S.empty, u) in
         (* Generate new inferences *)
         let l = generate c p_set in
-        Util.debug ~section:p_set.section "Generated %d inferences" (List.length l);
+        Util.debug ~section:p_set.section "@{<green>Generated %d inferences@}" (List.length l);
         let t = List.fold_left (fun s p -> S.add p s) t l in
         (* Do a cheap simplify on the new clauses, and then add them to the queue. *)
         let u = S.fold (fun p acc ->

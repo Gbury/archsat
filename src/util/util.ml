@@ -26,7 +26,7 @@ type 'a logger =
 
 let pp_time ~lvl fmt section =
   if not (Level.equal Level.error lvl) then
-    Format.fprintf fmt "%% [%.3f %s] "
+    Format.fprintf fmt "@{<Black>%% [%.3f %s]@} "
       (Time.get_total_time ()) (Section.full_name section)
 
 let pp_aux ~section ~lvl format =
