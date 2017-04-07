@@ -159,6 +159,19 @@ let compare_pointer pc pc' =
     end
   | x -> x
 
+(* Substitution ordering *)
+(* ************************************************************************ *)
+
+let subst_forall s p_ty p_term =
+  Expr.Subst.fold (fun ty_meta ty acc -> acc && p_ty ty_meta ty) s.Unif.ty_map
+    (Expr.Subst.fold (fun meta term acc -> acc && p_term meta term) s.Unif.t_map true)
+
+let (<<) s t =
+  subst_forall s
+    (fun ty_meta ty -> Expr.Ty.equal
+        (Unif.type_subst t ty) (Unif.type_subst t (Expr.Ty.of_meta ty_meta)))
+    (fun meta term -> Expr.Term.equal
+        (Unif.term_subst t term) (Unif.term_subst t (Expr.Term.of_meta meta)))
 
 (* Supperposition state *)
 (* ************************************************************************ *)
@@ -496,7 +509,8 @@ let equality_subsumption c p_set =
     begin match make_eq p_set a b with
       | `Equal -> assert false (* trivial clause should have been eliminated *)
       | `Impossible -> false
-      | `Substitutable _ -> true
+      | `Substitutable (pos, l) ->
+        List.exists (fun x -> x.clause.map << c.map) l
     end
 
 (* Main functions *)
