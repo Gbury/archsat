@@ -169,6 +169,8 @@ let get_nb_metas f =
 
 let iter f = H.iter (fun e _ -> f e) metas
 
+let number () = (H.stats metas).Hashtbl.num_bindings
+
 (* Proofs *)
 let mk_proof_ty f metas =
   Dispatcher.mk_proof "meta" ~ty_args:([]) "ty"
@@ -346,7 +348,10 @@ let find_all_insts : type ret. ret Dispatcher.msg -> ret option = function
         Util.debug ~section "Applying unification";
         unif_f st !unif_setting
     end;
-    Some Solver.Sat_ok
+    if number () > 0 && !unif_setting <> No_unif then
+      Some Solver.Incomplete
+    else
+      Some Solver.Sat_ok
   | _ -> None
 
 (* Extension registering *)
