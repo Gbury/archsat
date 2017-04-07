@@ -212,7 +212,7 @@ module Print = struct
     in
     match l with
     | [] -> ()
-    | _ -> Format.fprintf fmt "%s@,%a%s" start (aux ~sep f) l stop
+    | _ -> Format.fprintf fmt "%s%a%s" start (aux ~sep f) l stop
 
   let id fmt v = Format.fprintf fmt "%s" v.id_name
   let meta fmt m = Format.fprintf fmt "m%d_%a" m.meta_index id m.meta_id
@@ -249,12 +249,14 @@ module Print = struct
   let rec term fmt t = match t.term with
     | Var v -> id fmt v
     | Meta m -> meta fmt m
+    | App (f, [], []) -> id fmt f
     | App (f, [], args) ->
-      Format.fprintf fmt "@[<hov 2>%a%a@]"
-        id f (list ~start:"(" ~stop:")" ~sep:"," term) args
+      Format.fprintf fmt "%a(@[<hov>%a@])"
+        id f (list ~sep:"," term) args
     | App (f, tys, args) ->
-      Format.fprintf fmt "@[<hov 2>%a(%a;@ %a)@]" id f
+      Format.fprintf fmt "%a(@[<hov>%a%a%a@])" id f
         (list ~sep:"," ty) tys
+        (CCFormat.return (if tys=[] then "" else ";@ ")) ()
         (list ~sep:"," term) args
 
   let rec formula_aux fmt f =

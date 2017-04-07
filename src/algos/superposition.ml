@@ -85,12 +85,12 @@ let pp_reason fmt c =
 let pp_lit fmt c =
   match c.lit with
   | Empty -> Format.fprintf fmt "∅"
-  | Eq (a, b) -> Format.fprintf fmt "%a@ =@ %a" Expr.Print.term a Expr.Print.term b
-  | Neq (a, b) -> Format.fprintf fmt "%a@ ≠@ %a" Expr.Print.term a Expr.Print.term b
+  | Eq (a, b) -> Format.fprintf fmt "@[%a@ =@ %a@]" Expr.Print.term a Expr.Print.term b
+  | Neq (a, b) -> Format.fprintf fmt "@[%a@ ≠@ %a@]" Expr.Print.term a Expr.Print.term b
 
 let pp_map fmt c = Unif.print fmt c.map
 
-let pp fmt c =
+let pp fmt (c:clause) =
   Format.fprintf fmt "@[<hov 2>%a@,[%a]@,[%a]@,[%a]@]"
     pp_id c pp_reason c pp_lit c pp_map c
 
