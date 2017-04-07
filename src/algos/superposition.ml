@@ -315,9 +315,8 @@ let do_supp acc mgu active inactive =
    [inactive] is the clause being worked on
    [rho] is the substitution that matches [active] and [inactive]
 *)
-let do_rewrite rho active inactive =
+let do_rewrite active inactive =
   (* currently the substitution must be the identity *)
-  assert (Match.is_empty rho);
   assert (is_eq active.clause);
   assert (active.path = Position.root);
   assert (Unif.is_empty active.clause.map);
@@ -478,11 +477,11 @@ let supp_lit c p_set acc =
    in [p_set] that might be used to rewrite [u]
 *)
 let add_inactive_rewrite p_set clause side path u =
-  let l = I.find_match u p_set.root_pos_index in
+  let l = I.find_equal u p_set.root_pos_index in
   let inactive = { clause; side; path } in
-  CCList.find_map (fun (_, sigma, l') ->
+  CCList.find_map (fun (_, l') ->
       CCList.find_map (fun active ->
-          do_rewrite sigma active inactive) l') l
+          do_rewrite active inactive) l') l
 
 (* Simplification function using the rules RN & RP. Returns
    [Some c'] if the clause can be simplified into a clause [c'],
