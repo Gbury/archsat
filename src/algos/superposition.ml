@@ -319,11 +319,11 @@ let do_rewrite active inactive =
   (* currently the substitution must be the identity *)
   assert (is_eq active.clause);
   assert (active.path = Position.root);
-  assert (Unif.is_empty active.clause.map);
   let sigma = inactive.clause.map in
   let s, t = extract active in
   let u, v = extract inactive in
   let guard =
+    Unif.is_empty active.clause.map &&
     Lpo.compare s t = Comparison.Gt &&
     (if is_eq inactive.clause then (
         not (Lpo.compare u v = Comparison.Gt) ||
