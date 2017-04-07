@@ -1020,9 +1020,14 @@ module Formula = struct
     if not (Ty.equal a.t_type b.t_type) then
       raise (Type_mismatch (b, b.t_type, a.t_type))
     else if (Ty.equal Ty.prop a.t_type) then
-      equiv (pred a) (pred b)
-    else
+      if Term.compare a b < 0 then
+        equiv (pred a) (pred b)
+      else
+        equiv (pred b) (pred a)
+    else if Term.compare a b < 0 then
       mk_formula (Equal (a, b))
+    else
+      mk_formula (Equal (b, a))
 
   let all l f =
     if l = [] then f else begin
