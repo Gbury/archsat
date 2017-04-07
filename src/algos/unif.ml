@@ -53,8 +53,9 @@ let equal s u =
   Expr.Subst.equal Expr.Term.equal s.t_map u.t_map
 
 let print fmt s =
-  Format.fprintf fmt "@[<hov 1>{%a;@ %a}@]"
+  Format.fprintf fmt "@[<hov 1>{%a%a%a}@]"
     (Expr.Subst.print Expr.Print.meta Expr.Print.ty) s.ty_map
+    (CCFormat.return (if Expr.Subst.is_empty s.ty_map then "" else ";@ ")) ()
     (Expr.Subst.print Expr.Print.meta Expr.Print.term) s.t_map
 
 let inverse s =

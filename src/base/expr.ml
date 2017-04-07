@@ -292,7 +292,7 @@ end
 (* ************************************************************************ *)
 
 module Subst = struct
-  module Mi = Map.Make(struct
+  module Mi = CCMap.Make(struct
       type t = int * int
       let compare (a, b) (c, d) = match compare a c with 0 -> compare b d | x -> x
     end)
@@ -335,10 +335,11 @@ module Subst = struct
       false
 
   let print print_key print_value fmt map =
-    let aux _ (key, value) =
-      Format.fprintf fmt "@[<hov>%a ->@ %a;@]@ " print_key key print_value value
+    let aux fmt (key, value) =
+      Format.fprintf fmt "@[<hov>%a ->@ %a@]" print_key key print_value value
     in
-    Format.fprintf fmt "@[<hov>%a@]" (fun _ -> Mi.iter aux) map
+    Format.fprintf fmt "@[<hov>%a@]"
+      CCFormat.(seq ~sep:(return ";@ ") aux) (Mi.values map)
 
   module type S = sig
     type 'a key
