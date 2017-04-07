@@ -300,10 +300,9 @@ let rec unif_f st = function
     Util.enter_prof rigid_section;
     fold_diff (fun () -> wrap_unif (Rigid.unify ~max_depth:(rigid_depth ()) st.equalities single_inst)) () st;
     Util.exit_prof rigid_section
-  (*
   | SuperEach ->
     Util.enter_prof sup_section;
-    let t = Superposition.empty single_inst sup_section in
+    let t = Superposition.empty sup_section (fun u -> insts (ref (sup_limit st)) [u]) in
     let t = List.fold_left (fun acc (a, b) -> Superposition.add_eq acc a b) t st.equalities in
     let t = Superposition.solve t in
     fold_diff (fun () a b ->
@@ -313,7 +312,7 @@ let rec unif_f st = function
     Util.exit_prof sup_section
   | SuperAll ->
     Util.enter_prof sup_section;
-    let t = Superposition.empty (fun u -> insts (ref (sup_limit st)) [u]) sup_section in
+    let t = Superposition.empty sup_section (fun u -> insts (ref (sup_limit st)) [u]) in
     let t = List.fold_left (fun acc (a, b) -> Superposition.add_eq acc a b) t st.equalities in
     let t = fold_diff (fun acc a b -> Superposition.add_neq acc a b) t st in
     begin try
@@ -326,14 +325,6 @@ let rec unif_f st = function
       unif_f st Simple
     else
       unif_f st SuperAll
-     *)
-  | SuperEach | SuperAll ->
-    raise (Dispatcher.Bad_assertion "Meta: superposition disabled.")
-  | Auto ->
-    if st.equalities = [] then
-      unif_f st Simple
-    else
-      unif_f st ERigid
 
 let find_all_insts : type ret. ret Dispatcher.msg -> ret option = function
   | Solver.Found_sat model ->
