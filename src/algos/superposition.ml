@@ -30,8 +30,6 @@ and clause = {
   lit : lit;                (* Contents of the clause *)
   map : Unif.t;             (* Current mapping for meta-variables *)
   reason : reason;          (* Reason of the clause *)
-  parents : clause list;    (* Transitive closure of the clauses appearing in reasons
-                               for this clause. *)
   weight : int;             (* weight of the clause (clauses with lesser
                                weight are selected first) *)
 }
@@ -110,24 +108,13 @@ let compute_weight = function
 
 let cmp_weight c c' = c.weight <= c'.weight
 
-(* Compute parents of a clause.
-   TODO: use a set instead of lists ? *)
-let compute_parents = function
-  | Hyp -> []
-  | ER c ->
-    c :: c.parents
-  | SN (c, d) | SP (c, d)
-  | RN (c, d) | RP (c, d) ->
-    c.clause :: d.clause :: (c.clause.parents @ d.clause.parents)
-
 (* Clauses *)
 let mk_cl =
   let i = ref 0 in
   (fun lit map reason ->
      incr i;
-     let parents = compute_parents reason in
      let weight = compute_weight lit in
-     { id = !i; lit; map; reason; parents; weight; }
+     { id = !i; lit; map; reason; weight; }
   )
 
 let ord a b = if Expr.Term.compare a b <= 0 then a, b else b, a
@@ -541,8 +528,6 @@ let trivial c p =
   | Eq (a, b) when Expr.Term.equal a b -> true
   | _ -> mem_clause c p
 
-let not_is_descendant p c = not (List.memq p c.parents)
-
 (* Main loop *)
 (* ************************************************************************ *)
 
@@ -580,7 +565,7 @@ let rec discount_loop p_set =
             if p == p' then (* no simplification *)
               (p_set, t, queue)
             else (* clause has been simplified, prepare to queue it back *)
-              (p_aux, S.add p' t, Q.filter (not_is_descendant p) queue)
+              (p_aux, S.add p' t, queue)
           ) p_set.clauses (p_set, S.empty, u) in
         (* Generate new inferences *)
         let l = generate c p_set in
