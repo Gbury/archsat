@@ -365,11 +365,8 @@ let parse_descr = function
   | "stdout" -> `Ok `Stdout
   | f ->
     try
-      if Sys.file_exists f then
-        if Sys.is_directory f then
+      if Sys.file_exists f && Sys.is_directory f then
           `Error (Format.sprintf "File '%s' is a directory" f)
-        else
-          `Error (Format.sprintf "File '%s' already exists" f)
       else
         `Ok (`File f)
     with Sys_error _ ->
