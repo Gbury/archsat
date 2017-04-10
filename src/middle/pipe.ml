@@ -75,18 +75,27 @@ let parse opt =
       Options.({ opt with input = { opt.input with format = Some l } }), gen
     | `File f ->
       (** Formats Dimacs and Tptp are descriptive and lack the emission
-          of formal solveprove instructions, so we need to add them. *)
-      let i = max 0 (CCString.rfind ~sub:"." f) in
-      let ext = String.sub f i (String.length f - i) in
-      let l, _, _ = In.of_extension ext in
+          of formal solve/prove instructions, so we need to add them. *)
       let s = Dolmen.Statement.include_ f [] in
+      (* Auto-detect input format *)
+      let l =
+        match Options.(opt.input.format) with
+        | Some l -> l
+        | None ->
+          let res, _, _ = In.of_filename f in
+          res
+      in
       let s' =
         match l with
-        | In.Dimacs | In.Tptp ->
+        | In.Zf
+        | In.ICNF
+        | In.Smtlib -> s
+        | In.Dimacs
+        | In.Tptp ->
           Dolmen.Statement.pack [s; Dolmen.Statement.prove ()]
-        | _ -> s
       in
-      opt, (Gen.singleton s')
+      Options.({ opt with input = { opt.input with format = Some l } }),
+      (Gen.singleton s')
   in
   (** Wrap the resulting parser *)
   opt', wrap_parser g
