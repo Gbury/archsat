@@ -559,14 +559,15 @@ let rec discount_loop p_set =
         (* Add the clause to the set. *)
         let p_set = add_clause c p_set in
         (* Keep the clauses in the set inter-simplified *)
-        let p_set, t, u = S.fold (fun p (p_set, t, queue) ->
+        let p_set, t = S.fold (fun p (p_set, t) ->
             let p_aux = rm_clause p p_set in
             let p' = simplify p p_aux in
             if p == p' then (* no simplification *)
-              (p_set, t, queue)
-            else (* clause has been simplified, prepare to queue it back *)
-              (p_aux, S.add p' t, queue)
-          ) p_set.clauses (p_set, S.empty, u) in
+              (p_set, t)
+            else begin (* clause has been simplified, prepare to queue it back *)
+              Util.debug ~section:p_set.section "Simplified: %a" pp p';
+              (p_aux, S.add p' t)
+            end) p_set.clauses (p_set, S.empty) in
         (* Generate new inferences *)
         let l = generate c p_set in
         Util.debug ~section:p_set.section "@{<green>Generated %d inferences@}" (List.length l);
@@ -574,8 +575,10 @@ let rec discount_loop p_set =
         (* Do a cheap simplify on the new clauses, and then add them to the queue. *)
         let u = S.fold (fun p acc ->
             let p' = cheap_simplify p p_set in
+            if not (p == p') then
+              Util.debug ~section:p_set.section " |~ %a" pp p;
             if trivial p' p_set then begin
-              Util.debug ~section:p_set.section " |- %a" pp p;
+              Util.debug ~section:p_set.section " |- %a" pp p';
               acc
             end else begin
               Util.debug ~section:p_set.section " |+ %a" pp p';
