@@ -273,10 +273,12 @@ let do_supp acc mgu active inactive =
     let apply = Unif.term_subst sigma'' in
     let s, t = extract active in
     let u, v = extract inactive in
+    let p = inactive.path in
     let v' = apply v in
     (* Check the guards of the rule *)
     if Lpo.compare (apply t) (apply s) = Comparison.Gt ||
-       Lpo.compare v' (apply u) = Comparison.Gt then
+       Lpo.compare v' (apply u) = Comparison.Gt ||
+       fst (Position.Term.apply p u) = Position.Var then
       acc
     else begin
       (* Apply substitution *)
@@ -310,11 +312,11 @@ let do_rewrite active inactive =
   let s, t = extract active in
   let u, v = extract inactive in
   let guard =
-    Unif.is_empty active.clause.map &&
+    active.clause.map << sigma &&
     Lpo.compare s t = Comparison.Gt &&
     (if is_eq inactive.clause then (
         not (Lpo.compare u v = Comparison.Gt) ||
-        Position.equal inactive.path Position.root
+        not (Position.equal inactive.path Position.root)
       ) else true)
   in
   if not guard then None
@@ -565,7 +567,7 @@ let rec discount_loop p_set =
             if p == p' then (* no simplification *)
               (p_set, t)
             else begin (* clause has been simplified, prepare to queue it back *)
-              Util.debug ~section:p_set.section "Simplified: %a" pp p';
+              Util.debug ~section:p_set.section "@{<red>Removing@}: %a" pp p;
               (p_aux, S.add p' t)
             end) p_set.clauses (p_set, S.empty) in
         (* Generate new inferences *)
