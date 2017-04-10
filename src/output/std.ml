@@ -32,6 +32,17 @@ let print_exn opt fmt = function
   | Options.Out_of_space ->
     print_status opt fmt "\nOut of space"
 
+  (** Could not recognize file extension *)
+  | In.Extension_not_found ext ->
+    if ext = "" then
+      Format.fprintf fmt
+        ("@[<hov>Given file has no file extension, cannot detect input format" ^^
+         "@\nTry and specify an explicit input format using the -i option@]")
+    else
+      Format.fprintf fmt
+        ("@[<hov>Could not find a supported input format with extension '%s'" ^^
+         "@\nTry and specify an explicit input format using the -i option@]") ext
+
   (** Statement not implemented *)
   | Options.Stmt_not_implemented s ->
     let default_loc = Dolmen.ParseLocation.mk
