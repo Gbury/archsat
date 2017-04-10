@@ -502,11 +502,11 @@ module Id = struct
   let term_skolem v = Hashtbl.find term_skolems v.index
 
   let init_ty_skolem v n =
-    let res = ty_fun ("sk_" ^ v.id_name) n in
+    let res = ty_fun (Format.sprintf "sk_%s%d" v.id_name v.index) n in
     Hashtbl.add ty_skolems v.index res
 
   let init_term_skolem v tys args ret =
-    let res = term_fun ("sk_" ^ v.id_name) tys args ret in
+    let res = term_fun (Format.sprintf "sk_%s%d" v.id_name v.index) tys args ret in
     Hashtbl.add term_skolems v.index res
 
   let init_ty_skolems l (ty_vars, t_vars) =
