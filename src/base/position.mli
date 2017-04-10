@@ -19,7 +19,9 @@ val root : t
 val arg : int -> t -> t
 (** [arg i t] returns the position obtained by inspecting the [i]-th
     argument of an application, and then following the path [t].
-    Argument numbering starts at 0, i.e. the same as for arrays *)
+    Argument numbering starts at 0, i.e. the same as for arrays
+    @raise Invalid_argument if [i < 0]
+*)
 
 val path : int list -> t
 (** [path l] is [List.fold_right arg l root]. *)

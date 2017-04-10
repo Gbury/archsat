@@ -128,7 +128,7 @@ module Make(T: Set.OrderedType) = struct
 
   let rec of_list = function
     | [] -> Position.root
-    | i :: r -> Position.arg (i - 1) (of_list r)
+    | i :: r -> Position.arg i (of_list r)
 
   let master_key = [[]; [0]; [1]; [2]; [0; 0]; [0; 1]]
 

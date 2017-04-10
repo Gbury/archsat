@@ -13,7 +13,9 @@ type t =
 (* Build positions *)
 let root = Here
 
-let arg i t = Arg (i, t)
+let arg i t =
+  if i >= 0 then Arg (i, t)
+  else invalid_arg "Position.arg"
 
 let rec path = function
   | [] -> root
