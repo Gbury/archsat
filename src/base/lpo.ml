@@ -42,11 +42,12 @@ let rec rpo6 ~prec s t =
     | { Expr.term = Expr.Meta _ }, { Expr.term = Expr.Meta _ } ->
       Comparison.Incomparable
     | _, { Expr.term = Expr.Meta m } ->
-      if Expr.Id.occurs_in_term Expr.(m.meta_id) s then Comparison.Gt else Comparison.Incomparable
-    | { Expr.term = Expr.Meta m} , _ ->
-      if Expr.Id.occurs_in_term Expr.(m.meta_id) t then Comparison.Lt else Comparison.Incomparable
+      if Expr.Meta.occurs_in_term m s then Comparison.Gt else Comparison.Incomparable
+    | { Expr.term = Expr.Meta m } , _ ->
+      if Expr.Meta.occurs_in_term m t then Comparison.Lt else Comparison.Incomparable
     (* Application *)
-    | { Expr.term = Expr.App (f, _, ss) }, { Expr.term= Expr.App (g, _, ts)} -> rpo6_composite ~prec s t f g ss ts
+    | { Expr.term = Expr.App (f, _, ss) }, { Expr.term= Expr.App (g, _, ts)} ->
+      rpo6_composite ~prec s t f g ss ts
 
 (* handle the composite cases *)
 and rpo6_composite ~prec s t f g ss ts =

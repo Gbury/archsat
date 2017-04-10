@@ -460,8 +460,10 @@ module Id = struct
 
   (* Variable occurs in a term *)
   let rec occurs_in_term var t = match t.term with
-    | Var v | Meta { meta_id = v } -> equal var v
-    | App (f, tys, args) -> List.exists (occurs_in_term var) args
+    | Var v -> equal var v
+    | Meta _ -> false
+    | App (f, _, args) ->
+      List.exists (occurs_in_term var) args
 
   (* Evaluation *)
   let is_interpreted f =
@@ -631,6 +633,13 @@ module Meta = struct
   let of_all f = match f.formula with
     | Not { formula = Ex(l, _, _) } | All (l, _, _) -> mk_metas l f
     | _ -> invalid_arg "new_term_metas"
+
+  (* Meta-variable occurs in a term *)
+  let rec occurs_in_term meta t = match t.term with
+    | Var v -> false
+    | Meta m -> equal meta m
+    | App (f, _, args) ->
+      List.exists (occurs_in_term meta) args
 
 end
 

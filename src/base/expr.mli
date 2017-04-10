@@ -230,8 +230,7 @@ module Id : sig
       For simplicity, just apply the skolem to the free_args of the quantified expression. *)
 
   val occurs_in_term : ty id -> term -> bool
-  (** Returns [true] if the given variable occurs in the term.
-      WARNING: this function looks inside meta-variables, so it can yield unexpected results. *)
+  (** Returns [true] if the given variable occurs in the term. *)
 
   val set_eval : 'a id -> int -> (term -> unit) -> unit
   (** [set_eval v n f] sets f as the handler to call in order to
@@ -279,6 +278,9 @@ module Meta : sig
   val in_ty : ty -> ttype meta list * ty meta list
   val in_term : term -> ttype meta list * ty meta list
   (** Returns the list of meta-variable occuring in the argument *)
+
+  val occurs_in_term : ty meta -> term -> bool
+  (** Returns [true] if the given meta-variable occurs in the term. *)
 
 end
 
