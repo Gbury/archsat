@@ -66,6 +66,8 @@ let () =
       Pipe.parse opt
 
     with e ->
+      if Printexc.backtrace_status () then
+        Printexc.print_backtrace stdout;
       Util.error "%a" (Out.print_exn opt) e;
       exit 2
   in
