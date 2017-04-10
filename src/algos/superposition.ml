@@ -282,7 +282,10 @@ let do_resolution ~section acc clause =
 *)
 let do_supp acc mgu active inactive =
   assert (is_eq active.clause);
-  assert (active.path = Position.root);
+  assert (Position.equal active.path Position.root);
+  let p = inactive.path in
+  let s, t = extract active in
+  let u, v = extract inactive in
   let sigma = active.clause.map in
   let sigma' = inactive.clause.map in
   (* Merge the substitutions. *)
@@ -290,10 +293,13 @@ let do_supp acc mgu active inactive =
   | None -> acc
   | Some sigma'' ->
     let apply = Unif.term_subst sigma'' in
-    let s, t = extract active in
-    let u, v = extract inactive in
-    let p = inactive.path in
     let v' = apply v in
+    let u_res, u_p_opt = Position.Term.apply p u in
+    (* Chekc that mgu effectively unifies u_p and s *)
+    assert (match u_p_opt with
+        | None -> false
+        | Some u_p ->
+          Expr.Term.equal (Unif.term_subst mgu s) (Unif.term_subst mgu u_p));
     (* Check the guards of the rule *)
     if Lpo.compare (apply t) (apply s) = Comparison.Gt ||
        Lpo.compare v' (apply u) = Comparison.Gt ||
