@@ -5,9 +5,23 @@
 type t
 (** Persistent type for supperposisiton. *)
 
-val empty : Section.t -> (Unif.t -> unit) -> t
+type rules = {
+  er : bool;
+  sn : bool;
+  sp : bool;
+  es : bool;
+  rp : bool;
+  rn : bool;
+}
+(** The type of configuration for superposition.
+    Each bool indicates wether the corresponding rule should be used. *)
+
+val empty : ?rules:rules -> Section.t -> (Unif.t -> unit) -> t
 (** Create an empty supperposisiton state. The function provided will
-    be called on all unifiers found during solving. *)
+    be called on all unifiers found during solving.
+    @param rules Specify what rules to use during saturation.
+      By default all rules are used.
+*)
 
 val add_eq : t -> Expr.term -> Expr.term -> t
 val add_neq : t -> Expr.term -> Expr.term -> t

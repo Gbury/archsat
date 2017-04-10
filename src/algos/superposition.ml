@@ -168,9 +168,19 @@ module Q = CCHeap.Make(struct type t = clause let leq = cmp_weight end)
 module S = Set.Make(struct type t = clause let compare = compare end)
 module I = Index.Make(struct type t = pointer let compare = compare_pointer end)
 
+type rules = {
+  er : bool;
+  sn : bool;
+  sp : bool;
+  es : bool;
+  rp : bool;
+  rn : bool;
+}
+
 type t = {
   queue : Q.t;
   clauses : S.t;
+  rules : rules;
   root_pos_index : I.t;
   root_neg_index : I.t;
   inactive_index : I.t;
@@ -178,10 +188,19 @@ type t = {
   callback : (Unif.t -> unit);
 }
 
-let empty section callback = {
+let all_rules = {
+  er = true;
+  sn = true;
+  sp = true;
+  es = true;
+  rp = true;
+  rn = true;
+}
+
+let empty ?(rules=all_rules) section callback = {
   queue = Q.empty;
   clauses = S.empty;
-  section; callback;
+  section; callback; rules;
   root_pos_index = I.empty (Section.make ~parent:section "pos_index");
   root_neg_index = I.empty (Section.make ~parent:section "neg_index");
   inactive_index = I.empty (Section.make ~parent:section "all_index");
@@ -389,7 +408,8 @@ let make_eq p_set a b =
 
 (* Equality resolution, alias ER *)
 let equality_resolution p_set clause acc =
-  do_resolution ~section:p_set.section acc clause
+  if not p_set.rules.er then acc
+  else do_resolution ~section:p_set.section acc clause
 
 (* Supperposition rules, alias SN & SP
    Given a new clause, and the current set of clauses, there are two cases:
@@ -398,6 +418,13 @@ let equality_resolution p_set clause acc =
    - or it is the inactive clause (i.e. the clause the substitution is
      performed on)
 *)
+let superposition rules acc u active inactive =
+  if ((is_eq inactive.clause && rules.sp)
+      || (* not is_eq && *) rules.sn) then
+    do_supp acc u active inactive
+  else
+    acc
+
 let add_passive_supp p_set clause side acc path = function
   | { Expr.term = Expr.Var _ }
   | { Expr.term = Expr.Meta _ } -> acc
@@ -406,7 +433,7 @@ let add_passive_supp p_set clause side acc path = function
     let inactive = { clause; side; path } in
     List.fold_left (fun acc (_, u, l) ->
         List.fold_left (fun acc active ->
-            do_supp acc u active inactive
+            superposition p_set.rules acc u active inactive
           ) acc l
       ) acc l
 
@@ -417,7 +444,7 @@ let add_active_supp p_set clause side s acc =
       match t with
       | { Expr.term = Expr.Meta _ } -> acc
       | _ -> List.fold_left (fun acc inactive ->
-          do_supp acc u active inactive
+          superposition p_set.rules acc u active inactive
         ) acc l
     ) acc l
 
@@ -465,12 +492,19 @@ let supp_lit c p_set acc =
    inside [clause]), we want to find an instance of a clause
    in [p_set] that might be used to rewrite [u]
 *)
+let rewrite rules active inactive =
+  if ((is_eq inactive.clause && rules.rp)
+      || (* not is_eq && *) rules.rn) then
+    do_rewrite active inactive
+  else
+    None
+
 let add_inactive_rewrite p_set clause side path u =
   let l = I.find_equal u p_set.root_pos_index in
   let inactive = { clause; side; path } in
   CCList.find_map (fun (_, l') ->
       CCList.find_map (fun active ->
-          do_rewrite active inactive) l') l
+          rewrite p_set.rules active inactive) l') l
 
 (* Simplification function using the rules RN & RP. Returns
    [Some c'] if the clause can be simplified into a clause [c'],
@@ -498,7 +532,7 @@ let equality_subsumption c p_set =
       | `Equal -> assert false (* trivial clause should have been eliminated *)
       | `Impossible -> false
       | `Substitutable (pos, l) ->
-        List.exists (fun x -> x.clause.map << c.map) l
+        p_set.rules.es && List.exists (fun x -> x.clause.map << c.map) l
     end
 
 (* Main functions *)
