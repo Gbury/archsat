@@ -206,6 +206,7 @@ type rules = {
 type t = {
   queue : Q.t;
   clauses : S.t;
+  generated : S.t;
   rules : rules;
   root_pos_index : I.t;
   root_neg_index : I.t;
@@ -226,13 +227,12 @@ let all_rules = {
 let empty ?(rules=all_rules) section callback = {
   queue = Q.empty;
   clauses = S.empty;
+  generated = S.empty;
   section; callback; rules;
   root_pos_index = I.empty (Section.make ~parent:section "pos_index");
   root_neg_index = I.empty (Section.make ~parent:section "neg_index");
   inactive_index = I.empty (Section.make ~parent:section "all_index");
 }
-
-let mem_clause c t = S.mem c t.clauses
 
 let fold_subterms f e side clause i =
   Position.Term.fold (fun i path t -> f t { path; side; clause } i) i e
@@ -594,7 +594,33 @@ let generate c p =
 let trivial c p =
   match c.lit with
   | Eq (a, b) when Expr.Term.equal a b -> true
-  | _ -> mem_clause c p
+  | _ -> S.mem c p.clauses
+
+(* Enqueue a new clause in p *)
+let enqueue c p =
+  if S.mem c p.generated then p
+  else begin
+    let generated = S.add c p.generated in
+    let c' = cheap_simplify c p in
+    (* If claus has changed, print the original *)
+    if not (c == c') then
+      Util.debug ~section:p.section " |~ %a" pp c;
+    (* Test triviality of the clause. Second test is against
+       p.generated (and not generated) because if c == c', then
+       we'd have a problem. *)
+    if trivial c' p || S.mem c' p.generated then begin
+      Util.debug ~section:p.section " |- %a" pp c';
+      { p with generated }
+      (* The clause is interesting and we add it to generated
+         as well as the queue. *)
+    end else begin
+      Util.debug ~section:p.section " |+ %a" pp c';
+      let queue = Q.insert c' p.queue in
+      let generated = S.add c' generated in
+      { p with queue; generated; }
+    end
+  end
+
 
 (* Main loop *)
 (* ************************************************************************ *)
@@ -641,20 +667,8 @@ let rec discount_loop p_set =
         Util.debug ~section:p_set.section "@{<green>Generated %d inferences@}" (List.length l);
         let t = List.fold_left (fun s p -> S.add p s) t l in
         (* Do a cheap simplify on the new clauses, and then add them to the queue. *)
-        let u = S.fold (fun p acc ->
-            let p' = cheap_simplify p p_set in
-            if not (p == p') then
-              Util.debug ~section:p_set.section " |~ %a" pp p;
-            if trivial p' p_set then begin
-              Util.debug ~section:p_set.section " |- %a" pp p';
-              acc
-            end else begin
-              Util.debug ~section:p_set.section " |+ %a" pp p';
-              Q.insert p' acc
-            end
-          ) t u in
-        (* Continue *)
-        discount_loop { p_set with queue = u }
+        let p = S.fold enqueue t { p_set with queue = u } in
+        discount_loop p
       end
     end
 
@@ -663,12 +677,12 @@ let rec discount_loop p_set =
 
 let add_eq t a b =
   let c = mk_eq a b Unif.empty Hyp in
-  if trivial c t then t
-  else { t with queue = Q.insert c t.queue }
+  enqueue c t
 
 let add_neq t a b =
   let c = mk_neq a b Unif.empty Hyp in
-  { t with queue = Q.insert c t.queue }
+  enqueue c t
 
-let solve t = discount_loop t
+let solve t =
+  discount_loop t
 
