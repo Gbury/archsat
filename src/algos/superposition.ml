@@ -252,6 +252,34 @@ let change_state f_set f_index c t =
 let add_clause = change_state S.add I.add
 let rm_clause = change_state S.remove I.remove
 
+(* Symbol precedence *)
+(* ************************************************************************ *)
+
+module Symbols = Set.Make(Expr.Id.Const)
+
+let rec term_symbols acc = function
+  | { Expr.term = Expr.Var _ }
+  | { Expr.term = Expr.Meta _ } -> acc
+  | { Expr.term = Expr.App (f, _, l) } ->
+    List.fold_left term_symbols (Symbols.add f acc) l
+
+let clause_symbols acc c =
+  match c.lit with
+  | Empty -> acc
+  | Eq (a, b) | Neq (a, b) ->
+    term_symbols (term_symbols acc a) b
+
+let set_symbols t =
+  let s = Symbols.empty in
+  let s' = Q.fold clause_symbols s t.queue in
+  S.fold (CCFun.flip clause_symbols) t.clauses s'
+
+let pp_precedence fmt t =
+  let s = set_symbols t in
+  let l = Symbols.elements s in
+  let sep fmt () = Format.fprintf fmt " <@ " in
+  CCFormat.list ~sep Expr.Id.Const.print fmt l
+
 (* Help functions *)
 (* ************************************************************************ *)
 
@@ -664,5 +692,6 @@ let add_neq t a b =
   enqueue c t
 
 let solve t =
+  Util.debug ~section:t.section "@{<White>Precedence@}: @[<hov>%a@]" pp_precedence t;
   discount_loop t
 
