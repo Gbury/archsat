@@ -43,30 +43,6 @@ and pointer = {
 (* Substitutions *)
 (* ************************************************************************ *)
 
-(* Make substs more easily comparable, i.e.
-   idempotent and with predictable ordering of meta to meta bindings *)
-let fix s =
-  let acc =
-    Expr.Subst.fold (fun m ty acc ->
-        match Unif.type_subst s ty with
-        | { Expr.ty = Expr.TyMeta m' } ->
-          let meta, meta' =
-            if Expr.Meta.compare m m' < 0 then m, m' else m', m
-          in
-          Unif.bind_ty acc meta (Expr.Ty.of_meta meta')
-        | t -> Unif.bind_ty acc m t
-      ) s.Unif.ty_map Unif.empty
-  in
-  Expr.Subst.fold (fun m term acc ->
-      match Unif.term_subst s term with
-      | { Expr.term = Expr.Meta m' } ->
-        let meta, meta' =
-          if Expr.Meta.compare m m' < 0 then m, m' else m', m
-        in
-        Unif.bind_term acc meta (Expr.Term.of_meta meta')
-      | t -> Unif.bind_term acc m t
-    ) s.Unif.t_map acc
-
 (* Ordering on substitutions *)
 let subst_forall s p_ty p_term =
   Expr.Subst.fold (fun ty_meta ty acc -> acc && p_ty ty_meta ty) s.Unif.ty_map
@@ -153,7 +129,7 @@ let mk_cl =
   (fun lit subst reason ->
      incr i;
      let weight = compute_weight lit in
-     let map = fix subst in
+     let map = Unif.fixpoint subst in
      { id = !i; lit; map; reason; weight; }
   )
 
