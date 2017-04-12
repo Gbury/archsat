@@ -160,7 +160,7 @@ let model_opts active assign = {
 }
 
 (* Side-effects options *)
-let set_opts gc bt quiet lvl debug msat_log colors opt =
+let set_opts gc bt quiet lvl log_time debug msat_log colors opt =
   CCFormat.set_color_default colors;
   if gc then at_exit (fun () -> Gc.print_stat stdout;);
   if bt then Printexc.record_backtrace true;
@@ -177,6 +177,7 @@ let set_opts gc bt quiet lvl debug msat_log colors opt =
       if (opt.input.mode = Interactive)
       then Level.(max log lvl) else lvl
     in
+    if not log_time then Util.disable_time ();
     Section.set_debug Section.root level;
     List.iter (fun (s, lvl) -> Section.set_debug s lvl) debug
   end;
@@ -533,6 +534,10 @@ let unit_t =
     let doc = "Set the global level for debug outpout." in
     Arg.(value & opt level Level.log & info ["v"; "verbose"] ~docs ~docv:"LVL" ~doc)
   in
+  let log_time =
+    let doc = "Enable time printing in the log output" in
+    Arg.(value & opt bool true & info ["log-time"] ~docs ~doc)
+  in
   let debug =
     let doc = Format.asprintf
         "Set the debug level of the given section, as a pair : '$(b,section),$(b,level)'.
@@ -547,7 +552,7 @@ let unit_t =
     let doc = "Activate coloring of output" in
     Arg.(value & opt bool true & info ["color"] ~docs ~doc)
   in
-  Term.(const set_opts $ gc $ bt $ quiet $ log $ debug $ msat_log $ colors)
+  Term.(const set_opts $ gc $ bt $ quiet $ log $ log_time $ debug $ msat_log $ colors)
 
 let type_t =
   let docs = copts_sect in

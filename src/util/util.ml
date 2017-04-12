@@ -8,6 +8,9 @@ let need_cleanup = ref false
 let enable_debug () = debug := true
 let cleanup () = need_cleanup := true
 
+let time = ref true
+let disable_time () = time := false
+
 (* Output functions *)
 (* ************************************************************************ *)
 
@@ -25,9 +28,13 @@ type 'a logger =
   ('a, Format.formatter, unit, unit) format4 -> 'a
 
 let pp_time ~lvl fmt section =
-  if not (Level.equal Level.error lvl) then
-    Format.fprintf fmt "@{<Black>%% [%.3f %s]@} "
-      (Time.get_total_time ()) (Section.full_name section)
+  if not (Level.equal Level.error lvl) then begin
+    if !time then
+      Format.fprintf fmt "@{<Black>%% [%.3f %s]@} "
+        (Time.get_total_time ()) (Section.full_name section)
+    else
+      Format.fprintf fmt "@{<Black>%% [%s]@} " (Section.full_name section)
+  end
 
 let pp_aux ~section ~lvl format =
   if !need_cleanup then

@@ -17,6 +17,9 @@ val cleanup : unit -> unit
 val enable_debug : unit -> unit
 (** Enable debug mode. *)
 
+val disable_time : unit -> unit
+(** Disable time printing in logs (useful to compare logs). *)
+
 type 'a logger =
   ?section:Section.t ->
   ('a, Format.formatter, unit, unit) format4 ->
