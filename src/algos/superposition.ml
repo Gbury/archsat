@@ -88,14 +88,18 @@ let compare c c' =
 (* Printing of clauses *)
 let pp_id fmt c = Format.fprintf fmt "C%d" c.id
 
+let pp_pos fmt pos =
+  let dir = if pos.side = Left then "→" else "←" in
+  Format.fprintf fmt "%a%s%a" pp_id pos.clause dir Position.print pos.path
+
 let pp_reason fmt c =
   match c.reason with
   | Hyp -> Format.fprintf fmt "hyp"
   | ER d -> Format.fprintf fmt "ER(%a)" pp_id d
-  | SN (d, e) -> Format.fprintf fmt "SN(%a;%a)" pp_id d.clause pp_id e.clause
-  | SP (d, e) -> Format.fprintf fmt "SP(%a;%a)" pp_id d.clause pp_id e.clause
-  | RN (d, e) -> Format.fprintf fmt "RN(%a;%a)" pp_id d.clause pp_id e.clause
-  | RP (d, e) -> Format.fprintf fmt "RP(%a;%a)" pp_id d.clause pp_id e.clause
+  | SN (d, e) -> Format.fprintf fmt "SN(%a;%a)" pp_pos d pp_pos e
+  | SP (d, e) -> Format.fprintf fmt "SP(%a;%a)" pp_pos d pp_pos e
+  | RN (d, e) -> Format.fprintf fmt "RN(%a;%a)" pp_pos d pp_pos e
+  | RP (d, e) -> Format.fprintf fmt "RP(%a;%a)" pp_pos d pp_pos e
 
 let pp_lit fmt c =
   match c.lit with
