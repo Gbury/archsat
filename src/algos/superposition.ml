@@ -667,7 +667,7 @@ let rec discount_loop p_set =
             if p == p' then (* no simplification *)
               (p_set, t)
             else begin (* clause has been simplified, prepare to queue it back *)
-              Util.debug ~section:p_set.section "@{<red>Removing@}: %a" pp p;
+              Util.debug ~section:p_set.section "@{<White>Removing@}: %a" pp p;
               (p_aux, S.add p' t)
             end) p_set.clauses (p_set, S.empty) in
         (* Generate new inferences *)
