@@ -101,11 +101,24 @@ let pp_reason fmt c =
   | RN (d, e) -> Format.fprintf fmt "RN(%a;%a)" pp_pos d pp_pos e
   | RP (d, e) -> Format.fprintf fmt "RP(%a;%a)" pp_pos d pp_pos e
 
+let pp_cmp ~pos fmt (a, b) =
+  let s = Comparison.to_string (Lpo.compare a b) in
+  let s' =
+    if pos then s
+    else CCString.flat_map (function
+          | '=' -> "≠" | c -> CCString.of_char c) s
+  in
+  Format.fprintf fmt "%s" s'
+
 let pp_lit fmt c =
   match c.lit with
   | Empty -> Format.fprintf fmt "∅"
-  | Eq (a, b) -> Format.fprintf fmt "@[%a@ =@ %a@]" Expr.Print.term a Expr.Print.term b
-  | Neq (a, b) -> Format.fprintf fmt "@[%a@ ≠@ %a@]" Expr.Print.term a Expr.Print.term b
+  | Eq (a, b) ->
+    Format.fprintf fmt "@[%a@ %a@ %a@]"
+      Expr.Print.term a (pp_cmp ~pos:true) (a, b) Expr.Print.term b
+  | Neq (a, b) ->
+    Format.fprintf fmt "@[%a@ %a@ %a@]"
+      Expr.Print.term a (pp_cmp ~pos:false) (a, b) Expr.Print.term b
 
 let pp_map fmt c = Unif.print fmt c.map
 
