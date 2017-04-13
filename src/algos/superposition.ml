@@ -40,13 +40,38 @@ and pointer = {
   path : Position.t;
 }
 
+(* Type/Term size *)
+(* ************************************************************************ *)
+
+let rec ty_size acc = function
+  | { Expr.ty = Expr.TyApp (_, l) } ->
+    List.fold_left ty_size (acc + 1) l
+  | _ -> acc + 1
+
+let rec term_size acc = function
+  | { Expr.term = Expr.App (_, _, l) } ->
+    List.fold_left term_size (acc + 1) l
+  | _ -> acc + 1
+
 (* Substitutions *)
 (* ************************************************************************ *)
 
+(* Fold on substs
+   TODO: move this code to unif.ml *)
+let subst_fold s acc f_ty f_term =
+  Expr.Subst.fold f_term s.Unif.t_map
+    (Expr.Subst.fold f_ty s.Unif.ty_map acc)
+
+let subst_size acc s =
+  subst_fold s acc
+    (fun _ ty acc -> ty_size acc ty)
+    (fun _ term acc -> term_size acc term)
+
 (* Ordering on substitutions *)
 let subst_forall s p_ty p_term =
-  Expr.Subst.fold (fun ty_meta ty acc -> acc && p_ty ty_meta ty) s.Unif.ty_map
-    (Expr.Subst.fold (fun meta term acc -> acc && p_term meta term) s.Unif.t_map true)
+  subst_fold s true
+    (fun ty_meta ty acc -> acc && p_ty ty_meta ty)
+    (fun meta term acc -> acc && p_term meta term)
 
 let (<<) s t =
   subst_forall s
@@ -128,15 +153,10 @@ let pp fmt (c:clause) =
 
 (* Heuristics for clauses. Currently uses the size of terms.
    TODO: better heuristic for clause selection. *)
-let rec term_size = function
-  | { Expr.term = Expr.App (_, _, l) } ->
-    1 + List.fold_left (fun acc t -> acc + (term_size t)) 0 l
-  | _ -> 1
-
-let compute_weight = function
+let compute_weight subst = function
   | Empty -> 0
   | Eq (a, b) | Neq (a, b) ->
-    term_size a + term_size b
+    term_size (term_size (subst_size 0 subst) b) a
 
 let cmp_weight c c' = c.weight <= c'.weight
 
@@ -145,7 +165,7 @@ let mk_cl =
   let i = ref 0 in
   (fun lit subst reason ->
      incr i;
-     let weight = compute_weight lit in
+     let weight = compute_weight subst lit in
      let map = Unif.fixpoint subst in
      { id = !i; lit; map; reason; weight; }
   )
