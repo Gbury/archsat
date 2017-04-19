@@ -1,0 +1,55 @@
+% $Id$
+
+\documentclass{llncs}
+
+\usepackage[T1]{fontenc}
+\usepackage[usenames,dvipsnames,svgnames,table]{xcolor}
+\usepackage{makeidx}
+\usepackage{bussproofs}
+\usepackage{amsmath,amsfonts,amssymb}
+\usepackage{tabularx}
+\usepackage{pgf, tikz}
+\usepackage{url}
+\usepackage{float}
+\floatstyle{boxed}
+\restylefloat{figure}
+
+\input{macros}
+
+\begin{document}
+
+\title{Mixing Tableau Calculus and SAT Solving}
+\titlerunning{Mixing Tableau Calculus and SAT Solving}
+
+\author{Guillaume~Bury\inst{1} \and Simon~Cruanes\inst{2} \and
+David~Delahaye\inst{3}}
+\authorrunning{Guillaume~Bury, Simon~Cruanes, and David~Delahaye}
+\tocauthor{Guillaume~Bury, Simon~Cruanes, and David~Delahaye}
+
+\institute{\inria{}/\lsv{}/\ens{}, Cachan, France\\
+\email{Guillaume.Bury@inria.fr} \and
+\inria{}/\loria{}, Nancy, France\\
+\email{Simon.Cruanes@inria.fr} \and
+\lirmm{}/\um{}, Montpellier, France\\
+\email{David.Delahaye@lirmm.fr}}
+
+\maketitle
+
+\begin{abstract}
+We propose a new automated theorem prover that combines a SAT solver core with
+tableau calculus. Tableau inference rules are used to unfold propositional
+content into clauses while atomic formulas are treated using satisfiability
+decision procedures as is done in SMT solvers. In order to treat quantified
+first-order formulas, we use meta-variables and perform rigid unification modulo
+equalities, for which we introduce an algorithm based on superposition, but
+where all clauses contain a single atomic formula.
+
+\keywords{Tableaux, SAT, SMT, Theorem Proving, Superposition}
+\end{abstract}
+
+\include{superposition}
+
+\bibliographystyle{abbrv}
+\bibliography{biblio}
+
+\end{document}
