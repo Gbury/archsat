@@ -301,6 +301,9 @@ module Subst : sig
   val iter : ('a -> 'b -> unit) -> ('a, 'b) t -> unit
   (** Iterates over the bindings of the substitution. *)
 
+  val map : ('b -> 'c) -> ('a, 'b) t -> ('a, 'c) t
+  (** Maps the given function over bound values *)
+
   val fold : ('a -> 'b -> 'c -> 'c) -> ('a, 'b) t -> 'c -> 'c
   (** Fold over the elements *)
 

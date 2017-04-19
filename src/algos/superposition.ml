@@ -203,7 +203,38 @@ let compare_pointer pc pc' =
 (* ************************************************************************ *)
 
 module M = Map.Make(Expr.Term)
+(*
 module Q = CCHeap.Make(struct type t = clause let leq = cmp_weight end)
+*)
+module Q = struct
+
+  type t = {
+    top : clause list;
+    bot : clause list;
+  }
+
+  let empty = {
+    top = [];
+    bot = [];
+  }
+
+  let fold f acc q =
+    let acc' = List.fold_left f acc q.top in
+    List.fold_left f acc' q.bot
+
+  let insert c q =
+    { q with bot = c :: q.bot }
+
+  let rec take q =
+    match q.top with
+    | x :: r -> Some ({q with top = r }, x)
+    | [] ->
+      begin match q.bot with
+        | [] -> None
+        | l -> take { top = List.rev l; bot = [] }
+      end
+
+end
 module S = Set.Make(struct type t = clause let compare = compare end)
 module I = Index.Make(struct type t = pointer let compare = compare_pointer end)
 

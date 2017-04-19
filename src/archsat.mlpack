@@ -6,16 +6,16 @@
 Sig
 
 # Base modules
-Lpo
 Tag
 Expr
 Type
-Position
+Mapping
 Builtin
+Position
 Semantics
-Options
 
 # Algos
+Lpo
 Heuristic
 Constraints
 
@@ -30,8 +30,11 @@ Closure
 Superposition
 
 # Core modules
-Dispatcher
 Solver
+Dispatcher
+
+# Input
+Options
 
 # Extensions
 Inst

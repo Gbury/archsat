@@ -308,6 +308,8 @@ module Subst = struct
 
   let iter f = Mi.iter (fun _ (key, value) -> f key value)
 
+  let map f = Mi.map (fun (key, value) -> (key, f value))
+
   let fold f = Mi.fold (fun _ (key, value) acc -> f key value acc)
 
   let bindings s = Mi.fold (fun _ (key, value) acc -> (key, value) :: acc) s []
@@ -343,6 +345,7 @@ module Subst = struct
     Format.fprintf fmt "@[<hov>%a@]"
       CCFormat.(seq ~sep:(return ";@ ") aux) (Mi.values map)
 
+  (* Specific substitutions signature *)
   module type S = sig
     type 'a key
     val get : 'a key -> ('a key, 'b) t -> 'b
@@ -370,6 +373,7 @@ module Subst = struct
     let bind s m t = Mi.add (tok m) (m, t) s
     let remove m s = Mi.remove (tok m) s
   end
+
 
 end
 
