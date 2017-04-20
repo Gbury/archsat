@@ -182,9 +182,10 @@ end
 (* ************************************************************************ *)
 
 let to_formula t =
-  Expr.Subst.fold (fun m t f ->
+  Mapping.fold
+    ~term_meta:(fun m t f ->
       Expr.(Formula.(f_and [f; eq (Term.of_meta m) t])))
-    t.t_map Expr.Formula.f_true
+    t Expr.Formula.f_true
 
 (* Caching (modulo meta switching) *)
 (* ************************************************************************ *)
@@ -197,25 +198,31 @@ module Cache = struct
   (* Operations on involutions *)
   let inv_map_ty u m1 m2 =
     try
-      let t1 = get_ty u m1 in
+      let t1 = Mapping.Meta.get_ty u m1 in
       let t2 = Expr.Ty.of_meta m2 in
       if not (Expr.Ty.equal t1 t2) then
         raise (Impossible_ty (t1, t2))
       else
         u
     with Not_found ->
-      bind_ty (bind_ty u m1 (Expr.Ty.of_meta m2)) m2 (Expr.Ty.of_meta m1)
+      Mapping.Meta.bind_ty (
+        Mapping.Meta.bind_ty u
+          m1 (Expr.Ty.of_meta m2)
+      ) m2 (Expr.Ty.of_meta m1)
 
   let inv_map_term u m1 m2 =
     try
-      let t1 = get_term u m1 in
+      let t1 = Mapping.Meta.get_term u m1 in
       let t2 = Expr.Term.of_meta m2 in
       if not (Expr.Term.equal t1 t2) then
         raise (Impossible_term (t1, t2))
       else
         u
     with Not_found ->
-      bind_term (bind_term u m1 (Expr.Term.of_meta m2)) m2 (Expr.Term.of_meta m1)
+      Mapping.Meta.bind_term (
+        Mapping.Meta.bind_term u
+          m1 (Expr.Term.of_meta m2)
+      ) m2 (Expr.Term.of_meta m1)
 
   let meta_def m = Expr.Meta.ty_def m.Expr.meta_index
   let meta_ty_def m = Expr.Meta.ttype_def m.Expr.meta_index
@@ -264,7 +271,7 @@ module Cache = struct
       let hash (s, t) = Hashtbl.hash (Expr.Term.hash s, Expr.Term.hash t)
       let equal (s1, t1) (s2, t2) =
         try
-          let tmp = meta_match_term empty s1 s2 in
+          let tmp = meta_match_term Mapping.empty s1 s2 in
           let _ = meta_match_term tmp t1 t2 in
           true
         with Impossible_ty _ | Impossible_term _ ->

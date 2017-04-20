@@ -39,6 +39,14 @@ val fixpoint : t -> t
 val map : (Expr.ty -> Expr.ty) -> (Expr.term -> Expr.term)  -> t -> t
 (** Map some functions over the types and terms used in the mapping. *)
 
+val fold :
+  ?ty_var:(Expr.Id.Ttype.t -> Expr.ty -> 'a -> 'a) ->
+  ?ty_meta:(Expr.Meta.Ttype.t -> Expr.ty -> 'a -> 'a) ->
+  ?term_var:(Expr.Id.Ty.t -> Expr.term -> 'a -> 'a) ->
+  ?term_meta:(Expr.Meta.Ty.t -> Expr.term -> 'a -> 'a) ->
+  t -> 'a -> 'a
+(** Fold on mappings. *)
+
 val exists :
   ?ty_var:(Expr.Id.Ttype.t -> Expr.ty -> bool) ->
   ?ty_meta:(Expr.Meta.Ttype.t -> Expr.ty -> bool) ->
@@ -114,4 +122,12 @@ module Meta : sig
       Will overwrite any previously existing binding. *)
 
 end
+
+(** {2 Substitution extraction} *)
+
+val ty_var : t -> (Expr.Id.Ttype.t, Expr.ty) Expr.Subst.t
+val ty_meta : t -> (Expr.Meta.Ttype.t, Expr.ty) Expr.Subst.t
+val term_var : t -> (Expr.Id.Ty.t, Expr.term) Expr.Subst.t
+val term_meta : t -> (Expr.Meta.Ty.t, Expr.term) Expr.Subst.t
+(** Extract a substitution from a mapping. *)
 

@@ -17,6 +17,11 @@ type t = {
   t_meta : (E.Meta.Ty.t, E.term) S.t;
 }
 
+let ty_var t = t.ty_var
+let ty_meta t = t.ty_meta
+let term_var t = t.t_var
+let term_meta t = t.t_meta
+
 let empty = {
   hash = -1;
   ty_var = S.empty;
@@ -80,8 +85,18 @@ let map f_ty f_term t = {
   t_meta = S.map f_term t.t_meta;
 }
 
-
+let _id _ _ acc = acc
 let _false _ _ = false
+
+let fold
+  ?(ty_var=_id)
+  ?(ty_meta=_id)
+  ?(term_var=_id)
+  ?(term_meta=_id) t acc =
+  S.fold ty_var t.ty_var @@
+  S.fold ty_meta t.ty_meta @@
+  S.fold term_var t.t_var @@
+  S.fold term_meta t.t_meta acc
 
 let for_all
     ?(ty_var=_false)

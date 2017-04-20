@@ -512,9 +512,9 @@ let term_apply env ast f ty_args t_args =
           with
           | Unif.Robinson.Impossible_ty _ ->
             _cannot_unify env ast expected term
-        ) Unif.empty expected_types t_args
+        ) Mapping.empty expected_types t_args
     in
-    let actual_ty_args = List.map (Unif.type_subst subst) ty_args in
+    let actual_ty_args = List.map (Mapping.apply_ty ~fix:true subst) ty_args in
     try
       Expr.Term.apply ~status:env.status f actual_ty_args t_args
     with
