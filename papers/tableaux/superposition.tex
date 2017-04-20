@@ -1,84 +1,80 @@
 
-\section{Superposistion rigide}
+\section{Rigid unit superposistion}
 
 \EnableBpAbbreviations{}
 
-We will write $s \approx t | \sigma$ (resp. $s \not\approx t | \sigma$),
+We will write $s \approx t | \Sigma$ (resp. $s \not\approx t | \Sigma$),
 the unitary clause that contains exactly one equation (resp.~inequation)
-under hypothesis $\sigma$ (which is a subtitution).
-We will wirte $\emptyset | \sigma$ for the empty clause under hypothesis $\sigma$.
-
+under hypothesis $\Sigma$ (which is a set of subtitutions).
+We will write $\emptyset | \Sigma$ for the empty clause under hypothesis $\Sigma$.
 
 We want to express a notion of compatibility on substitutions, using a
 partial ordering $\leq$, such that $\sigma \leq \sigma'$ means that $\sigma$ is
-less general thatn $\sigma'$.
+less general thatn $\sigma'$. We will first define a few notions.
 
 
-To that end we first define a partial ordering $\ll$, such that $\sigma \ll \sigma'$
-iff for every binding $x \mapsto e \in \sigma$, then $x \mapsto e \in \sigma'$
-(i.e the set inclusion of the bindings). However, this relation is not large enough,
-since these subsitutions are not comparable event hough we'd like them to be:
-\begin{eqnarray*}
-  \sigma_1 &= \left\{ x \mapsto a \right. \\
-  \sigma_2 &= \left\{
-    \begin{matrix}
-      x & \mapsto & y \\
-      y & \mapsto & a \\
-    \end{matrix}\right. \\
-\end{eqnarray*}
+Considering a substitution as a function from variables to terms, we can define
+the domain of a substitution $\sigma$ as the set of variables which have a non-trivial
+binding in $\sigma$\footnote{a trivial binding is a bindings from a variable to itself}.
+The co-domain of a substitution is the set of variables occuring in terms in the image of
+the domain of the substitution.
+In all the following, we will consider idempotent substitutions, i.e.~substitution for which
+the domain and co-domain have an empty intersection.
 
 
-We now define the $\text{unify}$ function, such that $\text{unify}(\sigma, e, f)$
-returns, if it exists, the smallest substitution $\sigma'$ (according to $\ll$)
-that is greater thant $\sigma$ (still according to $\ll$), and such that
-$\sigma'(e) = \sigma'(f)$. We can then extend that notation to sets of pairs
-of terms: $\text{unify}(\sigma, \{ (e_1, f_1), \ldots, (e_n, f_n)\})$.
-TODO:~remark that order does not matter and thus:
-$\text{unify}(\sigma, \{ (e_1, f_1), \ldots, (e_n, f_n)\})
-  = \text{unify}((\ldots (\text{unify}(\sigma, e_1, f_1)), \ldots), e_n, f_n)$
+We define the application (or composition~?) of substitutions $\sigma \circ \sigma'$.
+The composition is well-defined iff the domains of $\sigma$ and $\sigma'$ have no
+intersection. We then have
+$\sigma \circ \sigma' = \left\{ x \mapsto \sigma'(\sigma(x)) | x \in \text{domain}(\sigma) \right\}$
+This definition naturally extends to sets of substitutions:
+$\Sigma \circ \sigma' = \left\{ \sigma \circ \sigma' | \sigma \in \Sigma \right\}$
 
 
-We then define the $\leq$ relation on substituions the following way:
-$\sigma \leq \sigma'$ iff there exists a subtitution $\sigma''$ such that
-$\sigma'' = \text{unify}(\sigma, \cup_{x \mapsto e \in \sigma'} (x, e))$.
-If we take the example above, we can see that $\sigma_1 < \sigma_2$, since
-$\sigma_3 = \{ x \mapsto a; y \mapsto a\} = \text{unify}(\sigma_1, \{ (x, y), (y, a)\})$
-We note $\sigma \approx \sigma'$ iff $\sigma \leq \sigma'$ and $\sigma' \leq \sigma$.
+We then say that $\sigma \leq \sigma'$ iff $\exists \sigma'' \sigma \circ \sigma'' = \sigma'$.
+We extend that notion to set of substitutions:
+$\Sigma \leq \Sigma'$ iff $\forall \sigma' \in \Sigma'. \exists \sigma \in \Sigma. \sigma \leq \sigma'$.
 
-We also define $\sigma \cup \sigma' = \text{sup}({\sigma, \sigma'})$.
-Note:~$\sigma \cup \text{mgu}(e,f) \approx \text{unify}(\sigma, e, f)$.
+Then, the merging of two substitutions $\sigma \uparrow \sigma'$ as the supremum of $\{\sigma,\sigma'\}$
+for the order $\leq$, if it exists. This definition naturally extends to sets:
+$\Sigma \uparrow \Sigma' = \left\{ \sigma \uparrow \sigma' | \sigma \in \Sigma, \sigma' \in \Sigma' \right\}$
+
+
+The idea is that for every equality (resp.~inequality) $e = f$ (resp.~$e \neg f$) containing meta-variables,
+we add the clause $\sigma(e) = \sigma(f) | \{ \sigma \}$ to the superposistion state, with
+$\sigma$ a substitution that maps each rigid meta-variable to a fresh variable.
+
 
 \begin{figure}
   \begin{center}
 
     % ER
-    \AXC{$s \not\approx t |\sigma$}
+    \AXC{$s \not\approx t |\Sigma$}
     \LL{ER}
-    \RL{if $\sigma' = \sigma \cup \text{mgu}(s, t)$}
-    \UIC{$\emptyset | \sigma'$}
+    \RL{if $\Sigma' = \Sigma \circ \text{mgu}(s, t)$}
+    \UIC{$\emptyset | \Sigma'$}
     \DP{} \\[12pt]
 
     % SN
-    \AXC{$s \approx t | \sigma$}
-    \AXC{$u \not\approx v | \sigma'$}
+    \AXC{$s \approx t | \Sigma$}
+    \AXC{$u \not\approx v | \Sigma'$}
     \LL{SN}
-    \BIC{$\sigma''(u[p \leftarrow t] \not\approx v) | \sigma''$}
+    \BIC{$\sigma''(u[p \leftarrow t] \not\approx v) | (\Sigma \circ \sigma'') \uparrow (\Sigma' \circ \sigma'')$}
     \DP{}
     $\begin{matrix}
-        \sigma'' = \sigma \cup \sigma' \cup \text{mgu}(u_{|p}, s) \\
+        \sigma'' = \text{mgu}(u_{|p}, s) \\
         \sigma''(s) \not\leq \sigma''(t) \\
         \sigma''(u) \not\leq \sigma''(v) \\
         u_{|p} \not\in V \\
     \end{matrix}$ \\[12pt]
 
     % SP
-    \AXC{$s \approx t | \sigma$}
-    \AXC{$u \approx v | \sigma'$}
+    \AXC{$s \approx t | \Sigma$}
+    \AXC{$u \approx v | \Sigma'$}
     \LL{SP}
-    \BIC{$\sigma''(u[p \leftarrow t] \approx v) | \sigma''$}
+    \BIC{$\sigma''(u[p \leftarrow t] \approx v) | (\Sigma \circ \sigma'') \uparrow (\Sigma' \circ \sigma'')$}
     \DP{}
     $\begin{matrix}
-        \sigma'' = \sigma \cup \sigma' \cup \text{mgu}(u_{|p}, s) \\
+        \sigma'' = \text{mgu}(u_{|p}, s) \\
         \sigma''(s) \not\leq \sigma''(t) \\
         \sigma''(u) \not\leq \sigma''(v) \\
         u_{|p} \not\in V \\
@@ -88,7 +84,14 @@ Note:~$\sigma \cup \text{mgu}(e,f) \approx \text{unify}(\sigma, e, f)$.
     \AXC{$s \approx s | \_ $}
     \LL{TD1}
     \doubleLine{}
-    \UIC{}
+    \UIC{.}
+    \DP{} \\[12pt]
+
+    % TD2
+    \AXC{$s \approx t | \emptyset$}
+    \LL{TD2}
+    \doubleLine{}
+    \UIC{.}
     \DP{} \\[12pt]
 
     % PS
@@ -107,25 +110,35 @@ Note:~$\sigma \cup \text{mgu}(e,f) \approx \text{unify}(\sigma, e, f)$.
     %\BIC{$s \not\approx t | \sigma$ \qquad $\emptyset | \sigma \cup \sigma' \cup \sigma''$}
     %\DP{} \\[12pt]
 
-    % ES
-    \AXC{$s \approx t | \sigma$}
-    \AXC{$u[p \leftarrow s] \approx u[p \leftarrow t] | \sigma'$}
-    \LL{ES}
-    \RL{$\sigma < \sigma'$}
+    % ME
+    \AXC{$\rho(u) \approx \rho(v) | \Sigma$}
+    \AXC{$u \approx v | \Sigma'$}
+    \LL{ME}
+    \RL{$\rho \text{ is a variable renaming}$}
     \doubleLine{}
-    \BIC{$s\approx t | \sigma$}
+    \BIC{$\rho(u) \approx \rho(v) | \Sigma \cup (\Sigma' \circ \rho)$}
+    \DP{} \\[12pt]
+
+    % ES
+    \AXC{$s \approx t | \Sigma$}
+    \AXC{$u[p \leftarrow s] \approx u[p \leftarrow t] | \Sigma' \cup \{ \sigma'\}$}
+    \LL{ES}
+    \RL{$\exists \sigma \in \Sigma. \sigma \leq \sigma'$}
+    \doubleLine{}
+    \BIC{$s\approx t | \Sigma \qquad u[p\leftarrow s] \approx u[p \leftarrow t] | \Sigma'$}
     \DP{} \\[12pt]
 
     % RP
-    \AXC{$s \approx t | \emptyset$}
-    \AXC{$u \approx v | \sigma$}
+    \AXC{$s \approx t | \Sigma$}
+    \AXC{$u \approx v | \Sigma'$}
     \LL{RP}
     \doubleLine{}
-    \BIC{$s \approx t | \emptyset$ \qquad $u[p \leftarrow t] \approx v | \sigma$}
+    \BIC{$s \approx t | \Sigma$ \qquad $u[p \leftarrow t] \approx v | \Sigma'$}
     \DP{}
     $\begin{matrix}
       u_{|p} = s \\
       s \geq t \\
+      \Sigma \leq \Sigma'\\
       \left\{ \begin{matrix} u \not\geq v \\ \text{or}\; p \neq \lambda\end{matrix}\right. \\
     \end{matrix}$ \\[12pt]
 
@@ -139,6 +152,7 @@ Note:~$\sigma \cup \text{mgu}(e,f) \approx \text{unify}(\sigma, e, f)$.
     $\begin{matrix}
       u_{|p} = s \\
       s \geq t \\
+      \Sigma \leq \Sigma'\\
     \end{matrix}$
 
   \end{center}
