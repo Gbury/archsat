@@ -1,0 +1,34 @@
+% $Id$
+
+\section{SAT Solving Modulo Tableau Theory}
+
+\begin{figure}[htbp]
+\parbox{\textwidth}
+{\small
+\begin{center}
+$\begin{array}{l@{\hspace{0.4cm}}l@{\hspace{0.4cm}}l}
+M\parallel{}S,C\lor{}l\longrightarrow{}M,l\parallel{}S,C\lor{}l &
+(\mathrm{unit~prop}) & \mbox{if }l\not\in{}M\mbox{ and }M\models{}\neg{}C\\\\
+
+M\parallel{}S\longrightarrow{}M,l^\mathrm{d}\parallel{}S & (\mathrm{decide}) &
+\mbox{if }l\not\in{}M\mbox{, and }l\in{}S\mbox{ or }\neg{}l\in{}S\\\\
+
+M\parallel{}S,C\longrightarrow\mathrm{unsat} & (\mathrm{unsat}) &
+\mbox{if }M\models{}\neg{}C\mbox{ and there is no }l^\mathrm{d}\in{}M\\\\
+
+M,l^\mathrm{d},M'\parallel{}S,C\longrightarrow{}M,l'\parallel{}S,C &
+(\mathrm{backjump}) & \mbox{if }M,l^\mathrm{d},M'\models\neg{}C
+\mbox{, and there is}\\
+&& \mbox{some clause }C'\lor{}l' s.t.:\\
+&& l'\not\in{}M\mbox{, and }l'\in{}S\mbox{ or }\neg{}l'\in{}S\\
+&& \mbox{or }l'\in{}M,l^\mathrm{d},M'\mbox{ or }
+\neg{}l'\in{}M,l^\mathrm{d},M',\\
+&& \mbox{and }S,C\models{}C'\lor{}l'\mbox{, and }M\models\neg{}C'\\\\
+
+M\parallel{}S\longrightarrow{}M\parallel{}S,\llbracket{}S\rrbracket_\mathcal{T}
+& (\mathrm{tab~learn})
+\end{array}$
+\end{center}}
+\caption{Rules of SAT Solving Modulo Tableau Theory}
+\label{fig:tabsat}
+\end{figure}
