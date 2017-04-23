@@ -5,6 +5,8 @@
    'E, a brainiac theorem prover' by shulz.
 *)
 
+module C = Set.Make(Mapping)
+
 (* Types *)
 (* ************************************************************************ *)
 
@@ -28,7 +30,7 @@ type reason =
 and clause = {
   id : int;                 (* Unique id (for printing and tracking through logs) *)
   lit : lit;                (* Contents of the clause *)
-  map : Unif.t;             (* Current mapping for meta-variables *)
+  map : Mapping.t;                (* Current mapping for variables & meta-variables *)
   reason : reason;          (* Reason of the clause *)
   weight : int;             (* weight of the clause (clauses with lesser
                                weight are selected first) *)
@@ -56,29 +58,26 @@ let rec term_size acc = function
 (* Substitutions *)
 (* ************************************************************************ *)
 
-(* Fold on substs
-   TODO: move this code to unif.ml *)
-let subst_fold s acc f_ty f_term =
-  Expr.Subst.fold f_term s.Unif.t_map
-    (Expr.Subst.fold f_ty s.Unif.ty_map acc)
-
-let subst_size acc s =
-  subst_fold s acc
-    (fun _ ty acc -> ty_size acc ty)
-    (fun _ term acc -> term_size acc term)
-
-(* Ordering on substitutions *)
-let subst_forall s p_ty p_term =
-  subst_fold s true
-    (fun ty_meta ty acc -> acc && p_ty ty_meta ty)
-    (fun meta term acc -> acc && p_term meta term)
+(* can s be composed with another mapping to be equal/included in s' *)
+let match_subst s s' =
+  let aux get f_match x t acc =
+    match get s' x with
+    | t' -> f_match acc t t'
+    | exception Not_found -> acc
+  in
+  let ty_var = aux Mapping.Var.get_ty Match.ty in
+  let ty_meta = aux Mapping.Meta.get_ty Match.ty in
+  let term_var = aux Mapping.Var.get_term Match.term in
+  let term_meta = aux Mapping.Meta.get_term Match.term in
+  Mapping.fold ~ty_var ~term_var ~ty_meta ~term_meta s Mapping.empty
 
 let (<<) s t =
-  subst_forall s
-    (fun ty_meta ty -> Expr.Ty.equal
-        (Unif.type_subst t ty) (Unif.type_subst t (Expr.Ty.of_meta ty_meta)))
-    (fun meta term -> Expr.Term.equal
-        (Unif.term_subst t term) (Unif.term_subst t (Expr.Term.of_meta meta)))
+  try
+    let _ = match_subst s t in
+    true
+  with
+  | Match.Impossible_ty _
+  | Match.Impossible_term _ -> false
 
 (* Clauses *)
 (* ************************************************************************ *)
@@ -97,17 +96,12 @@ let _discr = function
 
 let compare c c' =
   match c.lit, c'.lit with
-  | Empty, Empty ->
-    Unif.compare c.map c'.map
+  | Empty, Empty -> Mapping.compare c.map c'.map
   | Eq (a, b), Eq (a', b')
   | Neq (a, b), Neq (a', b') ->
-    begin match Expr.Term.compare a a' with
-      | 0 -> begin match Expr.Term.compare b b' with
-          | 0 ->  Unif.compare c.map c'.map
-          | x -> x
-        end
-      | x -> x
-    end
+    CCOrd.(Expr.Term.compare a a'
+           <?> (Expr.Term.compare, b, b')
+           <?> (Mapping.compare, c.map, c'.map))
   | x, y -> Pervasives.compare (_discr x) (_discr y)
 
 (* Printing of clauses *)
@@ -145,7 +139,7 @@ let pp_lit fmt c =
     Format.fprintf fmt "@[%a@ %a@ %a@]"
       Expr.Print.term a (pp_cmp ~pos:false) (a, b) Expr.Print.term b
 
-let pp_map fmt c = Unif.print fmt c.map
+let pp_map fmt c = Mapping.print fmt c.map
 
 let pp fmt (c:clause) =
   Format.fprintf fmt "@[<hov 2>%a@,[%a]@,[%a]@,[%a]@]"
@@ -155,8 +149,10 @@ let pp fmt (c:clause) =
    TODO: better heuristic for clause selection. *)
 let compute_weight subst = function
   | Empty -> 0
-  | Eq (a, b) | Neq (a, b) ->
-    term_size (term_size (subst_size 0 subst) b) a
+  | Eq (a, b) ->
+    2 * (term_size (term_size 0 b) a)
+  | Neq (a, b) ->
+    1 * (term_size (term_size 0 b) a)
 
 let cmp_weight c c' = c.weight <= c'.weight
 
@@ -166,7 +162,7 @@ let mk_cl =
   (fun lit subst reason ->
      incr i;
      let weight = compute_weight subst lit in
-     let map = Unif.fixpoint subst in
+     let map = Mapping.fixpoint subst in
      { id = !i; lit; map; reason; weight; }
   )
 
@@ -256,7 +252,7 @@ type t = {
   root_neg_index : I.t;
   inactive_index : I.t;
   section : Section.t;
-  callback : (Unif.t -> unit);
+  callback : (Mapping.t -> unit);
 }
 
 let all_rules = {
@@ -363,11 +359,11 @@ let do_resolution ~section acc clause =
       | sigma' -> mk_empty sigma' clause :: acc
       | exception Unif.Robinson.Impossible_ty _ ->
         Util.debug ~section "Couldn't unify:@ %a =@ %a@;%a"
-          Expr.Term.print s Expr.Term.print t Unif.print sigma;
+          Expr.Term.print s Expr.Term.print t Mapping.print sigma;
         acc
       | exception Unif.Robinson.Impossible_term _ ->
         Util.debug ~section "Couldn't unify:@ %a =@ %a@;%a"
-          Expr.Term.print s Expr.Term.print t Unif.print sigma;
+          Expr.Term.print s Expr.Term.print t Mapping.print sigma;
         acc
     end
 
