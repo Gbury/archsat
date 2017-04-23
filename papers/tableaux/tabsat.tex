@@ -25,10 +25,207 @@ M,l^\mathrm{d},M'\parallel{}S,C\longrightarrow{}M,l'\parallel{}S,C &
 \neg{}l'\in{}M,l^\mathrm{d},M',\\
 && \mbox{and }S,C\models{}C'\lor{}l'\mbox{, and }M\models\neg{}C'\\\\
 
-M\parallel{}S\longrightarrow{}M\parallel{}S,\llbracket{}S\rrbracket_\mathcal{T}
-& (\mathrm{tab~learn})
+M\parallel{}S\longrightarrow{}M\parallel{}S,\llbracket{}S'\rrbracket_\mathcal{T}
+& (\mathrm{tab~learn}) & S'\subseteq{}S\\\\
+
+M\parallel{}S\longrightarrow & (\mathrm{tab~\gamma_{\forall\mathrm{inst}}}) &
+\mbox{if there exist }l,\neg{}l'\in{}M\mbox{ s.t. }\\
+~~~~M\parallel{}S,\neg\lfloor\forall{}x.P(x)\rfloor\lor\lfloor{}P(t)\rfloor &&
+l=\lfloor{}Q\rfloor\mbox{, }l'=\lfloor{}R\rfloor,\\
+&& (X_{\forall{}x.P(x)}\mapsto{}t)\in\mathrm{mgu}(Q,R),\\
+&& \mbox{and there is no }Y_T\in\forall{}x.P(x)\\\\
+
+M\parallel{}S\longrightarrow &
+(\mathrm{tab~\gamma_{\neg\exists\mathrm{inst}}}) &
+\mbox{if there exist }l,\neg{}l'\in{}M\mbox{ s.t. }\\
+~~~~M\parallel{}S,\lfloor\exists{}x.P(x)\rfloor\lor\neg\lfloor{}P(t)\rfloor &&
+l=\lfloor{}Q\rfloor\mbox{, }l'=\lfloor{}R\rfloor,\\
+&& (X_{\neg\exists{}x.P(x)}\mapsto{}t)\in\mathrm{mgu}(Q,R),\\
+&& \mbox{and there is no }Y_T\in\neg\exists{}x.P(x)
 \end{array}$
 \end{center}}
 \caption{Rules of SAT Solving Modulo Tableau Theory}
 \label{fig:tabsat}
+\end{figure}
+
+\begin{figure}[htbp]
+\parbox{\textwidth}
+{\small
+\underline{Analytic Rules}
+\begin{center}
+$\begin{array}{lll@{\hspace{0.5cm}}l}
+\llbracket{}\lfloor{}P\land{}Q\rfloor{}\rrbracket_\mathcal{T} & = &
+\neg\lfloor{}P\land{}Q\rfloor\lor\lfloor{}P\rfloor,
+\neg\lfloor{}P\land{}Q\rfloor\lor\lfloor{}Q\rfloor & (\alpha_\land)\\\\
+
+\llbracket\neg\lfloor{}P\land{}Q\rfloor{}\rrbracket_\mathcal{T} & = &
+\lfloor{}P\land{}Q\rfloor\lor\neg\lfloor{}P\rfloor\lor\neg\lfloor{}Q\rfloor &
+(\beta_{\neg\land})\\\\
+
+\llbracket{}\lfloor{}P\lor{}Q\rfloor{}\rrbracket_\mathcal{T} & = &
+\neg\lfloor{}P\lor{}Q\rfloor\lor\lfloor{}P\rfloor\lor\lfloor{}Q\rfloor &
+(\beta_\lor)\\\\
+
+\llbracket\neg\lfloor{}P\lor{}Q\rfloor{}\rrbracket_\mathcal{T} & = &
+\lfloor{}P\lor{}Q\rfloor\lor\neg\lfloor{}P\rfloor,
+\lfloor{}P\lor{}Q\rfloor\lor\neg\lfloor{}Q\rfloor &
+(\alpha_{\neg\lor})\\\\
+
+\llbracket{}\lfloor{}P\Rightarrow{}Q\rfloor{}\rrbracket_\mathcal{T} & = &
+\neg\lfloor{}P\Rightarrow{}Q\rfloor\lor\neg\lfloor{}P\rfloor\lor
+\lfloor{}Q\rfloor & (\beta_\Rightarrow)\\\\
+
+\llbracket\neg\lfloor{}P\Rightarrow{}Q\rfloor{}\rrbracket_\mathcal{T} & = &
+\lfloor{}P\Rightarrow{}Q\rfloor\lor\lfloor{}P\rfloor,
+\lfloor{}P\Rightarrow{}Q\rfloor\lor\neg\lfloor{}Q\rfloor &
+(\alpha_{\neg\Rightarrow})\\\\
+
+\llbracket{}\lfloor{}P\Leftrightarrow{}Q\rfloor{}\rrbracket_\mathcal{T} & = &
+\left\{\begin{array}{l}
+\neg\lfloor{}P\Rightarrow{}Q\rfloor\lor\neg\lfloor{}P\rfloor\lor
+\lfloor{}P\rfloor,\\
+\neg\lfloor{}P\Rightarrow{}Q\rfloor\lor\neg\lfloor{}P\rfloor\lor
+\lfloor{}Q\rfloor,\\
+\neg\lfloor{}P\Rightarrow{}Q\rfloor\lor\neg\lfloor{}Q\rfloor\lor
+\lfloor{}P\rfloor,\\
+\neg\lfloor{}P\Rightarrow{}Q\rfloor\lor\neg\lfloor{}Q\rfloor\lor
+\lfloor{}Q\rfloor
+\end{array}\right. & (\beta_\Rightarrow)\\\\
+
+\llbracket{}\neg\lfloor{}P\Leftrightarrow{}Q\rfloor{}\rrbracket_\mathcal{T} &
+= &
+\left\{\begin{array}{l}
+\lfloor{}P\Rightarrow{}Q\rfloor\lor\neg\lfloor{}P\rfloor\lor
+\lfloor{}P\rfloor,\\
+\lfloor{}P\Rightarrow{}Q\rfloor\lor\neg\lfloor{}P\rfloor\lor
+\neg\lfloor{}Q\rfloor,\\
+\lfloor{}P\Rightarrow{}Q\rfloor\lor\lfloor{}Q\rfloor\lor
+\lfloor{}P\rfloor,\\
+\lfloor{}P\Rightarrow{}Q\rfloor\lor\lfloor{}Q\rfloor\lor
+\neg\lfloor{}Q\rfloor
+\end{array}\right. & (\beta_{\neg\Rightarrow})
+\end{array}$
+\end{center}
+
+\underline{$\delta$-Rules}
+\begin{center}
+$\begin{array}{lll@{\hspace{0.5cm}}l}
+\llbracket\lfloor\exists{}x.P(x)\rfloor{}\rrbracket_\mathcal{T} & = &
+\neg{}\lfloor\exists{}x.P(x)\rfloor\lor\lfloor{}P(\epsilon(x).P(x))\rfloor &
+(\delta_\exists)\\\\
+
+\llbracket\neg\lfloor\forall{}x.P(x)\rfloor{}\rrbracket_\mathcal{T} & = &
+\lfloor\forall{}x.P(x)\rfloor\lor\neg\lfloor{}P(\epsilon(x).\neg{}P(x))\rfloor &
+(\delta_{\neg\forall})
+\end{array}$
+\end{center}
+
+\underline{$\gamma$-Rules}
+\begin{center}
+$\begin{array}{lll@{\hspace{0.5cm}}l}
+\llbracket\lfloor\forall{}x.P(x)\rfloor{}\rrbracket_\mathcal{T} & = &
+\neg\lfloor\forall{}x.P(x)\rfloor\lor\lfloor{}P(X_{\forall{}x.P(x)})\rfloor &
+(\gamma_{\forall{}M})\\\\
+
+\llbracket\neg\lfloor\exists{}x.P(x)\rfloor{}\rrbracket_\mathcal{T} & = &
+\lfloor\exists{}x.P(x)\rfloor\lor
+\neg\lfloor{}P(X_{\neg\exists{}x.P(x)})\rfloor &
+(\gamma_{\neg\exists{}M})
+\end{array}$
+\end{center}}
+\caption{Rules of Tableau Theory}
+\label{fig:tabth}
+\end{figure}
+
+\begin{figure}[htbp]
+\parbox{\textwidth}
+{\small
+\begin{center}
+$\begin{array}{lcl}
+\emptyset\parallel
+\neg(A\equiv\lfloor\exists{}x.P(x)\Rightarrow{}P(a)\land{}P(b)\rfloor) &
+\longrightarrow & (\mathrm{unit~prop})\\
+
+\neg{}A\parallel{}\neg{}A & \longrightarrow & (\mathrm{tab~learn})\\
+
+\neg{}A\parallel
+\neg{}A,A\lor\neg(B\equiv\lfloor{}P(X)\Rightarrow{}P(a)\land{}P(b)\rfloor) &
+\longrightarrow & (\mathrm{unit~prop})\\
+
+\neg{}A,\neg{}B\parallel\neg{}A,A\lor\neg{}B & \longrightarrow &
+(\mathrm{tab~learn})\\
+
+\neg{}A,\neg{}B\parallel\neg{}A,A\lor\neg{}B,
+A\lor{}B\lor{}(C\equiv\lfloor{}P(X)\rfloor{}),\\
+~~~~A\lor{}B\lor\neg(D\equiv\lfloor{}P(a)\land{}P(b)\rfloor{}) &
+\longrightarrow & (\mathrm{unit~prop})\times{}2\\
+
+\neg{}A,\neg{}B,C,\neg{}D\parallel\neg{}A,A\lor\neg{}B,A\lor{}B\lor{}C,
+A\lor{}B\lor\neg{}D & \longrightarrow & (\mathrm{tab~learn})\\
+
+\neg{}A,\neg{}B,C,\neg{}D\parallel\neg{}A,A\lor\neg{}B,A\lor{}B\lor{}C,
+A\lor{}B\lor\neg{}D,\\
+~~~~A\lor{}B\lor{}D\lor\neg(E\equiv\lfloor{}P(a)\rfloor)\lor
+\neg(F\equiv\lfloor{}P(b)\rfloor) & \longrightarrow & (\mathrm{decide})\\
+
+\neg{}A,\neg{}B,C,\neg{}D,\neg{}E^d\parallel
+\neg{}A,A\lor\neg{}B,A\lor{}B\lor{}C, & \longrightarrow &
+(\mathrm{tab~\gamma_{\neg\exists\mathrm{inst}}})\\
+~~~~A\lor{}B\lor\neg{}D,A\lor{}B\lor{}D\lor\neg{}E\lor\neg{}F &&
+\{X\mapsto{}a\}=\mathrm{mgu}(C,E)\\
+
+\neg{}A,\neg{}B,C,\neg{}D,\neg{}E^d\parallel
+\neg{}A,A\lor\neg{}B,A\lor{}B\lor{}C,\\
+~~~~A\lor{}B\lor\neg{}D,A\lor{}B\lor{}D\lor\neg{}E\lor\neg{}F,\\
+~~~~A\lor\neg(G\equiv{}\lfloor{}P(a)\Rightarrow{}P(a)\land{}P(b)\rfloor) &
+\longrightarrow & (\mathrm{unit~prop})\\
+
+\neg{}A,\neg{}B,C,\neg{}D,\neg{}E^d,\neg{}G\parallel
+\neg{}A,A\lor\neg{}B,A\lor{}B\lor{}C,\\
+~~~~A\lor{}B\lor\neg{}D,A\lor{}B\lor{}D\lor\neg{}E\lor\neg{}F,A\lor\neg{}G &
+\longrightarrow & (\mathrm{tab~learn})\\
+
+\neg{}A,\neg{}B,C,\neg{}D,\neg{}E^d,\neg{}G\parallel
+\neg{}A,A\lor\neg{}B,A\lor{}B\lor{}C,\\
+~~~~A\lor{}B\lor\neg{}D,A\lor{}B\lor{}D\lor\neg{}E\lor\neg{}F,A\lor\neg{}G\\
+~~~~A\lor{}G\lor{}E,A\lor{}G\lor\neg{}D & \longrightarrow &
+(\mathrm{backjump})\\
+
+\neg{}A,\neg{}B,C,\neg{}D,E\parallel
+\neg{}A,A\lor\neg{}B,A\lor{}B\lor{}C,\\
+~~~~A\lor{}B\lor\neg{}D,A\lor{}B\lor{}D\lor\neg{}E\lor\neg{}F,A\lor\neg{}G\\
+~~~~A\lor{}G\lor{}E,A\lor{}G\lor\neg{}D & \longrightarrow &
+(\mathrm{unit~prop})\times{}2\\
+
+\neg{}A,\neg{}B,C,\neg{}D,E,\neg{}F,\neg{}G\parallel
+\neg{}A,A\lor\neg{}B,A\lor{}B\lor{}C,\\
+~~~~A\lor{}B\lor\neg{}D,A\lor{}B\lor{}D\lor\neg{}E\lor\neg{}F,A\lor\neg{}G &
+\longrightarrow & (\mathrm{tab~\gamma_{\neg\exists\mathrm{inst}}})\\
+~~~~A\lor{}G\lor{}E,A\lor{}G\lor\neg{}D && \{X\mapsto{}b\}=\mathrm{mgu}(C,F)\\
+
+\neg{}A,\neg{}B,C,\neg{}D,E,\neg{}F,\neg{}G\parallel
+\neg{}A,A\lor\neg{}B,A\lor{}B\lor{}C,\\
+~~~~A\lor{}B\lor\neg{}D,A\lor{}B\lor{}D\lor\neg{}E\lor\neg{}F,A\lor\neg{}G\\
+~~~~A\lor{}G\lor{}E,A\lor{}G\lor\neg{}D,\\
+~~~~A\lor\neg(H\equiv{}\lfloor{}P(b)\Rightarrow{}P(a)\land{}P(b)\rfloor) &
+\longrightarrow & (\mathrm{unit~prop})\\
+
+\neg{}A,\neg{}B,C,\neg{}D,E,\neg{}F,\neg{}G,\neg{}H\parallel
+\neg{}A,A\lor\neg{}B,A\lor{}B\lor{}C,\\
+~~~~A\lor{}B\lor\neg{}D,A\lor{}B\lor{}D\lor\neg{}E\lor\neg{}F,A\lor\neg{}G\\
+~~~~A\lor{}G\lor{}E,A\lor{}G\lor\neg{}D,A\lor\neg{}H & \longrightarrow &
+(\mathrm{tab~learn})\\
+
+\neg{}A,\neg{}B,C,\neg{}D,E,\neg{}F,\neg{}G,\neg{}H\parallel
+\neg{}A,A\lor\neg{}B,A\lor{}B\lor{}C,\\
+~~~~A\lor{}B\lor\neg{}D,A\lor{}B\lor{}D\lor\neg{}E\lor\neg{}F,A\lor\neg{}G\\
+~~~~A\lor{}G\lor{}E,A\lor{}G\lor\neg{}D,A\lor\neg{}H,\\
+~~~~A\lor{}H\lor{}F,A\lor{}H\lor{}\neg{}D & \longrightarrow &
+(\mathrm{unsat})\\
+
+\mathrm{unsat}
+\end{array}$
+\end{center}}
+\caption{Example of Proof}
+\label{fig:exa}
 \end{figure}
