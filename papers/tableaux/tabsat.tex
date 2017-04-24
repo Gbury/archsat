@@ -29,25 +29,10 @@ M,l^\mathrm{d},M'\parallel{}S,C\longrightarrow{}M,l'\parallel{}S,C &
 
 M\parallel{}S\longrightarrow{}M\parallel{}S,S'
 & (\mathrm{learn}) & \models_TS'\mbox{, where }T\mbox{ is a theory}
-
-%% M\parallel{}S\longrightarrow & (\mathrm{tab~\gamma_{\forall\mathrm{inst}}}) &
-%% \mbox{if there exist }l,\neg{}l'\in{}M\mbox{ s.t. }\\
-%% ~~~~M\parallel{}S,\neg\lfloor\forall{}x.P(x)\rfloor\lor\lfloor{}P(t)\rfloor &&
-%% l=\lfloor{}Q\rfloor\mbox{, }l'=\lfloor{}R\rfloor,\\
-%% && (X_{\forall{}x.P(x)}\mapsto{}t)\in\mathrm{mgu}(Q,R),\\
-%% && \mbox{and there is no }Y_T\in\forall{}x.P(x)\\\\
-
-%% M\parallel{}S\longrightarrow &
-%% (\mathrm{tab~\gamma_{\neg\exists\mathrm{inst}}}) &
-%% \mbox{if there exist }l,\neg{}l'\in{}M\mbox{ s.t. }\\
-%% ~~~~M\parallel{}S,\lfloor\exists{}x.P(x)\rfloor\lor\neg\lfloor{}P(t)\rfloor &&
-%% l=\lfloor{}Q\rfloor\mbox{, }l'=\lfloor{}R\rfloor,\\
-%% && (X_{\neg\exists{}x.P(x)}\mapsto{}t)\in\mathrm{mgu}(Q,R),\\
-%% && \mbox{and there is no }Y_T\in\neg\exists{}x.P(x)
 \end{array}$
 \end{center}}
 \caption{Rules of SAT Solving Modulo Theory}
-\label{fig:tabsat}
+\label{fig:smt}
 \end{figure}
 
 \begin{figure}[htbp]
@@ -122,6 +107,31 @@ $\begin{array}{lll@{\hspace{0.5cm}}l}
 \end{center}}
 \caption{Rules of Tableau Theory}
 \label{fig:tabth}
+\end{figure}
+
+\begin{figure}[htbp]
+\parbox{\textwidth}
+{\small
+\begin{center}
+$\begin{array}{l@{\hspace{0.4cm}}l@{\hspace{0.4cm}}l}
+M\parallel{}S\longrightarrow & (\mathrm{tab~\gamma_{\forall\mathrm{inst}}}) &
+\mbox{if there exist }l,\neg{}l'\in{}M\mbox{ s.t. }\\
+~~~~M\parallel{}S,\neg\lfloor\forall{}x.P(x)\rfloor\lor\lfloor{}P(t)\rfloor &&
+l=\lfloor{}Q\rfloor\mbox{, }l'=\lfloor{}R\rfloor,\\
+&& (X_{\forall{}x.P(x)}\mapsto{}t)\in\mathrm{mgu}(Q,R),\\
+&& \mbox{and there is no }Y_T\in\forall{}x.P(x)\\\\
+
+M\parallel{}S\longrightarrow &
+(\mathrm{tab~\gamma_{\neg\exists\mathrm{inst}}}) &
+\mbox{if there exist }l,\neg{}l'\in{}M\mbox{ s.t. }\\
+~~~~M\parallel{}S,\lfloor\exists{}x.P(x)\rfloor\lor\neg\lfloor{}P(t)\rfloor &&
+l=\lfloor{}Q\rfloor\mbox{, }l'=\lfloor{}R\rfloor,\\
+&& (X_{\neg\exists{}x.P(x)}\mapsto{}t)\in\mathrm{mgu}(Q,R),\\
+&& \mbox{and there is no }Y_T\in\neg\exists{}x.P(x)
+\end{array}$
+\end{center}}
+\caption{Rules of Tableau Instantiation Theory}
+\label{fig:tabinst}
 \end{figure}
 
 \begin{figure}[htbp]
