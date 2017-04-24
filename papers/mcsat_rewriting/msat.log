@@ -1,4 +1,4 @@
-This is pdfTeX, Version 3.14159265-2.6-1.40.17 (TeX Live 2016/Arch Linux) (preloaded format=pdflatex 2016.8.21)  19 DEC 2016 11:25
+This is pdfTeX, Version 3.14159265-2.6-1.40.17 (TeX Live 2016/Arch Linux) (preloaded format=pdflatex 2017.4.18)  24 APR 2017 00:23
 entering extended mode
  restricted \write18 enabled.
  %&-line parsing enabled.
@@ -952,13 +952,19 @@ Overfull \hbox (10.71259pt too wide) in paragraph at lines 182--194
  [] 
  []
 
-[4] [5] [6] [7]
-Overfull \hbox (18.52568pt too wide) in paragraph at lines 428--428
+[4] [5]
+Overfull \hbox (1.91785pt too wide) in paragraph at lines 265--266
+[]\T1/cmr/m/n/10 TODO:reword the fol-low-ing para-graph (in-fer-ence rule Confl
+ict-SMT re-named
+ []
+
+[6] [7]
+Overfull \hbox (18.52568pt too wide) in paragraph at lines 431--431
  [] 
  []
 
 
-Overfull \hbox (18.52567pt too wide) detected at line 431
+Overfull \hbox (18.52567pt too wide) detected at line 434
 |[]|
  []
 
@@ -966,7 +972,7 @@ Overfull \hbox (18.52567pt too wide) detected at line 431
 Here is how much of TeX's memory you used:
  15816 strings out of 493013
  307128 string characters out of 6139317
- 358532 words of memory out of 5000000
+ 357530 words of memory out of 5000000
  19018 multiletter control sequences out of 15000+600000
  22939 words of font info for 57 fonts, out of 8000000 for 9000
  1141 hyphenation exceptions out of 8191
@@ -996,7 +1002,7 @@ usr/share/texmf-dist/fonts/type1/public/cm-super/sfss1000.pfb></usr/share/texmf
 -dist/fonts/type1/public/cm-super/sfss1728.pfb></usr/share/texmf-dist/fonts/typ
 e1/public/cm-super/sfsx1000.pfb></usr/share/texmf-dist/fonts/type1/public/cm-su
 per/sfsx1440.pfb>
-Output written on msat.pdf (11 pages, 345975 bytes).
+Output written on msat.pdf (11 pages, 345692 bytes).
 PDF statistics:
  157 PDF objects out of 1000 (max. 8388607)
  114 compressed objects within 2 object streams

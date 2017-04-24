@@ -198,12 +198,11 @@ depending on the current state:
     \begin{tabular}{c@{\hspace{1cm}}l}
       % Conflict (theory)
       \AXC{$\text{Solve}(\mathbb{S}, t)$}
-      \LLc{Conflict-Smt}
-      \UIC{$\text{Analyze}(\mathbb{S}, t, C)$}
+      \LLc{Smt}
+      \UIC{$\text{Solve}(\mathbb{S} \cup \{C\}, t)$}
       \DP{} &
       \begin{tabular}{l}
         $\mathcal{T} \vdash C$ \\
-        $\forall a \in C. \neg a \in t$ \\
       \end{tabular}
       \\ \\
     \end{tabular}
@@ -261,7 +260,11 @@ The role of the theory $\mathcal{T}$ is to stop the proof search as soon as the 
 of the \sat{} solver is inconsistent. A trail is inconsistent iff there exists a clause
 $C$, which is a tautology of $\mathcal{T}$ (thus $\mathcal{T} \vdash C$), but is not
 satisfied in the current trail (each of its literals has either been decided or
-propagated to false). Thus, we can add the \irule{Conflict-Smt} rule (see
+propagated to false).
+
+TODO:reword the following paragraph (inference rule Conflict-SMT renamed to SMT)
+
+Thus, we can add the \irule{Conflict-Smt} rule (see
 Figure~\ref{fig:smt_rules}) to the \cdcl{} inference rules in order to get a \smt{} solver.
 We give the \irule{Conflict-Smt} rule a slightly lower precedence than the
 \irule{Conflict} rule for performance reason (detecting boolean conflict is
