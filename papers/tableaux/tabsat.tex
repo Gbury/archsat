@@ -14,8 +14,10 @@ M\parallel{}S\longrightarrow{}M,l^\mathrm{d}\parallel{}S & (\mathrm{decide}) &
 \mbox{if }l\not\in{}M\mbox{, and }l\in{}S\mbox{ or }\neg{}l\in{}S\\\\
 
 M\parallel{}S,C\longrightarrow\mathrm{unsat} & (\mathrm{unsat}) &
-\mbox{if }M\models{}\neg{}C\mbox{ and there is no }l^\mathrm{d}\in{}M\\\\
-
+\mbox{if }M'\models{}\neg{}C\mbox{ s.t. }M'\subseteq{}M\\
+&& \mbox{and there is no }l^\mathrm{d}\leq{}l'\mbox{ in }M\\
+&& \mbox{for all }l'\in{}M'\\\\
+ 
 M,l^\mathrm{d},M'\parallel{}S,C\longrightarrow{}M,l'\parallel{}S,C &
 (\mathrm{backjump}) & \mbox{if }M,l^\mathrm{d},M'\models\neg{}C
 \mbox{, and there is}\\
@@ -25,26 +27,26 @@ M,l^\mathrm{d},M'\parallel{}S,C\longrightarrow{}M,l'\parallel{}S,C &
 \neg{}l'\in{}M,l^\mathrm{d},M',\\
 && \mbox{and }S,C\models{}C'\lor{}l'\mbox{, and }M\models\neg{}C'\\\\
 
-M\parallel{}S\longrightarrow{}M\parallel{}S,\llbracket{}S'\rrbracket_\mathcal{T}
-& (\mathrm{tab~learn}) & S'\subseteq{}S\\\\
+M\parallel{}S\longrightarrow{}M\parallel{}S,S'
+& (\mathrm{learn}) & \models_TS'\mbox{, where }T\mbox{ is a theory}
 
-M\parallel{}S\longrightarrow & (\mathrm{tab~\gamma_{\forall\mathrm{inst}}}) &
-\mbox{if there exist }l,\neg{}l'\in{}M\mbox{ s.t. }\\
-~~~~M\parallel{}S,\neg\lfloor\forall{}x.P(x)\rfloor\lor\lfloor{}P(t)\rfloor &&
-l=\lfloor{}Q\rfloor\mbox{, }l'=\lfloor{}R\rfloor,\\
-&& (X_{\forall{}x.P(x)}\mapsto{}t)\in\mathrm{mgu}(Q,R),\\
-&& \mbox{and there is no }Y_T\in\forall{}x.P(x)\\\\
+%% M\parallel{}S\longrightarrow & (\mathrm{tab~\gamma_{\forall\mathrm{inst}}}) &
+%% \mbox{if there exist }l,\neg{}l'\in{}M\mbox{ s.t. }\\
+%% ~~~~M\parallel{}S,\neg\lfloor\forall{}x.P(x)\rfloor\lor\lfloor{}P(t)\rfloor &&
+%% l=\lfloor{}Q\rfloor\mbox{, }l'=\lfloor{}R\rfloor,\\
+%% && (X_{\forall{}x.P(x)}\mapsto{}t)\in\mathrm{mgu}(Q,R),\\
+%% && \mbox{and there is no }Y_T\in\forall{}x.P(x)\\\\
 
-M\parallel{}S\longrightarrow &
-(\mathrm{tab~\gamma_{\neg\exists\mathrm{inst}}}) &
-\mbox{if there exist }l,\neg{}l'\in{}M\mbox{ s.t. }\\
-~~~~M\parallel{}S,\lfloor\exists{}x.P(x)\rfloor\lor\neg\lfloor{}P(t)\rfloor &&
-l=\lfloor{}Q\rfloor\mbox{, }l'=\lfloor{}R\rfloor,\\
-&& (X_{\neg\exists{}x.P(x)}\mapsto{}t)\in\mathrm{mgu}(Q,R),\\
-&& \mbox{and there is no }Y_T\in\neg\exists{}x.P(x)
+%% M\parallel{}S\longrightarrow &
+%% (\mathrm{tab~\gamma_{\neg\exists\mathrm{inst}}}) &
+%% \mbox{if there exist }l,\neg{}l'\in{}M\mbox{ s.t. }\\
+%% ~~~~M\parallel{}S,\lfloor\exists{}x.P(x)\rfloor\lor\neg\lfloor{}P(t)\rfloor &&
+%% l=\lfloor{}Q\rfloor\mbox{, }l'=\lfloor{}R\rfloor,\\
+%% && (X_{\neg\exists{}x.P(x)}\mapsto{}t)\in\mathrm{mgu}(Q,R),\\
+%% && \mbox{and there is no }Y_T\in\neg\exists{}x.P(x)
 \end{array}$
 \end{center}}
-\caption{Rules of SAT Solving Modulo Tableau Theory}
+\caption{Rules of SAT Solving Modulo Theory}
 \label{fig:tabsat}
 \end{figure}
 
@@ -81,29 +83,14 @@ $\begin{array}{lll@{\hspace{0.5cm}}l}
 (\alpha_{\neg\Rightarrow})\\\\
 
 \llbracket{}\lfloor{}P\Leftrightarrow{}Q\rfloor{}\rrbracket_\mathcal{T} & = &
-\left\{\begin{array}{l}
-\neg\lfloor{}P\Rightarrow{}Q\rfloor\lor\neg\lfloor{}P\rfloor\lor
-\lfloor{}P\rfloor,\\
-\neg\lfloor{}P\Rightarrow{}Q\rfloor\lor\neg\lfloor{}P\rfloor\lor
-\lfloor{}Q\rfloor,\\
-\neg\lfloor{}P\Rightarrow{}Q\rfloor\lor\neg\lfloor{}Q\rfloor\lor
-\lfloor{}P\rfloor,\\
-\neg\lfloor{}P\Rightarrow{}Q\rfloor\lor\neg\lfloor{}Q\rfloor\lor
-\lfloor{}Q\rfloor
-\end{array}\right. & (\beta_\Rightarrow)\\\\
+\neg\lfloor{}P\Leftrightarrow{}Q\rfloor\lor\lfloor{}P\Rightarrow{}Q\rfloor,
+\neg\lfloor{}P\Leftrightarrow{}Q\rfloor\lor\lfloor{}Q\Rightarrow{}P\rfloor &
+(\beta_\Rightarrow)\\\\
 
 \llbracket{}\neg\lfloor{}P\Leftrightarrow{}Q\rfloor{}\rrbracket_\mathcal{T} &
 = &
-\left\{\begin{array}{l}
-\lfloor{}P\Rightarrow{}Q\rfloor\lor\neg\lfloor{}P\rfloor\lor
-\lfloor{}P\rfloor,\\
-\lfloor{}P\Rightarrow{}Q\rfloor\lor\neg\lfloor{}P\rfloor\lor
-\neg\lfloor{}Q\rfloor,\\
-\lfloor{}P\Rightarrow{}Q\rfloor\lor\lfloor{}Q\rfloor\lor
-\lfloor{}P\rfloor,\\
-\lfloor{}P\Rightarrow{}Q\rfloor\lor\lfloor{}Q\rfloor\lor
-\neg\lfloor{}Q\rfloor
-\end{array}\right. & (\beta_{\neg\Rightarrow})
+\lfloor{}P\Leftrightarrow{}Q\rfloor\lor\neg\lfloor{}P\Rightarrow{}Q\rfloor\lor
+\neg\lfloor{}Q\Rightarrow{}P\rfloor & (\beta_{\neg\Rightarrow})
 \end{array}$
 \end{center}
 
