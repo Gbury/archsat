@@ -143,81 +143,73 @@ $\begin{array}{lcl}
 \neg(A\equiv\lfloor\exists{}x.P(x)\Rightarrow{}P(a)\land{}P(b)\rfloor) &
 \longrightarrow & (\mathrm{unit~prop})\\
 
-\neg{}A\parallel{}\neg{}A & \longrightarrow & (\mathrm{tab~learn})\\
+\neg{}A\parallel{}\neg{}A & \longrightarrow & (\mathrm{learn})\\
 
 \neg{}A\parallel
 \neg{}A,A\lor\neg(B\equiv\lfloor{}P(X)\Rightarrow{}P(a)\land{}P(b)\rfloor) &
 \longrightarrow & (\mathrm{unit~prop})\\
 
 \neg{}A,\neg{}B\parallel\neg{}A,A\lor\neg{}B & \longrightarrow &
-(\mathrm{tab~learn})\\
+(\mathrm{learn})\\
 
 \neg{}A,\neg{}B\parallel\neg{}A,A\lor\neg{}B,
-A\lor{}B\lor{}(C\equiv\lfloor{}P(X)\rfloor{}),\\
-~~~~A\lor{}B\lor\neg(D\equiv\lfloor{}P(a)\land{}P(b)\rfloor{}) &
+B\lor{}(C\equiv\lfloor{}P(X)\rfloor{}),\\
+~~~~B\lor\neg(D\equiv\lfloor{}P(a)\land{}P(b)\rfloor{}) &
 \longrightarrow & (\mathrm{unit~prop})\times{}2\\
 
-\neg{}A,\neg{}B,C,\neg{}D\parallel\neg{}A,A\lor\neg{}B,A\lor{}B\lor{}C,
-A\lor{}B\lor\neg{}D & \longrightarrow & (\mathrm{tab~learn})\\
+\neg{}A,\neg{}B,C,\neg{}D\parallel\neg{}A,A\lor\neg{}B,B\lor{}C,B\lor\neg{}D &
+\longrightarrow & (\mathrm{learn})\\
 
-\neg{}A,\neg{}B,C,\neg{}D\parallel\neg{}A,A\lor\neg{}B,A\lor{}B\lor{}C,
-A\lor{}B\lor\neg{}D,\\
-~~~~A\lor{}B\lor{}D\lor\neg(E\equiv\lfloor{}P(a)\rfloor)\lor
+\neg{}A,\neg{}B,C,\neg{}D\parallel\neg{}A,A\lor\neg{}B,B\lor{}C,B\lor\neg{}D,\\
+~~~~D\lor\neg(E\equiv\lfloor{}P(a)\rfloor)\lor
 \neg(F\equiv\lfloor{}P(b)\rfloor) & \longrightarrow & (\mathrm{decide})\\
 
 \neg{}A,\neg{}B,C,\neg{}D,\neg{}E^d\parallel
-\neg{}A,A\lor\neg{}B,A\lor{}B\lor{}C, & \longrightarrow &
-(\mathrm{tab~\gamma_{\neg\exists\mathrm{inst}}})\\
-~~~~A\lor{}B\lor\neg{}D,A\lor{}B\lor{}D\lor\neg{}E\lor\neg{}F &&
-\{X\mapsto{}a\}=\mathrm{mgu}(C,E)\\
+\neg{}A,A\lor\neg{}B,B\lor{}C, & \longrightarrow &
+(\mathrm{learn})\\
+~~~~B\lor\neg{}D,D\lor\neg{}E\lor\neg{}F && \{X\mapsto{}a\}=\mathrm{mgu}(C,E)\\
 
 \neg{}A,\neg{}B,C,\neg{}D,\neg{}E^d\parallel
-\neg{}A,A\lor\neg{}B,A\lor{}B\lor{}C,\\
-~~~~A\lor{}B\lor\neg{}D,A\lor{}B\lor{}D\lor\neg{}E\lor\neg{}F,\\
+\neg{}A,A\lor\neg{}B,B\lor{}C,\\
+~~~~B\lor\neg{}D,D\lor\neg{}E\lor\neg{}F,\\
 ~~~~A\lor\neg(G\equiv{}\lfloor{}P(a)\Rightarrow{}P(a)\land{}P(b)\rfloor) &
 \longrightarrow & (\mathrm{unit~prop})\\
 
 \neg{}A,\neg{}B,C,\neg{}D,\neg{}E^d,\neg{}G\parallel
-\neg{}A,A\lor\neg{}B,A\lor{}B\lor{}C,\\
-~~~~A\lor{}B\lor\neg{}D,A\lor{}B\lor{}D\lor\neg{}E\lor\neg{}F,A\lor\neg{}G &
-\longrightarrow & (\mathrm{tab~learn})\\
+\neg{}A,A\lor\neg{}B,B\lor{}C,\\
+~~~~B\lor\neg{}D,D\lor\neg{}E\lor\neg{}F,A\lor\neg{}G & \longrightarrow &
+(\mathrm{learn})\\
 
 \neg{}A,\neg{}B,C,\neg{}D,\neg{}E^d,\neg{}G\parallel
-\neg{}A,A\lor\neg{}B,A\lor{}B\lor{}C,\\
-~~~~A\lor{}B\lor\neg{}D,A\lor{}B\lor{}D\lor\neg{}E\lor\neg{}F,A\lor\neg{}G\\
-~~~~A\lor{}G\lor{}E,A\lor{}G\lor\neg{}D & \longrightarrow &
-(\mathrm{backjump})\\
+\neg{}A,A\lor\neg{}B,B\lor{}C,\\
+~~~~B\lor\neg{}D,D\lor\neg{}E\lor\neg{}F,A\lor\neg{}G,G\lor{}E,G\lor\neg{}D &
+\longrightarrow & (\mathrm{backjump})\\
 
 \neg{}A,\neg{}B,C,\neg{}D,E\parallel
-\neg{}A,A\lor\neg{}B,A\lor{}B\lor{}C,\\
-~~~~A\lor{}B\lor\neg{}D,A\lor{}B\lor{}D\lor\neg{}E\lor\neg{}F,A\lor\neg{}G\\
-~~~~A\lor{}G\lor{}E,A\lor{}G\lor\neg{}D & \longrightarrow &
-(\mathrm{unit~prop})\times{}2\\
+\neg{}A,A\lor\neg{}B,B\lor{}C,\\
+~~~~B\lor\neg{}D,D\lor\neg{}E\lor\neg{}F,A\lor\neg{}G,G\lor{}E,G\lor\neg{}D &
+\longrightarrow & (\mathrm{unit~prop})\times{}2\\
 
 \neg{}A,\neg{}B,C,\neg{}D,E,\neg{}F,\neg{}G\parallel
-\neg{}A,A\lor\neg{}B,A\lor{}B\lor{}C,\\
-~~~~A\lor{}B\lor\neg{}D,A\lor{}B\lor{}D\lor\neg{}E\lor\neg{}F,A\lor\neg{}G &
-\longrightarrow & (\mathrm{tab~\gamma_{\neg\exists\mathrm{inst}}})\\
-~~~~A\lor{}G\lor{}E,A\lor{}G\lor\neg{}D && \{X\mapsto{}b\}=\mathrm{mgu}(C,F)\\
+\neg{}A,A\lor\neg{}B,B\lor{}C, & \longrightarrow & (\mathrm{learn})\\
+~~~~B\lor\neg{}D,D\lor\neg{}E\lor\neg{}F,A\lor\neg{}G,G\lor{}E,G\lor\neg{}D &&
+\{X\mapsto{}b\}=\mathrm{mgu}(C,F)\\
 
 \neg{}A,\neg{}B,C,\neg{}D,E,\neg{}F,\neg{}G\parallel
-\neg{}A,A\lor\neg{}B,A\lor{}B\lor{}C,\\
-~~~~A\lor{}B\lor\neg{}D,A\lor{}B\lor{}D\lor\neg{}E\lor\neg{}F,A\lor\neg{}G\\
-~~~~A\lor{}G\lor{}E,A\lor{}G\lor\neg{}D,\\
+\neg{}A,A\lor\neg{}B,B\lor{}C,\\
+~~~~B\lor\neg{}D,D\lor\neg{}E\lor\neg{}F,A\lor\neg{}G,G\lor{}E,G\lor\neg{}D\\
 ~~~~A\lor\neg(H\equiv{}\lfloor{}P(b)\Rightarrow{}P(a)\land{}P(b)\rfloor) &
 \longrightarrow & (\mathrm{unit~prop})\\
 
 \neg{}A,\neg{}B,C,\neg{}D,E,\neg{}F,\neg{}G,\neg{}H\parallel
-\neg{}A,A\lor\neg{}B,A\lor{}B\lor{}C,\\
-~~~~A\lor{}B\lor\neg{}D,A\lor{}B\lor{}D\lor\neg{}E\lor\neg{}F,A\lor\neg{}G\\
-~~~~A\lor{}G\lor{}E,A\lor{}G\lor\neg{}D,A\lor\neg{}H & \longrightarrow &
-(\mathrm{tab~learn})\\
+\neg{}A,A\lor\neg{}B,B\lor{}C,\\
+~~~~B\lor\neg{}D,D\lor\neg{}E\lor\neg{}F,A\lor\neg{}G,G\lor{}E,G\lor\neg{}D\\
+~~~~A\lor\neg{}H & \longrightarrow & (\mathrm{learn})\\
 
 \neg{}A,\neg{}B,C,\neg{}D,E,\neg{}F,\neg{}G,\neg{}H\parallel
-\neg{}A,A\lor\neg{}B,A\lor{}B\lor{}C,\\
-~~~~A\lor{}B\lor\neg{}D,A\lor{}B\lor{}D\lor\neg{}E\lor\neg{}F,A\lor\neg{}G\\
-~~~~A\lor{}G\lor{}E,A\lor{}G\lor\neg{}D,A\lor\neg{}H,\\
-~~~~A\lor{}H\lor{}F,A\lor{}H\lor{}\neg{}D & \longrightarrow &
+\neg{}A,A\lor\neg{}B,B\lor{}C,\\
+~~~~B\lor\neg{}D,D\lor\neg{}E\lor\neg{}F,A\lor\neg{}G,G\lor{}E,G\lor\neg{}D\\
+~~~~A\lor\neg{}H,H\lor{}F,H\lor{}\neg{}D & \longrightarrow &
 (\mathrm{unsat})\\
 
 \mathrm{unsat}
@@ -226,3 +218,96 @@ A\lor{}B\lor\neg{}D,\\
 \caption{Example of Proof}
 \label{fig:exa}
 \end{figure}
+
+%% \begin{figure}[htbp]
+%% \parbox{\textwidth}
+%% {\small
+%% \begin{center}
+%% $\begin{array}{lcl}
+%% \emptyset\parallel
+%% \neg(A\equiv\lfloor\exists{}x.P(x)\Rightarrow{}P(a)\land{}P(b)\rfloor) &
+%% \longrightarrow & (\mathrm{unit~prop})\\
+
+%% \neg{}A\parallel{}\neg{}A & \longrightarrow & (\mathrm{tab~learn})\\
+
+%% \neg{}A\parallel
+%% \neg{}A,A\lor\neg(B\equiv\lfloor{}P(X)\Rightarrow{}P(a)\land{}P(b)\rfloor) &
+%% \longrightarrow & (\mathrm{unit~prop})\\
+
+%% \neg{}A,\neg{}B\parallel\neg{}A,A\lor\neg{}B & \longrightarrow &
+%% (\mathrm{tab~learn})\\
+
+%% \neg{}A,\neg{}B\parallel\neg{}A,A\lor\neg{}B,
+%% A\lor{}B\lor{}(C\equiv\lfloor{}P(X)\rfloor{}),\\
+%% ~~~~A\lor{}B\lor\neg(D\equiv\lfloor{}P(a)\land{}P(b)\rfloor{}) &
+%% \longrightarrow & (\mathrm{unit~prop})\times{}2\\
+
+%% \neg{}A,\neg{}B,C,\neg{}D\parallel\neg{}A,A\lor\neg{}B,A\lor{}B\lor{}C,
+%% A\lor{}B\lor\neg{}D & \longrightarrow & (\mathrm{tab~learn})\\
+
+%% \neg{}A,\neg{}B,C,\neg{}D\parallel\neg{}A,A\lor\neg{}B,A\lor{}B\lor{}C,
+%% A\lor{}B\lor\neg{}D,\\
+%% ~~~~A\lor{}B\lor{}D\lor\neg(E\equiv\lfloor{}P(a)\rfloor)\lor
+%% \neg(F\equiv\lfloor{}P(b)\rfloor) & \longrightarrow & (\mathrm{decide})\\
+
+%% \neg{}A,\neg{}B,C,\neg{}D,\neg{}E^d\parallel
+%% \neg{}A,A\lor\neg{}B,A\lor{}B\lor{}C, & \longrightarrow &
+%% (\mathrm{tab~\gamma_{\neg\exists\mathrm{inst}}})\\
+%% ~~~~A\lor{}B\lor\neg{}D,A\lor{}B\lor{}D\lor\neg{}E\lor\neg{}F &&
+%% \{X\mapsto{}a\}=\mathrm{mgu}(C,E)\\
+
+%% \neg{}A,\neg{}B,C,\neg{}D,\neg{}E^d\parallel
+%% \neg{}A,A\lor\neg{}B,A\lor{}B\lor{}C,\\
+%% ~~~~A\lor{}B\lor\neg{}D,A\lor{}B\lor{}D\lor\neg{}E\lor\neg{}F,\\
+%% ~~~~A\lor\neg(G\equiv{}\lfloor{}P(a)\Rightarrow{}P(a)\land{}P(b)\rfloor) &
+%% \longrightarrow & (\mathrm{unit~prop})\\
+
+%% \neg{}A,\neg{}B,C,\neg{}D,\neg{}E^d,\neg{}G\parallel
+%% \neg{}A,A\lor\neg{}B,A\lor{}B\lor{}C,\\
+%% ~~~~A\lor{}B\lor\neg{}D,A\lor{}B\lor{}D\lor\neg{}E\lor\neg{}F,A\lor\neg{}G &
+%% \longrightarrow & (\mathrm{tab~learn})\\
+
+%% \neg{}A,\neg{}B,C,\neg{}D,\neg{}E^d,\neg{}G\parallel
+%% \neg{}A,A\lor\neg{}B,A\lor{}B\lor{}C,\\
+%% ~~~~A\lor{}B\lor\neg{}D,A\lor{}B\lor{}D\lor\neg{}E\lor\neg{}F,A\lor\neg{}G\\
+%% ~~~~A\lor{}G\lor{}E,A\lor{}G\lor\neg{}D & \longrightarrow &
+%% (\mathrm{backjump})\\
+
+%% \neg{}A,\neg{}B,C,\neg{}D,E\parallel
+%% \neg{}A,A\lor\neg{}B,A\lor{}B\lor{}C,\\
+%% ~~~~A\lor{}B\lor\neg{}D,A\lor{}B\lor{}D\lor\neg{}E\lor\neg{}F,A\lor\neg{}G\\
+%% ~~~~A\lor{}G\lor{}E,A\lor{}G\lor\neg{}D & \longrightarrow &
+%% (\mathrm{unit~prop})\times{}2\\
+
+%% \neg{}A,\neg{}B,C,\neg{}D,E,\neg{}F,\neg{}G\parallel
+%% \neg{}A,A\lor\neg{}B,A\lor{}B\lor{}C,\\
+%% ~~~~A\lor{}B\lor\neg{}D,A\lor{}B\lor{}D\lor\neg{}E\lor\neg{}F,A\lor\neg{}G &
+%% \longrightarrow & (\mathrm{tab~\gamma_{\neg\exists\mathrm{inst}}})\\
+%% ~~~~A\lor{}G\lor{}E,A\lor{}G\lor\neg{}D && \{X\mapsto{}b\}=\mathrm{mgu}(C,F)\\
+
+%% \neg{}A,\neg{}B,C,\neg{}D,E,\neg{}F,\neg{}G\parallel
+%% \neg{}A,A\lor\neg{}B,A\lor{}B\lor{}C,\\
+%% ~~~~A\lor{}B\lor\neg{}D,A\lor{}B\lor{}D\lor\neg{}E\lor\neg{}F,A\lor\neg{}G\\
+%% ~~~~A\lor{}G\lor{}E,A\lor{}G\lor\neg{}D,\\
+%% ~~~~A\lor\neg(H\equiv{}\lfloor{}P(b)\Rightarrow{}P(a)\land{}P(b)\rfloor) &
+%% \longrightarrow & (\mathrm{unit~prop})\\
+
+%% \neg{}A,\neg{}B,C,\neg{}D,E,\neg{}F,\neg{}G,\neg{}H\parallel
+%% \neg{}A,A\lor\neg{}B,A\lor{}B\lor{}C,\\
+%% ~~~~A\lor{}B\lor\neg{}D,A\lor{}B\lor{}D\lor\neg{}E\lor\neg{}F,A\lor\neg{}G\\
+%% ~~~~A\lor{}G\lor{}E,A\lor{}G\lor\neg{}D,A\lor\neg{}H & \longrightarrow &
+%% (\mathrm{tab~learn})\\
+
+%% \neg{}A,\neg{}B,C,\neg{}D,E,\neg{}F,\neg{}G,\neg{}H\parallel
+%% \neg{}A,A\lor\neg{}B,A\lor{}B\lor{}C,\\
+%% ~~~~A\lor{}B\lor\neg{}D,A\lor{}B\lor{}D\lor\neg{}E\lor\neg{}F,A\lor\neg{}G\\
+%% ~~~~A\lor{}G\lor{}E,A\lor{}G\lor\neg{}D,A\lor\neg{}H,\\
+%% ~~~~A\lor{}H\lor{}F,A\lor{}H\lor{}\neg{}D & \longrightarrow &
+%% (\mathrm{unsat})\\
+
+%% \mathrm{unsat}
+%% \end{array}$
+%% \end{center}}
+%% \caption{Example of Proof}
+%% \label{fig:exa}
+%% \end{figure}
