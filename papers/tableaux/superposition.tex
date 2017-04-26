@@ -4,6 +4,8 @@
 
 \EnableBpAbbreviations{}
 
+\newcommand\clauseWithSubst[2]{\ensuremath{#1 ~|~ #2}}
+
 There are many ways of integrating equational reasoning in
 Tableaux methods~\cite{brand1975proving,letz2002integration,backeman2015theorem,degtyarev1996you}.
 Because our prover does not rely on clausal forms, but on arbitrary formulas
@@ -18,31 +20,48 @@ $\bigwedge_{e \in E} e\sigma \vdash_\approx s\sigma \approx t\sigma$;
 such a substitution is a {\em solution} to the rigid E-unification problem.
 
 We propose here an approach based on superposition with rigid variables,
-as in previous work by Degtyarev and Voronkov~\cite{degtyarev1996you}, but with
-significant differences.
-The first difference is that to avoid constraint solving, we do not use
+as in previous work by Degtyarev and Voronkov~\cite{degtyarev1996you}
+and earlier work on rigid paramodulation~\cite{plaisted1995special},
+but with significant differences.
+First, to avoid constraint solving, we do not use
 basic superposition nor constraints.
-The second difference is a {\em merging} rule that factors together
+Second, we introduce a {\em merging} rule that factors together
 intermediate (dis)equations that are alpha-equivalent:
 with multiple instances of some of the quantified formulas ({\em amplification}),
 it becomes important not to duplicate work.
+Third, unlike rigid paramodulation we use a term ordering to orient the
+equations.
 
 \subsection{Preliminary Definitions}
 %{{{
 
 
-We write $s \approx t | \Sigma$ (resp. $s \not\approx t | \Sigma$),
+We write $ \clauseWithSubst{ s \approx t }{ \Sigma}$
+(resp. $ \clauseWithSubst{ s \not\approx t }{ \Sigma}$),
 the unit clause that contains exactly one equation (resp.~disequation)
 under hypothesis $\Sigma$ (which is a set of substitutions).
-We write $\emptyset | \Sigma$ for the empty clause under hypothesis $\Sigma$.
+We write $\clauseWithSubst{\emptyset}{\Sigma}$ for the empty clause under hypothesis $\Sigma$.
 The E-unification problem $E \vdash s\approx t$ can be solved by
-proving $\emptyset | \Sigma$
-from $\{ (e | \{ \emptyset \}, e \in E \} \cup \{ s \not\approx t| \{ \emptyset \} \}$.
+proving $\clauseWithSubst{\emptyset }{ \Sigma}$
+from $\{ \clauseWithSubst{e }{ \{ \emptyset \} } \}_{ e \in E }
+\cup
+\{ \clauseWithSubst{s \not\approx t }{ \{ \emptyset \} } \}$.
+The meaning of $s \approx t | \Sigma$ is that for every $\sigma \in \Sigma$,
+$s\sigma \approx t\sigma$ is provable.
+We keep a set of substitutions, rather than unit clauses paired with
+individual substitutions, in order to avoid duplicating the work
+for alpha-equivalent clauses.
+Indeed, because of amplification, many instances of a given (dis)equation
+might be present in a branch of the tableau;
+it would be inefficient to repeat the same inference steps with each variant
+of the axioms.
 
-We want to express a notion of compatibility on substitutions, using a
+To perform inferences between two unit (dis)equations, we need to
+merge their sets of substitutions.
+Therefore, we need a notion of compatibility on substitutions, using a
 partial ordering $\leq$, such that $\sigma \leq \sigma'$ means that $\sigma$ is
-less general than $\sigma'$. We will first define a few notions.
-
+less general than $\sigma'$.
+We start by defining a few notions.
 
 Considering a substitution as a function from variables to terms, we can define
 the domain of a substitution $\sigma$ as the set of variables which have a non-trivial
@@ -53,26 +72,26 @@ In all the following, we will consider idempotent substitutions, i.e.~substituti
 the domain and co-domain have an empty intersection.
 
 
-We define the application (or composition~?) of substitutions $\sigma \circ \sigma'$.
-The composition is well-defined iff the domains of $\sigma$ and $\sigma'$ have no
-intersection. We then have
-$\sigma \circ \sigma' = \left\{ x \mapsto \sigma'(\sigma(x)) | x \in \text{domain}(\sigma) \right\}$
+The {\em composition} of substitutions $\sigma \circ \sigma'$
+is well-defined iff the domains of $\sigma$ and $\sigma'$ have no
+intersection.
+In this case,
+$\sigma \circ \sigma' \triangleq \left\{ x \mapsto \sigma'(\sigma(x)) | x \in \text{domain}(\sigma) \right\}$
 This definition naturally extends to sets of substitutions:
-$\Sigma \circ \sigma' = \left\{ \sigma \circ \sigma' | \sigma \in \Sigma \right\}$
-
-
-We then say that $\sigma \leq \sigma'$ iff $\exists \sigma'' \sigma \circ \sigma'' = \sigma'$.
+$\Sigma \circ \sigma' \triangleq \left\{ \sigma \circ \sigma' | \sigma \in \Sigma \right\}$
+We then say that $\sigma \leq \sigma'$ iff $\exists \sigma''.~ \sigma \circ \sigma'' = \sigma'$.
 We extend that notion to set of substitutions:
-$\Sigma \leq \Sigma'$ iff $\forall \sigma' \in \Sigma'. \exists \sigma \in \Sigma. \sigma \leq \sigma'$.
-
-Then, the merging of two substitutions $\sigma \uparrow \sigma'$ as the supremum of $\{\sigma,\sigma'\}$
-for the order $\leq$, if it exists. This definition naturally extends to sets:
-$\Sigma \uparrow \Sigma' = \left\{ \sigma \uparrow \sigma' | \sigma \in \Sigma, \sigma' \in \Sigma' \right\}$
-
-
-The idea is that for every equality (resp.~inequality) $e = f$ (resp.~$e \neg f$) containing meta-variables,
-we add the clause $\sigma(e) = \sigma(f) | \{ \sigma \}$ to the superposition state, with
-$\sigma$ a substitution that maps each rigid meta-variable to a fresh variable.
+$\Sigma \leq \Sigma'$ iff $\forall \sigma' \in \Sigma'.~ \exists \sigma \in \Sigma. \sigma \leq \sigma'$.
+The {\em merging} of two substitutions $\sigma \uparrow \sigma'$ as the supremum of $\{\sigma,\sigma'\}$
+for the order $\leq$, if it exists, or $\bot$ otherwise.
+The merging of sets of substitutions is:
+$\Sigma \uparrow \Sigma' =
+  \left\{ \sigma \uparrow \sigma' ~|~
+    \sigma \in \Sigma, \sigma' \in \Sigma' \right,
+  \sigma \uparrow \sigma' \not= \bot
+  \}$.
+An inference rule only succeeds if the merging of the premises' substitution
+sets is non-empty.
 
 %}}}
 
@@ -199,5 +218,20 @@ with rigid variables.
   \end{center}
 %}}}
 \end{figure}
+
+TODO: explain the rules and their purpose
+
+%}}}
+
+\subsection{Main Loop}
+%{{{
+
+TODO: fix this
+The idea is that for every equality (resp.~inequality) $e = f$ (resp.~$e \neg f$) containing meta-variables,
+we add the clause $\sigma(e) = \sigma(f) | \{ \sigma \}$ to the superposition state, with
+$\sigma$ a substitution that maps each rigid meta-variable to a fresh variable.
+
+TODO: explain that we can solve many problems in the same loop
+TODO: explain (potential) incrementality
 
 %}}}
