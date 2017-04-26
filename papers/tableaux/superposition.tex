@@ -1,58 +1,163 @@
 % $Id$
 
-\section{Rigid unit superposistion}
+\section{Rigid unit superposition}
 
 \EnableBpAbbreviations{}
 
-We will write $s \approx t | \Sigma$ (resp. $s \not\approx t | \Sigma$),
-the unitary clause that contains exactly one equation (resp.~inequation)
-under hypothesis $\Sigma$ (which is a set of subtitutions).
-We will write $\emptyset | \Sigma$ for the empty clause under hypothesis $\Sigma$.
+\newcommand\clauseWithSubst[2]{\ensuremath{#1 ~|~ #2}}
+\newcommand\todo[1]{\textcolor{red}{#1}}
 
-We want to express a notion of compatibility on substitutions, using a
+There are many ways of integrating equational reasoning in
+Tableaux methods~\cite{brand1975proving,letz2002integration,backeman2015theorem,degtyarev1996you}.
+Because our prover does not rely on clausal forms, but on arbitrary formulas
+with quantifiers occurring deep inside branches,
+we deal with {\em rigid} variables --- variables that can be instantiated
+only once.
+The problem we want to solve, {\em rigid E-unification}, is the following.
+Assume a set of equations $E$, containing rigid variables,
+and a {\em target equation} $e = s \approx t$.
+We want a substitution $\sigma$ such that
+$\bigwedge_{e \in E} e\sigma \vdash_\approx s\sigma \approx t\sigma$;
+such a substitution is a {\em solution} to the rigid E-unification problem.
+
+We propose here an approach based on superposition with rigid variables,
+as in previous work by Degtyarev and Voronkov~\cite{degtyarev1996you}
+and earlier work on rigid paramodulation~\cite{plaisted1995special},
+but with significant differences.
+First, to avoid constraint solving, we do not use
+basic superposition nor constraints.
+Second, we introduce a {\em merging} rule that factors together
+intermediate (dis)equations that are alpha-equivalent:
+with multiple instances of some of the quantified formulas ({\em amplification}),
+it becomes important not to duplicate work.
+Third, unlike rigid paramodulation we use a term ordering to orient the
+equations.
+
+\subsection{Preliminary Definitions}
+%{{{
+
+
+We write $ \clauseWithSubst{ s \approx t }{ \Sigma}$
+(resp. $ \clauseWithSubst{ s \not\approx t }{ \Sigma}$),
+the unit clause that contains exactly one equation (resp.~disequation)
+under hypothesis $\Sigma$ (which is a set of substitutions).
+We write $\clauseWithSubst{\emptyset}{\Sigma}$ for the empty clause under hypothesis $\Sigma$.
+The E-unification problem $E \vdash s\approx t$ can be solved by
+proving $\clauseWithSubst{\emptyset }{ \Sigma}$
+from $\{ \clauseWithSubst{e }{ \{ \emptyset \} } \}_{ e \in E }
+\cup
+\{ \clauseWithSubst{s \not\approx t }{ \{ \emptyset \} } \}$.
+The meaning of $s \approx t | \Sigma$ is that for every $\sigma \in \Sigma$,
+$s\sigma \approx t\sigma$ is provable.
+We keep a set of substitutions, rather than unit clauses paired with
+individual substitutions, in order to avoid duplicating the work
+for alpha-equivalent clauses.
+Indeed, because of amplification, many instances of a given (dis)equation
+might be present in a branch of the tableau;
+it would be inefficient to repeat the same inference steps with each variant
+of the axioms.
+
+To perform inferences between two unit (dis)equations, we need to
+merge their sets of substitutions.
+Therefore, we need a notion of compatibility on substitutions, using a
 partial ordering $\leq$, such that $\sigma \leq \sigma'$ means that $\sigma$ is
-less general thatn $\sigma'$. We will first define a few notions.
-
+less general than $\sigma'$.
+We start by defining a few notions.
 
 Considering a substitution as a function from variables to terms, we can define
 the domain of a substitution $\sigma$ as the set of variables which have a non-trivial
-binding in $\sigma$\footnote{a trivial binding is a bindings from a variable to itself}.
-The co-domain of a substitution is the set of variables occuring in terms in the image of
+binding in $\sigma$.\footnote{a trivial binding maps a variable to itself.}
+The co-domain of a substitution is the set of variables occurring in terms in the image of
 the domain of the substitution.
 In all the following, we will consider idempotent substitutions, i.e.~substitution for which
 the domain and co-domain have an empty intersection.
 
+\todo{definitions and properties for $\prec$, mention KBO/RPO}
 
-We define the application (or composition~?) of substitutions $\sigma \circ \sigma'$.
-The composition is well-defined iff the domains of $\sigma$ and $\sigma'$ have no
-intersection. We then have
-$\sigma \circ \sigma' = \left\{ x \mapsto \sigma'(\sigma(x)) | x \in \text{domain}(\sigma) \right\}$
+The {\em composition} of substitutions $\sigma \circ \sigma'$
+is well-defined iff the domains of $\sigma$ and $\sigma'$ have no
+intersection.
+In this case,
+$\sigma \circ \sigma' \triangleq \left\{ x \mapsto \sigma'(\sigma(x)) | x \in \text{domain}(\sigma) \right\}$
 This definition naturally extends to sets of substitutions:
-$\Sigma \circ \sigma' = \left\{ \sigma \circ \sigma' | \sigma \in \Sigma \right\}$
-
-
-We then say that $\sigma \leq \sigma'$ iff $\exists \sigma'' \sigma \circ \sigma'' = \sigma'$.
+$\Sigma \circ \sigma' \triangleq \left\{ \sigma \circ \sigma' | \sigma \in \Sigma \right\}$
+We then say that $\sigma \leq \sigma'$ iff $\exists \sigma''.~ \sigma \circ \sigma'' = \sigma'$.
 We extend that notion to set of substitutions:
-$\Sigma \leq \Sigma'$ iff $\forall \sigma' \in \Sigma'. \exists \sigma \in \Sigma. \sigma \leq \sigma'$.
+$\Sigma \leq \Sigma'$ iff $\forall \sigma' \in \Sigma'.~ \exists \sigma \in \Sigma. \sigma \leq \sigma'$.
+The {\em merging} of two substitutions $\sigma \uparrow \sigma'$ as the supremum of $\{\sigma,\sigma'\}$
+for the order $\leq$, if it exists, or $\bot$ otherwise.
+The merging of sets of substitutions is:
+$\Sigma \uparrow \Sigma' =
+  \left\{ \sigma \uparrow \sigma' ~|~
+    \sigma \in \Sigma, \sigma' \in \Sigma' \right,
+  \sigma \uparrow \sigma' \not= \bot
+  \}$.
+An inference rule only succeeds if the merging of the premises' substitution
+sets is non-empty.
 
-Then, the merging of two substitutions $\sigma \uparrow \sigma'$ as the supremum of $\{\sigma,\sigma'\}$
-for the order $\leq$, if it exists. This definition naturally extends to sets:
-$\Sigma \uparrow \Sigma' = \left\{ \sigma \uparrow \sigma' | \sigma \in \Sigma, \sigma' \in \Sigma' \right\}$
+%}}}
 
+\subsection{Inference System}
+%{{{
 
-The idea is that for every equality (resp.~inequality) $e = f$ (resp.~$e \neg f$) containing meta-variables,
-we add the clause $\sigma(e) = \sigma(f) | \{ \sigma \}$ to the superposistion state, with
-$\sigma$ a substitution that maps each rigid meta-variable to a fresh variable.
+In Figure~\ref{fig:unit-sup-rules}, we present the  rules for unit superposition
+with rigid variables.
+We adapt notations and names from Schulz's paper on E~\cite{e_brainiac_prover}.
+A single bar denotes an inference --- we add the result to the saturation set ---
+whereas a double bar is a simplification in which the premises are
+replaced by the conclusion(s).
 
+\begin{description}
+%{{{
+  \item[ER] is {\em equality resolution},
+    where a disequation $\clauseWithSubst{s \not\approx t}\Sigma$
+    is solved by syntactically unifying $s$ and $t$ with $\sigma$,
+    if $\sigma$ is compatible with $\Sigma$.
+  \item[SN] is superposition into negative literals. A subterm of $u$
+    is rewritten using $s \approx t$ after unifying it with $s$
+    by $\sigma$.
+    The rewriting is done only if $s\sigma \not\preceq t\sigma$,
+    a sufficient (but not necessary) condition for a
+    ground instance of $s\sigma \approx t\sigma$
+    to be oriented left-to-right.
+  \item[SP] is similar to SN, but superposes into a positive literal.
+  \item[TD1] deletes trivial equations that will never contribute to a proof.
+  \item[TD2] deletes clauses with an empty set of substitutions.
+    In practice, we only apply a rule if the conclusion is labelled with a
+    non-empty set of substitutions.
+  \item[ME] merges two alpha-equivalent clauses into a single clause,
+    by merging the sets of substitutions.
+    This rule is very important in practice, to prevent the search space
+    from exploding due to the duplicates of most formulas.
+    Superposition deals with this explosion by removing duplicates using
+    {\em subsumption}, but in our context subsumption is not complete
+    because rigid variables are only proxy for ground terms:
+    even if $C\sigma \subseteq D$, the one ground instance of $C$ might not
+    be compatible with the ground instance of $D$.
+  \item[ES] is a restricted form of equality subsumption. The active
+    equation $\clauseWithSubst{ s\approx t}\Sigma $ can be used to delete another clause, as
+    in E~\cite{e_brainiac_prover}.
+    However, ES only works if $s$ and $t$ are syntactically equal to the
+    corresponding subterms in the subsumed clause $C$; otherwise, there is no
+    guarantee that further instantiations will not make
+    $s\approx t$ incompatible with $C$.
+    Moreover, $C$ needs not be entirely removed; only its substitutions
+    that are compatible with $\Sigma$ are actually subsumed.
+  \item[RP] similarly, rewriting of positive clauses only  works for
+    syntactical equality, not matching.
+  \item[RN] is the same as RP but for rewriting negative clauses.
+%}}}
+\end{description}
 
-\begin{figure}
+\begin{figure}[htb]
+%{{{
   \begin{center}
 
     % ER
     \AXC{$s \not\approx t |\Sigma$}
     \LL{ER}
-    \RL{if $\Sigma' = \Sigma \circ \text{mgu}(s, t)$}
-    \UIC{$\emptyset | \Sigma'$}
+    \RL{if $\sigma = \text{mgu}(s, t)$}
+    \UIC{$\emptyset | \Sigma \circ \sigma $}
     \DP{} \\[12pt]
 
     % SN
@@ -61,12 +166,12 @@ $\sigma$ a substitution that maps each rigid meta-variable to a fresh variable.
     \LL{SN}
     \BIC{$\sigma''(u[p \leftarrow t] \not\approx v) | (\Sigma \circ \sigma'') \uparrow (\Sigma' \circ \sigma'')$}
     \DP{}
-    $\begin{matrix}
+    $\text{if} \left\{ \begin{array}{l}
         \sigma'' = \text{mgu}(u_{|p}, s) \\
-        \sigma''(s) \not\leq \sigma''(t) \\
-        \sigma''(u) \not\leq \sigma''(v) \\
+        \sigma''(s) \not\preceq \sigma''(t) \\
+        \sigma''(u) \not\preceq \sigma''(v) \\
         u_{|p} \not\in V \\
-    \end{matrix}$ \\[12pt]
+    \end{array}\right.$ \\[12pt]
 
     % SP
     \AXC{$s \approx t | \Sigma$}
@@ -74,26 +179,31 @@ $\sigma$ a substitution that maps each rigid meta-variable to a fresh variable.
     \LL{SP}
     \BIC{$\sigma''(u[p \leftarrow t] \approx v) | (\Sigma \circ \sigma'') \uparrow (\Sigma' \circ \sigma'')$}
     \DP{}
-    $\begin{matrix}
+    $\text{if} \left\{ \begin{array}{l}
         \sigma'' = \text{mgu}(u_{|p}, s) \\
-        \sigma''(s) \not\leq \sigma''(t) \\
-        \sigma''(u) \not\leq \sigma''(v) \\
+        \sigma''(s) \not\preceq \sigma''(t) \\
+        \sigma''(u) \not\preceq \sigma''(v) \\
         u_{|p} \not\in V \\
-    \end{matrix}$ \\[12pt]
+    \end{array}\right.$ \\[12pt]
+
+    \mbox{
 
     % TD1
-    \AXC{$s \approx s | \_ $}
+    \AXC{$s \approx s | \Sigma $}
     \LL{TD1}
     \doubleLine{}
-    \UIC{.}
-    \DP{} \\[12pt]
+    \UIC{$\top$}
+    \DP{}
 
     % TD2
-    \AXC{$s \approx t | \emptyset$}
+    \AXC{$s \mathrel{R} t | \emptyset$}
     \LL{TD2}
+    \RL{$ R \in \{ \approx, \not\approx \} $}
     \doubleLine{}
-    \UIC{.}
-    \DP{} \\[12pt]
+    \UIC{$\top$}
+    \DP{}
+  }
+  \\[12pt]
 
     % PS
     %\AXC{$s \approx t |\sigma$}
@@ -122,9 +232,13 @@ $\sigma$ a substitution that maps each rigid meta-variable to a fresh variable.
 
     % ES
     \AXC{$s \approx t | \Sigma$}
-    \AXC{$u[p \leftarrow s] \approx u[p \leftarrow t] | \Sigma' \cup \{ \sigma'\}$}
+    \AXC{$u[p \leftarrow s] \approx u[p \leftarrow t] | \Sigma' \cup \Sigma''$}
     \LL{ES}
-    \RL{$\exists \sigma \in \Sigma. \sigma \leq \sigma'$}
+    \RL{$
+      \text{if} \left\{ \begin{array}{l}
+          \Sigma'' \not= \emptyset \\
+          \Sigma \leq \Sigma''
+        \end{array}\right.  $}
     \doubleLine{}
     \BIC{$s\approx t | \Sigma \qquad u[p\leftarrow s] \approx u[p \leftarrow t] | \Sigma'$}
     \DP{} \\[12pt]
@@ -136,12 +250,12 @@ $\sigma$ a substitution that maps each rigid meta-variable to a fresh variable.
     \doubleLine{}
     \BIC{$s \approx t | \Sigma$ \qquad $u[p \leftarrow t] \approx v | \Sigma'$}
     \DP{}
-    $\begin{matrix}
+    $\text{if} \left\{\begin{array}{l}
       u_{|p} = s \\
-      s \geq t \\
+      s \succ t \\
       \Sigma \leq \Sigma'\\
-      \left\{ \begin{matrix} u \not\geq v \\ \text{or}\; p \neq \lambda\end{matrix}\right. \\
-    \end{matrix}$ \\[12pt]
+      u \not\succeq v ~ \text{or} ~ p \neq \lambda \\
+    \end{array}\right.$ \\[12pt]
 
     % RN
     \AXC{$s \approx t | \emptyset$}
@@ -150,12 +264,29 @@ $\sigma$ a substitution that maps each rigid meta-variable to a fresh variable.
     \doubleLine{}
     \BIC{$s \approx t | \emptyset$ \qquad $u[p \leftarrow t] \not\approx | \sigma$}
     \DP{}
-    $\begin{matrix}
+    $\text{if} \left\{\begin{array}{l}
       u_{|p} = s \\
-      s \geq t \\
+      s \succ t \\
       \Sigma \leq \Sigma'\\
-    \end{matrix}$
+    \end{array}\right.$
 
+  \caption{The set of rules for unit rigid superposition}
+  \label{fig:unit-sup-rules}
   \end{center}
+%}}}
 \end{figure}
 
+%}}}
+
+\subsection{Main Loop}
+%{{{
+
+\todo{fix this}
+The idea is that for every equality (resp.~inequality) $e = f$ (resp.~$e \neg f$) containing meta-variables,
+we add the clause $\sigma(e) = \sigma(f) | \{ \sigma \}$ to the superposition state, with
+$\sigma$ a substitution that maps each rigid meta-variable to a fresh variable.
+
+\todo{explain that we can solve many problems in the same loop}
+\todo{explain (potential) incrementality}
+
+%}}}

@@ -1,6 +1,6 @@
 # $Id$
 
-PDFLATEX=pdflatex
+PDFLATEX=pdflatex -interaction nonstopmode
 BIBTEX=bibtex
 TEX=archsat.tex
 PDF=$(TEX:.tex=.pdf)
@@ -15,6 +15,12 @@ check:
 
 clean:
 	rm -f *~ .*~ *.aux *.bbl *.blg *.log *.pdf
+
+watch:
+	while inotifywait -e delete_self -e modify *.tex Makefile ; do \
+		echo "============ at `date` ==========" ; \
+		make all ; \
+	done
 
 $(PDF): $(TEX) $(wildcard *.tex) $(wildcard *.bib)
 	$(PDFLATEX) $<; $(BIBTEX) $(<:.tex=); \
