@@ -16,6 +16,12 @@ check:
 clean:
 	rm -f *~ .*~ *.aux *.bbl *.blg *.log *.pdf
 
+watch:
+	while inotifywait -e delete_self -e modify *.tex Makefile ; do \
+		echo "============ at `date` ==========" ; \
+		make all ; \
+	done
+
 $(PDF): $(TEX) $(wildcard *.tex) $(wildcard *.bib)
 	$(PDFLATEX) $<; $(BIBTEX) $(<:.tex=); \
         for i in `seq 2`; do $(PDFLATEX) $<; done

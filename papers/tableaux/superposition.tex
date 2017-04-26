@@ -4,6 +4,19 @@
 
 \EnableBpAbbreviations{}
 
+There are many ways of integrating equational reasoning in
+Tableaux methods~\cite{brand1975proving,letz2002integration,backeman2015theorem,degtyarev1996you}.
+We propose here an approach based on superposition with rigid variables,
+as in previous work by Degtyarev and Voronkov~\cite{Degtyarev}, but with
+significant differences.
+The first difference is that to avoid constraint solving, we do not use
+basic superposition nor constraints.
+The second difference is a {\em merging} rule that factors together
+intermediate (dis)equations that are alpha-equivalent:
+with multiple instances of the quantified formulas, it becomes important
+not to duplicate work.
+
+
 We will write $s \approx t | \Sigma$ (resp. $s \not\approx t | \Sigma$),
 the unitary clause that contains exactly one equation (resp.~inequation)
 under hypothesis $\Sigma$ (which is a set of subtitutions).
@@ -16,7 +29,7 @@ less general thatn $\sigma'$. We will first define a few notions.
 
 Considering a substitution as a function from variables to terms, we can define
 the domain of a substitution $\sigma$ as the set of variables which have a non-trivial
-binding in $\sigma$\footnote{a trivial binding is a bindings from a variable to itself}.
+binding in $\sigma$.\footnote{a trivial binding maps a variable to itself.}
 The co-domain of a substitution is the set of variables occuring in terms in the image of
 the domain of the substitution.
 In all the following, we will consider idempotent substitutions, i.e.~substitution for which
