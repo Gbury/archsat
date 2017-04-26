@@ -5,6 +5,7 @@
 \EnableBpAbbreviations{}
 
 \newcommand\clauseWithSubst[2]{\ensuremath{#1 ~|~ #2}}
+\newcommand\todo[1]{\textcolor{red}{#1}}
 
 There are many ways of integrating equational reasoning in
 Tableaux methods~\cite{brand1975proving,letz2002integration,backeman2015theorem,degtyarev1996you}.
@@ -71,6 +72,7 @@ the domain of the substitution.
 In all the following, we will consider idempotent substitutions, i.e.~substitution for which
 the domain and co-domain have an empty intersection.
 
+\todo{definitions and properties for $\prec$, mention KBO/RPO}
 
 The {\em composition} of substitutions $\sigma \circ \sigma'$
 is well-defined iff the domains of $\sigma$ and $\sigma'$ have no
@@ -100,6 +102,52 @@ sets is non-empty.
 
 In Figure~\ref{fig:unit-sup-rules}, we present the  rules for unit superposition
 with rigid variables.
+We adapt notations and names from Schulz's paper on E~\cite{e_brainiac_prover}.
+A single bar denotes an inference --- we add the result to the saturation set ---
+whereas a double bar is a simplification in which the premises are
+replaced by the conclusion(s).
+
+\begin{description}
+%{{{
+  \item[ER] is {\em equality resolution},
+    where a disequation $\clauseWithSubst{s \not\approx t}\Sigma$
+    is solved by syntactically unifying $s$ and $t$ with $\sigma$,
+    if $\sigma$ is compatible with $\Sigma$.
+  \item[SN] is superposition into negative literals. A subterm of $u$
+    is rewritten using $s \approx t$ after unifying it with $s$
+    by $\sigma$.
+    The rewriting is done only if $s\sigma \not\preceq t\sigma$,
+    a sufficient (but not necessary) condition for a
+    ground instance of $s\sigma \approx t\sigma$
+    to be oriented left-to-right.
+  \item[SP] is similar to SN, but superposes into a positive literal.
+  \item[TD1] deletes trivial equations that will never contribute to a proof.
+  \item[TD2] deletes clauses with an empty set of substitutions.
+    In practice, we only apply a rule if the conclusion is labelled with a
+    non-empty set of substitutions.
+  \item[ME] merges two alpha-equivalent clauses into a single clause,
+    by merging the sets of substitutions.
+    This rule is very important in practice, to prevent the search space
+    from exploding due to the duplicates of most formulas.
+    Superposition deals with this explosion by removing duplicates using
+    {\em subsumption}, but in our context subsumption is not complete
+    because rigid variables are only proxy for ground terms:
+    even if $C\sigma \subseteq D$, the one ground instance of $C$ might not
+    be compatible with the ground instance of $D$.
+  \item[ES] is a restricted form of equality subsumption. The active
+    equation $\clauseWithSubst{ s\approx t}\Sigma $ can be used to delete another clause, as
+    in E~\cite{e_brainiac_prover}.
+    However, ES only works if $s$ and $t$ are syntactically equal to the
+    corresponding subterms in the subsumed clause $C$; otherwise, there is no
+    guarantee that further instantiations will not make
+    $s\approx t$ incompatible with $C$.
+    Moreover, $C$ needs not be entirely removed; only its substitutions
+    that are compatible with $\Sigma$ are actually subsumed.
+  \item[RP] similarly, rewriting of positive clauses only  works for
+    syntactical equality, not matching.
+  \item[RN] is the same as RP but for rewriting negative clauses.
+%}}}
+\end{description}
 
 \begin{figure}[htb]
 %{{{
@@ -108,8 +156,8 @@ with rigid variables.
     % ER
     \AXC{$s \not\approx t |\Sigma$}
     \LL{ER}
-    \RL{if $\Sigma' = \Sigma \circ \text{mgu}(s, t)$}
-    \UIC{$\emptyset | \Sigma'$}
+    \RL{if $\sigma = \text{mgu}(s, t)$}
+    \UIC{$\emptyset | \Sigma \circ \sigma $}
     \DP{} \\[12pt]
 
     % SN
@@ -118,12 +166,12 @@ with rigid variables.
     \LL{SN}
     \BIC{$\sigma''(u[p \leftarrow t] \not\approx v) | (\Sigma \circ \sigma'') \uparrow (\Sigma' \circ \sigma'')$}
     \DP{}
-    $\begin{matrix}
+    $\text{if} \left\{ \begin{array}{l}
         \sigma'' = \text{mgu}(u_{|p}, s) \\
-        \sigma''(s) \not\leq \sigma''(t) \\
-        \sigma''(u) \not\leq \sigma''(v) \\
+        \sigma''(s) \not\preceq \sigma''(t) \\
+        \sigma''(u) \not\preceq \sigma''(v) \\
         u_{|p} \not\in V \\
-    \end{matrix}$ \\[12pt]
+    \end{array}\right.$ \\[12pt]
 
     % SP
     \AXC{$s \approx t | \Sigma$}
@@ -131,26 +179,31 @@ with rigid variables.
     \LL{SP}
     \BIC{$\sigma''(u[p \leftarrow t] \approx v) | (\Sigma \circ \sigma'') \uparrow (\Sigma' \circ \sigma'')$}
     \DP{}
-    $\begin{matrix}
+    $\text{if} \left\{ \begin{array}{l}
         \sigma'' = \text{mgu}(u_{|p}, s) \\
-        \sigma''(s) \not\leq \sigma''(t) \\
-        \sigma''(u) \not\leq \sigma''(v) \\
+        \sigma''(s) \not\preceq \sigma''(t) \\
+        \sigma''(u) \not\preceq \sigma''(v) \\
         u_{|p} \not\in V \\
-    \end{matrix}$ \\[12pt]
+    \end{array}\right.$ \\[12pt]
+
+    \mbox{
 
     % TD1
-    \AXC{$s \approx s | \_ $}
+    \AXC{$s \approx s | \Sigma $}
     \LL{TD1}
     \doubleLine{}
-    \UIC{.}
-    \DP{} \\[12pt]
+    \UIC{$\top$}
+    \DP{}
 
     % TD2
-    \AXC{$s \approx t | \emptyset$}
+    \AXC{$s \mathrel{R} t | \emptyset$}
     \LL{TD2}
+    \RL{$ R \in \{ \approx, \not\approx \} $}
     \doubleLine{}
-    \UIC{.}
-    \DP{} \\[12pt]
+    \UIC{$\top$}
+    \DP{}
+  }
+  \\[12pt]
 
     % PS
     %\AXC{$s \approx t |\sigma$}
@@ -179,9 +232,13 @@ with rigid variables.
 
     % ES
     \AXC{$s \approx t | \Sigma$}
-    \AXC{$u[p \leftarrow s] \approx u[p \leftarrow t] | \Sigma' \cup \{ \sigma'\}$}
+    \AXC{$u[p \leftarrow s] \approx u[p \leftarrow t] | \Sigma' \cup \Sigma''$}
     \LL{ES}
-    \RL{$\exists \sigma \in \Sigma. \sigma \leq \sigma'$}
+    \RL{$
+      \text{if} \left\{ \begin{array}{l}
+          \Sigma'' \not= \emptyset \\
+          \Sigma \leq \Sigma''
+        \end{array}\right.  $}
     \doubleLine{}
     \BIC{$s\approx t | \Sigma \qquad u[p\leftarrow s] \approx u[p \leftarrow t] | \Sigma'$}
     \DP{} \\[12pt]
@@ -193,12 +250,12 @@ with rigid variables.
     \doubleLine{}
     \BIC{$s \approx t | \Sigma$ \qquad $u[p \leftarrow t] \approx v | \Sigma'$}
     \DP{}
-    $\begin{matrix}
+    $\text{if} \left\{\begin{array}{l}
       u_{|p} = s \\
-      s \geq t \\
+      s \succ t \\
       \Sigma \leq \Sigma'\\
-      \left\{ \begin{matrix} u \not\geq v \\ \text{or}\; p \neq \lambda\end{matrix}\right. \\
-    \end{matrix}$ \\[12pt]
+      u \not\succeq v ~ \text{or} ~ p \neq \lambda \\
+    \end{array}\right.$ \\[12pt]
 
     % RN
     \AXC{$s \approx t | \emptyset$}
@@ -207,11 +264,11 @@ with rigid variables.
     \doubleLine{}
     \BIC{$s \approx t | \emptyset$ \qquad $u[p \leftarrow t] \not\approx | \sigma$}
     \DP{}
-    $\begin{matrix}
+    $\text{if} \left\{\begin{array}{l}
       u_{|p} = s \\
-      s \geq t \\
+      s \succ t \\
       \Sigma \leq \Sigma'\\
-    \end{matrix}$
+    \end{array}\right.$
 
   \caption{The set of rules for unit rigid superposition}
   \label{fig:unit-sup-rules}
@@ -219,19 +276,17 @@ with rigid variables.
 %}}}
 \end{figure}
 
-TODO: explain the rules and their purpose
-
 %}}}
 
 \subsection{Main Loop}
 %{{{
 
-TODO: fix this
+\todo{fix this}
 The idea is that for every equality (resp.~inequality) $e = f$ (resp.~$e \neg f$) containing meta-variables,
 we add the clause $\sigma(e) = \sigma(f) | \{ \sigma \}$ to the superposition state, with
 $\sigma$ a substitution that maps each rigid meta-variable to a fresh variable.
 
-TODO: explain that we can solve many problems in the same loop
-TODO: explain (potential) incrementality
+\todo{explain that we can solve many problems in the same loop}
+\todo{explain (potential) incrementality}
 
 %}}}
