@@ -1,6 +1,6 @@
 # $Id$
 
-PDFLATEX=pdflatex
+PDFLATEX=pdflatex -interaction nonstopmode
 BIBTEX=bibtex
 TEX=archsat.tex
 PDF=$(TEX:.tex=.pdf)
