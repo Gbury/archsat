@@ -2,7 +2,70 @@
 
 \section{SAT Solving Modulo Tableau Theory}
 
-\begin{figure}[htbp]
+\subsection{SAT Solving Modulo Theories}
+
+We introduce $\mathcal{T}$ and $\mathcal{F}$ respectively the sets of first
+order terms and first order formulas over the signature
+$\mathcal{S}=(\mathcal{S}_\mathcal{F},\mathcal{S}_\mathcal{P})$, where
+$\mathcal{S}_\mathcal{F}$ is the set of function symbols, and
+$\mathcal{S}_\mathcal{P}$, the set of predicate symbols, such that
+$\mathcal{S}_\mathcal{F}\cap\mathcal{S}_\mathcal{P}=\emptyset$. The set
+$\mathcal{T}$ is extended with two kinds of terms specific to tableau proof
+search, i.e. $\epsilon{}$-terms (used instead of Skolemization) of the form
+$\epsilon(x).P(x)$, where $P(x)$ is a formula, and which means some $x$ that
+satisfies $P(x)$, if it exists, and metavariables (often named free variables in
+the tableau-related literature) of the form $X_P$, where $P$ is the formula that
+introduces the metavariable, and which is either $\forall{}x.Q(x)$ or
+$\neg\exists{}x.Q(x)$, with $Q(x)$ a formula.
+
+A boxed formula is of the form $\lfloor{}P\rfloor$, where $P$ is a formula. A
+boxed formula is called atom, and a literal is either an atom, or the negation
+of an atom. A literal is such that there is no negation on top of the boxed
+formula (which means that $\lfloor\neg{}P\rfloor=\neg\lfloor{}P\rfloor$, and
+that $\neg\neg\lfloor{}P\rfloor=\lfloor{}P\rfloor$). A clause is a disjunction
+of literals. It should be noted that SAT solving usually reasons over sets of
+clauses composed of first order literals; here, a literal is a first order
+formula (possibly with quantifiers), which requires to box formulas to get a
+regular SAT solving problem where boxed formulas are propositional variables.
+
+An assignment of the boxed formulas is a partial function that assigns to boxed
+formulas an element of $\{\top,\bot\}$ (values of the Boolean algebra). Given a
+clause $C$, we say that $C$ is valid and write $\models{}C$, if $C$ evaluates to
+$\top$ for every assignment. Given a set of clauses $S$, we say that $S$ is
+valid and write $\models{}S$, if each clause of $S$ is valid. Given two sets of
+clauses $S$ and $S'$, we say that $S$ implies $S'$ and write $S\models{}S'$ if,
+for every assignment, if each clause of $S$ evaluates to $\top$ then each clause
+of $S'$ evaluates to $\top$. If $S$ is a set of literals, then we say that $S$
+is a model of $S'$.
+
+A theory $T$ is a set of formulas over a given signature $\mathcal{S}$, which
+are called axioms of the theory $T$. A clause $C$ is a tautology in the theory
+$T$, written $\models_TC$, if the axioms of $T$ imply the formula $C'$, where
+$C'$ is the clause $C$ where all the boxed formulas have been unboxed. A set of
+clauses $S$ is a tautology in the theory $T$ if each clause of $S$ is a
+tautology in $T$. Given two sets of clauses $M$ and $S$, we say that $M$ is a
+model of $S$ modulo the theory $T$ and write $M\models_TS$, if $M$ is a model of
+$S$ and $M$ is a tautology in $T$.
+
+A SAT solver modulo theories is characterized by a set of theories $S_T$ and an
+internal state of the form $M\parallel{}S$, where $M$ is an ordered list of
+literals (if $M=l_1,l2,\ldots,l_n$ then $l_1<l_2<\ldots<l_n$) and $S$ a set of
+clauses. Intuitively, $M$ represents the model of $S$, which will be built
+progressively (initially $M=\emptyset$) by the application of a set of rules
+over the internal state of the solver. This set of rules is presented in
+Fig.~\ref{fig:smt}. Each time a literal is propagated (rule
+``$\mathrm{unit~prop}$'') or decided (rule ``$\mathrm{decide}$''), it is given
+to each theory, which may generate new clauses (rule ``$\mathrm{learn}$''). If a
+clause is unvalidated by the model, then it is possible to backtrack the
+decision over a given literal of the model if it exists (rule
+``$\mathrm{backjump}$'').  There are two final states in this transition
+system. The first one is ``$\mathrm{unsat}$'', which means that $S$ is
+unsatisfiable (rule ``$\mathrm{unsat}$''). The second one is $M\parallel{}S$,
+where $M$ is a model of $S$ and a tautology for every theory in $S_T$. In this
+last case, if $M$ is not a tautology in a theory $T$, this theory generates a
+set of conflict clauses (rule ``$\mathrm{learn}$'').
+
+\begin{figure}[t]
 \parbox{\textwidth}
 {\small
 \begin{center}
@@ -35,44 +98,75 @@ M\parallel{}S\longrightarrow{}M\parallel{}S,S'
 \label{fig:smt}
 \end{figure}
 
-\begin{figure}[htbp]
+\subsection{The Tableau Theory}
+
+In the SAT solver previously described, the tableau proof search method is
+integrated as a regular theory. When a literal is propagated or decided, we
+generate a set of clauses corresponding to the application of a tableau rule
+over the logical connective at root of the formula in the box of the
+literal. More precisely, for a literal $l$, we generate the set of clauses
+$\llbracket{}l\rrbracket$, where the function $\llbracket\cdot\rrbracket$ is
+described by the rules of Fig.~\ref{fig:tabth}. When a literal is propagated or
+decided, we use all the rules of Fig.~\ref{fig:tabth} except the instantiation
+$\gamma$-rules (rules $\gamma_{\forall\mathrm{inst}}$ and
+$\gamma_{\neg\exists\mathrm{inst}}$). It should be noted that we use the same
+names for the rules than in tableau calculus ($\alpha$-rules, $\beta$-rules,
+etc.), but there is no precedence between rules and therefore no priority in the
+application of the rules contrary to the tableau proof search method (where
+$\alpha$ rules are applied before $\beta$-rules, and so on).
+
+When the SAT solver reaches a state $M\parallel{}S$, where $M$ is a model of
+$S$, we look for a conflict in $M$ between two literals by unification and we
+generate the clauses corresponding to the instantiation of the metavariables
+using the result of the unification. More precisely, if there exist two literals
+$l$ and $\neg{}l'$ in $M$ such that $l=\lfloor{}Q\rfloor$ and
+$l'=\lfloor{}R\rfloor$, with $Q$ and $R$ two formulas, then for each
+substitution $(X_{\forall{}x.P(x)}\mapsto{}t)\in\mathrm{mgu}(Q,R)$ (resp.
+$(X_{\neg\exists{}x.P(x)}\mapsto{}t)\in\mathrm{mgu}(Q,R)$) such that there is no
+$Y_T\in\forall{}x.P(x)$ (resp. $Y_T\in\neg\exists{}x.P(x)$), we can generate the
+clauses $\llbracket\lfloor\forall{}x.P(x)\rfloor{}\rrbracket$ 
+(resp. $\llbracket\neg\lfloor\exists{}x.P(x)\rfloor{}\rrbracket$) using the rule
+$\gamma_{\forall\mathrm{inst}}$ (resp. $\gamma_{\neg\exists\mathrm{inst}}$) of
+Fig.~\ref{fig:tabth}.
+
+\begin{figure}[t]
 \parbox{\textwidth}
 {\small
 \underline{Analytic Rules}
 \begin{center}
 $\begin{array}{lll@{\hspace{0.5cm}}l}
-\llbracket{}\lfloor{}P\land{}Q\rfloor{}\rrbracket_\mathcal{T} & = &
+\llbracket\lfloor{}P\land{}Q\rfloor{}\rrbracket & = &
 \neg\lfloor{}P\land{}Q\rfloor\lor\lfloor{}P\rfloor,
 \neg\lfloor{}P\land{}Q\rfloor\lor\lfloor{}Q\rfloor & (\alpha_\land)\\\\
 
-\llbracket\neg\lfloor{}P\land{}Q\rfloor{}\rrbracket_\mathcal{T} & = &
+\llbracket\neg\lfloor{}P\land{}Q\rfloor{}\rrbracket & = &
 \lfloor{}P\land{}Q\rfloor\lor\neg\lfloor{}P\rfloor\lor\neg\lfloor{}Q\rfloor &
 (\beta_{\neg\land})\\\\
 
-\llbracket{}\lfloor{}P\lor{}Q\rfloor{}\rrbracket_\mathcal{T} & = &
+\llbracket{}\lfloor{}P\lor{}Q\rfloor{}\rrbracket & = &
 \neg\lfloor{}P\lor{}Q\rfloor\lor\lfloor{}P\rfloor\lor\lfloor{}Q\rfloor &
 (\beta_\lor)\\\\
 
-\llbracket\neg\lfloor{}P\lor{}Q\rfloor{}\rrbracket_\mathcal{T} & = &
+\llbracket\neg\lfloor{}P\lor{}Q\rfloor{}\rrbracket & = &
 \lfloor{}P\lor{}Q\rfloor\lor\neg\lfloor{}P\rfloor,
 \lfloor{}P\lor{}Q\rfloor\lor\neg\lfloor{}Q\rfloor &
 (\alpha_{\neg\lor})\\\\
 
-\llbracket{}\lfloor{}P\Rightarrow{}Q\rfloor{}\rrbracket_\mathcal{T} & = &
+\llbracket{}\lfloor{}P\Rightarrow{}Q\rfloor{}\rrbracket & = &
 \neg\lfloor{}P\Rightarrow{}Q\rfloor\lor\neg\lfloor{}P\rfloor\lor
 \lfloor{}Q\rfloor & (\beta_\Rightarrow)\\\\
 
-\llbracket\neg\lfloor{}P\Rightarrow{}Q\rfloor{}\rrbracket_\mathcal{T} & = &
+\llbracket\neg\lfloor{}P\Rightarrow{}Q\rfloor{}\rrbracket & = &
 \lfloor{}P\Rightarrow{}Q\rfloor\lor\lfloor{}P\rfloor,
 \lfloor{}P\Rightarrow{}Q\rfloor\lor\neg\lfloor{}Q\rfloor &
 (\alpha_{\neg\Rightarrow})\\\\
 
-\llbracket{}\lfloor{}P\Leftrightarrow{}Q\rfloor{}\rrbracket_\mathcal{T} & = &
+\llbracket{}\lfloor{}P\Leftrightarrow{}Q\rfloor{}\rrbracket & = &
 \neg\lfloor{}P\Leftrightarrow{}Q\rfloor\lor\lfloor{}P\Rightarrow{}Q\rfloor,
 \neg\lfloor{}P\Leftrightarrow{}Q\rfloor\lor\lfloor{}Q\Rightarrow{}P\rfloor &
 (\beta_\Rightarrow)\\\\
 
-\llbracket{}\neg\lfloor{}P\Leftrightarrow{}Q\rfloor{}\rrbracket_\mathcal{T} &
+\llbracket{}\neg\lfloor{}P\Leftrightarrow{}Q\rfloor{}\rrbracket &
 = &
 \lfloor{}P\Leftrightarrow{}Q\rfloor\lor\neg\lfloor{}P\Rightarrow{}Q\rfloor\lor
 \neg\lfloor{}Q\Rightarrow{}P\rfloor & (\beta_{\neg\Rightarrow})
@@ -82,11 +176,11 @@ $\begin{array}{lll@{\hspace{0.5cm}}l}
 \underline{$\delta$-Rules}
 \begin{center}
 $\begin{array}{lll@{\hspace{0.5cm}}l}
-\llbracket\lfloor\exists{}x.P(x)\rfloor{}\rrbracket_\mathcal{T} & = &
+\llbracket\lfloor\exists{}x.P(x)\rfloor{}\rrbracket & = &
 \neg{}\lfloor\exists{}x.P(x)\rfloor\lor\lfloor{}P(\epsilon(x).P(x))\rfloor &
 (\delta_\exists)\\\\
 
-\llbracket\neg\lfloor\forall{}x.P(x)\rfloor{}\rrbracket_\mathcal{T} & = &
+\llbracket\neg\lfloor\forall{}x.P(x)\rfloor{}\rrbracket & = &
 \lfloor\forall{}x.P(x)\rfloor\lor\neg\lfloor{}P(\epsilon(x).\neg{}P(x))\rfloor &
 (\delta_{\neg\forall})
 \end{array}$
@@ -95,46 +189,41 @@ $\begin{array}{lll@{\hspace{0.5cm}}l}
 \underline{$\gamma$-Rules}
 \begin{center}
 $\begin{array}{lll@{\hspace{0.5cm}}l}
-\llbracket\lfloor\forall{}x.P(x)\rfloor{}\rrbracket_\mathcal{T} & = &
+\llbracket\lfloor\forall{}x.P(x)\rfloor{}\rrbracket & = &
 \neg\lfloor\forall{}x.P(x)\rfloor\lor\lfloor{}P(X_{\forall{}x.P(x)})\rfloor &
 (\gamma_{\forall{}M})\\\\
 
-\llbracket\neg\lfloor\exists{}x.P(x)\rfloor{}\rrbracket_\mathcal{T} & = &
+\llbracket\neg\lfloor\exists{}x.P(x)\rfloor{}\rrbracket & = &
 \lfloor\exists{}x.P(x)\rfloor\lor
 \neg\lfloor{}P(X_{\neg\exists{}x.P(x)})\rfloor &
-(\gamma_{\neg\exists{}M})
+(\gamma_{\neg\exists{}M})\\\\
+
+\llbracket\lfloor\forall{}x.P(x)\rfloor{}\rrbracket & = &
+\neg\lfloor\forall{}x.P(x)\rfloor\lor\lfloor{}P(t)\rfloor &
+(\gamma_{\forall\mathrm{inst}})\\\\
+
+\llbracket\neg\lfloor\exists{}x.P(x)\rfloor{}\rrbracket & = &
+\lfloor\exists{}x.P(x)\rfloor\lor\neg\lfloor{}P(t)\rfloor &
+(\gamma_{\neg\exists\mathrm{inst}})
 \end{array}$
 \end{center}}
 \caption{Rules of Tableau Theory}
 \label{fig:tabth}
 \end{figure}
 
-\begin{figure}[htbp]
-\parbox{\textwidth}
-{\small
-\begin{center}
-$\begin{array}{l@{\hspace{0.4cm}}l@{\hspace{0.4cm}}l}
-M\parallel{}S\longrightarrow & (\mathrm{tab~\gamma_{\forall\mathrm{inst}}}) &
-\mbox{if there exist }l,\neg{}l'\in{}M\mbox{ s.t. }\\
-~~~~M\parallel{}S,\neg\lfloor\forall{}x.P(x)\rfloor\lor\lfloor{}P(t)\rfloor &&
-l=\lfloor{}Q\rfloor\mbox{, }l'=\lfloor{}R\rfloor,\\
-&& (X_{\forall{}x.P(x)}\mapsto{}t)\in\mathrm{mgu}(Q,R),\\
-&& \mbox{and there is no }Y_T\in\forall{}x.P(x)\\\\
+To show how this theory works, let us prove that
+$\exists{}x.P(x)\Rightarrow{}P(a)\land{}P(b)$, where $P$ is a predicate symbol
+and $a,b$ two constants. The SAT solver is initiated with the state
+$\emptyset\parallel
+\neg\lfloor\exists{}x.P(x)\Rightarrow{}P(a)\land{}P(b)\rfloor$, and the proof is
+described in Fig.~\ref{fig:exa}, where $X$ is a shortcut for
+$X_{\neg\exists{}x.P(x)\Rightarrow{}P(a)\land{}P(b)}$. It should be noted that
+to do this proof in sequent calculus, a right contraction is necessary to
+instantiate the formula twice (with $a$ and $b$). In Fig.~\ref{fig:exa}, it is
+done by propagating the literal $\lfloor{}P(X)\rfloor{}$, which can provide as
+many instantiations (by unification) as necessary.
 
-M\parallel{}S\longrightarrow &
-(\mathrm{tab~\gamma_{\neg\exists\mathrm{inst}}}) &
-\mbox{if there exist }l,\neg{}l'\in{}M\mbox{ s.t. }\\
-~~~~M\parallel{}S,\lfloor\exists{}x.P(x)\rfloor\lor\neg\lfloor{}P(t)\rfloor &&
-l=\lfloor{}Q\rfloor\mbox{, }l'=\lfloor{}R\rfloor,\\
-&& (X_{\neg\exists{}x.P(x)}\mapsto{}t)\in\mathrm{mgu}(Q,R),\\
-&& \mbox{and there is no }Y_T\in\neg\exists{}x.P(x)
-\end{array}$
-\end{center}}
-\caption{Rules of Tableau Instantiation Theory}
-\label{fig:tabinst}
-\end{figure}
-
-\begin{figure}[htbp]
+\begin{figure}[t]
 \parbox{\textwidth}
 {\small
 \begin{center}
@@ -218,96 +307,3 @@ B\lor{}(C\equiv\lfloor{}P(X)\rfloor{}),\\
 \caption{Example of Proof}
 \label{fig:exa}
 \end{figure}
-
-%% \begin{figure}[htbp]
-%% \parbox{\textwidth}
-%% {\small
-%% \begin{center}
-%% $\begin{array}{lcl}
-%% \emptyset\parallel
-%% \neg(A\equiv\lfloor\exists{}x.P(x)\Rightarrow{}P(a)\land{}P(b)\rfloor) &
-%% \longrightarrow & (\mathrm{unit~prop})\\
-
-%% \neg{}A\parallel{}\neg{}A & \longrightarrow & (\mathrm{tab~learn})\\
-
-%% \neg{}A\parallel
-%% \neg{}A,A\lor\neg(B\equiv\lfloor{}P(X)\Rightarrow{}P(a)\land{}P(b)\rfloor) &
-%% \longrightarrow & (\mathrm{unit~prop})\\
-
-%% \neg{}A,\neg{}B\parallel\neg{}A,A\lor\neg{}B & \longrightarrow &
-%% (\mathrm{tab~learn})\\
-
-%% \neg{}A,\neg{}B\parallel\neg{}A,A\lor\neg{}B,
-%% A\lor{}B\lor{}(C\equiv\lfloor{}P(X)\rfloor{}),\\
-%% ~~~~A\lor{}B\lor\neg(D\equiv\lfloor{}P(a)\land{}P(b)\rfloor{}) &
-%% \longrightarrow & (\mathrm{unit~prop})\times{}2\\
-
-%% \neg{}A,\neg{}B,C,\neg{}D\parallel\neg{}A,A\lor\neg{}B,A\lor{}B\lor{}C,
-%% A\lor{}B\lor\neg{}D & \longrightarrow & (\mathrm{tab~learn})\\
-
-%% \neg{}A,\neg{}B,C,\neg{}D\parallel\neg{}A,A\lor\neg{}B,A\lor{}B\lor{}C,
-%% A\lor{}B\lor\neg{}D,\\
-%% ~~~~A\lor{}B\lor{}D\lor\neg(E\equiv\lfloor{}P(a)\rfloor)\lor
-%% \neg(F\equiv\lfloor{}P(b)\rfloor) & \longrightarrow & (\mathrm{decide})\\
-
-%% \neg{}A,\neg{}B,C,\neg{}D,\neg{}E^d\parallel
-%% \neg{}A,A\lor\neg{}B,A\lor{}B\lor{}C, & \longrightarrow &
-%% (\mathrm{tab~\gamma_{\neg\exists\mathrm{inst}}})\\
-%% ~~~~A\lor{}B\lor\neg{}D,A\lor{}B\lor{}D\lor\neg{}E\lor\neg{}F &&
-%% \{X\mapsto{}a\}=\mathrm{mgu}(C,E)\\
-
-%% \neg{}A,\neg{}B,C,\neg{}D,\neg{}E^d\parallel
-%% \neg{}A,A\lor\neg{}B,A\lor{}B\lor{}C,\\
-%% ~~~~A\lor{}B\lor\neg{}D,A\lor{}B\lor{}D\lor\neg{}E\lor\neg{}F,\\
-%% ~~~~A\lor\neg(G\equiv{}\lfloor{}P(a)\Rightarrow{}P(a)\land{}P(b)\rfloor) &
-%% \longrightarrow & (\mathrm{unit~prop})\\
-
-%% \neg{}A,\neg{}B,C,\neg{}D,\neg{}E^d,\neg{}G\parallel
-%% \neg{}A,A\lor\neg{}B,A\lor{}B\lor{}C,\\
-%% ~~~~A\lor{}B\lor\neg{}D,A\lor{}B\lor{}D\lor\neg{}E\lor\neg{}F,A\lor\neg{}G &
-%% \longrightarrow & (\mathrm{tab~learn})\\
-
-%% \neg{}A,\neg{}B,C,\neg{}D,\neg{}E^d,\neg{}G\parallel
-%% \neg{}A,A\lor\neg{}B,A\lor{}B\lor{}C,\\
-%% ~~~~A\lor{}B\lor\neg{}D,A\lor{}B\lor{}D\lor\neg{}E\lor\neg{}F,A\lor\neg{}G\\
-%% ~~~~A\lor{}G\lor{}E,A\lor{}G\lor\neg{}D & \longrightarrow &
-%% (\mathrm{backjump})\\
-
-%% \neg{}A,\neg{}B,C,\neg{}D,E\parallel
-%% \neg{}A,A\lor\neg{}B,A\lor{}B\lor{}C,\\
-%% ~~~~A\lor{}B\lor\neg{}D,A\lor{}B\lor{}D\lor\neg{}E\lor\neg{}F,A\lor\neg{}G\\
-%% ~~~~A\lor{}G\lor{}E,A\lor{}G\lor\neg{}D & \longrightarrow &
-%% (\mathrm{unit~prop})\times{}2\\
-
-%% \neg{}A,\neg{}B,C,\neg{}D,E,\neg{}F,\neg{}G\parallel
-%% \neg{}A,A\lor\neg{}B,A\lor{}B\lor{}C,\\
-%% ~~~~A\lor{}B\lor\neg{}D,A\lor{}B\lor{}D\lor\neg{}E\lor\neg{}F,A\lor\neg{}G &
-%% \longrightarrow & (\mathrm{tab~\gamma_{\neg\exists\mathrm{inst}}})\\
-%% ~~~~A\lor{}G\lor{}E,A\lor{}G\lor\neg{}D && \{X\mapsto{}b\}=\mathrm{mgu}(C,F)\\
-
-%% \neg{}A,\neg{}B,C,\neg{}D,E,\neg{}F,\neg{}G\parallel
-%% \neg{}A,A\lor\neg{}B,A\lor{}B\lor{}C,\\
-%% ~~~~A\lor{}B\lor\neg{}D,A\lor{}B\lor{}D\lor\neg{}E\lor\neg{}F,A\lor\neg{}G\\
-%% ~~~~A\lor{}G\lor{}E,A\lor{}G\lor\neg{}D,\\
-%% ~~~~A\lor\neg(H\equiv{}\lfloor{}P(b)\Rightarrow{}P(a)\land{}P(b)\rfloor) &
-%% \longrightarrow & (\mathrm{unit~prop})\\
-
-%% \neg{}A,\neg{}B,C,\neg{}D,E,\neg{}F,\neg{}G,\neg{}H\parallel
-%% \neg{}A,A\lor\neg{}B,A\lor{}B\lor{}C,\\
-%% ~~~~A\lor{}B\lor\neg{}D,A\lor{}B\lor{}D\lor\neg{}E\lor\neg{}F,A\lor\neg{}G\\
-%% ~~~~A\lor{}G\lor{}E,A\lor{}G\lor\neg{}D,A\lor\neg{}H & \longrightarrow &
-%% (\mathrm{tab~learn})\\
-
-%% \neg{}A,\neg{}B,C,\neg{}D,E,\neg{}F,\neg{}G,\neg{}H\parallel
-%% \neg{}A,A\lor\neg{}B,A\lor{}B\lor{}C,\\
-%% ~~~~A\lor{}B\lor\neg{}D,A\lor{}B\lor{}D\lor\neg{}E\lor\neg{}F,A\lor\neg{}G\\
-%% ~~~~A\lor{}G\lor{}E,A\lor{}G\lor\neg{}D,A\lor\neg{}H,\\
-%% ~~~~A\lor{}H\lor{}F,A\lor{}H\lor{}\neg{}D & \longrightarrow &
-%% (\mathrm{unsat})\\
-
-%% \mathrm{unsat}
-%% \end{array}$
-%% \end{center}}
-%% \caption{Example of Proof}
-%% \label{fig:exa}
-%% \end{figure}
