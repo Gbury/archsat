@@ -284,12 +284,19 @@ Typically, $\prec$ is one of RPO or KBO.
 \subsection{Main Loop}
 %{{{
 
-\todo{fix this}
-The idea is that for every equality (resp.~inequality) $e = f$ (resp.~$e \neg f$) containing meta-variables,
-we add the clause $\sigma(e) = \sigma(f) | \{ \sigma \}$ to the superposition state, with
-$\sigma$ a substitution that maps each rigid meta-variable to a fresh variable.
+Our objective with rigid E-unification is to attempt to close a branch
+of the tableau prover (i.e., a set of boolean literals set to true).
+To do so, all equational or atomic literals are added to a set of unit clauses
+to process, with a label $\Sigma \triangleq \{ \emptyset \}$.
+Then, the given-clause algorithm is applied to try and saturate the set.
+Assuming a fair strategy, this will eventually find a solution
+(i.e. derive $\clauseWithSubst{\emptyset }{\Sigma}$) if there exists one.
+We refer the interested reader to~\cite{e_brainiac_prover} for more details.
 
-\todo{explain that we can solve many problems in the same loop}
-\todo{explain (potential) incrementality}
+Because the whole branch is treated by a single given-clause saturation loop,
+we look for all solutions susceptible to close the branch at the same time.
+Moreover, this technique is amenable to incrementality --- every time a
+(dis)equation is decided by the SAT solver, we could add it to the saturation
+set and perform a (limited) number of steps of the given-clause algorithm.
 
 %}}}
