@@ -847,11 +847,11 @@ let merge p_set clause =
 (* Main functions *)
 (* ************************************************************************ *)
 
-(* Applies: TD1, TD2, TD3 *)
+(* Applies: TD1, TD2 *)
 let trivial c p =
   match c.lit with
   | Eq (a, b) when Expr.Term.equal a b -> true  (* TD1 *)
-  | _ when C.is_empty c.map -> true             (* TD2&3 *)
+  | _ when C.is_empty c.map -> true             (* TD2 *)
   | _ -> S.mem c p.clauses                      (* Simple redundancy criterion *)
 
 (* Fixpoint for simplification rules *)
