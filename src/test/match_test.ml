@@ -7,26 +7,24 @@ let section = Section.make "match_test"
 (* Substitution generation (no type subst for now) *)
 (* ************************************************************************ *)
 
-let print =
-  Format.asprintf "%a" Match.print
+let print m = Format.asprintf "%a" Mapping.print m
 
 let small u =
-  assert (Expr.Subst.is_empty u.Match.ty_map);
   let aux v t acc = acc + E.Term.small t in
-  Expr.Subst.fold aux u.Match.t_map 0
+  Mapping.fold ~term_var:aux ~term_meta:aux u 0
 
 let shrink u =
   let aux (v, t) = I.map (fun t' -> (v, t')) (E.Term.shrink t) in
   let of_list l =
     List.fold_left (fun u (v, t) ->
-        Match.bind_term u v t) Match.empty l
+        Mapping.Var.bind_term u v t) Mapping.empty l
   in
-  let l = Expr.Subst.bindings u.Match.t_map in
+  let l = Expr.Subst.bindings (Mapping.term_var u) in
   I.map of_list (S.list ~shrink:aux l)
 
 let sized =
   G.fix (fun self n ->
-      if n <= 0 then G.return Match.empty
+      if n <= 0 then G.return Mapping.empty
       else
         G.(
           Misc_test.split_int (n - 1) >>= fun (curr, rest) ->
@@ -34,7 +32,7 @@ let sized =
           E.Ty.gen >>= fun ty ->
           E.Var.gen ty >>= fun m ->
           E.Term.(typed ~config:{var = 0; meta = 1;} ty) curr >>= fun t ->
-          G.return @@ Match.bind_term u m t
+          G.return @@ Mapping.Var.bind_term u m t
         )
     )
 
@@ -65,18 +63,18 @@ let match_subst =
        match Match.find ~section a b with
        | None -> QCheck.assume_fail ()
        | Some u ->
-         Expr.Term.equal (Match.term_apply u a) b
+         Expr.Term.equal (Mapping.apply_term ~fix:false u a) b
     )
 
 let subst_match =
   QCheck.Test.make ~count:100 ~long_factor:10
     ~name:"subst_match" (QCheck.pair t E.Term.t)
     (fun (u, pat) ->
-       let t = Match.term_apply u pat in
+       let t = Mapping.apply_term ~fix:false u pat in
        match Match.find ~section pat t with
        | None -> false
        | Some u' ->
-         Expr.Term.equal t (Match.term_apply u' pat)
+         Expr.Term.equal t (Mapping.apply_term ~fix:false u' pat)
     )
 
 let match_qtests = [

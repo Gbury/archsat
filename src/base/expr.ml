@@ -214,7 +214,7 @@ module Print = struct
     | [] -> ()
     | _ -> Format.fprintf fmt "%s%a%s" start (aux ~sep f) l stop
 
-  let id fmt v = Format.fprintf fmt "%s" v.id_name
+  let id fmt v = Format.fprintf fmt "%s_%d" v.id_name v.index
   let meta fmt m = Format.fprintf fmt "m%d_%a" m.meta_index id m.meta_id
   let ttype fmt = function Type -> Format.fprintf fmt "Type"
 
@@ -305,6 +305,21 @@ module Subst = struct
   let empty = Mi.empty
 
   let is_empty = Mi.is_empty
+
+  let wrap key = function
+    | None -> None
+    | Some x -> Some (key, x)
+
+  let merge f = Mi.merge (fun _ opt1 opt2 ->
+      match opt1, opt2 with
+      | None, None -> assert false
+      | Some (key, value), None ->
+        wrap key @@ f key (Some value) None
+      | None, Some (key, value) ->
+        wrap key @@ f key None (Some value)
+      | Some (key, value1), Some (_key, value2) ->
+        wrap key @@ f key (Some value1) (Some value2)
+    )
 
   let iter f = Mi.iter (fun _ (key, value) -> f key value)
 
@@ -462,6 +477,18 @@ module Id = struct
     List.filter (fun v -> not (CCList.mem ~eq:equal v ty2)) ty1,
     List.filter (fun v -> not (CCList.mem ~eq:equal v t2)) t1
 
+  let rec free_ty acc ty = match ty.ty with
+    | TyVar v -> merge_fv acc ([v], [])
+    | TyMeta _ -> acc
+    | TyApp (_, args) -> List.fold_left free_ty acc args
+
+  let rec free_term acc t = match t.term with
+    | Var v -> merge_fv acc ([], [v])
+    | Meta _ -> acc
+    | App (_, tys, args) ->
+      let acc' = List.fold_left free_ty acc tys in
+      List.fold_left free_term acc' args
+
   (* Variable occurs in a term *)
   let rec occurs_in_term var t = match t.term with
     | Var v -> equal var v
@@ -566,24 +593,23 @@ module Meta = struct
   end
 
   (* Free meta-variables *)
-  let merge_metas (ty1, t1) (ty2, t2) =
+  let null_fm = [], []
+
+  let merge_fm (ty1, t1) (ty2, t2) =
     CCList.sorted_merge_uniq ~cmp:compare ty1 ty2,
     CCList.sorted_merge_uniq ~cmp:compare t1 t2
 
-  let rec ty_free_metas acc ty = match ty.ty with
+  let rec free_ty acc ty = match ty.ty with
     | TyVar _ -> acc
-    | TyMeta m -> merge_metas acc ([m], [])
-    | TyApp (_, args) -> List.fold_left ty_free_metas acc args
+    | TyMeta m -> merge_fm acc ([m], [])
+    | TyApp (_, args) -> List.fold_left free_ty acc args
 
-  let rec term_free_metas acc t = match t.term with
+  let rec free_term acc t = match t.term with
     | Var _ -> acc
-    | Meta m -> merge_metas acc ([], [m])
+    | Meta m -> merge_fm acc ([], [m])
     | App (_, tys, args) ->
-      let acc' = List.fold_left ty_free_metas acc tys in
-      List.fold_left term_free_metas acc' args
-
-  let in_ty = ty_free_metas ([], [])
-  let in_term = term_free_metas ([], [])
+      let acc' = List.fold_left free_ty acc tys in
+      List.fold_left free_term acc' args
 
   (* Metas refer to an index which stores the defining formula for the variable *)
   type meta_def =
@@ -651,8 +677,10 @@ end
 (* ************************************************************************ *)
 
 module Ty = struct
+
   type t = ty
-  type subst = (ttype id, ty) Subst.t
+  type var_subst = (ttype id, ty) Subst.t
+  type meta_subst = (ttype meta, ty) Subst.t
 
   (* Hash & Comparisons *)
   let rec hash_aux t = match t.ty with
@@ -711,15 +739,25 @@ module Ty = struct
   let base = apply Id.base []
 
   (* Substitutions *)
-  let rec subst_aux map t = match t.ty with
-    | TyVar v -> begin try Subst.Id.get v map with Not_found -> t end
-    | TyMeta m -> begin try Subst.Id.get m.meta_id map with Not_found -> t end
+  let rec subst_aux ~fix var_map meta_map t = match t.ty with
+    | TyVar v ->
+      begin match Subst.Id.get v var_map with
+        | exception Not_found -> t
+        | ty -> if fix then subst_aux ~fix var_map meta_map ty else ty
+      end
+    | TyMeta m ->
+      begin match Subst.Meta.get m meta_map with
+        | exception Not_found -> t
+        | ty -> if fix then subst_aux ~fix var_map meta_map ty else ty
+      end
     | TyApp (f, args) ->
-      let new_args = List.map (subst_aux map) args in
+      let new_args = List.map (subst_aux ~fix var_map meta_map) args in
       if List.for_all2 (==) args new_args then t
       else apply ~status:t.ty_status f new_args
 
-  let subst map t = if Subst.is_empty map then t else subst_aux map t
+  let subst ?(fix=true) var_map meta_map t =
+    if Subst.is_empty var_map && Subst.is_empty meta_map then t
+    else subst_aux ~fix var_map meta_map t
 
   (* Typechecking *)
   let instantiate f tys args =
@@ -728,19 +766,15 @@ module Ty = struct
       raise (Bad_arity (f, tys, args))
     else
       let map = List.fold_left2 Subst.Id.bind Subst.empty f.id_type.fun_vars tys in
-      let fun_args = List.map (subst map) f.id_type.fun_args in
+      let fun_args = List.map (subst map Subst.empty) f.id_type.fun_args in
       List.iter2 (fun t ty ->
           if not (equal t.t_type ty) then raise (Type_mismatch (t, t.t_type, ty)))
         args fun_args;
-      subst map f.id_type.fun_ret
+      subst map Subst.empty f.id_type.fun_ret
 
   (* Free variables *)
-  let rec free_vars acc ty = match ty.ty with
-    | TyVar v -> Id.merge_fv acc ([v], [])
-    | TyMeta _ -> acc
-    | TyApp (_, args) -> List.fold_left free_vars acc args
-
-  let fv = free_vars Id.null_fv
+  let fv = Id.free_ty Id.null_fv
+  let fm = Meta.free_ty Meta.null_fm
 
 end
 
@@ -748,8 +782,10 @@ end
 (* ************************************************************************ *)
 
 module Term = struct
+
   type t = term
-  type subst = (ty id, term) Subst.t
+  type var_subst = (ty id, term) Subst.t
+  type meta_subst = (ty meta, term) Subst.t
 
   (* Hash & Comparisons *)
   let rec hash_aux t = match t.term with
@@ -806,20 +842,36 @@ module Term = struct
   let tag t k v = t.t_tags <- Tag.add t.t_tags k v
 
   (* Substitutions *)
-  let rec subst_aux ty_map t_map t = match t.term with
-    | Var v -> begin try Subst.Id.get v t_map with Not_found -> t end
-    | Meta m -> begin try Subst.Id.get m.meta_id t_map with Not_found -> t end
+  let rec subst_aux ~fix ty_var_map ty_meta_map t_var_map t_meta_map t =
+    match t.term with
+    | Var v ->
+      begin match Subst.Id.get v t_var_map with
+        | exception Not_found -> t
+        | term ->
+          if fix
+          then subst_aux ~fix ty_var_map ty_meta_map t_var_map t_meta_map term
+          else term
+      end
+    | Meta m ->
+      begin match Subst.Meta.get m t_meta_map with
+        | exception Not_found -> t
+        | term ->
+          if fix
+          then subst_aux ~fix ty_var_map ty_meta_map t_var_map t_meta_map term
+          else term
+      end
     | App (f, tys, args) ->
-      let new_tys = List.map (Ty.subst ty_map) tys in
-      let new_args = List.map (subst_aux ty_map t_map) args in
+      let new_tys = List.map (Ty.subst ~fix ty_var_map ty_meta_map) tys in
+      let new_args = List.map (subst_aux ~fix ty_var_map ty_meta_map t_var_map t_meta_map) args in
       if List.for_all2 (==) new_tys tys && List.for_all2 (==) new_args args then t
       else apply ~status:t.t_status f new_tys new_args
 
-  let subst ty_map t_map t =
-    if Subst.is_empty ty_map && Subst.is_empty t_map then
+  let subst ?(fix=true) ty_var_map ty_meta_map t_var_map t_meta_map t =
+    if Subst.is_empty ty_var_map && Subst.is_empty ty_meta_map &&
+       Subst.is_empty t_var_map && Subst.is_empty t_meta_map then
       t
     else
-      subst_aux ty_map t_map t
+      subst_aux ~fix ty_var_map ty_meta_map t_var_map t_meta_map t
 
   let rec replace (t, t') t'' = match t''.term with
     | _ when equal t t'' -> t'
@@ -828,14 +880,8 @@ module Term = struct
     | _ -> t''
 
   (* Free variables *)
-  let rec free_vars acc t = match t.term with
-    | Var v -> Id.merge_fv acc ([], [v])
-    | Meta _ -> acc
-    | App (_, tys, args) ->
-      let acc' = List.fold_left Ty.free_vars acc tys in
-      List.fold_left free_vars acc' args
-
-  let fv = free_vars Id.null_fv
+  let fv = Id.free_term Id.null_fv
+  let fm = Meta.free_term Meta.null_fm
 
   (* Evaluation & Assignment *)
   let eval ?(strict=false) t =
@@ -1087,95 +1133,99 @@ module Formula = struct
       Id.init_ty_skolems l fv;
       mk_formula (ExTy (l, to_free_args fv, f))
 
-  let rec new_binder_subst ty_map subst acc = function
+  let rec new_binder_subst ty_var_map ty_meta_map subst acc = function
     | [] -> List.rev acc, subst
     | v :: r ->
-      let ty = Ty.subst ty_map v.id_type in
+      let ty = Ty.subst ty_var_map ty_meta_map v.id_type in
       if not (Ty.equal ty v.id_type) then
         let nv = Id.ty v.id_name ty in
-        new_binder_subst ty_map (Subst.Id.bind subst v (Term.of_id nv)) (nv :: acc) r
+        new_binder_subst ty_var_map ty_meta_map
+          (Subst.Id.bind subst v (Term.of_id nv)) (nv :: acc) r
       else
-        new_binder_subst ty_map (Subst.Id.remove v subst) (v :: acc) r
+        new_binder_subst ty_var_map ty_meta_map
+          (Subst.Id.remove v subst) (v :: acc) r
 
   (* TODO: Check free variables of substitutions for quantifiers ? *)
-  let rec formula_subst ty_map t_map f =
+  let rec subst_aux ~fix ty_var_map ty_meta_map t_var_map t_meta_map f =
     match f.formula with
     | True | False -> f
     | Equal (a, b) ->
-      let new_a = Term.subst ty_map t_map a in
-      let new_b = Term.subst ty_map t_map b in
+      let new_a = Term.subst ~fix ty_var_map ty_meta_map t_var_map t_meta_map a in
+      let new_b = Term.subst ~fix ty_var_map ty_meta_map t_var_map t_meta_map b in
       if a == new_a && b == new_b then f
       else eq new_a new_b
     | Pred t ->
-      let new_t = Term.subst ty_map t_map t in
+      let new_t = Term.subst ~fix ty_var_map ty_meta_map t_var_map t_meta_map t in
       if t == new_t then f
       else pred new_t
     | Not p ->
-      let new_p = formula_subst ty_map t_map p in
+      let new_p = subst_aux ~fix ty_var_map ty_meta_map t_var_map t_meta_map p in
       if p == new_p then f
       else neg new_p
     | And l ->
-      let new_l = List.map (formula_subst ty_map t_map) l in
+      let new_l = List.map (subst_aux ~fix ty_var_map ty_meta_map t_var_map t_meta_map) l in
       if List.for_all2 (==) l new_l then f
       else f_and new_l
     | Or l ->
-      let new_l = List.map (formula_subst ty_map t_map) l in
+      let new_l = List.map (subst_aux ~fix ty_var_map ty_meta_map t_var_map t_meta_map) l in
       if List.for_all2 (==) l new_l then f
       else f_or new_l
     | Imply (p, q) ->
-      let new_p = formula_subst ty_map t_map p in
-      let new_q = formula_subst ty_map t_map q in
+      let new_p = subst_aux ~fix ty_var_map ty_meta_map t_var_map t_meta_map p in
+      let new_q = subst_aux ~fix ty_var_map ty_meta_map t_var_map t_meta_map q in
       if p == new_p && q == new_q then f
       else imply new_p new_q
     | Equiv (p, q) ->
-      let new_p = formula_subst ty_map t_map p in
-      let new_q = formula_subst ty_map t_map q in
+      let new_p = subst_aux ~fix ty_var_map ty_meta_map t_var_map t_meta_map p in
+      let new_q = subst_aux ~fix ty_var_map ty_meta_map t_var_map t_meta_map q in
       if p == new_p && q == new_q then f
       else equiv new_p new_q
     | All (l, (ty, t), p) ->
-      let l', t_map = new_binder_subst ty_map t_map [] l in
+      let l', t_map = new_binder_subst ty_var_map ty_meta_map t_var_map [] l in
       List.iter2 Id.copy_term_skolem l l';
-      let tys = List.map (Ty.subst ty_map) ty in
-      let ts = List.map (Term.subst ty_map t_map) t in
-      mk_formula (All (l', (tys, ts), (formula_subst ty_map t_map p)))
+      let tys = List.map (Ty.subst ty_var_map ty_meta_map) ty in
+      let ts = List.map (Term.subst ty_var_map ty_meta_map t_var_map t_meta_map) t in
+      mk_formula (All (l', (tys, ts), (subst_aux ~fix ty_var_map ty_meta_map t_map t_meta_map p)))
     | Ex (l, (ty, t), p) ->
-      let l', t_map = new_binder_subst ty_map t_map [] l in
+      let l', t_map = new_binder_subst ty_var_map ty_meta_map t_var_map [] l in
       List.iter2 Id.copy_term_skolem l l';
-      let tys = List.map (Ty.subst ty_map) ty in
-      let ts = List.map (Term.subst ty_map t_map) t in
-      mk_formula (Ex (l', (tys, ts), (formula_subst ty_map t_map p)))
+      let tys = List.map (Ty.subst ty_var_map ty_meta_map) ty in
+      let ts = List.map (Term.subst ty_var_map ty_meta_map t_var_map t_meta_map) t in
+      mk_formula (Ex (l', (tys, ts), (subst_aux ~fix ty_var_map ty_meta_map t_map t_meta_map p)))
     | AllTy (l, (ty, t), p) ->
       assert (t = []);
-      let tys = List.map (Ty.subst ty_map) ty in
-      mk_formula (AllTy (l, (tys, t), (formula_subst ty_map t_map p)))
+      let tys = List.map (Ty.subst ty_var_map ty_meta_map) ty in
+      mk_formula (AllTy (l, (tys, t), (subst_aux ~fix ty_var_map ty_meta_map t_var_map t_meta_map p)))
     | ExTy (l, (ty, t), p) ->
       assert (t = []);
-      let tys = List.map (Ty.subst ty_map) ty in
-      mk_formula (ExTy (l, (tys, t), (formula_subst ty_map t_map p)))
+      let tys = List.map (Ty.subst ty_var_map ty_meta_map) ty in
+      mk_formula (ExTy (l, (tys, t), (subst_aux ~fix ty_var_map ty_meta_map t_var_map t_meta_map p)))
 
-  let subst ty_map t_map f =
-    Subst.iter (fun _ ty -> match ty.ty with TyVar _ -> assert false | _ -> ()) ty_map;
-    Subst.iter (fun _ t -> match t.term with Var _ -> assert false | _ -> ()) t_map;
-    if Subst.is_empty ty_map && Subst.is_empty t_map then f
-    else formula_subst ty_map t_map f
+  let subst ?(fix=true) ty_var_map ty_meta_map t_var_map t_meta_map f =
+    if Subst.is_empty ty_var_map && Subst.is_empty ty_meta_map &&
+       Subst.is_empty t_var_map && Subst.is_empty t_meta_map then
+      f
+    else
+      subst_aux ~fix ty_var_map ty_meta_map t_var_map t_meta_map f
 
-  let partial_inst ty_map t_map f = match f.formula with
+  let rec partial_inst ty_var_map t_var_map f = match f.formula with
     | All (l, args, p) ->
-      let l' = List.filter (fun v -> not (Subst.Id.mem v t_map)) l in
-      let q = formula_subst ty_map t_map p in
+      let l' = List.filter (fun v -> not (Subst.Id.mem v t_var_map)) l in
+      let q = partial_inst ty_var_map t_var_map p in
       if l' = [] then q else mk_formula (All (l', args, q))
     | AllTy (l, args, p) ->
-      let l' = List.filter (fun v -> not (Subst.Id.mem v ty_map)) l in
-      let q = formula_subst ty_map t_map p in
+      let l' = List.filter (fun v -> not (Subst.Id.mem v ty_var_map)) l in
+      let q = partial_inst ty_var_map t_var_map p in
       if l' = [] then q else mk_formula (AllTy (l', args, q))
     | Not { formula = Ex (l, args, p) } ->
-      let l' = List.filter (fun v -> not (Subst.Id.mem v t_map)) l in
-      let q = formula_subst ty_map t_map p in
+      let l' = List.filter (fun v -> not (Subst.Id.mem v t_var_map)) l in
+      let q = partial_inst ty_var_map t_var_map p in
       neg (if l' = [] then q else mk_formula (Ex (l', args, q)))
     | Not { formula = ExTy (l, args, p) } ->
-      let l' = List.filter (fun v -> not (Subst.Id.mem v ty_map)) l in
-      let q = formula_subst ty_map t_map p in
+      let l' = List.filter (fun v -> not (Subst.Id.mem v ty_var_map)) l in
+      let q = partial_inst ty_var_map t_var_map p in
       neg (if l' = [] then q else mk_formula (ExTy (l', args, q)))
-    | _ -> f
+    | _ -> subst_aux ~fix:false ty_var_map Subst.empty t_var_map Subst.empty f
+
 end
 

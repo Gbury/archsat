@@ -77,6 +77,15 @@ let print fmt m =
 (* Whole mapping functions *)
 (* ************************************************************************ *)
 
+(* Helper functions *)
+let _id _ _ acc = acc
+let _false _ _ = false
+let _assert_false2 _ _ = assert false
+let _assert_false3 _ _ _ = assert false
+
+
+(* Interesting functions *)
+
 let map f_ty f_term t = {
   hash = -1;
   ty_var = S.map f_ty t.ty_var;
@@ -85,8 +94,6 @@ let map f_ty f_term t = {
   t_meta = S.map f_term t.t_meta;
 }
 
-let _id _ _ acc = acc
-let _false _ _ = false
 
 let fold
   ?(ty_var=_id)
@@ -117,6 +124,28 @@ let exists
   S.exists ty_meta t.ty_meta &&
   S.exists term_var t.t_var &&
   S.exists term_meta t.t_meta
+
+let filter
+    ?(ty_var=_assert_false2)
+    ?(ty_meta=_assert_false2)
+    ?(term_var=_assert_false2)
+    ?(term_meta=_assert_false2) t =
+  { hash = -1;
+    ty_var = S.filter ty_var t.ty_var;
+    ty_meta = S.filter ty_meta t.ty_meta;
+    t_var = S.filter term_var t.t_var;
+    t_meta = S.filter term_meta t.t_meta; }
+
+let merge
+    ?(ty_var=_assert_false3)
+    ?(ty_meta=_assert_false3)
+    ?(term_var=_assert_false3)
+    ?(term_meta=_assert_false3) t t' =
+  { hash = -1;
+    ty_var = S.merge ty_var t.ty_var t'.ty_var;
+    ty_meta = S.merge ty_meta t.ty_meta t'.ty_meta;
+    t_var = S.merge term_var t.t_var t'.t_var;
+    t_meta = S.merge term_meta t.t_meta t'.t_meta; }
 
 (* Variable bindings *)
 (* ************************************************************************ *)
@@ -175,51 +204,16 @@ end
 (* Mappings as substitution *)
 (* ************************************************************************ *)
 
-let rec apply_ty_aux ~fix t = function
-  | { Expr.ty = Expr.TyVar v } as ty ->
-    begin match Var.get_ty t v with
-      | exception Not_found -> ty
-      | ty' ->
-        if fix then apply_ty_aux ~fix t ty' else ty'
-    end
-  | { Expr.ty = Expr.TyMeta m } as ty ->
-    begin match Meta.get_ty t m with
-    | exception Not_found -> ty
-    | ty' ->
-      if fix then apply_ty_aux ~fix t ty' else ty'
-    end
-  | { Expr.ty = Expr.TyApp (f, args) } as ty ->
-    let new_args = List.map (apply_ty_aux ~fix t) args in
-    if List.for_all2 (==) args new_args then ty
-    else Expr.Ty.apply f new_args
+let apply_ty ?fix t ty =
+  Expr.Ty.subst ?fix t.ty_var t.ty_meta ty
 
-let apply_ty ~fix t ty =
-  if is_empty_ty t then ty else apply_ty_aux ~fix t ty
+let apply_term ?fix t term =
+  Expr.Term.subst ?fix t.ty_var t.ty_meta t.t_var t.t_meta term
 
-let rec apply_term_aux ~fix t = function
-  | { Expr.term = Expr.Var v } as term ->
-    begin match Var.get_term t v with
-      | exception Not_found -> term
-      | term' ->
-        if fix then apply_term_aux ~fix t term' else term'
-    end
-  | { Expr.term = Expr.Meta m } as term ->
-    begin match Meta.get_term t m with
-      | exception Not_found -> term
-      | term' ->
-        if fix then apply_term_aux ~fix t term' else term'
-    end
-  | { Expr.term = Expr.App (f, tys, args) } as term ->
-    let new_tys = List.map (apply_ty ~fix t) tys in
-    let new_args = List.map (apply_term_aux ~fix t) args in
-    if List.for_all2 (==) tys new_tys && List.for_all2 (==) args new_args then term
-    else Expr.Term.apply f new_tys new_args
-
-let apply_term ~fix t term =
-  if is_empty t then term else apply_term_aux ~fix t term
+let apply_formula ?fix t formula =
+  Expr.Formula.subst ?fix t.ty_var t.ty_meta t.t_var t.t_meta formula
 
 (* Fixpoint on meta substitutions *)
 let fixpoint t = map (apply_ty ~fix:true t) (apply_term ~fix:true t) t
-
 
 

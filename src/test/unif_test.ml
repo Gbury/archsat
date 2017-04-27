@@ -7,26 +7,24 @@ let section = Section.make "unif_test"
 (* Unifier generation (no type subst for now) *)
 (* ************************************************************************ *)
 
-let print =
-  Format.asprintf "%a" Unif.print
+let print m = Format.asprintf "%a" Mapping.print m
 
 let small u =
-  assert (Expr.Subst.is_empty u.Unif.ty_map);
-  let aux v t acc = acc + E.Term.small t in
-  Expr.Subst.fold aux u.Unif.t_map 0
+  let aux _ t acc = acc + E.Term.small t in
+  Mapping.fold ~term_var:aux ~term_meta:aux u 0
 
 let shrink u =
   let aux (v, t) = I.map (fun t' -> (v, t')) (E.Term.shrink t) in
   let of_list l =
     List.fold_left (fun u (v, t) ->
-        Unif.bind_term u v t) Unif.empty l
+        Mapping.Meta.bind_term u v t) Mapping.empty l
   in
-  let l = Expr.Subst.bindings u.Unif.t_map in
+  let l = Expr.Subst.bindings (Mapping.term_meta u) in
   I.map of_list (S.list ~shrink:aux l)
 
 let sized =
   G.fix (fun self n ->
-      if n <= 0 then G.return Unif.empty
+      if n <= 0 then G.return Mapping.empty
       else
         G.(
           Misc_test.split_int (n - 1) >>= fun (curr, rest) ->
@@ -34,7 +32,7 @@ let sized =
           E.Ty.gen >>= fun ty ->
           E.Meta.gen ty >>= fun m ->
           E.Term.(typed ~config:{var = 0; meta = 1;} ty) curr >>= fun t ->
-          G.return @@ Unif.bind_term u m t
+          G.return @@ Mapping.Meta.bind_term u m t
         )
     )
 
@@ -52,7 +50,7 @@ let fixpoint_occur =
     ~name:"fixpoint_occur" t
     (fun u ->
        QCheck.assume (Unif.occurs_check u);
-       Unif.occurs_check (Unif.fixpoint u)
+       Unif.occurs_check (Mapping.fixpoint u)
     )
 
 let fixpoint_proj =
@@ -60,8 +58,8 @@ let fixpoint_proj =
     ~name:"fixpoint_is_proj" t
     (fun u ->
        QCheck.assume (Unif.occurs_check u);
-       let u' = Unif.fixpoint u in
-       Unif.equal u' (Unif.fixpoint u')
+       let u' = Mapping.fixpoint u in
+       Mapping.equal u' (Mapping.fixpoint u')
     )
 
 let unif_qtests = [
@@ -99,7 +97,7 @@ let robinson_subst =
        | None -> QCheck.assume_fail ()
        | Some u ->
          Unif.occurs_check u &&
-         Expr.Term.equal (Unif.term_subst u a) (Unif.term_subst u b)
+         Expr.Term.equal (Mapping.apply_term u a) (Mapping.apply_term u b)
     )
 
 let subst_robinson =
@@ -107,12 +105,12 @@ let subst_robinson =
     ~name:"subst_robinson" (QCheck.pair t E.Term.t)
     (fun (u, t) ->
        QCheck.assume (Unif.occurs_check u);
-       let t' = Unif.term_subst u t in
+       let t' = Mapping.apply_term u t in
        match Unif.Robinson.find ~section t t' with
        | None -> false
        | Some u' ->
          Unif.occurs_check u' &&
-         Expr.Term.equal (Unif.term_subst u' t) (Unif.term_subst u' t')
+         Expr.Term.equal (Mapping.apply_term u' t) (Mapping.apply_term u' t')
     )
 
 let robinson_qtests = [

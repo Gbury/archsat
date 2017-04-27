@@ -20,17 +20,21 @@ type lit =
 (* Type of reasons for clauses. *)
 type reason =
   | Hyp
+  | Fresh of clause
   | ER of clause
+  | ES of pointer * pointer
   | SN of pointer * pointer
   | SP of pointer * pointer
   | RN of pointer * pointer
   | RP of pointer * pointer
+  | MN of pointer * pointer
+  | MP of pointer * pointer
 
 (* Type for unit clauses, i.e clauses with at most one equation *)
 and clause = {
   id : int;                 (* Unique id (for printing and tracking through logs) *)
   lit : lit;                (* Contents of the clause *)
-  map : Mapping.t;                (* Current mapping for variables & meta-variables *)
+  map : C.t;                (* Current mapping for variables & meta-variables *)
   reason : reason;          (* Reason of the clause *)
   weight : int;             (* weight of the clause (clauses with lesser
                                weight are selected first) *)
@@ -42,21 +46,43 @@ and pointer = {
   path : Position.t;
 }
 
-(* Type/Term size *)
+(* Helper functions *)
 (* ************************************************************************ *)
-
-let rec ty_size acc = function
-  | { Expr.ty = Expr.TyApp (_, l) } ->
-    List.fold_left ty_size (acc + 1) l
-  | _ -> acc + 1
 
 let rec term_size acc = function
   | { Expr.term = Expr.App (_, _, l) } ->
     List.fold_left term_size (acc + 1) l
   | _ -> acc + 1
 
+let is_leaf_ty = function
+  | { Expr.ty = Expr.TyApp _ } -> false
+  | { Expr.ty = (Expr.TyVar _ | Expr.TyMeta _) } -> true
+
+let is_leaf_term = function
+  | { Expr.term = Expr.App _ } -> false
+  | { Expr.term = (Expr.Var _ | Expr.Meta _) } -> true
+
+
 (* Substitutions *)
 (* ************************************************************************ *)
+
+(* Alpha renaming *)
+let is_alpha m =
+  Mapping.for_all
+    ~ty_var:(fun _ -> is_leaf_ty)
+    ~ty_meta:(fun _ -> is_leaf_ty)
+    ~term_var:(fun _ -> is_leaf_term)
+    ~term_meta:(fun _ -> is_leaf_term) m
+
+let simpl_mapping m =
+  Mapping.filter
+    ~ty_var:(fun v ty -> not @@ Expr.Ty.(equal ty @@ of_id v))
+    ~ty_meta:(fun m ty -> not @@ Expr.Ty.(equal ty @@ of_meta m))
+    ~term_var:(fun v term -> not @@ Expr.Term.(equal term @@ of_id v))
+    ~term_meta:(fun m term -> not @@ Expr.Term.(equal term @@ of_meta m))
+    m
+
+(* Mapping ordering*)
 
 (* can s be composed with another mapping to be equal/included in s' *)
 let match_subst s s' =
@@ -71,13 +97,74 @@ let match_subst s s' =
   let term_meta = aux Mapping.Meta.get_term Match.term in
   Mapping.fold ~ty_var ~term_var ~ty_meta ~term_meta s Mapping.empty
 
-let (<<) s t =
+let (<) s t =
   try
     let _ = match_subst s t in
     true
   with
   | Match.Impossible_ty _
   | Match.Impossible_term _ -> false
+
+let (<<) t t' =
+  C.for_all (fun s' -> C.exists (fun s -> s < s') t) t'
+
+
+(* Mapping composition *)
+
+let compose s s' =
+  Mapping.map
+    (Mapping.apply_ty s')
+    (Mapping.apply_term s') s
+
+let compose_set set rho =
+  C.map (fun s -> compose s rho) set
+
+
+(* Mapping merging *)
+
+let merge_aux s s' =
+  let aux get f_match x t acc =
+    match get s' x with
+    | t' -> f_match acc t t'
+    | exception Not_found -> acc
+  in
+  let ty_var = aux Mapping.Var.get_ty Unif.Robinson.ty in
+  let ty_meta = aux Mapping.Meta.get_ty Unif.Robinson.ty in
+  let term_var = aux Mapping.Var.get_term Unif.Robinson.term in
+  let term_meta = aux Mapping.Meta.get_term Unif.Robinson.term in
+  Mapping.fold ~ty_var ~term_var ~ty_meta ~term_meta s Mapping.empty
+
+let merge s s' =
+  match merge_aux s s' with
+  | exception Unif.Robinson.Impossible_ty _ -> None
+  | exception Unif.Robinson.Impossible_term _ -> None
+  | rho ->
+    let aux ~eq ~f = function
+      | None, None -> assert false
+      | Some x, None
+      | None, Some x -> Some (f x)
+      | Some x, Some y ->
+        let x' = f x in
+        let y' = f y in
+        assert (eq x' y');
+        Some x'
+    in
+    let aux_ty _ opt opt' =
+      aux ~eq:Expr.Ty.equal ~f:(Mapping.apply_ty rho) (opt, opt') in
+    let aux_term _ opt opt' =
+      aux ~eq:Expr.Term.equal ~f:(Mapping.apply_term rho) (opt, opt') in
+    Some (Mapping.merge
+            ~ty_var:aux_ty ~ty_meta:aux_ty
+            ~term_var:aux_term ~term_meta:aux_term
+            s s')
+
+let merge_set set set' =
+  C.fold (fun s acc ->
+      C.fold (fun s' acc' ->
+          match merge s s' with
+          | None -> acc'
+          | Some s'' -> C.add s'' acc'
+        ) set' acc) set C.empty
 
 (* Clauses *)
 (* ************************************************************************ *)
@@ -96,16 +183,19 @@ let _discr = function
 
 let compare c c' =
   match c.lit, c'.lit with
-  | Empty, Empty -> Mapping.compare c.map c'.map
+  | Empty, Empty -> C.compare c.map c'.map
   | Eq (a, b), Eq (a', b')
   | Neq (a, b), Neq (a', b') ->
     CCOrd.(Expr.Term.compare a a'
            <?> (Expr.Term.compare, b, b')
-           <?> (Mapping.compare, c.map, c'.map))
+           <?> (C.compare, c.map, c'.map))
   | x, y -> Pervasives.compare (_discr x) (_discr y)
 
 (* Printing of clauses *)
-let pp_id fmt c = Format.fprintf fmt "C%d" c.id
+let rec pp_id fmt c =
+  match c.reason with
+  | Fresh c' -> Format.fprintf fmt "~%a" pp_id c'
+  | _ -> Format.fprintf fmt "C%d" c.id
 
 let pp_pos fmt pos =
   let dir = if pos.side = Left then "→" else "←" in
@@ -114,11 +204,15 @@ let pp_pos fmt pos =
 let pp_reason fmt c =
   match c.reason with
   | Hyp -> Format.fprintf fmt "hyp"
+  | Fresh c -> Format.fprintf fmt "Fresh(%a)" pp_id c
   | ER d -> Format.fprintf fmt "ER(%a)" pp_id d
   | SN (d, e) -> Format.fprintf fmt "SN(%a;%a)" pp_pos d pp_pos e
   | SP (d, e) -> Format.fprintf fmt "SP(%a;%a)" pp_pos d pp_pos e
+  | ES (d, e) -> Format.fprintf fmt "ES(%a;%a)" pp_pos d pp_pos e
   | RN (d, e) -> Format.fprintf fmt "RN(%a;%a)" pp_pos d pp_pos e
   | RP (d, e) -> Format.fprintf fmt "RP(%a;%a)" pp_pos d pp_pos e
+  | MN (d, e) -> Format.fprintf fmt "MN(%a;%a)" pp_pos d pp_pos e
+  | MP (d, e) -> Format.fprintf fmt "MP(%a;%a)" pp_pos d pp_pos e
 
 let pp_cmp ~pos fmt (a, b) =
   let s = Comparison.to_string (Lpo.compare a b) in
@@ -139,30 +233,39 @@ let pp_lit fmt c =
     Format.fprintf fmt "@[%a@ %a@ %a@]"
       Expr.Print.term a (pp_cmp ~pos:false) (a, b) Expr.Print.term b
 
-let pp_map fmt c = Mapping.print fmt c.map
+let pp_map fmt c =
+  C.iter (fun m -> Format.fprintf fmt "@,[%a]" Mapping.print m) c.map
 
 let pp fmt (c:clause) =
-  Format.fprintf fmt "@[<hov 2>%a@,[%a]@,[%a]@,[%a]@]"
+  Format.fprintf fmt "@[<hov 2>%a@,[%a]@,[%a]%a@]"
     pp_id c pp_reason c pp_lit c pp_map c
 
 (* Heuristics for clauses. Currently uses the size of terms.
-   TODO: better heuristic for clause selection. *)
-let compute_weight subst = function
+   NOTE: currently, weight does not take the subst into account so that
+         clauses that might be merged have the same weight and thus are
+         added together.
+   TODO: merge clauses in the queue ?
+   TODO: better heuristic for clause selection.
+*)
+let compute_weight = function
   | Empty -> 0
-  | Eq (a, b) ->
-    2 * (term_size (term_size 0 b) a)
-  | Neq (a, b) ->
-    1 * (term_size (term_size 0 b) a)
+  | Eq (a, b) -> 2 * (term_size (term_size 0 b) a)
+  | Neq (a, b) -> 1 * (term_size (term_size 0 b) a)
+  (* Disequalities have smaller weight because we are more interested
+     in them (better chance to apply rule ER, and get a solution) *)
 
-let cmp_weight c c' = c.weight <= c'.weight
+let leq_cl c c' =
+  c.weight <= c'.weight || (
+    c.weight = c'.weight &&
+    C.cardinal c.map >= C.cardinal c'.map
+  )
 
 (* Clauses *)
 let mk_cl =
   let i = ref 0 in
-  (fun lit subst reason ->
+  (fun lit map reason ->
      incr i;
-     let weight = compute_weight subst lit in
-     let map = Mapping.fixpoint subst in
+     let weight = compute_weight lit in
      { id = !i; lit; map; reason; weight; }
   )
 
@@ -178,6 +281,32 @@ let mk_eq a b map reason =
 let mk_neq a b map reason =
   let c, d = ord a b in
   mk_cl (Neq (c, d)) map reason
+
+(* Clause freshening *)
+(* ************************************************************************ *)
+
+let fresh a b map =
+  assert (Expr.Term.fm a = ([], []));
+  assert (Expr.Term.fm b = ([], []));
+  let tys, terms = Expr.Id.merge_fv (Expr.Term.fv a) (Expr.Term.fv b) in
+  let vtys = List.map (fun v -> Expr.Id.ttype "v") tys in
+  let vterms = List.map (fun v -> Expr.Id.ty "v" Expr.(v.id_type)) terms in
+  let m =
+    List.fold_left2 (fun acc m v ->
+        Mapping.Var.bind_ty acc m (Expr.Ty.of_id v)) (
+      List.fold_left2 (fun acc m v ->
+          Mapping.Var.bind_term acc m (Expr.Term.of_id v))
+        Mapping.empty terms vterms) tys vtys in
+  (Mapping.apply_term m a), (Mapping.apply_term m b), (compose_set map m)
+
+let freshen c =
+  match c.lit with
+  | Empty -> c
+  | Eq (a, b)
+  | Neq (a, b) ->
+    let f = if is_eq c then mk_eq else mk_neq in
+    let a', b', m' = fresh a b c.map in
+    f a' b' m' (Fresh c)
 
 (* Clause pointers *)
 (* ************************************************************************ *)
@@ -200,7 +329,7 @@ let compare_pointer pc pc' =
 
 module M = Map.Make(Expr.Term)
 (*
-module Q = CCHeap.Make(struct type t = clause let leq = cmp_weight end)
+module Q = CCHeap.Make(struct type t = clause let leq = leq_cl end)
 *)
 module Q = struct
 
@@ -236,11 +365,13 @@ module I = Index.Make(struct type t = pointer let compare = compare_pointer end)
 
 type rules = {
   er : bool;
+  es : bool;
   sn : bool;
   sp : bool;
-  es : bool;
-  rp : bool;
   rn : bool;
+  rp : bool;
+  mn : bool;
+  mp : bool;
 }
 
 type t = {
@@ -257,11 +388,13 @@ type t = {
 
 let all_rules = {
   er = true;
+  es = true;
   sn = true;
   sp = true;
-  es = true;
   rp = true;
   rn = true;
+  mn = true;
+  mp = true;
 }
 
 let empty ?(rules=all_rules) section callback = {
@@ -355,16 +488,10 @@ let do_resolution ~section acc clause =
   | Eq _ | Empty -> acc
   | Neq (s, t) ->
     let sigma = clause.map in
-    begin match Unif.Robinson.term sigma s t with
-      | sigma' -> mk_empty sigma' clause :: acc
-      | exception Unif.Robinson.Impossible_ty _ ->
-        Util.debug ~section "Couldn't unify:@ %a =@ %a@;%a"
-          Expr.Term.print s Expr.Term.print t Mapping.print sigma;
-        acc
-      | exception Unif.Robinson.Impossible_term _ ->
-        Util.debug ~section "Couldn't unify:@ %a =@ %a@;%a"
-          Expr.Term.print s Expr.Term.print t Mapping.print sigma;
-        acc
+    begin match Unif.Robinson.term Mapping.empty s t with
+      | mgu -> mk_empty (compose_set sigma mgu) clause :: acc
+      | exception Unif.Robinson.Impossible_ty _ -> acc
+      | exception Unif.Robinson.Impossible_term _ -> acc
     end
 
 (* Perform a superposition, i.e either rule SN or SP
@@ -374,7 +501,7 @@ let do_resolution ~section acc clause =
    TODO: check the LPO constraints iff it really need to be checked
          i.e. only when the ordering failed on the non-instanciated clause
 *)
-let do_supp acc mgu active inactive =
+let do_supp acc sigma'' active inactive =
   assert (is_eq active.clause);
   assert (Position.equal active.path Position.root);
   let p = inactive.path in
@@ -383,40 +510,39 @@ let do_supp acc mgu active inactive =
   let sigma = active.clause.map in
   let sigma' = inactive.clause.map in
   (* Merge the substitutions. *)
-  match CCOpt.(Unif.merge sigma sigma' >>= Unif.merge mgu) with
-  | None -> acc
-  | Some sigma'' ->
-    let apply = Unif.term_subst sigma'' in
-    let v' = apply v in
-    let u_res, u_p_opt = Position.Term.apply p u in
-    (* Chekc that mgu effectively unifies u_p and s *)
-    assert (match u_p_opt with
-        | None -> false
-        | Some u_p ->
-          Expr.Term.equal (Unif.term_subst mgu s) (Unif.term_subst mgu u_p));
-    (* Check the guards of the rule *)
-    if Lpo.compare (apply t) (apply s) = Comparison.Gt ||
-       Lpo.compare v' (apply u) = Comparison.Gt ||
-       fst (Position.Term.apply p u) = Position.Var then
-      acc
-    else begin
-      (* Apply substitution *)
-      match Position.Term.substitute inactive.path ~by:t u with
-      | Some tmp ->
-        let u' = apply tmp in
-        let f = if is_eq inactive.clause then mk_eq else mk_neq in
-        let reason =
-          if is_eq inactive.clause then
-            SP(active, inactive)
-          else
-            SN(active, inactive)
-        in
-        let c = f u' v' sigma'' reason in
-        c :: acc
-      | None ->
-        (* This should not happen *)
-        assert false
-    end
+  let res = merge_set (compose_set sigma sigma'') (compose_set sigma' sigma'') in
+  let apply = Mapping.apply_term sigma'' in
+  let v' = apply v in
+  let u_res, u_p_opt = Position.Term.apply p u in
+  (* Chekc that mgu effectively unifies u_p and s *)
+  assert (match u_p_opt with
+      | None -> false
+      | Some u_p ->
+        Expr.Term.equal (apply s) (apply u_p));
+  (* Check the guards of the rule *)
+  if Lpo.compare (apply t) (apply s) = Comparison.Gt ||
+     Lpo.compare v' (apply u) = Comparison.Gt ||
+     fst (Position.Term.apply p u) = Position.Var then
+    acc
+  else begin
+    (* Apply substitution *)
+    match Position.Term.substitute inactive.path ~by:t u with
+    | Some tmp ->
+      let u' = apply tmp in
+      let f = if is_eq inactive.clause then mk_eq else mk_neq in
+      let reason =
+        if is_eq inactive.clause then
+          SP(active, inactive)
+        else
+          SN(active, inactive)
+      in
+      let u'', v'', map = fresh u' v' res in
+      let c = f u'' v'' map reason in
+      c :: acc
+    | None ->
+      (* This should not happen *)
+      assert false
+  end
 
 (* Perform a rewrite, i.e. either rule RN or RP
    [active] is the equality used for the rewrite
@@ -426,7 +552,7 @@ let do_supp acc mgu active inactive =
 let do_rewrite active inactive =
   (* currently the substitution must be the identity *)
   assert (is_eq active.clause);
-  assert (active.path = Position.root);
+  assert (Position.equal active.path Position.root);
   let sigma = inactive.clause.map in
   let s, t = extract active in
   let u, v = extract inactive in
@@ -448,7 +574,8 @@ let do_rewrite active inactive =
         then RP(active, inactive)
         else RN(active, inactive)
       in
-      Some (f u' v sigma reason)
+      let u'', v', map = fresh u' v sigma in
+      Some (f u'' v' map reason)
     | None ->
       (* shouldn't really happen *)
       assert false
@@ -503,6 +630,54 @@ and make_eq_list p_set curr idx l l' =
 let make_eq p_set a b =
   make_eq_aux p_set Position.root a b
 
+(* Perform equality subsumption *)
+let do_subsumption active inactive =
+  assert (is_eq active.clause);
+  assert (is_eq inactive.clause);
+  assert (Position.equal Position.root active.path);
+  let sigma = active.clause.map in
+  let s, t = extract active in
+  let u, v = extract inactive in
+  assert (
+    match Position.Term.apply inactive.path u with
+    | _, Some (u_p) -> Expr.Term.equal u_p s
+    | _, None -> false
+  );
+  assert (
+    match Position.Term.substitute inactive.path ~by:t u with
+    | Some u' -> Expr.Term.equal u' v
+    | None -> false
+  );
+  let redundant, sigma' = C.partition (fun rho ->
+      C.exists (fun s -> s < rho) sigma) inactive.clause.map in
+  if C.is_empty redundant then
+    inactive.clause
+  else
+    mk_eq u v sigma' (ES (active, inactive))
+
+(* Perform clause merging *)
+let do_merging p active inactive rho =
+  assert ((is_eq active.clause && is_eq inactive.clause) ||
+          (not @@ is_eq active.clause && not @@ is_eq inactive.clause));
+  let sigma = active.clause.map in
+  let sigma' = inactive.clause.map in
+  let s, t = extract active in
+  let u, v = extract inactive in
+  assert (Expr.Term.equal (Mapping.apply_term ~fix:false rho u) s);
+  assert (Expr.Term.equal (Mapping.apply_term ~fix:false rho v) t);
+  if is_alpha rho then begin
+    let f = if is_eq inactive.clause then mk_eq else mk_neq in
+    let reason =
+      if is_eq inactive.clause
+      then MP (active, inactive)
+      else MN (active, inactive)
+    in
+    let c = C.union sigma (compose_set sigma' rho) in
+    Util.debug ~section:p.section "@{<Red>Removing@}: %a" pp active.clause;
+    Some (rm_clause active.clause p, f s t c reason)
+  end else None
+
+
 (* Inference rules *)
 (* ************************************************************************ *)
 
@@ -551,6 +726,7 @@ let add_active_supp p_set clause side s acc =
 (* Given a new clause, find and apply all instances of SN & SP,
    using the two functions defined above. *)
 let supp_lit c p_set acc =
+  let c = freshen c in
   match c.lit with
   | Empty -> acc
   | Eq (a, b) ->
@@ -582,7 +758,7 @@ let supp_lit c p_set acc =
 
 (* Rewriting of litterals, i.e RP & RN
    Since RP & RN are simplification rules, using the discount loop,
-   we only have to mplement that inactive side of the rules.
+   we only have to implement that inactive side of the rules.
    Indeed the discount loop will only ask us to simplify a given
    clause using a set of clauses, so given a clause to simplify,
    we only have to find all active clauses that can be used to
@@ -592,10 +768,10 @@ let supp_lit c p_set acc =
    inside [clause]), we want to find an instance of a clause
    in [p_set] that might be used to rewrite [u]
 *)
-let rewrite rules active inactive =
-  if ((is_eq inactive.clause && rules.rp)
-      || (* not is_eq && *) rules.rn) then
-    do_rewrite active inactive
+let rewrite p active inactive =
+  if ((is_eq inactive.clause && p.rules.rp) ||
+      (not @@ is_eq inactive.clause && p.rules.rn)) then
+    CCOpt.map (fun x -> p, x) @@ do_rewrite active inactive
   else
     None
 
@@ -604,7 +780,7 @@ let add_inactive_rewrite p_set clause side path u =
   let inactive = { clause; side; path } in
   CCList.find_map (fun (_, l') ->
       CCList.find_map (fun active ->
-          rewrite p_set.rules active inactive) l') l
+          rewrite p_set active inactive) l') l
 
 (* Simplification function using the rules RN & RP. Returns
    [Some c'] if the clause can be simplified into a clause [c'],
@@ -619,50 +795,93 @@ let rewrite_lit p_set c =
       | None -> Position.Term.find_map (add_inactive_rewrite p_set c Right) t
     end
 
-(* Squality_subsumption, alias ES
+(* Equality_subsumption, alias ES
    Simalarly than above, we only want to check wether a given clause is redundant
    with regards to a set of clauses. Returns [true] if the given clause is redundant
    (i.e. can be simplified using the ES rule), [false] otherwise.
 *)
-let equality_subsumption c p_set =
-  match c.lit with
-  | Empty | Neq _ -> false
+let equality_subsumption p_set c =
+  if not p_set.rules.es then None
+  else match c.lit with
+  | Empty | Neq _ -> None
   | Eq (a, b) ->
     begin match make_eq p_set a b with
       | `Equal -> assert false (* trivial clause should have been eliminated *)
-      | `Impossible -> false
-      | `Substitutable (pos, l) ->
-        p_set.rules.es && List.exists (fun x -> x.clause.map << c.map) l
+      | `Impossible -> None
+      | `Substitutable (path, l) ->
+        let aux clause pointer =
+          do_subsumption pointer { clause; path; side = Left;}
+        in
+        let c' = List.fold_left aux c l in
+        if c == c' then None else Some (p_set, c')
+    end
+
+let merge_aux p active inactive mgm =
+  let s, t = extract active in
+  let u, v = extract inactive in
+  assert (Expr.Term.equal (Mapping.apply_term ~fix:false mgm u) s);
+  match Match.term mgm v t with
+  | alpha -> do_merging p active inactive (simpl_mapping alpha)
+  | exception Match.Impossible_ty _ -> None
+  | exception Match.Impossible_term _ -> None
+
+let merge_sided p clause side x index =
+  let inactive = { clause; path = Position.root; side; } in
+  let l = I.find_match x index in
+  CCList.find_map (fun (_, mgm, l') ->
+      CCList.find_map (fun active ->
+          merge_aux p active inactive mgm
+        ) l') l
+
+let merge p_set clause =
+  let index = if is_eq clause then p_set.root_pos_index else p_set.root_neg_index in
+  match clause.lit with
+  | Empty -> None
+  | Eq (a, b)
+  | Neq (a, b) ->
+    begin match merge_sided p_set clause Left a index with
+      | (Some _) as res -> res
+      | None -> merge_sided p_set clause Right b index
     end
 
 (* Main functions *)
 (* ************************************************************************ *)
 
-let rec fix f arg =
-  match f arg with
-  | None -> arg
-  | Some y -> fix f y
+(* Applies: TD1, TD2, TD3 *)
+let trivial c p =
+  match c.lit with
+  | Eq (a, b) when Expr.Term.equal a b -> true  (* TD1 *)
+  | _ when C.is_empty c.map -> true             (* TD2&3 *)
+  | _ -> S.mem c p.clauses                      (* Simple redundancy criterion *)
 
-(* Applies: RP, RN  *)
+(* Fixpoint for simplification rules *)
+let rec fix f p clause =
+  if trivial clause p then p, clause
+  else match f p clause with
+    | None -> p, clause
+    | Some (p', clause') ->
+      Util.debug ~section:p.section "(simpl) %a" pp clause';
+      fix f p' clause'
+
+let (|>>) f g = fun p x ->
+  match f p x with
+  | None -> g p x
+  | (Some _) as res -> res
+
+(* Applies: ES, RP, RN *)
 let simplify c p =
-  fix (rewrite_lit p) c
+  let aux = equality_subsumption |>>
+            merge |>> rewrite_lit in
+  fix aux p c
 
-(* Applies: RP, RN *)
-let cheap_simplify = simplify
-
-(* Applies: ES *)
-let redundant c p =
-  equality_subsumption c p
+(* Applies: ES, RP, RN *)
+let cheap_simplify c p =
+  let aux = equality_subsumption |>> rewrite_lit in
+  snd (fix aux p c)
 
 (* Applies: ER, SP, SN *)
 let generate c p =
   supp_lit c p (equality_resolution p c [])
-
-(* Applies: TD1 *)
-let trivial c p =
-  match c.lit with
-  | Eq (a, b) when Expr.Term.equal a b -> true
-  | _ -> S.mem c p.clauses
 
 (* Enqueue a new clause in p *)
 let enqueue c p =
@@ -670,8 +889,8 @@ let enqueue c p =
   else begin
     let generated = S.add c p.generated in
     let c' = cheap_simplify c p in
-    (* If claus has changed, print the original *)
     if not (c == c') then
+      (* If clause has changed, print the original *)
       Util.debug ~section:p.section " |~ %a" pp c;
     (* Test triviality of the clause. Second test is against
        p.generated (and not generated) because if c == c', then
@@ -679,9 +898,9 @@ let enqueue c p =
     if trivial c' p || S.mem c' p.generated then begin
       Util.debug ~section:p.section " |- %a" pp c';
       { p with generated }
+    end else begin
       (* The clause is interesting and we add it to generated
          as well as the queue. *)
-    end else begin
       Util.debug ~section:p.section " |+ %a" pp c';
       let queue = Q.insert c' p.queue in
       let generated = S.add c' generated in
@@ -698,15 +917,11 @@ let rec discount_loop p_set =
   | None -> p_set
   | Some (u, cl) ->
     (* Simplify the clause to add *)
-    let c = simplify cl p_set in
-    if compare c cl <> 0 then
-      Util.debug ~section:p_set.section "Original clause : %a" pp cl;
+    Util.debug ~section:p_set.section "Simplifying: @[<hov>%a@]" pp cl;
+    let p_set, c = simplify cl p_set in
     (* If trivial or redundant, forget it and continue *)
     if trivial c p_set then begin
       Util.debug ~section:p_set.section "Trivial clause : %a" pp c;
-      discount_loop { p_set with queue = u }
-    end else if redundant c p_set then begin
-      Util.debug ~section:p_set.section "Redundant clause : %a" pp c;
       discount_loop { p_set with queue = u }
     end else begin
       Util.debug ~section:p_set.section "@{<yellow>Adding clause@} : %a" pp c;
@@ -714,7 +929,7 @@ let rec discount_loop p_set =
         Util.debug ~section:p_set.section
           "Empty clause reached, %d clauses in state" (S.cardinal p_set.clauses);
         (* Call the callback *)
-        p_set.callback c.map;
+        C.iter p_set.callback c.map;
         (* Continue solving *)
         discount_loop { p_set with queue = u }
       end else begin
@@ -723,16 +938,17 @@ let rec discount_loop p_set =
         (* Keep the clauses in the set inter-simplified *)
         let p_set, t = S.fold (fun p (p_set, t) ->
             let p_aux = rm_clause p p_set in
-            let p' = simplify p p_aux in
+            let p_set', p' = simplify p p_aux in
             if p == p' then (* no simplification *)
               (p_set, t)
             else begin (* clause has been simplified, prepare to queue it back *)
-              Util.debug ~section:p_set.section "@{<White>Removing@}: %a" pp p;
-              (p_aux, S.add p' t)
+              Util.debug ~section:p_set.section "@{<Red>Removing@}: %a" pp p;
+              (p_set', S.add p' t)
             end) p_set.clauses (p_set, S.empty) in
         (* Generate new inferences *)
         let l = generate c p_set in
-        Util.debug ~section:p_set.section "@{<green>Generated %d inferences@}" (List.length l);
+        Util.debug ~section:p_set.section "@{<green>Generated %d (%d) inferences@}"
+          (List.length l) (S.cardinal t);
         let t = List.fold_left (fun s p -> S.add p s) t l in
         (* Do a cheap simplify on the new clauses, and then add them to the queue. *)
         let p = S.fold enqueue t { p_set with queue = u } in
@@ -743,15 +959,40 @@ let rec discount_loop p_set =
 (* Wrappers/Helpers for unification *)
 (* ************************************************************************ *)
 
+let meta_to_var a b =
+  assert (Expr.Term.fv a = ([], []));
+  assert (Expr.Term.fv b = ([], []));
+  let tys, terms = Expr.Meta.merge_fm (Expr.Term.fm a) (Expr.Term.fm b) in
+  let vtys = List.map (fun m -> Expr.Id.ttype "v") tys in
+  let vterms = List.map (fun m -> Expr.Id.ty "v" Expr.(m.meta_id.id_type)) terms in
+  let m =
+    List.fold_left2 (fun acc m v ->
+        Mapping.Meta.bind_ty acc m (Expr.Ty.of_id v)) (
+      List.fold_left2 (fun acc m v ->
+          Mapping.Meta.bind_term acc m (Expr.Term.of_id v))
+        Mapping.empty terms vterms) tys vtys in
+  Mapping.apply_term m a, Mapping.apply_term m b, m
+
 let add_eq t a b =
-  let c = mk_eq a b Unif.empty Hyp in
+  let a', b', m = meta_to_var a b in
+  let c = mk_eq a' b' (C.singleton m) Hyp in
   enqueue c t
 
 let add_neq t a b =
-  let c = mk_neq a b Unif.empty Hyp in
+  let a', b', m = meta_to_var a b in
+  let c = mk_neq a' b' (C.singleton m) Hyp in
   enqueue c t
 
 let solve t =
   Util.debug ~section:t.section "@{<White>Precedence@}: @[<hov>%a@]" pp_precedence t;
-  discount_loop t
+  let rules = t.rules in
+  (* Pre-saturate hyps so that they merge together *)
+  Util.debug ~section:t.section "@{<White>Preparing solver@}: merging hypotheses";
+  let t' = { t with rules = { rules with er = false; sn = false; sp = false; } } in
+  let t'' = discount_loop t' in
+  (* Take the merge hyps and begin solving for real *)
+  Util.debug ~section:t.section "@{<White>Beginning solving@}";
+  let f = empty ~rules t.section t.callback in
+  let f' = S.fold enqueue t''.clauses f in
+  discount_loop f'
 

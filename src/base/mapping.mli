@@ -39,6 +39,22 @@ val fixpoint : t -> t
 val map : (Expr.ty -> Expr.ty) -> (Expr.term -> Expr.term)  -> t -> t
 (** Map some functions over the types and terms used in the mapping. *)
 
+val merge :
+  ?ty_var:(Expr.Id.Ttype.t -> Expr.ty option -> Expr.ty option -> Expr.ty option) ->
+  ?ty_meta:(Expr.Meta.Ttype.t -> Expr.ty option -> Expr.ty option -> Expr.ty option) ->
+  ?term_var:(Expr.Id.Ty.t -> Expr.term option -> Expr.term option -> Expr.term option) ->
+  ?term_meta:(Expr.Meta.Ty.t -> Expr.term option -> Expr.term option -> Expr.term option) ->
+  t -> t -> t
+(** Merge two mappings. *)
+
+val filter :
+  ?ty_var:(Expr.Id.Ttype.t -> Expr.ty -> bool) ->
+  ?ty_meta:(Expr.Meta.Ttype.t -> Expr.ty -> bool) ->
+  ?term_var:(Expr.Id.Ty.t -> Expr.term -> bool) ->
+  ?term_meta:(Expr.Meta.Ty.t -> Expr.term -> bool) ->
+  t -> t
+(** Fold on mappings. *)
+
 val fold :
   ?ty_var:(Expr.Id.Ttype.t -> Expr.ty -> 'a -> 'a) ->
   ?ty_meta:(Expr.Meta.Ttype.t -> Expr.ty -> 'a -> 'a) ->
@@ -65,8 +81,9 @@ val for_all :
 
 (** {2 Mapping application} *)
 
-val apply_ty : fix:bool -> t -> Expr.ty -> Expr.ty
-val apply_term : fix:bool -> t -> Expr.term -> Expr.term
+val apply_ty : ?fix:bool -> t -> Expr.ty -> Expr.ty
+val apply_term : ?fix:bool -> t -> Expr.term -> Expr.term
+val apply_formula : ?fix:bool -> t -> Expr.formula -> Expr.formula
 (** Aplly a mapping to a type or term. The [~fix] parameter indicates
     wether the mapping application should be recursive or not: for instance,
     given a mapping [t] whichs binds [x] to [y] and [y] to [a]:

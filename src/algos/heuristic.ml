@@ -10,11 +10,11 @@ let goal_goal_mult = ~- 100
 (* ************************************************************************ *)
 
 let nb_metas_in_ty ty =
-  let l, l' = Expr.Meta.in_ty ty in
+  let l, l' = Expr.Ty.fm ty in
   List.length l + List.length l'
 
 let nb_metas_in_term t =
-  let l, l' = Expr.Meta.in_term t in
+  let l, l' = Expr.Term.fm t in
   List.length l + List.length l'
 
 let rec ty_size = function
