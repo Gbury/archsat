@@ -46,7 +46,8 @@ The E-unification problem $E \vdash s\approx t$ can be solved by
 proving $\clauseWithSubst{\emptyset }{ \Sigma}$
 from $\{ \clauseWithSubst{e }{ \{ \emptyset \} } \}_{ e \in E }
 \cup
-\{ \clauseWithSubst{s \not\approx t }{ \{ \emptyset \} } \}$.
+\{ \clauseWithSubst{s \not\approx t }{ \{ \emptyset \} } \}$,
+where $\Sigma$ contains the solutions.
 The meaning of $s \approx t | \Sigma$ is that for every $\sigma \in \Sigma$,
 $s\sigma \approx t\sigma$ is provable.
 We keep a set of substitutions, rather than unit clauses paired with
@@ -72,8 +73,6 @@ the domain of the substitution.
 In all the following, we will consider idempotent substitutions, i.e.~substitution for which
 the domain and co-domain have an empty intersection.
 
-\todo{definitions and properties for $\prec$, mention KBO/RPO}
-
 The {\em composition} of substitutions $\sigma \circ \sigma'$
 is well-defined iff the domains of $\sigma$ and $\sigma'$ have no
 intersection.
@@ -83,11 +82,12 @@ This definition naturally extends to sets of substitutions:
 $\Sigma \circ \sigma' \triangleq \left\{ \sigma \circ \sigma' | \sigma \in \Sigma \right\}$
 We then say that $\sigma \leq \sigma'$ iff $\exists \sigma''.~ \sigma \circ \sigma'' = \sigma'$.
 We extend that notion to set of substitutions:
-$\Sigma \leq \Sigma'$ iff $\forall \sigma' \in \Sigma'.~ \exists \sigma \in \Sigma. \sigma \leq \sigma'$.
+$\smash{ \Sigma \leq \Sigma' }$
+iff $\smash{ \forall \sigma' \in \Sigma'.~ \exists \sigma \in \Sigma. \sigma \leq \sigma' }$.
 The {\em merging} of two substitutions $\sigma \uparrow \sigma'$ as the supremum of $\{\sigma,\sigma'\}$
 for the order $\leq$, if it exists, or $\bot$ otherwise.
-The merging of sets of substitutions is:
-$\Sigma \uparrow \Sigma' =
+The merging of sets of substitutions is
+$\Sigma \uparrow \Sigma' \triangleq
   \left\{ \sigma \uparrow \sigma' ~|~
     \sigma \in \Sigma, \sigma' \in \Sigma' \right.,
   \sigma \uparrow \sigma' \not= \bot
@@ -106,6 +106,9 @@ We adapt notations and names from Schulz's paper on E~\cite{e_brainiac_prover}.
 A single bar denotes an inference --- we add the result to the saturation set ---
 whereas a double bar is a simplification in which the premises are
 replaced by the conclusion(s).
+The relation $\prec$ is a {\em reduction ordering}, used to orient equations,
+thus pruning the search space.
+Typically, $\prec$ is one of RPO or KBO.
 
 \begin{description}
 %{{{
