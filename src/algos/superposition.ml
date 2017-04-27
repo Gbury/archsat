@@ -46,7 +46,7 @@ and pointer = {
   path : Position.t;
 }
 
-(* Helper functions *)
+(* Weight computing *)
 (* ************************************************************************ *)
 
 let rec term_size acc = function
@@ -54,25 +54,42 @@ let rec term_size acc = function
     List.fold_left term_size (acc + 1) l
   | _ -> acc + 1
 
-let is_leaf_ty = function
-  | { Expr.ty = Expr.TyApp _ } -> false
-  | { Expr.ty = (Expr.TyVar _ | Expr.TyMeta _) } -> true
+(* Alpha-renaming *)
+(* ************************************************************************ *)
 
-let is_leaf_term = function
-  | { Expr.term = Expr.App _ } -> false
-  | { Expr.term = (Expr.Var _ | Expr.Meta _) } -> true
+let bind_leaf_ty _ ty acc =
+  match ty with
+  | { Expr.ty = Expr.TyApp _ } -> raise Exit
+  | { Expr.ty = Expr.TyVar v } ->
+    if Mapping.Var.mem_ty acc v then raise Exit
+    else Mapping.Var.bind_ty acc v Expr.Ty.base
+  | { Expr.ty = Expr.TyMeta m } ->
+    if Mapping.Meta.mem_ty acc m then raise Exit
+    else Mapping.Meta.bind_ty acc m Expr.Ty.base
 
+let bind_leaf_term _ term acc =
+  match term with
+  | { Expr.term = Expr.App _ } -> raise Exit
+  | { Expr.term = Expr.Var v } ->
+    if Mapping.Var.mem_term acc v then raise Exit
+    else Mapping.Var.bind_term acc v (Expr.Term.of_id v)
+  | { Expr.term = Expr.Meta m } ->
+    if Mapping.Meta.mem_term acc m then raise Exit
+    else Mapping.Meta.bind_term acc m (Expr.Term.of_meta m)
+
+let is_alpha m =
+  try
+    let _ = Mapping.fold
+        ~ty_var:bind_leaf_ty
+        ~ty_meta:bind_leaf_ty
+        ~term_var:bind_leaf_term
+        ~term_meta:bind_leaf_term
+        m Mapping.empty
+    in true
+  with Exit -> false
 
 (* Substitutions *)
 (* ************************************************************************ *)
-
-(* Alpha renaming *)
-let is_alpha m =
-  Mapping.for_all
-    ~ty_var:(fun _ -> is_leaf_ty)
-    ~ty_meta:(fun _ -> is_leaf_ty)
-    ~term_var:(fun _ -> is_leaf_term)
-    ~term_meta:(fun _ -> is_leaf_term) m
 
 let simpl_mapping m =
   Mapping.filter
@@ -81,8 +98,6 @@ let simpl_mapping m =
     ~term_var:(fun v term -> not @@ Expr.Term.(equal term @@ of_id v))
     ~term_meta:(fun m term -> not @@ Expr.Term.(equal term @@ of_meta m))
     m
-
-(* Mapping ordering*)
 
 (* can s be composed with another mapping to be equal/included in s' *)
 let match_subst s s' =
