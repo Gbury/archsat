@@ -25,8 +25,8 @@ module type S = sig
   val add : Expr.term -> value -> t -> t
   val remove : Expr.term -> value -> t -> t
   val find_equal : Expr.term -> t -> (Expr.term * value list) list
-  val find_unify : Expr.term -> t -> (Expr.term * Unif.t * value list) list
-  val find_match : Expr.term -> t -> (Expr.term * Match.t * value list) list
+  val find_unify : Expr.term -> t -> (Expr.term * Mapping.t * value list) list
+  val find_match : Expr.term -> t -> (Expr.term * Mapping.t * value list) list
 end
 
 (* Simple (and very naive) index *)

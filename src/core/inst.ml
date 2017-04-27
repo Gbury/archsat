@@ -41,8 +41,7 @@ let belong_ty m s =
     let f' = Expr.Meta.ty_def (index m') in
     ty_sub m f' || term_sub m' f
   in
-  Expr.Subst.exists ty_aux Unif.(s.ty_map) ||
-  Expr.Subst.exists term_aux Unif.(s.t_map)
+  Mapping.exists ~ty_meta:ty_aux ~term_meta:term_aux s
 
 let belong_term m s =
   let f = Expr.Meta.ty_def (index m) in
@@ -55,42 +54,44 @@ let belong_term m s =
     if Expr.Formula.equal f f' then index m = index m'
     else term_sub m f' || term_sub m' f
   in
-  Expr.Subst.exists ty_aux Unif.(s.ty_map) ||
-  Expr.Subst.exists term_aux Unif.(s.t_map)
+  Mapping.exists ~ty_meta:ty_aux ~term_meta:term_aux s
 
 let split s =
   let rec aux bind belongs acc m t = function
-    | [] -> bind Unif.empty m t :: acc
+    | [] -> bind Mapping.empty m t :: acc
     | s :: r ->
       if belongs m s then
         (bind s m t) :: (List.rev_append acc r)
       else
         aux bind belongs (s :: acc) m t r
   in
-  Expr.Subst.fold (aux Unif.bind_term belong_term []) Unif.(s.t_map)
-    (Expr.Subst.fold (aux Unif.bind_ty belong_ty []) Unif.(s.ty_map) [])
+  Mapping.fold
+    ~ty_meta:(aux Mapping.Meta.bind_ty belong_ty [])
+    ~term_meta:(aux Mapping.Meta.bind_term belong_term [])
+    s []
 
 (* Given an arbitrary substitution (Unif.t),
  * Returns a pair (formula * Unif.t) to instanciate
  * the outermost metas in the given unifier. *)
 let partition s =
   let aux bind m t = function
-    | None -> Some (index m, bind Unif.empty m t)
+    | None -> Some (index m, bind Mapping.empty m t)
     | Some (min_index, acc) ->
       let i = index m in
       if i < min_index then
-        Some (i, bind Unif.empty m t)
+        Some (i, bind Mapping.empty m t)
       else if i = min_index then
         Some (i, bind acc m t)
       else
         Some (min_index, acc)
   in
-  match Expr.Subst.fold (aux Unif.bind_ty) Unif.(s.ty_map) None with
+  match Mapping.fold ~ty_meta:(aux Mapping.Meta.bind_ty) s None with
   | Some (i, u) -> Expr.Meta.ttype_def i, u
   | None ->
-    match Expr.Subst.fold (aux Unif.bind_term) Unif.(s.t_map) None with
-    | Some (i, u) -> Expr.Meta.ty_def i, u
-    | None -> assert false
+    begin match Mapping.fold ~term_meta:(aux Mapping.Meta.bind_term) s None with
+      | Some (i, u) -> Expr.Meta.ty_def i, u
+      | None -> assert false
+    end
 
 let simplify s = snd (partition s)
 
@@ -100,10 +101,17 @@ let mk_proof f p ty_map t_map = Dispatcher.mk_proof "inst"
     ~term_args:(Expr.Subst.fold (fun v t l -> Expr.Term.of_id v :: t :: l) t_map [])
     ~formula_args:[f; p] "inst"
 
-let to_var s = Expr.Subst.fold (fun {Expr.meta_id = v} t acc ->
-    Expr.Subst.Id.bind acc v t) s Expr.Subst.empty
+let to_var s =
+  Mapping.fold
+    ~ty_var:(fun _ _ _ -> assert false)
+    ~ty_meta:(fun {Expr.meta_id = v} t acc -> Mapping.Var.bind_ty acc v t)
+    ~term_var:(fun _ _ _ -> assert false)
+    ~term_meta:(fun {Expr.meta_id = v} t acc -> Mapping.Var.bind_term acc v t)
+    s Mapping.empty
 
-let soft_subst f ty_subst term_subst =
+let soft_subst f t =
+  let ty_subst = Mapping.ty_var t in
+  let term_subst = Mapping.term_var t in
   let q = Expr.Formula.partial_inst ty_subst term_subst f in
   [ Expr.Formula.neg f; q], mk_proof f q ty_subst term_subst
 
@@ -116,8 +124,7 @@ module Inst = struct
     hash : int;
     score : int;
     formula : Expr.formula;
-    ty_subst : Expr.Ty.subst;
-    term_subst : Expr.Term.subst;
+    var_subst : Mapping.t;
   }
 
   (* Age counter *)
@@ -127,24 +134,14 @@ module Inst = struct
   (* Constructor *)
   let mk u score =
     let formula, s = partition u in
-    let ty_subst = to_var Unif.(s.ty_map) in
-    let term_subst = to_var Unif.(s.t_map) in
-    let hash = Hashtbl.hash (
-        Expr.Formula.hash formula,
-        Expr.Subst.hash Expr.Ty.hash ty_subst,
-        Expr.Subst.hash Expr.Term.hash term_subst)
-    in
-    {
-      age = !age;
-      hash; score; formula;
-      ty_subst; term_subst;
-    }
+    let var_subst = to_var u in
+    let hash = Hashtbl.hash (Expr.Formula.hash formula, Mapping.hash u) in
+    { age = !age; hash; score; formula; var_subst; }
 
   (* debug printing *)
   let print fmt t =
-    Format.fprintf fmt "@[<hov 2>(%d) %a%a@]" t.hash
-      (Expr.Subst.print Expr.Print.id_ttype Expr.Print.ty) t.ty_subst
-      (Expr.Subst.print Expr.Print.id_ty Expr.Print.term) t.term_subst
+    Format.fprintf fmt "@[<hov 2>%a@ %a@]"
+      Expr.Formula.print t.formula Mapping.print t.var_subst
 
   (* Comparison for the Heap *)
   let leq t1 t2 = t1.score + t1.age <= t2.score + t2.age
@@ -154,8 +151,7 @@ module Inst = struct
 
   let equal t t' =
     Expr.Formula.equal t.formula t'.formula &&
-    Expr.Subst.equal Expr.Ty.equal t.ty_subst t'.ty_subst &&
-    Expr.Subst.equal Expr.Term.equal t.term_subst t'.term_subst
+    Mapping.equal t.var_subst t'.var_subst
 
 end
 
@@ -187,7 +183,7 @@ let push acc inst =
   H.replace inst_set inst true;
   let open Inst in
   Util.debug ~section "Pushing inst:@ %a" Inst.print inst;
-  let cl, p = soft_subst inst.formula inst.ty_subst inst.term_subst in
+  let cl, p = soft_subst inst.formula inst.var_subst in
   Dispatcher.push cl p;
   acc + 1
 

@@ -7,8 +7,8 @@ let section = Section.make ~parent:Dispatcher.section "prenex"
 type env = {
   num : int;
   truth : bool;
-  type_vars : Expr.Ty.subst;
-  term_vars : Expr.Term.subst;
+  type_vars : Expr.Ty.var_subst;
+  term_vars : Expr.Term.var_subst;
 }
 
 let empty_env = {
@@ -19,8 +19,11 @@ let empty_env = {
 }
 
 let split env = env, { env with num = env.num + 1 }
+
 let negate env = { env with truth = not env.truth }
-let apply env t = Expr.Term.subst env.type_vars env.term_vars t
+
+let apply env t =
+  Expr.Term.subst env.type_vars Expr.Subst.empty env.term_vars Expr.Subst.empty t
 
 let name env s =
   assert (env.num > 0);
@@ -48,15 +51,17 @@ let add_term_vars = List.fold_left add_term_var
 
 let add_ty_sk env vars (ty_args, t_args) =
   assert (t_args = []);
-  let ty_args = List.map (Expr.Ty.subst env.type_vars) ty_args in
+  let ty_args = List.map (Expr.Ty.subst env.type_vars Expr.Subst.empty) ty_args in
   { env with type_vars = List.fold_left (fun s v ->
-        Expr.Subst.Id.bind s v (Expr.Ty.apply (Expr.Id.ty_skolem v) ty_args)) env.type_vars vars }
+        Expr.Subst.Id.bind s v (Expr.Ty.apply (Expr.Id.ty_skolem v) ty_args)
+      ) env.type_vars vars }
 
 let add_term_sk env vars (ty_args, t_args) =
-  let ty_args = List.map (Expr.Ty.subst env.type_vars) ty_args in
+  let ty_args = List.map (Expr.Ty.subst env.type_vars Expr.Subst.empty) ty_args in
   let t_args = List.map (apply env) t_args in
   { env with term_vars = List.fold_left (fun s v ->
-        Expr.Subst.Id.bind s v (Expr.Term.apply (Expr.Id.term_skolem v) ty_args t_args)) env.term_vars vars }
+        Expr.Subst.Id.bind s v (Expr.Term.apply (Expr.Id.term_skolem v) ty_args t_args)
+      ) env.term_vars vars }
 
 (* Free variables disjonction *)
 (* ************************************************************************ *)

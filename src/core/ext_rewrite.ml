@@ -98,9 +98,9 @@ let match_types pats args subst =
     None
 
 let match_modulo_var v c subst =
-  match Match.get_term_opt subst v with
+  match Mapping.Var.get_term_opt subst v with
   | None ->
-    Some (Match.bind_term subst v c)
+    Some (Mapping.Var.bind_term subst v c)
   | Some d ->
     if Expr.Term.equal c d then
       Some subst
@@ -124,7 +124,7 @@ and match_modulo_aux acc pat c =
     let l = C.find_top c f in
     CCList.flat_map (match_modulo_app acc (ty_pats, pats)) l
 
-let match_modulo = match_modulo_aux [Match.empty]
+let match_modulo = match_modulo_aux [Mapping.empty]
 
 (* Rewrite rules guards *)
 (* ************************************************************************ *)
@@ -282,15 +282,15 @@ let parse_rule = function
 
 let instanciate rule subst =
   Util.debug ~section "@[<hov 2>Instanciate %a@ with@ %a"
-    print_rule rule Match.print subst;
-  let res = Match.formula_apply subst rule.result in
+    print_rule rule Mapping.print subst;
+  let res = Mapping.apply_formula subst rule.result in
   match rule.guards with
   | [] ->
     (* Instantiate the rule *)
     Dispatcher.consequence res [rule.formula]
       (Dispatcher.mk_proof name "rewrite")
   | guards ->
-    let l = List.map (map_guard (Match.term_apply subst)) guards in
+    let l = List.map (map_guard (Mapping.apply_term subst)) guards in
     let watched = CCList.flat_map guard_to_list l in
     (* Add a watch to instantiate the rule when the condition is true *)
     Dispatcher.watch ~formula:rule.formula name 1 watched
@@ -315,7 +315,7 @@ let match_and_instantiate s ({ trigger; _ } as rule) =
     ) s [] in
   List.iter (fun (term, subst) ->
       Util.debug ~section "match:@ %a@ <--@ %a"
-        Expr.Print.term term Match.print subst;
+        Expr.Print.term term Mapping.print subst;
       instanciate rule subst
     ) seq
 

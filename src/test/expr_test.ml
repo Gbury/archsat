@@ -290,7 +290,7 @@ module Term = struct
         | `Meta -> Meta.gen ty >|= Expr.Term.of_meta
         | `Cst (c, subst) ->
           let tys = List.map (fun v -> Expr.Subst.Id.get v subst) Expr.(c.id_type.fun_vars) in
-          let args = List.map (Expr.Ty.subst subst) Expr.(c.id_type.fun_args) in
+          let args = List.map (Expr.Ty.subst subst Expr.Subst.empty) Expr.(c.id_type.fun_args) in
           Misc_test.split (max 0 (size - 1)) (List.length args) >>= fun sizes ->
           sized_list ~config args sizes >|= (Expr.Term.apply c tys)
       ))
@@ -513,7 +513,7 @@ module Formula = struct
     | { Expr.formula = Expr.All (vars, _, _) } as q_f ->
       let metas = List.map Expr.Term.of_meta (Expr.Meta.of_all q_f) in
       let subst = List.fold_left2 Expr.Subst.Id.bind Expr.Subst.empty vars metas in
-      Expr.Formula.subst Expr.Subst.empty subst f
+      Expr.Formula.subst Expr.Subst.empty Expr.Subst.empty subst Expr.Subst.empty f
     | _ -> f
 
   let meta_tt (u, v) =

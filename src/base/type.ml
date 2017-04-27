@@ -503,7 +503,7 @@ let term_apply env ast f ty_args t_args =
         Expr.(f.id_type.fun_vars) ty_args
     in
     let expected_types =
-      List.map (Expr.Ty.subst map) Expr.(f.id_type.fun_args)
+      List.map (Expr.Ty.subst map Expr.Subst.empty) Expr.(f.id_type.fun_args)
     in
     let subst =
       List.fold_left2 (fun subst expected term ->
@@ -512,9 +512,9 @@ let term_apply env ast f ty_args t_args =
           with
           | Unif.Robinson.Impossible_ty _ ->
             _cannot_unify env ast expected term
-        ) Unif.empty expected_types t_args
+        ) Mapping.empty expected_types t_args
     in
-    let actual_ty_args = List.map (Unif.type_subst subst) ty_args in
+    let actual_ty_args = List.map (Mapping.apply_ty subst) ty_args in
     try
       Expr.Term.apply ~status:env.status f actual_ty_args t_args
     with
@@ -524,7 +524,7 @@ let term_apply env ast f ty_args t_args =
 let ty_subst env ast_term id args f_args body =
   match List.fold_left2 Expr.Subst.Id.bind Expr.Subst.empty f_args args with
   | subst ->
-    Expr.Ty.subst subst body
+    Expr.Ty.subst subst Expr.Subst.empty body
   | exception Invalid_argument _ ->
     _bad_id_arity env id (List.length f_args) ast_term
 
@@ -534,7 +534,7 @@ let term_subst env ast_term id ty_args t_args f_ty_args f_t_args body =
     begin
       match List.fold_left2 Expr.Subst.Id.bind Expr.Subst.empty f_t_args t_args with
       | t_subst ->
-        Expr.Term.subst ty_subst t_subst body
+        Expr.Term.subst ty_subst Expr.Subst.empty t_subst Expr.Subst.empty body
       | exception Invalid_argument _ ->
         _bad_id_arity env id (List.length f_ty_args + List.length f_t_args) ast_term
     end

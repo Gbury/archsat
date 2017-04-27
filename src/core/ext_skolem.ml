@@ -54,7 +54,7 @@ let tau = function
             (CCFormat.list Expr.Print.term) t_args;
       let taus = get_term_taus ty_args t_args l in
       let subst = List.fold_left2 Expr.Subst.Id.bind Expr.Subst.empty l taus in
-      let q = Expr.Formula.subst Expr.Subst.empty subst p in
+      let q = Expr.Formula.subst Expr.Subst.empty Expr.Subst.empty subst Expr.Subst.empty p in
       Dispatcher.push [Expr.Formula.neg f; q] (mk_proof_term f q l taus)
     end
   | { Expr.formula = Expr.Not { Expr.formula = Expr.All (l, (ty_args, t_args), p) } } as f ->
@@ -66,7 +66,7 @@ let tau = function
             (CCFormat.list Expr.Print.term) t_args;
       let taus = get_term_taus ty_args t_args l in
       let subst = List.fold_left2 Expr.Subst.Id.bind Expr.Subst.empty l taus in
-      let q = Expr.Formula.subst Expr.Subst.empty subst p in
+      let q = Expr.Formula.subst Expr.Subst.empty Expr.Subst.empty subst Expr.Subst.empty p in
       Dispatcher.push [Expr.Formula.neg f; Expr.Formula.neg q] (mk_proof_term f (Expr.Formula.neg q) l taus)
     end
   | { Expr.formula = Expr.ExTy (l, (ty_args, t_args), p) } as f ->
@@ -78,7 +78,7 @@ let tau = function
             (CCFormat.list Expr.Print.term) t_args;
       let taus = get_ty_taus ty_args t_args l in
       let subst = List.fold_left2 Expr.Subst.Id.bind Expr.Subst.empty l taus in
-      let q = Expr.Formula.subst subst Expr.Subst.empty p in
+      let q = Expr.Formula.subst subst Expr.Subst.empty Expr.Subst.empty Expr.Subst.empty p in
       Dispatcher.push [Expr.Formula.neg f; q] (mk_proof_ty f q l taus)
     end
   | { Expr.formula = Expr.Not { Expr.formula = Expr.AllTy (l, (ty_args, t_args), p) } } as f ->
@@ -91,7 +91,7 @@ let tau = function
             (CCFormat.list Expr.Print.term) t_args;
       let taus = get_ty_taus ty_args t_args l in
       let subst = List.fold_left2 Expr.Subst.Id.bind Expr.Subst.empty l taus in
-      let q = Expr.Formula.subst subst Expr.Subst.empty p in
+      let q = Expr.Formula.subst subst Expr.Subst.empty Expr.Subst.empty Expr.Subst.empty p in
       Dispatcher.push [Expr.Formula.neg f; Expr.Formula.neg q] (mk_proof_ty f (Expr.Formula.neg q) l taus)
     end
   (* TODO: Taus for types ? *)

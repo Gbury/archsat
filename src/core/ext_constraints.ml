@@ -9,7 +9,7 @@ let unif_algo = ref `Bad
 let kind_list = [
   "close", `Close;
   "unif_d", `Unif_depth;
-  "unif_b", `Unif_breadth;
+  (* "unif_b", `Unif_breadth; *)
 ]
 
 let parse_kind = Cmdliner.Arg.enum kind_list
@@ -26,15 +26,6 @@ let dump_acc t = match !to_dump with
 let dump_new_acc t =
   to_dump := t :: !to_dump
 
-let pp_unif fmt u =
-  if Unif.(equal u empty) then Format.fprintf fmt "\\<empty\\>";
-  Expr.Subst.iter (fun m ty ->
-      Format.fprintf fmt "%a --\\> %a\\n" Expr.Print.meta m Expr.Print.ty ty)
-    u.Unif.ty_map;
-  Expr.Subst.iter (fun m t ->
-      Format.fprintf fmt "%a --\\> %a\\n" Expr.Print.meta m Expr.Print.term t)
-    u.Unif.t_map
-
 let pp_st fmt st =
   let open Ext_meta in
   List.iter (fun (t, t') -> Format.fprintf fmt "%a == %a\\n" Expr.Print.term t Expr.Print.term t') st.equalities;
@@ -45,7 +36,7 @@ let pp_st fmt st =
 (* Accumulators for constraints *)
 (* ************************************************************************ *)
 
-type constraints = (Unif.t, Ext_meta.state, Expr.formula) Constraints.t
+type constraints = (Mapping.t, Ext_meta.state, Expr.formula) Constraints.t
 
 type t = {
   id : int;
@@ -81,7 +72,7 @@ let gen_of_state st =
   )
 
 let close =
-  Constraints.make (Gen.singleton Unif.empty)
+  Constraints.make (Gen.singleton Mapping.empty)
     (fun _ u -> Gen.singleton (u, Expr.Formula.f_true))
 
 let unif_depth =
@@ -99,25 +90,27 @@ let unif_depth =
           )
       ) gen)
   in
-  Constraints.make (Gen.singleton Unif.empty) refine
+  Constraints.make (Gen.singleton Mapping.empty) refine
 
+  (*
 let unif_breadth =
   let gen st = Gen.filter_map (fun (t, t') ->
       let r = Unif.Robinson.find ~section t t' in
       begin match r with Some x -> ignore (Inst.add x) | _ -> () end;
       r) (gen_of_state st) in
-  let merger t t' = match Unif.merge t t' with
+  let merger t t' = match Mapping.merge t t' with
     | Some s -> Gen.singleton (s, Unif.to_formula t')
     | None -> (fun () -> None)
   in
   Constraints.from_merger gen merger (Gen.singleton Unif.empty)
+  *)
 
 let empty_cst () =
   match !unif_algo with
   | `Bad -> assert false
   | `Close -> close
   | `Unif_depth -> unif_depth
-  | `Unif_breadth -> unif_breadth
+  (* | `Unif_breadth -> unif_breadth *)
 
 (* Parsing entry formulas *)
 (* ************************************************************************ *)
@@ -147,7 +140,7 @@ let handle_aux iter acc old st =
   dump_acc c;
   match Constraints.gen c () with
   | Some s ->
-    Util.debug ~section "New Constraint with subst : %a" Unif.print s;
+    Util.debug ~section "New Constraint with subst : %a" Mapping.print s;
     (* Old behavior, quite certainly incomplete. *)
     (*
     let accs, acc = make_builtin (make c') in
@@ -216,7 +209,7 @@ let options =
     if not (dot = "") then begin
       let fmt = Format.formatter_of_out_channel (open_out dot) in
       at_exit (fun () ->
-          Constraints.dumps pp_unif pp_st Expr.Print.formula fmt !to_dump)
+          Constraints.dumps Mapping.print pp_st Expr.Print.formula fmt !to_dump)
     end
   in
   Cmdliner.Term.(pure aux $ kind $ dot)

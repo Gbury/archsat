@@ -7,16 +7,18 @@ type t
 
 type rules = {
   er : bool;
+  es : bool;
   sn : bool;
   sp : bool;
-  es : bool;
-  rp : bool;
   rn : bool;
+  rp : bool;
+  mn : bool;
+  mp : bool;
 }
 (** The type of configuration for superposition.
     Each bool indicates wether the corresponding rule should be used. *)
 
-val empty : ?rules:rules -> Section.t -> (Unif.t -> unit) -> t
+val empty : ?rules:rules -> Section.t -> (Mapping.t -> unit) -> t
 (** Create an empty supperposisiton state. The function provided will
     be called on all unifiers found during solving.
     @param rules Specify what rules to use during saturation.

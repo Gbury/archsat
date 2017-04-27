@@ -1,7 +1,7 @@
 
 (** {2 Common interface} *)
 
-include Misc_test.S with type t := Unif.t
+include Misc_test.S with type t := Mapping.t
 
 (** {2 Tests} *)
 

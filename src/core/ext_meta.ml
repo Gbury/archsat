@@ -185,22 +185,22 @@ let do_formula =
     | { Expr.formula = Expr.All (l, _, p) } as f ->
       let metas = List.map Expr.Term.of_meta (Expr.Meta.of_all f) in
       let subst = List.fold_left2 Expr.Subst.Id.bind Expr.Subst.empty l metas in
-      let q = Expr.Formula.subst Expr.Subst.empty subst p in
+      let q = Expr.Formula.subst Expr.Subst.empty Expr.Subst.empty subst Expr.Subst.empty p in
       Dispatcher.push [Expr.Formula.neg f; q] (mk_proof_term f metas)
     | { Expr.formula = Expr.Not { Expr.formula = Expr.Ex (l, _, p) } } as f ->
       let metas = List.map Expr.Term.of_meta (Expr.Meta.of_all f) in
       let subst = List.fold_left2 Expr.Subst.Id.bind Expr.Subst.empty l metas in
-      let q = Expr.Formula.subst Expr.Subst.empty subst p in
+      let q = Expr.Formula.subst Expr.Subst.empty Expr.Subst.empty subst Expr.Subst.empty p in
       Dispatcher.push [Expr.Formula.neg f; Expr.Formula.neg q] (mk_proof_term f metas)
     | { Expr.formula = Expr.AllTy (l, _, p) } as f ->
       let metas = List.map Expr.Ty.of_meta (Expr.Meta.of_all_ty f) in
       let subst = List.fold_left2 Expr.Subst.Id.bind Expr.Subst.empty l metas in
-      let q = Expr.Formula.subst subst Expr.Subst.empty p in
+      let q = Expr.Formula.subst subst Expr.Subst.empty Expr.Subst.empty Expr.Subst.empty p in
       Dispatcher.push [Expr.Formula.neg f; q] (mk_proof_ty f metas)
     | { Expr.formula = Expr.Not { Expr.formula = Expr.ExTy (l, _, p) } } as f ->
       let metas = List.map Expr.Ty.of_meta (Expr.Meta.of_all_ty f) in
       let subst = List.fold_left2 Expr.Subst.Id.bind Expr.Subst.empty l metas in
-      let q = Expr.Formula.subst subst Expr.Subst.empty p in
+      let q = Expr.Formula.subst subst Expr.Subst.empty Expr.Subst.empty Expr.Subst.empty p in
       Dispatcher.push [Expr.Formula.neg f; Expr.Formula.neg q] (mk_proof_ty f metas)
     | _ -> ()
   in function
@@ -225,7 +225,8 @@ let do_meta_inst = function
       Util.debug ~section "new_meta (%d/%d) : %a"
         !i !meta_max Expr.Print.formula f;
       let metas = Expr.Meta.of_all f in
-      let u = List.fold_left (fun s m -> Unif.bind_term s m (Expr.Term.of_meta m)) Unif.empty metas in
+      let u = List.fold_left (fun s m ->
+          Mapping.Meta.bind_term s m (Expr.Term.of_meta m)) Mapping.empty metas in
       if not (Inst.add ~delay:(delay !i) u) then assert false
     end
   | { Expr.formula = Expr.Not { Expr.formula = Expr.Ex (l, _, p) } } as f ->
@@ -235,7 +236,8 @@ let do_meta_inst = function
       Util.debug ~section "new_meta (%d/%d) : %a"
         !i !meta_max Expr.Print.formula f;
       let metas = Expr.Meta.of_all f in
-      let u = List.fold_left (fun s m -> Unif.bind_term s m (Expr.Term.of_meta m)) Unif.empty metas in
+      let u = List.fold_left (fun s m ->
+          Mapping.Meta.bind_term s m (Expr.Term.of_meta m)) Mapping.empty metas in
       if not (Inst.add ~delay:(delay !i) u) then assert false
     end
   | { Expr.formula = Expr.AllTy (l, _, p) } as f ->
@@ -245,7 +247,8 @@ let do_meta_inst = function
       Util.debug ~section "new_meta (%d/%d) : %a"
         !i !meta_max Expr.Print.formula f;
       let metas = Expr.Meta.of_all_ty f in
-      let u = List.fold_left (fun s m -> Unif.bind_ty s m (Expr.Ty.of_meta m)) Unif.empty metas in
+      let u = List.fold_left (fun s m ->
+          Mapping.Meta.bind_ty s m (Expr.Ty.of_meta m)) Mapping.empty metas in
       if not (Inst.add ~delay:(delay !i) u) then assert false
     end
   | { Expr.formula = Expr.Not { Expr.formula = Expr.ExTy (l, _, p) } } as f ->
@@ -255,7 +258,8 @@ let do_meta_inst = function
       Util.debug ~section "new_meta (%d/%d) : %a"
         !i !meta_max Expr.Print.formula f;
       let metas = Expr.Meta.of_all_ty f in
-      let u = List.fold_left (fun s m -> Unif.bind_ty s m (Expr.Ty.of_meta m)) Unif.empty metas in
+      let u = List.fold_left (fun s m ->
+          Mapping.Meta.bind_ty s m (Expr.Ty.of_meta m)) Mapping.empty metas in
       if not (Inst.add ~delay:(delay !i) u) then assert false
     end
   | _ -> assert false
@@ -275,7 +279,7 @@ let sup_limit st =
 let do_inst u = Inst.add ~score:(score u) u
 
 let insts r l =
-  let l = List.map Unif.fixpoint l in
+  let l = List.map Mapping.fixpoint l in
   let l = CCList.flat_map Inst.split l in
   let l = List.map do_inst l in
   if List.exists CCFun.id l then begin
@@ -295,10 +299,12 @@ let wrap_unif unif p notp =
 let sup_rules () =
   if !sup_simplifications then
     Superposition.{ er = true; sn = true; sp = true;
-                    es = true; rp = true; rn = true; }
+                    es = true; rp = true; rn = true;
+                    mn = true; mp = true; }
   else
     Superposition.{ er = true; sn = true; sp = true;
-                    es = false; rp = false; rn = false; }
+                    es = false; rp = false; rn = false;
+                    mn = false; mp = false; }
 
 let sup_empty f =
   let rules = sup_rules () in

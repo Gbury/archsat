@@ -47,7 +47,7 @@ let naive_correct_match =
     (fun (pat, l) ->
        let t = fold N.add l (N.empty section) in
        List.for_all (fun (t, u, _) ->
-           Expr.Term.equal t (Match.term_apply u pat))
+           Expr.Term.equal t (Mapping.apply_term ~fix:false u pat))
          (N.find_match pat t)
     )
 
@@ -58,7 +58,7 @@ let naive_correct_unify =
        let t = fold N.add l (N.empty section) in
        List.for_all (fun (t, u, _) ->
            Unif.occurs_check u &&
-           Expr.Term.equal (Unif.term_subst u t) (Unif.term_subst u pat))
+           Expr.Term.equal (Mapping.apply_term u t) (Mapping.apply_term u pat))
          (N.find_unify pat t)
     )
 
@@ -78,7 +78,7 @@ let index_correct_match =
     (fun (pat, l) ->
        let t = fold I.add l (I.empty ~key:[] section) in
        List.for_all (fun (t, u, _) ->
-           Expr.Term.equal t (Match.term_apply u pat))
+           Expr.Term.equal t (Mapping.apply_term ~fix:false u pat))
          (I.find_match pat t)
     )
 
@@ -89,7 +89,7 @@ let index_correct_unify =
        let t = fold I.add l (I.empty ~key:[] section) in
        List.for_all (fun (t, u, _) ->
            Unif.occurs_check u &&
-           Expr.Term.equal (Unif.term_subst u t) (Unif.term_subst u pat))
+           Expr.Term.equal (Mapping.apply_term u t) (Mapping.apply_term u pat))
          (I.find_unify pat t)
     )
 
@@ -109,7 +109,7 @@ let fingerprint_correct_match =
     (fun (pat, l) ->
        let t = fold I.add l (I.empty section) in
        List.for_all (fun (t, u, _) ->
-           Expr.Term.equal t (Match.term_apply u pat))
+           Expr.Term.equal t (Mapping.apply_term ~fix:false u pat))
          (I.find_match pat t)
     )
 
@@ -120,7 +120,7 @@ let fingerprint_correct_unify =
        let t = fold I.add l (I.empty section) in
        List.for_all (fun (t, u, _) ->
            Unif.occurs_check u &&
-           Expr.Term.equal (Unif.term_subst u t) (Unif.term_subst u pat))
+           Expr.Term.equal (Mapping.apply_term u t) (Mapping.apply_term u pat))
          (I.find_unify pat t)
     )
 
@@ -153,7 +153,7 @@ let eq_unif res1 res2 =
   let l2 = List.sort cmp res2 in
   CCList.equal (fun (t, u, l) (t', u', l') ->
       Expr.Term.equal t t' &&
-      Unif.equal u u' &&
+      Mapping.equal u u' &&
       CCList.equal (=) l l') l1 l2
 
 let eq_match res1 res2 =
@@ -162,7 +162,7 @@ let eq_match res1 res2 =
   let l2 = List.sort cmp res2 in
   CCList.equal (fun (t, u, l) (t', u', l') ->
       Expr.Term.equal t t' &&
-      Match.equal u u' &&
+      Mapping.equal u u' &&
       CCList.equal (=) l l') l1 l2
 
 let eq_equal res1 res2 =

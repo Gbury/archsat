@@ -246,6 +246,12 @@ module Id : sig
   val is_interpreted : 'a id -> bool
   (** Returns [true] if a handler has been set up for the given variable. *)
 
+  val merge_fv :
+    ttype id list * ty id list ->
+    ttype id list * ty id list ->
+    ttype id list * ty id list
+  (** Merge lists of free variables *)
+
 end
 
 module Meta : sig
@@ -275,12 +281,14 @@ module Meta : sig
   val of_ttype_index : ttype meta_index -> ttype meta list
   (** Returns the list of all metas sharing the given index. *)
 
-  val in_ty : ty -> ttype meta list * ty meta list
-  val in_term : term -> ttype meta list * ty meta list
-  (** Returns the list of meta-variable occuring in the argument *)
-
   val occurs_in_term : ty meta -> term -> bool
   (** Returns [true] if the given meta-variable occurs in the term. *)
+
+  val merge_fm :
+    ttype meta list * ty meta list ->
+    ttype meta list * ty meta list ->
+    ttype meta list * ty meta list
+  (** Merge lists of free meta-variables *)
 
 end
 
@@ -301,8 +309,16 @@ module Subst : sig
   val iter : ('a -> 'b -> unit) -> ('a, 'b) t -> unit
   (** Iterates over the bindings of the substitution. *)
 
+  val map : ('b -> 'c) -> ('a, 'b) t -> ('a, 'c) t
+  (** Maps the given function over bound values *)
+
   val fold : ('a -> 'b -> 'c -> 'c) -> ('a, 'b) t -> 'c -> 'c
   (** Fold over the elements *)
+
+  val merge :
+    ('a -> 'b option -> 'c option -> 'd option) ->
+    ('a, 'b) t -> ('a, 'c) t -> ('a, 'd) t
+  (** Merge two substitutions *)
 
   val filter : ('a -> 'b -> bool) -> ('a, 'b) t -> ('a, 'b) t
   (** Filter bindings base on a predicate. *)
@@ -355,7 +371,8 @@ module Ty : sig
 
   include Sig.Full with type t = ty
 
-  type subst = (ttype id, ty) Subst.t
+  type var_subst = (ttype id, ty) Subst.t
+  type meta_subst = (ttype meta, ty) Subst.t
   (** The type of substitutions over types. *)
 
   val prop : ty
@@ -371,11 +388,13 @@ module Ty : sig
   val apply : ?status:status -> ttype function_descr id -> ty list -> ty
   (** Applies a constant to a list of types *)
 
-  val subst : subst -> ty -> ty
-  (** Substitution over types. *)
+  val subst : ?fix:bool -> var_subst -> meta_subst -> ty -> ty
+  (** Substitution over types.
+      @param fix wether to fixpoint the application of the substitution. *)
 
   val fv : ty -> ttype id list * ty id list
-  (** Return the list of free variables in the given type.
+  val fm : ty -> ttype meta list * ty meta list
+  (** Return the list of free variables (or meta-variables) in the given type.
       Here, the [ty id list] is guaranteed to be empty. *)
 
   val tag : ty -> 'a tag -> 'a -> unit
@@ -394,7 +413,8 @@ module Term : sig
 
   include Sig.Full with type t = term
 
-  type subst = (ty id, term) Subst.t
+  type var_subst = (ty id, term) Subst.t
+  type meta_subst = (ty meta, term) Subst.t
   (** The type of substitutions in types. *)
 
   val of_id : ?status:status -> ty id -> term
@@ -406,14 +426,19 @@ module Term : sig
   val apply : ?status:status -> ty function_descr id -> ty list -> term list -> term
   (** Applies a constant function to type arguments, then term arguments *)
 
-  val subst : Ty.subst -> subst -> term -> term
-  (** Substitution over types. *)
+  val subst :
+    ?fix:bool ->
+    Ty.var_subst -> Ty.meta_subst ->
+    var_subst -> meta_subst -> term -> term
+  (** Substitution over terms.
+      @param fix wether to fixpoint the substitution application *)
 
   val replace : term * term -> term -> term
   (** [replace (t, t') t''] returns the term [t''] where every occurence of [t]
       has been replaced by [t']. *)
 
   val fv : term -> ttype id list * ty id list
+  val fm : term -> ttype meta list * ty meta list
   (** Return the list of free variables in the given term. *)
 
   val eval : ?strict:bool -> term -> unit
@@ -481,10 +506,15 @@ module Formula : sig
   val exty : ttype id list -> formula -> formula
   (** Existentially quantify the given formula over the given variables *)
 
-  val subst : Ty.subst -> Term.subst -> formula -> formula
-  (** Substitution over formulas *)
+  val subst :
+    ?fix:bool ->
+    Ty.var_subst -> Ty.meta_subst ->
+    Term.var_subst -> Term.meta_subst ->
+    formula -> formula
+  (** Substitution over formulas
+      @param fix wther to fixpoint the substitution application *)
 
-  val partial_inst : Ty.subst -> Term.subst -> formula -> formula
+  val partial_inst : Ty.var_subst -> Term.var_subst -> formula -> formula
   (** Make a partial instanciation of the given formula with the substitutions. *)
 
   val fv : formula -> ttype id list * ty id list

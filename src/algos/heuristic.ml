@@ -10,11 +10,11 @@ let goal_goal_mult = ~- 100
 (* ************************************************************************ *)
 
 let nb_metas_in_ty ty =
-  let l, l' = Expr.Meta.in_ty ty in
+  let l, l' = Expr.Ty.fm ty in
   List.length l + List.length l'
 
 let nb_metas_in_term t =
-  let l, l' = Expr.Meta.in_term t in
+  let l, l' = Expr.Term.fm t in
   List.length l + List.length l'
 
 let rec ty_size = function
@@ -42,7 +42,13 @@ let goal_score_term t =
   + goal_goal_mult * Expr.((t.t_status :> int))
 
 let goal_directed u =
-  let tot, n = Expr.Subst.fold (fun _ t (h, k) -> (h + goal_score_term t, k + 1)) Unif.(u.t_map)
-            (Expr.Subst.fold (fun _ ty (h, k) -> (h + goal_score_ty ty, k + 1)) Unif.(u.ty_map) (0,0)) in
+  let aux_t _ t (h, k) = (h + goal_score_term t, k + 1) in
+  let aux_ty _ ty (h, k) = (h + goal_score_ty ty, k + 1) in
+  let tot, n =
+    Mapping.fold
+      ~ty_var:aux_ty ~ty_meta:aux_ty
+      ~term_var:aux_t ~term_meta:aux_t
+      u (0,0)
+  in
   tot / n
 
