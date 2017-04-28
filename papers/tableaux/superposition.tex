@@ -340,6 +340,9 @@ however, the procedure needs two instances of some axioms to succeed.
 The proof is shown in Figure~\ref{fig:unit-sup-proof-example}, but we
 do not apply the merging rule to prevent substitution sets to grow too much
 and clutter the proof.
+The last derived clause is empty, and is paired with a substitution
+that can be used to instantiate the quantified axioms to obtain an
+unsatisfiable set of ground (dis)equations.
 
 \begin{figure}[htbp]
 %{{{ example
@@ -424,7 +427,7 @@ and clutter the proof.
     }$
   \\
 
-  19 & SP(15,18) &
+  19 & RP(16,18) &
   $ \clauseWithSubst{
       z \approx f(b,f(c,z))
     }{ \{ \mapVar{X_1}b, \mapVar{Y_1}c, \mapVar{Z_1}z, \mapVar{X_5}z \}
@@ -438,7 +441,7 @@ and clutter the proof.
     }$
   \\
 
-  21 & SP(16,20) &
+  21 & RP(16,20) &
   $ \clauseWithSubst{
       z \approx f(m(x),f(x,z))
     }{ \{ \mapVar{X_2}{m(x)}, \mapVar{Y_2}{x}, \mapVar{Z_2}z, \mapVar{X_3}{x}, \mapVar{X_6}{z} \}
@@ -469,7 +472,7 @@ and clutter the proof.
     }$
   \\
 
-  24 & SN(5,23) &
+  24 & RN(5,23) &
   $ \clauseWithSubst{
       0 \not\approx 0
     }{ \left\{
