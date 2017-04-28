@@ -14,3 +14,42 @@ propositional problem, it is not unusual to encode it so that it can be viewed
 as a propositional reasoning task. This encoding may be complex and possibly
 costly, but the effectiveness of SAT solvers generally compensates for the cost
 of this encoding.
+
+This growing interest for SAT solvers has steered them toward a more first order
+approach, with the possibility to deal with first order literals and reason
+modulo theories. This resulted in the design of Satisfiability Modulo Theories
+(SMT) solvers, which are built on top of SAT solvers. Over the last past few
+years, SMT solvers have appeared as very efficient tools to reason over some
+well identified theories (equality, uninterpreted functions, linear arithmetic,
+arrays, etc.), and have allowed us to drag SAT solving toward first order logic.
+Although modern SMT solvers supports first order logic, most of them use
+heuristic quantifier instantiation for incorporating quantifier reasoning with
+ground decision procedures. This mechanism is relatively effective in some cases
+in practice, but it is not refutationally complete for first order logic. Hints
+(triggers) are usually required, and it is sensitive to the syntactic structure
+of the formula, so that it fails to prove formulas that can be easily discharged
+by provers based on more traditional first order proof search methods (tableaux,
+resolution, etc.).
+
+In this paper, we propose to overcome this problem of completeness for first
+logic in SMT solving by combining a SAT solver core with tableau calculus. The
+tableau calculus is introduced as a regular theory of SMT solving, and the rules
+are used to unfold propositional content into clauses while atomic formulas are
+handled using satisfiability decision procedures as usually done in SMT solvers.
+In order to manage quantified first order formulas, we use metavariables and
+perform rigid unification modulo equalities, for which we introduce an algorithm
+based on superposition, but where all clauses contain a single atomic formula.
+
+Our approach provides several advantages compared to usual SMT solving and first
+order proof search methods. First, we benefit from the efficiency of a SAT
+solver core together with a complete method of instantiation (when a
+propositional model is found, we try to find a conflict between two literals by
+unification). Second, it should be noted that our approach requires no change in
+the architecture of the SMT solver. The tableau calculus is seen as a regular
+theory, which can be combined with other theories in particular. Finally, no
+preliminary Skolemization and Conjunctive Normal Form (CNF) transformation is
+required over the initial formula. This transformation is performed lazily by
+applying the tableau rules progressively when a literal is propagated or
+decided. This makes the production of genuine output proofs easier, contrary to
+the approach of SMT solvers, where the Skolemization/CNF translation is realized
+at the beginning and especially externalized with respect to the proof search.
