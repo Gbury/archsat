@@ -5,6 +5,9 @@
 \EnableBpAbbreviations{}
 
 \newcommand\clauseWithSubst[2]{\ensuremath{#1 ~|~ #2}}
+\newcommand\renameVarsSymb{\ensuremath{\textsf{rename}}}
+\newcommand\renameVars[1]{\ensuremath{\renameVarsSymb}(#1)}
+\newcommand\mapVar[2]{\ensuremath{#2/#1}}
 
 There are many ways of integrating equational reasoning in
 Tableaux methods~\cite{brand1975proving,letz2002integration,backeman2015theorem,degtyarev1996you}.
@@ -29,6 +32,8 @@ Second, we introduce a {\em merging} rule that factors together
 intermediate (dis)equations that are alpha-equivalent:
 with multiple instances of some of the quantified formulas ({\em amplification}),
 it becomes important not to duplicate work.
+In this aspect, our calculus is quite close to Labelled
+Unit Superposition~\cite{iprover_eq_labelled_unit_sup} when using sets as labels.
 Third, unlike rigid paramodulation we use a term ordering to orient the
 equations.
 
@@ -41,28 +46,42 @@ We write $ \clauseWithSubst{ s \approx t }{ \Sigma}$
 the unit clause that contains exactly one equation (resp.~disequation)
 under hypothesis $\Sigma$ (which is a set of substitutions).
 We write $\clauseWithSubst{\emptyset}{\Sigma}$ for the empty clause under hypothesis $\Sigma$.
+We define $\renameVars{e}$, where $e$ is a (dis)equation, as follows:
+let $\sigma$ map every (rigid) variable of $e$ to a fresh rigid variable;
+then $\renameVars{e} = \clauseWithSubst{ e\sigma }{ \{ \sigma \} }$.
+For example, $\renameVars{p(X)\approx a}$
+is $\clauseWithSubst{ p(Y)\approx a}{ \{ X\mapsto Y\} }$. % TODO: another example
+\todo{explain the purpose of this transformation further?}
 The E-unification problem $E \vdash s\approx t$ can be solved by
 proving $\clauseWithSubst{\emptyset }{ \Sigma}$
-from $\{ \clauseWithSubst{e }{ \{ \emptyset \} } \}_{ e \in E }
+from $\{ \renameVars{e} \}_{ e \in E }
 \cup
-\{ \clauseWithSubst{s \not\approx t }{ \{ \emptyset \} } \}$,
+\{ \renameVars{ s \not\approx t } \}$,
 where $\Sigma$ contains the solutions.
 The meaning of $s \approx t | \Sigma$ is that for every $\sigma \in \Sigma$,
 $s\sigma \approx t\sigma$ is provable.
-We keep a set of substitutions, rather than unit clauses paired with
+
+The point of keeping a set of substitutions, rather than unit clauses paired with
 individual substitutions, in order to avoid duplicating the work
 for alpha-equivalent clauses.
 Indeed, because of amplification, many instances of a given (dis)equation
 might be present in a branch of the tableau;
 it would be inefficient to repeat the same inference steps with each variant
 of the axioms.
+Because we apply $\renameVars{e}$ on every initial $e$, clauses do not
+share any variable, except in their attached sets of substitutions.
 
-To perform inferences between two unit (dis)equations, we need to
-merge their sets of substitutions.
-Therefore, we need a notion of compatibility on substitutions, using a
-partial ordering $\leq$, such that $\sigma \leq \sigma'$ means that $\sigma$ is
+To perform an inference step between two unit (dis)equations, we merge their
+sets of substitutions.
+Merging $\Sigma$ and $\Sigma'$, intuitively, means
+computing $\{ \textsf{merge}(\sigma,\sigma') ~|~ \sigma \in \Sigma, \sigma'\in \Sigma' \}$
+for every pair $(\sigma,\sigma')$ of {\em compatible} substitutions.
+For example, the resolution step between $p(x,x)| \{ X \mapsto a \}$
+and $\lnot p(y,b)| \{ X \mapsto y \}$ is not possible, because the result
+would need to map $X$ to $a$ and to $b$  --- impossible because $X$ is rigid.
+Compatibility relies on a partial ordering $\leq$,
+such that $\sigma \leq \sigma'$ means that $\sigma$ is
 less general than $\sigma'$.
-We start by defining a few notions.
 
 Considering a substitution as a function from variables to terms, we can define
 the domain of a substitution $\sigma$ as the set of variables which have a non-trivial
@@ -76,7 +95,7 @@ The {\em composition} of substitutions $\sigma \circ \sigma'$
 is well-defined iff the domains of $\sigma$ and $\sigma'$ have no
 intersection.
 In this case,
-$\sigma \circ \sigma' \triangleq \left\{ x \mapsto \sigma'(\sigma(x)) | x \in \text{domain}(\sigma) \right\}$
+$\sigma \circ \sigma' \triangleq \left\{ x \mapsto (x\sigma)\sigma' | x \in \text{domain}(\sigma) \right\}$
 This definition naturally extends to sets of substitutions:
 $\Sigma \circ \sigma' \triangleq \left\{ \sigma \circ \sigma' | \sigma \in \Sigma \right\}$
 We then say that $\sigma \leq \sigma'$ iff $\exists \sigma''.~ \sigma \circ \sigma'' = \sigma'$.
@@ -297,5 +316,189 @@ we look for all solutions susceptible to close the branch at the same time.
 Moreover, this technique is amenable to incrementality --- every time a
 (dis)equation is decided by the SAT solver, we could add it to the saturation
 set and perform a (limited) number of steps of the given-clause algorithm.
+
+%}}}
+
+\subsection{Example}
+%{{{
+
+To illustrate the calculus, we detail a refutation of the following set
+of clauses stemming from group theory, where $f$ is the operator, $0$ the
+(left-)neutral element and $m$ the (left-)inverse operator:
+\[
+  \begin{array}{rcl}
+    \forall x~y~z.~ f(x,f(y,z)) &\approx& f(f(x,y),z) \\
+    \forall x.~ f(0,x) &\approx& x \\
+    \forall x.~ f(m(x),x) &\approx& 0 \\
+    f(b,c) &\approx& 0 \\
+    f(c,b) &\not\approx& 0 \\
+  \end{array}
+\]
+Because the problem is purely equational, the tableau structure is trivial,
+and all the work is done by the rigid superposition procedure;
+however, the procedure needs two instances of some axioms to succeed.
+The proof is shown in Figure~\ref{fig:unit-sup-proof-example}, but we
+do not apply the merging rule to prevent substitution sets to grow too much
+and clutter the proof.
+
+\begin{figure}[htbp]
+%{{{ example
+\begin{center}
+\begin{tabular}{clc}
+  \toprule
+
+  1 & axiom &
+  $\forall x~y~z.~ f(x,f(y,z)) \approx f(f(x,y),z)$
+  \\
+
+  2 & axiom &
+  $\forall x.~ f(0,x) \approx x$
+  \\
+
+  3 & axiom &
+  $\forall x.~ f(m(x),x) \approx 0$
+  \\
+
+  4 & axiom &
+  $f(b,c) \approx 0$
+  \\
+
+  5 & axiom &
+  $f(c,b) \not\approx 0$
+  \\
+
+  6 & amplify(1) &
+  $ f(X_1,f(Y_1,Z_1)) \approx f(f(X_1,Y_1),Z_1) $
+  \\
+
+  7 & amplify(1) &
+  $ f(X_2,f(Y_2,Z_2)) \approx f(f(X_2,Y_2),Z_2) $
+  \\
+
+  8 & \renameVarsSymb(6) &
+  $ \clauseWithSubst{ f(x,f(y,z)) \approx f(f(x,y),z) }{ \{ \mapVar{X_1}{x}, \mapVar{Y_1}{y}, \mapVar{Z_1 }{z} \} }$
+  \\
+
+  9 & \renameVarsSymb(7) &
+  $ \clauseWithSubst{ f(x,f(y,z)) \approx f(f(x,y),z) }{ \{ \mapVar{X_2}{x}, \mapVar{Y_2}{y}, \mapVar{Z_2 }{z} \} }$
+  \\
+
+  10 & amplify(3) &
+  $ f(m(X_3),X_3) \approx 0 $
+  \\
+
+  11 & amplify(3) &
+  $ f(m(X_4),X_4) \approx 0 $
+  \\
+
+  12 & \renameVarsSymb(10) &
+  $ \clauseWithSubst{ f(m(x),x) \approx 0 }{ \{ \mapVar{X_3}x \} } $
+  \\
+
+  13 & \renameVarsSymb(11) &
+  $ \clauseWithSubst{ f(m(x),x) \approx 0 }{ \{ \mapVar{X_4}x \} } $
+  \\
+
+  14 & amplify(2) &
+  $ f(0,X_5) \approx X_5 $
+  \\
+
+  15 & amplify(2) &
+  $ f(0,X_6) \approx X_6 $
+  \\
+
+  16 & \renameVarsSymb(14) &
+  $ \clauseWithSubst{ f(0,x) \approx x }{ \{ \mapVar{X_5}x \} }$
+  \\
+
+  17 & \renameVarsSymb(15) &
+  $ \clauseWithSubst{ f(0,x) \approx x }{ \{ \mapVar{X_6}x \} }$
+  \\
+
+  \midrule
+
+  18 & SP(4,8) &
+  $ \clauseWithSubst{
+      f(0,z) \approx f(b (f(c,z)))
+    }{ \{ \mapVar{X_1}b, \mapVar{Y_1}c, \mapVar{Z_1}z \}
+    }$
+  \\
+
+  19 & SP(15,18) &
+  $ \clauseWithSubst{
+      z \approx f(b,f(c,z))
+    }{ \{ \mapVar{X_1}b, \mapVar{Y_1}c, \mapVar{Z_1}z, \mapVar{X_5}z \}
+    }$
+  \\
+
+  20 & SP(9,12) &
+  $ \clauseWithSubst{
+      f(0,z) \approx f(m(x),f(x,z))
+    }{ \{ \mapVar{X_2}{m(x)}, \mapVar{Y_2}{x}, \mapVar{Z_2}z, \mapVar{X_3}{x} \}
+    }$
+  \\
+
+  21 & SP(16,20) &
+  $ \clauseWithSubst{
+      z \approx f(m(x),f(x,z))
+    }{ \{ \mapVar{X_2}{m(x)}, \mapVar{Y_2}{x}, \mapVar{Z_2}z, \mapVar{X_3}{x}, \mapVar{X_6}{z} \}
+    }$
+  \\
+
+  22 & SP(19,21) &
+  $ \clauseWithSubst{
+      f(c,z) \approx f(m(b),z)
+    }{ \left\{
+      \begin{array}{l}
+        \mapVar{X_1}b, \mapVar{Y_1}c, \mapVar{Z_1}z, \mapVar{X_5}z,  \\
+        \mapVar{X_2}{m(b)}, \mapVar{Y_2}{b}, \mapVar{Z_2}{f(c,z)},
+           \mapVar{X_3}{b}, \mapVar{X_6}{f(c,z)}
+      \end{array} \right\}
+    }$
+  \\
+
+  23 & SP(13,22) &
+  $ \clauseWithSubst{
+      f(c,b) \approx 0
+    }{ \left\{
+      \begin{array}{l}
+        \mapVar{X_1}b, \mapVar{Y_1}c, \mapVar{Z_1}b, \mapVar{X_5}b,  \\
+        \mapVar{X_2}{m(b)}, \mapVar{Y_2}{b}, \mapVar{Z_2}{f(c,b)},
+           \mapVar{X_3}{b}, \mapVar{X_6}{f(c,b)}
+      \end{array} \right\}
+    }$
+  \\
+
+  24 & SN(5,23) &
+  $ \clauseWithSubst{
+      0 \not\approx 0
+    }{ \left\{
+      \begin{array}{l}
+        \mapVar{X_1}b, \mapVar{Y_1}c, \mapVar{Z_1}b, \mapVar{X_5}b,  \\
+        \mapVar{X_2}{m(b)}, \mapVar{Y_2}{b}, \mapVar{Z_2}{f(c,b)},
+           \mapVar{X_3}{b}, \mapVar{X_6}{f(c,b)}
+      \end{array} \right\}
+    }$
+  \\
+
+  25 & ER(24) &
+  $ \clauseWithSubst{
+      \emptyset
+    }{ \left\{
+      \begin{array}{l}
+        \mapVar{X_1}b, \mapVar{Y_1}c, \mapVar{Z_1}b, \mapVar{X_5}b,  \\
+        \mapVar{X_2}{m(b)}, \mapVar{Y_2}{b}, \mapVar{Z_2}{f(c,b)},
+           \mapVar{X_3}{b}, \mapVar{X_6}{f(c,b)}
+      \end{array} \right\}
+    }$
+  \\
+
+  \bottomrule
+\end{tabular}
+\caption{Proof of a group theory problem}
+\label{fig:unit-sup-proof-example}
+\end{center}
+%}}}
+\end{figure}
 
 %}}}
