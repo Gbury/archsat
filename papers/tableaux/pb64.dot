@@ -1,0 +1,41 @@
+digraph "unsat_graph" {
+  vertex_0 [color=red, label="[]", shape=box, style=filled];
+  vertex_0 -> vertex_1 [label="simplify_reflect-", dir="back"];
+  vertex_1 [shape=box, label="[f sk_X sk_Y1 ≠ a]/4", style=filled];
+  vertex_1 -> vertex_2 [label="cnf", dir="back"];
+  vertex_2 [shape=box, label="¬ (∀ X/13:term Y/14:term. (((f Y/14 X/13) = a) ⇒ ((f X/13 Y/14) = a)))", style=filled];
+  vertex_2 -> vertex_3 [label="neg_goal", dir="back"];
+  vertex_3 [color=green, shape=box, label="∀ X/13:term Y/14:term. (((f Y/14 X/13) = a) ⇒ ((f X/13 Y/14) = a))", style=filled];
+  vertex_0 -> vertex_4 [label="simplify_reflect-", dir="back"];
+  vertex_4 [shape=box, label="[f sk_X sk_Y1 = a]/37", style=filled];
+  vertex_4 -> vertex_5 [label="s_sup+", dir="back"];
+  vertex_5 [shape=box, label="forall (X0:term). [f sk_X X0 = f (sk_Y sk_Y1) X0]/21", style=filled];
+  vertex_5 -> vertex_6 [label="s_sup+", dir="back"];
+  vertex_6 [shape=box, label="forall (X0:term) (X1:term). [X0 = f (sk_Y X1) (f X1 X0)]/12", style=filled];
+  vertex_6 -> vertex_7 [label="demod", dir="back"];
+  vertex_7 [shape=box, label="forall (X3:term). [f a X3 = X3]/1", style=filled];
+  vertex_7 -> vertex_8 [label="cnf", dir="back"];
+  vertex_8 [color=yellow, shape=box, label="∀ X/10:term. ((f a X/10) = X/10)", style=filled];
+  vertex_6 -> vertex_9 [label="demod", dir="back"];
+  vertex_9 [shape=box, label="forall (X0:term) (X1:term). [f a X0 = f (sk_Y X1) (f X1 X0)]/8", style=filled];
+  vertex_9 -> vertex_10 [label="s_sup+", dir="back"];
+  vertex_10 [shape=box, label="forall (X0:term) (X1:term) (X2:term). [f (f X0 X1) X2 = f X0 (f X1 X2)]/0", style=filled];
+  vertex_10 -> vertex_11 [label="cnf", dir="back"];
+  vertex_11 [color=yellow, shape=box, label="∀ X/6:term Y/7:term Z/8:term. ((f (f X/6 Y/7) Z/8) = (f X/6 (f Y/7 Z/8)))", style=filled];
+  vertex_9 -> vertex_12 [label="s_sup+", dir="back"];
+  vertex_12 [shape=box, label="forall (X4:term). [f (sk_Y X4) X4 = a]/2", style=filled];
+  vertex_12 -> vertex_13 [label="cnf", dir="back"];
+  vertex_13 [color=yellow, shape=box, label="∀ X/11:term. (∃ Y/15:term. ((f Y/15 X/11) = a))", style=filled];
+  vertex_5 -> vertex_14 [label="s_sup+", dir="back"];
+  vertex_14 [shape=box, label="forall (X0:term). [X0 = f sk_Y1 (f sk_X X0)]/11", style=filled];
+  vertex_14 -> vertex_7 [label="demod", dir="back"];
+  vertex_14 -> vertex_15 [label="demod", dir="back"];
+  vertex_15 [shape=box, label="forall (X0:term). [f a X0 = f sk_Y1 (f sk_X X0)]/7", style=filled];
+  vertex_15 -> vertex_10 [label="s_sup+", dir="back"];
+  vertex_15 -> vertex_16 [label="s_sup+", dir="back"];
+  vertex_16 [shape=box, label="[f sk_Y1 sk_X = a]/3", style=filled];
+  vertex_16 -> vertex_2 [label="cnf", dir="back"];
+  vertex_4 -> vertex_12 [label="s_sup+", dir="back"];
+  }
+
+
