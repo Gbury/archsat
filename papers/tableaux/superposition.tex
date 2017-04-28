@@ -337,12 +337,17 @@ of clauses stemming from group theory, where $f$ is the operator, $0$ the
 Because the problem is purely equational, the tableau structure is trivial,
 and all the work is done by the rigid superposition procedure;
 however, the procedure needs two instances of some axioms to succeed.
-The proof is shown in Figure~\ref{fig:unit-sup-proof-example}, but we
-do not apply the merging rule to prevent substitution sets to grow too much
-and clutter the proof.
+The proof is shown in Figure~\ref{fig:unit-sup-proof-example}.
 The last derived clause is empty, and is paired with a substitution
 that can be used to instantiate the quantified axioms to obtain an
 unsatisfiable set of ground (dis)equations.
+
+We do not apply the merging rule in this example,
+to prevent substitution sets from growing too much and clutter the proof.
+In practice, however, the system finds 8 distinct solutions that are
+identical up to permutations of rigid variables.
+The merging rule is useful precisely because it condenses these 8 proofs
+into one that yields a set of 8 substitutions.
 
 \begin{figure}[htbp]
 %{{{ example
