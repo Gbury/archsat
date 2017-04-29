@@ -53,3 +53,17 @@ applying the tableau rules progressively when a literal is propagated or
 decided. This makes the production of genuine output proofs easier, contrary to
 the approach of SMT solvers, where the Skolemization/CNF translation is realized
 at the beginning and especially externalized with respect to the proof search.
+
+Our proposal combining SAT solving and tableau calculus has been implemented and
+the corresponding tool is called \archsat{}. The implementation relies on the
+\msat{} library, which derives from \altergoz{}, and which is a generic library
+that allows us to easily create automated deduction tools based on SAT solvers.
+
+\todo{Introduce benchmarks and experimental results.}
+
+The paper is organized as follows: in Sec.~\ref{sec:smt}, we recall the classic
+architecture of SMT solvers and we introduce the tableau theory; we then
+describe, in Sec.~\ref{sec:rusuper}, our mechanism of equational reasoning by
+means of rigid unit superposition; finally, in Sec.~\ref{sec:bench}, we present
+some experimental results obtained by running our implementation over the TPTP
+library, and also provide related work in Sec.~\ref{sec:rwork}.

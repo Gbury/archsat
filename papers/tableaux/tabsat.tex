@@ -1,6 +1,7 @@
 % $Id$
 
 \section{SAT Solving Modulo Tableau Theory}
+\label{sec:smt}
 
 \todo{introduction, also explain why this is better than a
   regular (propositional) Tableau prover, and what the advantages are}
@@ -8,10 +9,10 @@
 
 \subsection{SAT Solving Modulo Theories}
 
-In this section, we recall the classic architecture of Satisfiability Modulo
-Theory~\cite{barrett2006splitting} (SMT).
-We introduce $\mathcal{T}$ and $\mathcal{F}$ respectively the sets of first
-order terms and first order formulas over the signature
+In this section, we recall the classic architecture of SMT
+solvers~\cite{barrett2006splitting}.  We introduce $\mathcal{T}$ and
+$\mathcal{F}$ respectively the sets of first order terms and first order
+formulas over the signature
 $\mathcal{S}=(\mathcal{S}_\mathcal{F},\mathcal{S}_\mathcal{P})$, where
 $\mathcal{S}_\mathcal{F}$ is the set of function symbols, and
 $\mathcal{S}_\mathcal{P}$, the set of predicate symbols, such that
