@@ -599,13 +599,16 @@ let do_rewrite active inactive =
 (* This functions tries to find an equality [v = w] in the index,
    used particualrly for computing the ES rule. *)
 let find_eq index v w =
-  CCList.flat_map (fun (_, l) ->
+  CCList.flat_map (fun (_, rho, l) ->
       CCList.flat_map (fun pos ->
           let s, t = extract pos in
           (* should be enforced by the index. *)
-          assert (Expr.Term.equal v s);
-          if Expr.Term.equal t w then [pos] else []
-        ) l) (I.find_equal v index)
+          assert (Expr.Term.equal (Mapping.apply_term ~fix:false rho v) s);
+          match Match.term rho w t with
+          | rho' -> if is_alpha rho' then [pos, rho'] else []
+          | exception Match.Impossible_ty _ -> []
+          | exception Match.Impossible_term _ -> []
+        ) l) (I.find_match v index)
 
 (* This function tries and find if there is an equality in p_set, such
    that [a] and [b] are suceptible to be an equality simplified by the ES rule.
@@ -631,7 +634,7 @@ and make_eq_list p_set curr idx l l' =
   match l, l' with
   | [], [] -> `Equal
   | a :: r, b :: r' ->
-    begin match make_eq_aux p_set (Position.arg idx curr) a b with
+    begin match make_eq_aux p_set (Position.follow curr idx) a b with
       | `Equal -> make_eq_list p_set curr (idx + 1) r r'
       | `Impossible -> `Impossible
       | `Substitutable (path, u) as res ->
@@ -646,22 +649,29 @@ let make_eq p_set a b =
   make_eq_aux p_set Position.root a b
 
 (* Perform equality subsumption *)
-let do_subsumption active inactive =
+let do_subsumption rho active inactive =
+  assert (is_alpha rho);
   assert (is_eq active.clause);
   assert (is_eq inactive.clause);
   assert (Position.equal Position.root active.path);
   let sigma = active.clause.map in
   let s, t = extract active in
   let u, v = extract inactive in
+  Util.debug "%a@\n%a" pp active.clause pp inactive.clause;
+  Util.debug "(trying-ES) %a@ %a ; %a"
+    Mapping.print rho pp_pos active pp_pos inactive;
   assert (
     match Position.Term.apply inactive.path u with
-    | _, Some (u_p) -> Expr.Term.equal u_p s
     | _, None -> false
+    | _, Some (u_p) ->
+      Expr.Term.equal s (Mapping.apply_term ~fix:false rho u_p)
   );
   assert (
-    match Position.Term.substitute inactive.path ~by:t u with
-    | Some u' -> Expr.Term.equal u' v
+    match Position.Term.substitute inactive.path
+            ~by:t (Mapping.apply_term ~fix:false rho u) with
     | None -> false
+    | Some u' ->
+      Expr.Term.equal u' (Mapping.apply_term ~fix:false rho v)
   );
   let redundant, sigma' = C.partition (fun rho ->
       C.exists (fun s -> s < rho) sigma) inactive.clause.map in
@@ -824,8 +834,8 @@ let equality_subsumption p_set c =
       | `Equal -> assert false (* trivial clause should have been eliminated *)
       | `Impossible -> None
       | `Substitutable (path, l) ->
-        let aux clause pointer =
-          do_subsumption pointer { clause; path; side = Left;}
+        let aux clause (pointer, rho) =
+          do_subsumption rho pointer { clause; path; side = Left;}
         in
         let c' = List.fold_left aux c l in
         if c == c' then None else Some (p_set, c')

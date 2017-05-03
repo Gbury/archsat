@@ -17,9 +17,16 @@ let arg i t =
   if i >= 0 then Arg (i, t)
   else invalid_arg "Position.arg"
 
+let rec concat t t' =
+  match t with
+  | Here -> t'
+  | Arg(i, t'') -> Arg(i, concat t'' t')
+
 let rec path = function
   | [] -> root
   | k :: r -> arg k (path r)
+
+let follow t i = concat t (path [i])
 
 (* Comparison, equality, printing. *)
 let equal = (=)

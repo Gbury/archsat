@@ -23,8 +23,14 @@ val arg : int -> t -> t
     @raise Invalid_argument if [i < 0]
 *)
 
+val follow : t -> int -> t
+(** Follow the given path [t] then take the [i]-th argument *)
+
 val path : int list -> t
 (** [path l] is [List.fold_right arg l root]. *)
+
+val concat : t -> t -> t
+(** Concat two paths *)
 
 (** {2 Position results} *)
 
