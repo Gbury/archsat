@@ -512,17 +512,17 @@ module SolverTheory = struct
   let assume s =
     let open Msat.Plugin_intf in
     Util.enter_prof section;
-    Util.info ~section "New slice of length %d" s.length;
+    Util.debug ~section "New slice of length %d" s.length;
     try
       let assume_aux = plugin_assume () in
       for i = s.start to s.start + s.length - 1 do
         match s.get i with
         | Lit f ->
-          Util.info ~section "(slice) assuming:@ @[<hov>%a@]"
+          Util.debug ~section "(slice) assuming:@ @[<hov>%a@]"
             Expr.Print.formula f;
           assume_aux f
         | Assign (t, v) ->
-          Util.info ~section "(slice) assuming: @[<hov>%a ->@ %a@]"
+          Util.debug ~section "(slice) assuming: @[<hov>%a ->@ %a@]"
             Expr.Print.term t Expr.Print.term v;
           set_assign t v
       done;
@@ -533,7 +533,7 @@ module SolverTheory = struct
       Sat
     with Absurd (l, p) ->
       clean_propagate ();
-      Util.info ~section "Conflict(%s):@ @[<hov>%a@]"
+      Util.debug ~section "Conflict(%s):@ @[<hov>%a@]"
           p.proof_name CCFormat.(list ~sep:(return " ||@ ") Expr.Print.formula) l;
       Util.exit_prof section;
       Unsat (l, p)
@@ -557,7 +557,7 @@ module SolverTheory = struct
       Msat.Plugin_intf.Sat
     with Absurd (l, p) ->
       clean_propagate ();
-      Util.info ~section "Conflict(%s):@ @[<hov>%a@]"
+      Util.debug ~section "Conflict(%s):@ @[<hov>%a@]"
           p.proof_name CCFormat.(list ~sep:(return " ||@ ") Expr.Print.formula) l;
       Util.exit_prof section;
       Msat.Plugin_intf.Unsat (l, p)
@@ -568,7 +568,7 @@ module SolverTheory = struct
       Expr.Print.term t;
     try
       let res = Expr.Term.assign t in
-      Util.info ~section "%a ->@ @[<hov>%a@]"
+      Util.debug ~section "%a ->@ @[<hov>%a@]"
           Expr.Print.term t Expr.Print.term res;
       Util.exit_prof section;
       res
@@ -579,6 +579,7 @@ module SolverTheory = struct
           Expr.Print.term t)
 
   let rec iter_assign_aux f e = match Expr.(e.term) with
+    | Expr.Var _ -> assert false
     | Expr.App (p, _, l) ->
       if Expr.Id.is_assignable p then f e;
       List.iter (iter_assign_aux f) l

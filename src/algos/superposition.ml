@@ -91,20 +91,13 @@ let is_alpha m =
 (* Substitutions *)
 (* ************************************************************************ *)
 
-let simpl_mapping m =
-  Mapping.filter
-    ~ty_var:(fun v ty -> not @@ Expr.Ty.(equal ty @@ of_id v))
-    ~ty_meta:(fun m ty -> not @@ Expr.Ty.(equal ty @@ of_meta m))
-    ~term_var:(fun v term -> not @@ Expr.Term.(equal term @@ of_id v))
-    ~term_meta:(fun m term -> not @@ Expr.Term.(equal term @@ of_meta m))
-    m
+let simpl_mapping = Mapping.remove_refl
 
 (* can s be composed with another mapping to be equal/included in s' *)
 let match_subst s s' =
   let aux get f_match x t acc =
-    match get s' x with
-    | t' -> f_match acc t t'
-    | exception Not_found -> acc
+    let t' = get s' x in
+    f_match acc t t'
   in
   let ty_var = aux Mapping.Var.get_ty Match.ty in
   let ty_meta = aux Mapping.Meta.get_ty Match.ty in
@@ -117,6 +110,7 @@ let (<) s t =
     let _ = match_subst s t in
     true
   with
+  | Not_found
   | Match.Impossible_ty _
   | Match.Impossible_term _ -> false
 
@@ -168,7 +162,7 @@ let merge s s' =
       aux ~eq:Expr.Ty.equal ~f:(Mapping.apply_ty rho) (opt, opt') in
     let aux_term _ opt opt' =
       aux ~eq:Expr.Term.equal ~f:(Mapping.apply_term rho) (opt, opt') in
-    Some (Mapping.merge
+    Some (rho, Mapping.merge
             ~ty_var:aux_ty ~ty_meta:aux_ty
             ~term_var:aux_term ~term_meta:aux_term
             s s')
@@ -178,8 +172,8 @@ let merge_set set set' =
       C.fold (fun s' acc' ->
           match merge s s' with
           | None -> acc'
-          | Some s'' -> C.add s'' acc'
-        ) set' acc) set C.empty
+          | Some s'' -> s'' :: acc'
+        ) set' acc) set []
 
 (* Clauses *)
 (* ************************************************************************ *)
@@ -248,12 +242,23 @@ let pp_lit fmt c =
     Format.fprintf fmt "@[%a@ %a@ %a@]"
       Expr.Print.term a (pp_cmp ~pos:false) (a, b) Expr.Print.term b
 
-let pp_map fmt c =
-  C.iter (fun m -> Format.fprintf fmt "@,[%a]" Mapping.print m) c.map
+let pp_map fmt map =
+  C.iter (fun m -> Format.fprintf fmt "@,[%a]" Mapping.print m) map
 
 let pp fmt (c:clause) =
   Format.fprintf fmt "@[<hov 2>%a@,[%a]@,[%a]%a@]"
-    pp_id c pp_reason c pp_lit c pp_map c
+    pp_id c pp_reason c pp_lit c pp_map c.map
+
+let pp_hyps fmt c =
+  match c.reason with
+  | Hyp -> ()
+  | ER c | Fresh c ->
+    Format.fprintf fmt "%a" pp c
+  | SN (d, e) | SP (d, e)
+  | RN (d, e) | RP (d, e)
+  | MN (d, e) | MP (d, e)
+  | ES (d, e) ->
+    Format.fprintf fmt "%a@\n%a" pp d.clause pp e.clause
 
 (* Heuristics for clauses. Currently uses the size of terms.
    NOTE: currently, weight does not take the subst into account so that
@@ -263,7 +268,7 @@ let pp fmt (c:clause) =
    TODO: better heuristic for clause selection.
 *)
 let compute_weight = function
-  | Empty -> 0
+  | Empty -> -1
   | Eq (a, b) -> 2 * (term_size (term_size 0 b) a)
   | Neq (a, b) -> 1 * (term_size (term_size 0 b) a)
   (* Disequalities have smaller weight because we are more interested
@@ -281,7 +286,23 @@ let mk_cl =
   (fun lit map reason ->
      incr i;
      let weight = compute_weight lit in
-     { id = !i; lit; map; reason; weight; }
+     let res = { id = !i; lit; map; reason; weight; } in
+     assert (
+       let lty,lt = match lit with
+         | Empty -> [], []
+         | Eq (a, b)
+         | Neq (a, b) -> Expr.Id.merge_fv (Expr.Term.fv a) (Expr.Term.fv b)
+       in
+       let b = C.for_all (fun m ->
+         let ((vty,vt), m) = Mapping.codomain m in
+         m = ([], []) &&
+         CCList.subset ~eq:Expr.Id.Ttype.equal lty vty &&
+         CCList.subset ~eq:Expr.Id.Ty.equal lt vt
+         ) map in
+       if not b then Util.debug "%a" pp res;
+       b
+     );
+     res
   )
 
 let ord a b = if Expr.Term.compare a b <= 0 then a, b else b, a
@@ -300,12 +321,20 @@ let mk_neq a b map reason =
 (* Clause freshening *)
 (* ************************************************************************ *)
 
+let new_ty_var =
+  let i = ref 0 in
+  (fun () -> incr i; Expr.Id.ttype (Format.sprintf "?%d" !i))
+
+let new_var =
+  let i = ref 0 in
+  (fun ty -> incr i; Expr.Id.ty (Format.sprintf "?%d" !i) ty)
+
 let fresh a b map =
   assert (Expr.Term.fm a = ([], []));
   assert (Expr.Term.fm b = ([], []));
   let tys, terms = Expr.Id.merge_fv (Expr.Term.fv a) (Expr.Term.fv b) in
-  let vtys = List.map (fun v -> Expr.Id.ttype "v") tys in
-  let vterms = List.map (fun v -> Expr.Id.ty "v" Expr.(v.id_type)) terms in
+  let vtys = List.map (fun _ -> new_ty_var ()) tys in
+  let vterms = List.map (fun v -> new_var Expr.(v.id_type)) terms in
   let m =
     List.fold_left2 (fun acc m v ->
         Mapping.Var.bind_ty acc m (Expr.Ty.of_id v)) (
@@ -343,9 +372,8 @@ let compare_pointer pc pc' =
 (* ************************************************************************ *)
 
 module M = Map.Make(Expr.Term)
-(*
 module Q = CCHeap.Make(struct type t = clause let leq = leq_cl end)
-*)
+(*
 module Q = struct
 
   type t = {
@@ -375,19 +403,29 @@ module Q = struct
       end
 
 end
+*)
 module S = Set.Make(struct type t = clause let compare = compare end)
 module I = Index.Make(struct type t = pointer let compare = compare_pointer end)
 
 type rules = {
-  er : bool;
-  es : bool;
-  sn : bool;
-  sp : bool;
-  rn : bool;
-  rp : bool;
-  mn : bool;
-  mp : bool;
+  er : bool; es : bool;
+  sn : bool; sp : bool;
+  rn : bool; rp : bool;
+  mn : bool; mp : bool;
 }
+
+let mk_rules ~default
+    ?(er=default) ?(es=default)
+    ?(sn=default) ?(sp=default)
+    ?(rn=default) ?(rp=default)
+    ?(mn=default) ?(mp=default)
+    () =
+  {
+    er; es;
+    sn; sp;
+    rn; rp;
+    mn; mp;
+  }
 
 type t = {
   queue : Q.t;
@@ -425,12 +463,7 @@ let empty ?(rules=all_rules) section callback = {
 let fold_subterms f e side clause i =
   Position.Term.fold (fun i path t -> f t { path; side; clause } i) i e
 
-let change_state f_set f_index c t =
-  let eq, a, b = match c.lit with
-    | Eq (a, b) -> true, a, b
-    | Neq (a, b) -> false, a, b
-    | Empty -> assert false
-  in
+let change_state_aux f_set f_index c t eq a b =
   let l = match Lpo.compare a b with
     | Comparison.Lt -> [b, Right] | Comparison.Gt -> [a, Left]
     | Comparison.Incomparable -> [a, Left; b, Right]
@@ -456,6 +489,12 @@ let change_state f_set f_index c t =
       List.fold_left (fun i (t, side) ->
           fold_subterms f_index t side c i) t.inactive_index l;
   }
+
+let change_state f_set f_index c t =
+  match c.lit with
+  | Eq (a, b) -> change_state_aux f_set f_index c t true a b
+  | Neq (a, b) -> change_state_aux f_set f_index c t false a b
+  | Empty -> { t with clauses = f_set c t.clauses }
 
 let add_clause = change_state S.add I.add
 let rm_clause = change_state S.remove I.remove
@@ -525,7 +564,9 @@ let do_supp acc sigma'' active inactive =
   let sigma = active.clause.map in
   let sigma' = inactive.clause.map in
   (* Merge the substitutions. *)
-  let res = merge_set (compose_set sigma sigma'') (compose_set sigma' sigma'') in
+  let res1 = compose_set sigma sigma'' in
+  let res2 = compose_set sigma' sigma'' in
+  let l = merge_set res1 res2 in
   let apply = Mapping.apply_term sigma'' in
   let v' = apply v in
   let u_res, u_p_opt = Position.Term.apply p u in
@@ -551,9 +592,14 @@ let do_supp acc sigma'' active inactive =
         else
           SN(active, inactive)
       in
-      let u'', v'', map = fresh u' v' res in
-      let c = f u'' v'' map reason in
-      c :: acc
+      List.fold_left (fun acc (rho, res) ->
+          let u'', v'', map = fresh
+              (Mapping.apply_term rho u')
+              (Mapping.apply_term rho v')
+              (C.singleton res)
+          in
+          let c = f u'' v'' map reason in
+          c :: acc) acc l
     | None ->
       (* This should not happen *)
       assert false
@@ -657,9 +703,6 @@ let do_subsumption rho active inactive =
   let sigma = active.clause.map in
   let s, t = extract active in
   let u, v = extract inactive in
-  Util.debug "%a@\n%a" pp active.clause pp inactive.clause;
-  Util.debug "(trying-ES) %a@ %a ; %a"
-    Mapping.print rho pp_pos active pp_pos inactive;
   assert (
     match Position.Term.apply inactive.path u with
     | _, None -> false
@@ -908,6 +951,10 @@ let cheap_simplify c p =
 let generate c p =
   supp_lit c p (equality_resolution p c [])
 
+
+(* Main loop *)
+(* ************************************************************************ *)
+
 (* Enqueue a new clause in p *)
 let enqueue c p =
   if S.mem c p.generated then p
@@ -933,11 +980,20 @@ let enqueue c p =
     end
   end
 
+let rec generate_new ~merge p_set c =
+  let l = generate c p_set in
+  if merge && not p_set.rules.mn && not p_set.rules.mp then l
+  else begin
+    let rules = mk_rules ~default:false ~mn:p_set.rules.mn ~mp:p_set.rules.mp () in
+    let tmp = empty ~rules (Section.make ~parent:p_set.section "tmp") (fun _ -> ()) in
+    let p = List.fold_right enqueue l tmp in
+    let p' = discount_loop ~merge:false p in
+    assert (Q.is_empty p'.queue);
+    S.elements p'.clauses
+  end
 
-(* Main loop *)
-(* ************************************************************************ *)
 
-let rec discount_loop p_set =
+and discount_loop ~merge p_set =
   match Q.take p_set.queue with
   | None -> p_set
   | Some (u, cl) ->
@@ -947,7 +1003,7 @@ let rec discount_loop p_set =
     (* If trivial or redundant, forget it and continue *)
     if trivial c p_set then begin
       Util.debug ~section:p_set.section "Trivial clause : %a" pp c;
-      discount_loop { p_set with queue = u }
+      discount_loop ~merge { p_set with queue = u }
     end else begin
       Util.debug ~section:p_set.section "@{<yellow>Adding clause@} : %a" pp c;
       if c.lit = Empty then begin
@@ -956,7 +1012,8 @@ let rec discount_loop p_set =
         (* Call the callback *)
         C.iter p_set.callback c.map;
         (* Continue solving *)
-        discount_loop { p_set with queue = u }
+        discount_loop ~merge
+          { p_set with clauses = S.add c p_set.clauses; queue = u }
       end else begin
         (* Add the clause to the set. *)
         let p_set = add_clause c p_set in
@@ -971,13 +1028,13 @@ let rec discount_loop p_set =
               (p_set', S.add p' t)
             end) p_set.clauses (p_set, S.empty) in
         (* Generate new inferences *)
-        let l = generate c p_set in
+        let l = generate_new ~merge p_set c in
         Util.debug ~section:p_set.section "@{<green>Generated %d (%d) inferences@}"
           (List.length l) (S.cardinal t);
         let t = List.fold_left (fun s p -> S.add p s) t l in
         (* Do a cheap simplify on the new clauses, and then add them to the queue. *)
         let p = S.fold enqueue t { p_set with queue = u } in
-        discount_loop p
+        discount_loop ~merge p
       end
     end
 
@@ -988,8 +1045,8 @@ let meta_to_var a b =
   assert (Expr.Term.fv a = ([], []));
   assert (Expr.Term.fv b = ([], []));
   let tys, terms = Expr.Meta.merge_fm (Expr.Term.fm a) (Expr.Term.fm b) in
-  let vtys = List.map (fun m -> Expr.Id.ttype "v") tys in
-  let vterms = List.map (fun m -> Expr.Id.ty "v" Expr.(m.meta_id.id_type)) terms in
+  let vtys = List.map (fun _ -> new_ty_var ()) tys in
+  let vterms = List.map (fun m -> new_var Expr.(m.meta_id.id_type)) terms in
   let m =
     List.fold_left2 (fun acc m v ->
         Mapping.Meta.bind_ty acc m (Expr.Ty.of_id v)) (
@@ -1010,14 +1067,5 @@ let add_neq t a b =
 
 let solve t =
   Util.debug ~section:t.section "@{<White>Precedence@}: @[<hov>%a@]" pp_precedence t;
-  let rules = t.rules in
-  (* Pre-saturate hyps so that they merge together *)
-  Util.debug ~section:t.section "@{<White>Preparing solver@}: merging hypotheses";
-  let t' = { t with rules = { rules with er = false; sn = false; sp = false; } } in
-  let t'' = discount_loop t' in
-  (* Take the merge hyps and begin solving for real *)
-  Util.debug ~section:t.section "@{<White>Beginning solving@}";
-  let f = empty ~rules t.section t.callback in
-  let f' = S.fold enqueue t''.clauses f in
-  discount_loop f'
+  discount_loop ~merge:true t
 

@@ -394,8 +394,8 @@ module Ty : sig
 
   val fv : ty -> ttype id list * ty id list
   val fm : ty -> ttype meta list * ty meta list
-  (** Return the list of free variables (or meta-variables) in the given type.
-      Here, the [ty id list] is guaranteed to be empty. *)
+  (** Return the list of free variables (resp. meta-variables) in the given type.
+      Here, the [ty id list] (resp. [ty meta list]) is guaranteed to be empty. *)
 
   val tag : ty -> 'a tag -> 'a -> unit
   (** Insert a local tag in the given type. Does not change the semantic

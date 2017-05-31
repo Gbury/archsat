@@ -2,21 +2,31 @@
 (** Unification between terms using unitary supperposisiton.
     This module uses unitary supperposition to derive potential unifiers. *)
 
-type t
-(** Persistent type for supperposisiton. *)
+(** {2 Superposition configuration} *)
 
 type rules = {
-  er : bool;
-  es : bool;
-  sn : bool;
-  sp : bool;
-  rn : bool;
-  rp : bool;
-  mn : bool;
-  mp : bool;
+  er : bool; es : bool;
+  sn : bool; sp : bool;
+  rn : bool; rp : bool;
+  mn : bool; mp : bool;
 }
 (** The type of configuration for superposition.
     Each bool indicates wether the corresponding rule should be used. *)
+
+val mk_rules :
+  default:bool ->
+  ?er:bool -> ?es:bool ->
+  ?sn:bool -> ?sp:bool ->
+  ?rn:bool -> ?rp:bool ->
+  ?mn:bool -> ?mp:bool ->
+  unit -> rules
+(** Convenience function to create a set of rules. *)
+
+
+(** {2 Superposistion} *)
+
+type t
+(** Persistent type for supperposisiton. *)
 
 val empty : ?rules:rules -> Section.t -> (Mapping.t -> unit) -> t
 (** Create an empty supperposisiton state. The function provided will

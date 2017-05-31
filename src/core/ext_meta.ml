@@ -12,9 +12,6 @@ let sup_section = Section.make ~parent:section "sup"
 let unif_section = Section.make ~parent:section "unif"
 let rigid_section = Section.make ~parent:section "rigid"
 
-(* Create the necessary sections for superposition *)
-(* let () = ignore (Superposition.empty (fun _ -> assert false) sup_section) *)
-
 (* Extension parameters *)
 (* ************************************************************************ *)
 
@@ -276,11 +273,12 @@ let sup_limit st =
   n * !sup_max_coef + !sup_max_const
 
 (* Unification of predicates *)
-let do_inst u = Inst.add ~score:(score u) u
+let do_inst u =
+  Inst.add ~score:(score u) u
 
-let insts r l =
-  let l = List.map Mapping.fixpoint l in
-  let l = CCList.flat_map Inst.split l in
+let insts r u =
+  Util.debug "Found inst: @[<hov>%a@]" Mapping.print u;
+  let l = Inst.split (Mapping.fixpoint u) in
   let l = List.map do_inst l in
   if List.exists CCFun.id l then begin
     decr r;
@@ -288,7 +286,9 @@ let insts r l =
     if !r <= 0 then raise Found_unif
   end
 
-let single_inst u = insts (ref 1) [u]
+let single_inst () =
+  let r = ref 1 in
+  (fun u -> insts r u)
 
 let cache = Unif.Cache.create ()
 
@@ -315,15 +315,16 @@ let rec unif_f st = function
   | Simple ->
     Util.enter_prof unif_section;
     fold_diff (fun () -> wrap_unif (Unif.Cache.with_cache cache (
-        Unif.Robinson.unify_term ~section:unif_section single_inst))) () st;
+        Unif.Robinson.unify_term ~section:unif_section (single_inst ())))) () st;
     Util.exit_prof unif_section
   | ERigid ->
     Util.enter_prof rigid_section;
-    fold_diff (fun () -> wrap_unif (Rigid.unify ~max_depth:(rigid_depth ()) st.equalities single_inst)) () st;
+    fold_diff (fun () -> wrap_unif (
+        Rigid.unify ~max_depth:(rigid_depth ()) st.equalities (single_inst ()))) () st;
     Util.exit_prof rigid_section
   | SuperEach ->
     Util.enter_prof sup_section;
-    let t = sup_empty (fun u -> insts (ref (sup_limit st)) [u]) in
+    let t = sup_empty (single_inst ()) in
     let t = List.fold_left (fun acc (a, b) -> Superposition.add_eq acc a b) t st.equalities in
     let t = Superposition.solve t in
     fold_diff (fun () a b ->
@@ -333,7 +334,7 @@ let rec unif_f st = function
     Util.exit_prof sup_section
   | SuperAll ->
     Util.enter_prof sup_section;
-    let t = sup_empty (fun u -> insts (ref (sup_limit st)) [u]) in
+    let t = sup_empty (single_inst ()) in
     let t = List.fold_left (fun acc (a, b) -> Superposition.add_eq acc a b) t st.equalities in
     let t = fold_diff (fun acc a b -> Superposition.add_neq acc a b) t st in
     begin try

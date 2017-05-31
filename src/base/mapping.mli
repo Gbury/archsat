@@ -36,6 +36,9 @@ val fixpoint : t -> t
 (** Compute the fixpoint of a mapping.
     WARNING: may not terminate if mapping contains cycles. *)
 
+val remove_refl : t -> t
+(** Remove from the mappings bindings of a variable/meta to itself. *)
+
 val map : (Expr.ty -> Expr.ty) -> (Expr.term -> Expr.term)  -> t -> t
 (** Map some functions over the types and terms used in the mapping. *)
 
@@ -91,6 +94,10 @@ val apply_formula : ?fix:bool -> t -> Expr.formula -> Expr.formula
     - [apply_term ~fix:true t x == a]
 *)
 
+val apply : ?fix:bool -> t -> t -> t
+(** [apply t m] returns the same mapping as [m] but where [t] has been applied to
+    all types and terms bound to a variable/meta-vriable in [m]. *)
+
 (** {2 Variable bindings} *)
 
 module Var : sig
@@ -140,6 +147,7 @@ module Meta : sig
 
 end
 
+
 (** {2 Substitution extraction} *)
 
 val ty_var : t -> (Expr.Id.Ttype.t, Expr.ty) Expr.Subst.t
@@ -147,4 +155,14 @@ val ty_meta : t -> (Expr.Meta.Ttype.t, Expr.ty) Expr.Subst.t
 val term_var : t -> (Expr.Id.Ty.t, Expr.term) Expr.Subst.t
 val term_meta : t -> (Expr.Meta.Ty.t, Expr.term) Expr.Subst.t
 (** Extract a substitution from a mapping. *)
+
+
+(** {2 Co-domain} *)
+
+val codomain : t ->
+  (Expr.Id.Ttype.t list * Expr.Id.Ty.t list) *
+  (Expr.Meta.Ttype.t list * Expr.Meta.Ty.t list)
+(** Compute the co-domainof a mapping, i.e the list of free variables
+    and meta-variables occuring in the types and terms that var and metas
+    ar eboud to in the substitution. *)
 

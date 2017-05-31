@@ -157,6 +157,7 @@ let tag x = fun () ->
 
 let eq_assign x =
   try
+    Util.debug ~section "Looking up tag for: %a" Expr.Print.term x;
     begin match E.find_tag st x with
       | _, Some (_, v) ->
         Util.debug ~section "Found tag : %a" Expr.Print.term v;

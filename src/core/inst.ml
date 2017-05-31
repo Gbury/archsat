@@ -34,7 +34,8 @@ let belong_ty m s =
   let f = Expr.Meta.ttype_def (index m) in
   let ty_aux m' _ =
     let f' = Expr.Meta.ttype_def (index m') in
-    if Expr.Formula.equal f f' then index m = index m'
+    if Expr.Formula.equal f f'
+    then index m = index m'
     else ty_sub m f' || ty_sub m' f
   in
   let term_aux m' _ =
@@ -45,13 +46,19 @@ let belong_ty m s =
 
 let belong_term m s =
   let f = Expr.Meta.ty_def (index m) in
+  Util.debug ~section "In : @[<hov>%a@]@\nComparing : @[<hov 2>%a :@ %a@]"
+    Mapping.print s Expr.Meta.print m Expr.Formula.print f;
   let ty_aux m' _ =
+    Util.debug ~section "plop ?!";
     let f' = Expr.Meta.ttype_def (index m') in
     term_sub m f' || ty_sub m' f
   in
   let term_aux m' _ =
     let f' = Expr.Meta.ty_def (index m') in
-    if Expr.Formula.equal f f' then index m = index m'
+    Util.debug ~section "   to :@[<hov>@[<hov 2>%a :@ %a@]@]"
+      Expr.Meta.print m' Expr.Formula.print f';
+    if Expr.Formula.equal f f'
+    then index m = index m'
     else term_sub m f' || term_sub m' f
   in
   Mapping.exists ~ty_meta:ty_aux ~term_meta:term_aux s
@@ -60,10 +67,13 @@ let split s =
   let rec aux bind belongs acc m t = function
     | [] -> bind Mapping.empty m t :: acc
     | s :: r ->
-      if belongs m s then
+      if belongs m s then (
+        Util.debug ~section "%a in %a" Expr.Print.meta m Mapping.print s;
         (bind s m t) :: (List.rev_append acc r)
-      else
+      ) else (
+        Util.debug ~section "%a not in %a" Expr.Print.meta m Mapping.print s;
         aux bind belongs (s :: acc) m t r
+      )
   in
   Mapping.fold
     ~ty_meta:(aux Mapping.Meta.bind_ty belong_ty [])
@@ -115,6 +125,31 @@ let soft_subst f t =
   let q = Expr.Formula.partial_inst ty_subst term_subst f in
   [ Expr.Formula.neg f; q], mk_proof f q ty_subst term_subst
 
+(* Groundify substitutions *)
+(* ************************************************************************ *)
+
+type Expr.builtin +=
+  | Ty_cst
+  | Term_cst
+
+let ty_cst =
+  Expr.Ty.apply (Expr.Id.ty_fun ~builtin:Ty_cst "ty_cst" 0) []
+
+let t_cst =
+  let a = Expr.Id.ttype "a" in
+  let f = Expr.Id.term_fun ~builtin:Term_cst
+      "term_cst" [a] [] (Expr.Ty.of_id a) in
+  (fun ty -> Expr.Term.apply f [ty] [])
+
+let groundify m =
+  let (tys, terms), _ = Mapping.codomain m in
+  let s = List.fold_left (fun s v ->
+      Mapping.Var.bind_term s v (t_cst Expr.(v.id_type))
+    ) (List.fold_left (fun s v ->
+      Mapping.Var.bind_ty s v ty_cst
+    ) Mapping.empty tys) terms in
+  Mapping.apply s m
+
 (* Heap for prioritizing instanciations *)
 (* ************************************************************************ *)
 
@@ -134,7 +169,7 @@ module Inst = struct
   (* Constructor *)
   let mk u score =
     let formula, s = partition u in
-    let var_subst = to_var u in
+    let var_subst = to_var (groundify s) in
     let hash = Hashtbl.hash (Expr.Formula.hash formula, Mapping.hash u) in
     { age = !age; hash; score; formula; var_subst; }
 

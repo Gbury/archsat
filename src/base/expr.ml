@@ -214,7 +214,7 @@ module Print = struct
     | [] -> ()
     | _ -> Format.fprintf fmt "%s%a%s" start (aux ~sep f) l stop
 
-  let id fmt v = Format.fprintf fmt "%s_%d" v.id_name v.index
+  let id fmt v = Format.fprintf fmt "%s" v.id_name
   let meta fmt m = Format.fprintf fmt "m%d_%a" m.meta_index id m.meta_id
   let ttype fmt = function Type -> Format.fprintf fmt "Type"
 
@@ -1208,23 +1208,31 @@ module Formula = struct
     else
       subst_aux ~fix ty_var_map ty_meta_map t_var_map t_meta_map f
 
+  let free_args_inst ty_var_map t_var_map (ty_args, t_args) =
+    (List.map (Ty.subst ~fix:false ty_var_map Subst.empty) ty_args,
+     List.map (Term.subst ~fix:false ty_var_map Subst.empty t_var_map Subst.empty) t_args)
+
   let rec partial_inst ty_var_map t_var_map f = match f.formula with
     | All (l, args, p) ->
       let l' = List.filter (fun v -> not (Subst.Id.mem v t_var_map)) l in
       let q = partial_inst ty_var_map t_var_map p in
-      if l' = [] then q else mk_formula (All (l', args, q))
+      let args' = free_args_inst ty_var_map t_var_map args in
+      if l' = [] then q else mk_formula (All (l', args', q))
     | AllTy (l, args, p) ->
       let l' = List.filter (fun v -> not (Subst.Id.mem v ty_var_map)) l in
       let q = partial_inst ty_var_map t_var_map p in
-      if l' = [] then q else mk_formula (AllTy (l', args, q))
+      let args' = free_args_inst ty_var_map t_var_map args in
+      if l' = [] then q else mk_formula (AllTy (l', args', q))
     | Not { formula = Ex (l, args, p) } ->
       let l' = List.filter (fun v -> not (Subst.Id.mem v t_var_map)) l in
       let q = partial_inst ty_var_map t_var_map p in
-      neg (if l' = [] then q else mk_formula (Ex (l', args, q)))
+      let args' = free_args_inst ty_var_map t_var_map args in
+      neg (if l' = [] then q else mk_formula (Ex (l', args', q)))
     | Not { formula = ExTy (l, args, p) } ->
       let l' = List.filter (fun v -> not (Subst.Id.mem v ty_var_map)) l in
       let q = partial_inst ty_var_map t_var_map p in
-      neg (if l' = [] then q else mk_formula (ExTy (l', args, q)))
+      let args' = free_args_inst ty_var_map t_var_map args in
+      neg (if l' = [] then q else mk_formula (ExTy (l', args', q)))
     | _ -> subst_aux ~fix:false ty_var_map Subst.empty t_var_map Subst.empty f
 
 end

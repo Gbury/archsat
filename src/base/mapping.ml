@@ -120,9 +120,9 @@ let exists
     ?(ty_meta=_false)
     ?(term_var=_false)
     ?(term_meta=_false) t =
-  S.exists ty_var t.ty_var &&
-  S.exists ty_meta t.ty_meta &&
-  S.exists term_var t.t_var &&
+  S.exists ty_var t.ty_var ||
+  S.exists ty_meta t.ty_meta ||
+  S.exists term_var t.t_var ||
   S.exists term_meta t.t_meta
 
 let filter
@@ -146,6 +146,19 @@ let merge
     ty_meta = S.merge ty_meta t.ty_meta t'.ty_meta;
     t_var = S.merge term_var t.t_var t'.t_var;
     t_meta = S.merge term_meta t.t_meta t'.t_meta; }
+
+(* Mapping co-domain *)
+(* ************************************************************************ *)
+
+let codomain m =
+  let aux_ty _ ty (v,m) = Expr.Id.merge_fv v (Expr.Ty.fv ty),
+                          Expr.Meta.merge_fm m (Expr.Ty.fm ty) in
+  let aux_term _ term (v,m) = Expr.Id.merge_fv v (Expr.Term.fv term),
+                              Expr.Meta.merge_fm m (Expr.Term.fm term) in
+  fold
+    ~ty_var:aux_ty ~ty_meta:aux_ty
+    ~term_var:aux_term ~term_meta:aux_term
+    m (([], []), ([], []))
 
 (* Variable bindings *)
 (* ************************************************************************ *)
@@ -201,6 +214,17 @@ module Meta = struct
 
 end
 
+(* Mappings operations *)
+(* ************************************************************************ *)
+
+let remove_refl m =
+  filter
+    ~ty_var:(fun v ty -> not @@ Expr.Ty.(equal ty @@ of_id v))
+    ~ty_meta:(fun m ty -> not @@ Expr.Ty.(equal ty @@ of_meta m))
+    ~term_var:(fun v term -> not @@ Expr.Term.(equal term @@ of_id v))
+    ~term_meta:(fun m term -> not @@ Expr.Term.(equal term @@ of_meta m))
+    m
+
 (* Mappings as substitution *)
 (* ************************************************************************ *)
 
@@ -212,6 +236,9 @@ let apply_term ?fix t term =
 
 let apply_formula ?fix t formula =
   Expr.Formula.subst ?fix t.ty_var t.ty_meta t.t_var t.t_meta formula
+
+let apply ?fix t m =
+  map (apply_ty ?fix t) (apply_term ?fix t) m
 
 (* Fixpoint on meta substitutions *)
 let fixpoint t = map (apply_ty ~fix:true t) (apply_term ~fix:true t) t

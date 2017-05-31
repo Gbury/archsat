@@ -26,8 +26,8 @@ type 'a logger =
   'a
 (** Th type of a logger. *)
 
-val error   : 'a logger
 val log     : 'a logger
+val error   : 'a logger
 val warn    : 'a logger
 val info    : 'a logger
 val debug   : 'a logger

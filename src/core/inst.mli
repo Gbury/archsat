@@ -13,6 +13,7 @@ val split : Mapping.t -> Mapping.t list
 val simplify : Mapping.t -> Mapping.t
 (** Simplifies the given unifier to eliminate metas that can not be instanciated directly. *)
 
+
 val add : ?delay:int -> ?score:int -> Mapping.t -> bool
 (** Add a unifier to the list of instanciations to do, possibly giving it a score.
     Unifiers with lower scores are prioritized when pushing instanciations to the solver.
