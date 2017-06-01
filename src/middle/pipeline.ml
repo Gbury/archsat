@@ -151,7 +151,13 @@ let rec run :
         delete_alarm al;
         if Printexc.backtrace_status () then
           Printexc.print_backtrace stdout;
-        Util.error "%a" (print_exn opt) exn;
+        let log = match exn with
+          | Options.Sigint
+          | Options.Out_of_time
+          | Options.Out_of_space -> Util.printf
+          | _ -> Util.error ?section:None
+        in
+        log "%a" (print_exn opt) exn;
         let opt' = try finally opt with _ -> opt in
         run ~finally ~print_exn g opt' pipe
     end

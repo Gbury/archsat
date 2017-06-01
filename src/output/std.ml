@@ -24,13 +24,13 @@ let print_exn opt fmt = function
 
   (** User interrupt *)
   | Options.Sigint ->
-    print_status opt fmt "\nUser interrupt"
+    print_status opt fmt "User interrupt"
 
   (** Size and time limits *)
   | Options.Out_of_time ->
-    print_status opt fmt "\nTimeout"
+    print_status opt fmt "Timeout"
   | Options.Out_of_space ->
-    print_status opt fmt "\nOut of space"
+    print_status opt fmt "Out of space"
 
   (** Could not recognize file extension *)
   | In.Extension_not_found ext ->
