@@ -39,6 +39,9 @@ depends: [
   "sequence"
   "spelll"
 ]
+available: [
+  ocaml-version >= "4.04.0"
+]
 tags: [ "sat" "smt" "solver" "theorem prover" "tptp" "logic" "smtlib" "dimacs" ]
 homepage: "https://gforge.inria.fr/projects/archsat"
 dev-repo: "https://gforge.inria.fr/projects/archsat"
