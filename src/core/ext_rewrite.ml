@@ -209,7 +209,14 @@ let parse_guards = function
 (* Parse manually oriented rules *)
 let parse_manual_rule = function
   (* Standard rewrite rules *)
-  | ({ Expr.formula = Expr.Equal (trigger, _) } as result)
+  | ({ Expr.formula = Expr.Equal (a, b) } as result) ->
+    let trigger =
+      match Expr.Formula.get_tag result Expr.t_order with
+      | None -> assert false
+      | Some Expr.Same -> a
+      | Some Expr.Inverse -> b
+    in
+    Some (mk true trigger result)
   | ({ Expr.formula = Expr.Equiv ({ Expr.formula = Expr.Pred trigger }, _) } as result) ->
     Some (mk true trigger result)
 
