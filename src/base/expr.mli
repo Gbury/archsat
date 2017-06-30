@@ -140,10 +140,24 @@ and formula = private {
   mutable f_hash : hash; (** Use Formula.hash instead *)
   mutable f_vars : (ttype id list * ty id list) option;
 }
-
 (** The type of formulas in the solver. The list of free arguments in quantifiers
-    is a bit tricky, so you should not touch it (see full doc for further
-    explanations). *)
+    is a bit tricky, so you should not touch it
+    (TODO: further explanations in full doc?). *)
+
+type t_order =
+  | Same
+  | Inverse
+
+val t_order : t_order Tag.t
+(** Tags containing information about the order of arguments for equalities. *)
+
+type f_order =
+  | F of formula
+  | L of f_order list
+
+val f_order : f_order Tag.t
+(** Tags containing information about the inital order of arfuments for the
+    [And] and [Or] constructions. *)
 
 (** {3 Exceptions} *)
 

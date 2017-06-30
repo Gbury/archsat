@@ -102,6 +102,25 @@ and formula = {
   mutable f_vars : (ttype id list * ty id list) option;
 }
 
+(* Original order or expresisons *)
+(* ************************************************************************ *)
+
+(* This type and tag will represent the original ordering of arguments for
+   constructions that changes it, such as:
+   - equality (which orders itw two arguments using the term ordering)
+   - and/or (which flattens the list and lose the tree structure)
+   - others ? *)
+type t_order =
+  | Same
+  | Inverse
+
+type f_order =
+  | F of formula
+  | L of f_order list
+
+let t_order : t_order Tag.t = Tag.create ()
+let f_order : f_order Tag.t = Tag.create ()
+
 (* Exceptions *)
 (* ************************************************************************ *)
 
@@ -1055,24 +1074,36 @@ module Formula = struct
     | _ -> mk_formula (Not f)
 
   let f_and l =
-    let rec aux acc = function
-      | [] -> acc
-      | { formula = And l' } :: r -> aux (List.rev_append l' acc) r
-      | a :: r -> aux (a :: acc) r
+    let rec aux (o, acc) = function
+      | [] -> o, acc
+      | ({ formula = And l' } as f) :: r ->
+        let t = CCOpt.get_exn @@ get_tag f f_order in
+        aux (t :: o, List.rev_append l' acc) r
+      | a :: r ->
+        aux (F a :: o, a :: acc) r
     in
-    match List.rev (aux [] l) with
-    | [] -> f_false
-    | l' -> mk_formula (And l')
+    match aux ([], []) l with
+    | _, [] -> f_false
+    | o, l' ->
+      let res = mk_formula (And (List.rev l')) in
+      let () = tag res f_order (L (List.rev o)) in
+      res
 
   let f_or l =
-    let rec aux acc = function
-      | [] -> acc
-      | { formula = Or l' } :: r -> aux (List.rev_append l' acc) r
-      | a :: r -> aux (a :: acc) r
+    let rec aux (o, acc) = function
+      | [] -> o, acc
+      | ({ formula = Or l' } as f) :: r ->
+        let t = CCOpt.get_exn @@ get_tag f f_order in
+        aux (t :: o, List.rev_append l' acc) r
+      | a :: r ->
+        aux (F a :: o, a :: acc) r
     in
-    match List.rev (aux [] l) with
-    | [] -> f_true
-    | l' -> mk_formula (Or l')
+    match aux ([], []) l with
+    | _, [] -> f_true
+    | o, l' ->
+      let res = mk_formula (Or (List.rev l')) in
+      let () = tag res f_order (L (List.rev o)) in
+      res
 
   let imply p q = mk_formula (Imply (p, q))
 
@@ -1082,14 +1113,17 @@ module Formula = struct
     if not (Ty.equal a.t_type b.t_type) then
       raise (Type_mismatch (b, b.t_type, a.t_type))
     else if (Ty.equal Ty.prop a.t_type) then
-      if Term.compare a b < 0 then
-        equiv (pred a) (pred b)
-      else
-        equiv (pred b) (pred a)
-    else if Term.compare a b < 0 then
-      mk_formula (Equal (a, b))
-    else
-      mk_formula (Equal (b, a))
+      equiv (pred a) (pred b) (* no need to order propositions *)
+    else begin
+      let order, res =
+        if Term.compare a b < 0 then
+          Same, mk_formula (Equal (a, b))
+        else
+          Inverse, mk_formula (Equal (b, a))
+      in
+      let () = tag res t_order order in
+      res
+    end
 
   let all l f =
     if l = [] then f else begin
