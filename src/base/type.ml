@@ -824,8 +824,17 @@ and parse_app_ty env ast f args =
   Ty (ty_apply env ast f l)
 
 and parse_app_term env ast f args =
-  let n = List.length Expr.(f.id_type.fun_vars) in
-  let ty_l, t_l = CCList.take_drop n args in
+  let n_args = List.length args in
+  let n_ty = List.length Expr.(f.id_type.fun_vars) in
+  let n_t = List.length Expr.(f.id_type.fun_args) in
+  let ty_l, t_l =
+    if n_args = n_ty + n_t then
+      CCList.take_drop n_ty args
+    else if n_args = n_t then
+      (CCList.replicate n_ty Dolmen.Term.wildcard, args)
+    else
+      _bad_term_arity env f (n_ty + n_t) ast
+  in
   let ty_args = List.map (parse_ty env) ty_l in
   let t_args = List.map (parse_term env) t_l in
   Term (term_apply env ast f ty_args t_args)
