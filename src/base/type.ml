@@ -462,18 +462,16 @@ let _cannot_infer_quant_var env t =
 
 (* Generate metas for wildcards in types. *)
 let gen_wildcard =
-  let f = Expr.Formula.allty [Expr.Id.ttype "wildcard"] Expr.Formula.f_true in
-  (function () -> (* TODO: add location information *)
-   match Expr.Meta.of_all_ty f with
-   | [ m ] -> m
-   | _ -> assert false)
+  let i = ref ~-1 in
+  (function () -> (* TODO: add location information? *)
+     incr i; Expr.Id.ttype (Format.sprintf "?%d" !i))
 
 let wildcard =
   (fun env ast id l ->
      match l with
      | [] ->
-       let m = gen_wildcard () in
-       Ty (Expr.Ty.of_meta m)
+       let v = gen_wildcard () in
+       Ty (Expr.Ty.of_id v)
      | _ -> _bad_id_arity env id 0 ast
   )
 
@@ -489,8 +487,8 @@ let ty_apply env ast f args =
     _bad_term_arity env f (arity f) ast
 
 (* Wrapper aroun term application. Since wildcards are allowed in types,
-   there may be some metas in [ty_args], so we have to find an appropriate
-   substitution for these metas. To do that, we try and unify the expected type
+   there may be some variables in [ty_args], so we have to find an appropriate
+   substitution for these variables. To do that, we try and unify the expected type
    and the actual argument types. *)
 let term_apply env ast f ty_args t_args =
   if List.length Expr.(f.id_type.fun_vars) <> List.length ty_args ||
@@ -499,11 +497,11 @@ let term_apply env ast f ty_args t_args =
   else
     let map =
       List.fold_left2
-        Expr.Subst.Id.bind Expr.Subst.empty
+        Mapping.Var.bind_ty Mapping.empty
         Expr.(f.id_type.fun_vars) ty_args
     in
     let expected_types =
-      List.map (Expr.Ty.subst map Expr.Subst.empty) Expr.(f.id_type.fun_args)
+      List.map (Mapping.apply_ty map) Expr.(f.id_type.fun_args)
     in
     let subst =
       List.fold_left2 (fun subst expected term ->
@@ -512,13 +510,18 @@ let term_apply env ast f ty_args t_args =
           with
           | Unif.Robinson.Impossible_ty _ ->
             _cannot_unify env ast expected term
-        ) Mapping.empty expected_types t_args
+        ) map expected_types t_args
     in
     let actual_ty_args = List.map (Mapping.apply_ty subst) ty_args in
     try
       Expr.Term.apply ~status:env.status f actual_ty_args t_args
     with
     | Expr.Bad_arity _ | Expr.Type_mismatch _ ->
+      Util.debug ~section "%a, typing:@\n %a :: %a :: %a@\nsubst: %a"
+        Dolmen.ParseLocation.fmt (get_loc ast) Expr.Print.const_ty f
+        (CCFormat.list Expr.Print.ty) ty_args
+        (CCFormat.list Expr.Print.term) t_args
+        Mapping.print subst;
       assert false
 
 let ty_subst env ast_term id args f_args body =
@@ -599,7 +602,7 @@ let rec parse_expr (env : env) t =
 
     (* Wildcards (only allowed in types *)
     | { Ast.term = Ast.Builtin Ast.Wildcard } ->
-      Ty (Expr.Ty.of_meta (gen_wildcard ()))
+      Ty (Expr.Ty.of_id (gen_wildcard ()))
 
     (* Basic formulas *)
     | { Ast.term = Ast.App ({ Ast.term = Ast.Builtin Ast.True }, []) }
