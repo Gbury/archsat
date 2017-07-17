@@ -194,7 +194,7 @@ let print_rule fmt { trigger; result; guards; formula; } =
 let rules = ref []
 let () = Backtrack.Stack.attach Dispatcher.stack rules
 
-(* Parse an arbitrary formula as a rerite rule *)
+(* Parse an arbitrary formula as a rewrite rule *)
 let parse_guard = function
   | { Expr.formula = Expr.Pred p } -> Some (Pred p)
   | { Expr.formula = Expr.Equal (a, b) } -> Some (Eq (a, b))
@@ -343,7 +343,8 @@ let callback_term t =
 let callback_rule r =
   match r.trigger with
   (** A rewrite rule with a single var as trigger is impossile:
-      what term could possibly be smaller than a single variable ? *)
+      wth a left side consisting of a signel variable,
+      what term on the right side of the rule could possibly be smaller ? *)
   | { Expr.term = Expr.Var _ } -> assert false
   (** A trigger that consist of a single meta does not contain variable,
       thus has no reason to be a rewrite rule... *)
@@ -370,10 +371,10 @@ let add_rule r =
        TODO: complete the rewrite rule system *)
     | [], _   -> ()
     (* Mixed case, it really isn't clear what we should do in these cases... *)
-    | _, _    ->
+    | l, _    ->
       Util.warn ~section
         "Mixed set of rewrite rules detected, removing auto rules";
-      rules := List.filter (fun { manual; _ } -> manual) !rules
+      rules := l
   end;
   (* Call the callback *)
   callback_rule r
