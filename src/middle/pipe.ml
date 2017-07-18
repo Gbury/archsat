@@ -286,5 +286,7 @@ let print_proof (opt, (c : solved stmt)) =
   | { contents = `Unknown; _ } ->
     ()
   | { contents = `Proof p; _ } ->
-    pp_opt Unsat_core.print Options.(opt.proof.unsat_core) p
+    let () = pp_opt Unsat_core.print Options.(opt.proof.unsat_core) p in
+    let () = pp_opt Dot.print Options.(opt.proof.dot) p in
+    ()
 

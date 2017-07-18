@@ -51,6 +51,7 @@ Ext_functions
 Ext_constraints
 
 # Proof manipulations
+Dot
 Unsat_core
 
 ##### Testing Modules #####
