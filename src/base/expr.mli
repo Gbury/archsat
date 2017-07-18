@@ -178,6 +178,11 @@ exception Cannot_interpret of term
 module Print : sig
   (** Pretty printing functions *)
 
+  val infix : string tag
+  (** The infix tag is used for the printing of identifiers.
+      When an identifier has an infix tag, its value is used as an infix
+      separator for printing applications. *)
+
   val id : Format.formatter -> 'a id -> unit
   val id_ty : Format.formatter -> ty id -> unit
   val id_ttype : Format.formatter -> ttype id -> unit
