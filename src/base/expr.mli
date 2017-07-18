@@ -31,6 +31,7 @@ type builtin += Base
 type 'ty id = private {
   id_type : 'ty;
   id_name : string;
+  id_tags : tag_map;
   index   : index; (** unique *)
   builtin : builtin;
 }
@@ -218,21 +219,28 @@ module Id : sig
   module TyCstr : Sig.Full with type t = ttype function_descr id
   (** Concrete instances for functor application. *)
 
+  val get_tag : _ id -> 'a tag -> 'a option
+  (** Get a tag value from an identifier. *)
+
   val prop : ttype function_descr id
   val base : ttype function_descr id
   (** Constants representing the type for propositions and a default type
       for term, respectively. *)
 
-  val ttype : ?builtin:builtin -> string -> ttype id
+  val ttype : ?builtin:builtin -> ?tags:tag_map -> string -> ttype id
   (** Create a fresh type variable with the given name. *)
 
-  val ty : ?builtin:builtin -> string -> ty -> ty id
+  val ty : ?builtin:builtin -> ?tags:tag_map -> string -> ty -> ty id
   (** Create a fresh variable with given name and type *)
 
-  val ty_fun : ?builtin:builtin -> string -> int -> ttype function_descr id
+  val ty_fun :
+    ?builtin:builtin -> ?tags:tag_map ->
+    string -> int -> ttype function_descr id
   (** Create a fresh type constructor with given name and arity *)
 
-  val term_fun : ?builtin:builtin -> string -> ttype id list -> ty list -> ty -> ty function_descr id
+  val term_fun :
+    ?builtin:builtin -> ?tags:tag_map ->
+    string -> ttype id list -> ty list -> ty -> ty function_descr id
   (** [term_fun name type_vars arg_types return_type] returns a fresh constant symbol,
       possibly polymorphic with respect to the variables in [type_vars] (which may appear in the
       types in [arg_types] and in [return_type]). *)

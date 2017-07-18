@@ -26,6 +26,7 @@ type builtin += Base
 type 'ty id = {
   id_type : 'ty;
   id_name : string;
+  id_tags : tag_map;
   index   : index; (** unique *)
   builtin : builtin;
 }
@@ -388,21 +389,26 @@ module Id = struct
   let term_skolems = Hashtbl.create 1007
 
   (* Constructors *)
-  let mk_new ?(builtin=Base) id_name id_type =
+  let mk_new ?(builtin=Base) ?(tags=Tag.empty) id_name id_type =
     assert (CCVector.length eval_vec = CCVector.length assign_vec);
     let index = CCVector.length eval_vec in
+    let id_tags = tags in
     CCVector.push eval_vec None;
     CCVector.push assign_vec None;
-    { index; id_name; id_type; builtin }
+    { index; id_name; id_type; id_tags; builtin }
 
-  let ttype ?builtin name = mk_new ?builtin name Type
-  let ty ?builtin name ty = mk_new ?builtin name ty
+  let ttype ?builtin ?tags name = mk_new ?builtin ?tags name Type
+  let ty ?builtin ?tags name ty = mk_new ?builtin ?tags name ty
 
-  let const ?builtin name fun_vars fun_args fun_ret =
-    mk_new ?builtin name { fun_vars; fun_args; fun_ret; }
+  let const ?builtin ?tags name fun_vars fun_args fun_ret =
+    mk_new ?builtin ?tags name { fun_vars; fun_args; fun_ret; }
 
-  let ty_fun ?builtin name n = const ?builtin name [] (CCList.replicate n Type) Type
+  let ty_fun ?builtin ?tags name n =
+    const ?builtin ?tags name [] (CCList.replicate n Type) Type
   let term_fun = const
+
+  (* Tags *)
+  let get_tag id k = Tag.get id.id_tags k
 
   (* Builtin Types *)
   let prop = ty_fun "Prop" 0
