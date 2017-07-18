@@ -26,7 +26,7 @@ let pairify l =
   aux [] l
 
 let pb =
-  let gen =
+  let g =
     QCheck.Gen.(
       list chain >>= fun eqs ->
       Misc_test.sublist (List.concat eqs) >>= fun neqs ->
@@ -37,7 +37,7 @@ let pb =
     ) in
   QCheck.{
     (list (pair bool (pair Expr_test.Term.t Expr_test.Term.t)))
-    with QCheck.gen = gen
+    with QCheck.gen = g
   }
 
 (* Naive solving *)

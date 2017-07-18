@@ -47,12 +47,12 @@ let t = make gen
 
 let pair =
   let config = E.Term.({var = 1; meta = 0; }) in
-  let gen = G.(sized @@ fun size ->
+  let g = G.(sized @@ fun size ->
                E.Ty.gen >>= fun ty ->
                E.Term.typed ~config ty size >>= fun a ->
                E.Term.typed ~config ty size >|= fun b -> (a, b)
               ) in
-  QCheck.({(pair E.Term.t E.Term.t) with gen = gen })
+  QCheck.({(pair E.Term.t E.Term.t) with gen = g })
 (* Small hack to get the same printer/shrinker than for pairs, but
    still generate terms of the same type. *)
 
