@@ -6,7 +6,7 @@ let name = "rwrt"
 (* ************************************************************************ *)
 
 module C = Ext_eq.Class
-module T = Set.Make(C)
+module T = CCSet.Make(C)
 module S = Set.Make(Expr.Term)
 
 module H = Hashtbl.Make(Expr.Term)
@@ -84,6 +84,12 @@ let find_indexed f =
   let s = find_index f in
   S.fold (fun t acc -> T.add (C.find t) acc) s T.empty
 
+let find_all_indexed () =
+  M.fold (fun _ s acc ->
+      S.fold (fun t acc ->
+          T.add (C.find t) acc
+        ) s acc
+    ) index T.empty
 
 (* Matching modulo equivalence classes *)
 (* ************************************************************************ *)
@@ -124,6 +130,11 @@ and match_modulo_aux acc pat c =
     let l = C.find_top c f in
     CCList.flat_map (match_modulo_app acc (ty_pats, pats)) l
 
+let match_modulos l =
+  List.fold_left (fun acc (t, s) ->
+      CCList.flat_map (match_modulo_aux acc t) s
+    ) [Mapping.empty] l
+
 let match_modulo = match_modulo_aux [Mapping.empty]
 
 (* Rewrite rules guards *)
@@ -155,20 +166,34 @@ let check_guard = function
   | Pred p -> Expr.Term.equal p Builtin.Misc.p_true
   | Eq (a, b) -> Expr.Term.equal a b
 
+(* Rewrite rules triggers *)
+(* ************************************************************************ *)
+
+type 'a trigger =
+  | Single of 'a
+  | Symmetric of 'a * 'a
+
+let print_trigger pp fmt = function
+  | Single x -> pp fmt x
+  | Symmetric (x, y) -> Format.fprintf fmt "%a ~@ %a" pp x pp y
+
 (* Rewrite rules definition *)
 (* ************************************************************************ *)
 
-type rule = {
-  manual  : bool;
-  trigger : Expr.term;
-  guards  : guard list;
-  result  : Expr.formula;
-  formula : Expr.formula;
+type 'a rule = {
+  manual   : bool;
+  trigger  : 'a trigger;
+  guards   : guard list;
+  result   : Expr.formula;
+  formula  : Expr.formula;
 }
 
 let mk ?(guards=[]) manual trigger result =
   let formula = result in
   { manual; trigger; guards; result; formula; }
+
+let map_trigger f rule =
+  { rule with trigger = f rule.trigger }
 
 let add_guards guards rule =
   { rule with guards = guards @ rule.guards }
@@ -182,10 +207,10 @@ let rec print_guards fmt = function
   | g :: r ->
     Format.fprintf fmt "@[<hov>[%a]@,%a@]" print_guard g print_guards r
 
-let print_rule fmt { trigger; result; guards; formula; } =
+let print_rule pp fmt { trigger; result; guards; formula; } =
   Format.fprintf fmt "@[<hov 2>%a@ %a -->@ %a@]"
     print_guards guards
-    Expr.Print.term trigger
+    (print_trigger pp) trigger
     Expr.Print.formula result
 
 (* Detecting Rewrite rules *)
@@ -216,9 +241,9 @@ let parse_manual_rule = function
       | Some Expr.Same -> a
       | Some Expr.Inverse -> b
     in
-    Some (mk true trigger result)
+    Some (mk true (Single trigger) result)
   | ({ Expr.formula = Expr.Equiv ({ Expr.formula = Expr.Pred trigger }, _) } as result) ->
-    Some (mk true trigger result)
+    Some (mk true (Single trigger) result)
 
   (* Conditional rewriting *)
   | { Expr.formula = Expr.Imply (
@@ -227,11 +252,11 @@ let parse_manual_rule = function
       (({ Expr.formula = Expr.Equal (trigger, _) } as result)
       |({ Expr.formula = Expr.Equiv (
             { Expr.formula = Expr.Pred trigger }, _) } as result)))} ->
-    CCOpt.map (fun guards -> mk ~guards true trigger result) (parse_guards cond)
+    CCOpt.map (fun guards -> mk ~guards true (Single trigger) result) (parse_guards cond)
 
   (* Polarised rewrite as a conditional rule *)
   | { Expr.formula = Expr.Imply ({ Expr.formula = Expr.Pred trigger }, result) } ->
-    Some (mk ~guards:[Pred trigger] true trigger result)
+    Some (mk ~guards:[Pred trigger] true (Single trigger) result)
 
   (* Not a rewrite rule, :p *)
   | _ -> None
@@ -245,15 +270,15 @@ let rec parse_rule_aux = function
     begin match Lpo.compare a b with
       | Comparison.Incomparable
       | Comparison.Eq -> None
-      | Comparison.Lt -> Some (mk false b result)
-      | Comparison.Gt -> Some (mk false a result)
+      | Comparison.Lt -> Some (mk false (Single b) result)
+      | Comparison.Gt -> Some (mk false (Single a) result)
     end
 
   (* Polarised rewrite rule as conditional rewrite *)
   | { Expr.formula = Expr.Imply ({ Expr.formula = Expr.Pred trigger },
                                  ({ Expr.formula = Expr.Pred p } as result))} ->
     begin match Lpo.compare trigger p with
-      | Comparison.Gt -> Some (mk false trigger result)
+      | Comparison.Gt -> Some (mk false (Single trigger) result)
       | Comparison.Lt | Comparison.Eq
       | Comparison.Incomparable ->
         None
@@ -288,8 +313,9 @@ let parse_rule = function
 (* ************************************************************************ *)
 
 let instanciate rule subst =
+  let pp fmt (t, _) = Expr.Print.term fmt t in
   Util.debug ~section "@[<hov 2>Instanciate %a@ with@ %a"
-    print_rule rule Mapping.print subst;
+    (print_rule pp) rule Mapping.print subst;
   let res = Mapping.apply_formula subst rule.result in
   match rule.guards with
   | [] ->
@@ -310,49 +336,61 @@ let instanciate rule subst =
          end
       )
 
-let match_and_instantiate s ({ trigger; _ } as rule) =
-  Util.debug ~section "Matching rule@ %a" print_rule rule;
-  let seq = T.fold (fun c acc ->
-      let repr = C.repr c in
-      Util.debug ~section "Trying to match@ %a@ <--@ %a"
-        Expr.Print.term trigger C.print c;
-      let s = match_modulo trigger c in
-      let s' = List.map (fun x -> repr, x) s in
-      List.append s' acc
-    ) s [] in
-  List.iter (fun (term, subst) ->
-      Util.debug ~section "match:@ %a@ <--@ %a"
-        Expr.Print.term term Mapping.print subst;
+let match_and_instantiate ({ trigger; _ } as rule) =
+  let pp fmt (t, s) =
+    Format.fprintf fmt "{%a <-@ %a}"
+      Expr.Print.term t (T.pp ~sep:"," C.print) s
+  in
+  Util.debug ~section "Matching rule@ %a" (print_rule pp) rule;
+  let l = match trigger with
+    | Single (t, s) ->
+      [t, T.elements s]
+    | Symmetric ((t, s), (t', s')) ->
+      [t, T.elements s; t', T.elements s']
+  in
+  let seq = match_modulos l in
+  List.iter (fun subst ->
+      Util.debug ~section "match:@ %a" Mapping.print subst;
       instanciate rule subst
     ) seq
 
 (* Rewriter callbacks *)
 (* ************************************************************************ *)
 
+let rules_to_match s =
+  List.map (map_trigger (function
+      | Single term -> Single (term, s)
+      | Symmetric (t, t') -> assert false
+    )) !rules
+
 (* Callback used when merging equivalence classes *)
 let callback_merge a b t =
-  let l = find_all_parents (C.repr t) in
-  List.iter (match_and_instantiate l) !rules
+  let s = find_all_parents (C.repr t) in
+  List.iter match_and_instantiate (rules_to_match s)
 
 (* Callback used on new terms *)
 let callback_term t =
   let s = T.singleton (C.find t) in
-  List.iter (match_and_instantiate s) !rules
+  List.iter match_and_instantiate (rules_to_match s)
 
 (* Callback used on new rewrite rules *)
 let callback_rule r =
-  match r.trigger with
+  let aux = function
   (** A rewrite rule with a single var as trigger is impossile:
       wth a left side consisting of a signel variable,
-      what term on the right side of the rule could possibly be smaller ? *)
-  | { Expr.term = Expr.Var _ } -> assert false
+      what term on the right side of the rule could possibly be smaller ?
+      on the other hand, it might be one part of a bigger trigger (such as (x = y)) *)
+  | { Expr.term = Expr.Var _ } -> find_all_indexed ()
   (** A trigger that consist of a single meta does not contain variable,
       thus has no reason to be a rewrite rule... *)
   | { Expr.term = Expr.Meta _ } -> assert false
   (** Rewrite rules trigger starts with an application, we can work with that. *)
-  | { Expr.term = Expr.App (f, _, _) } ->
-    let s = find_indexed f in
-    match_and_instantiate s r
+  | { Expr.term = Expr.App (f, _, _) } -> find_indexed f
+  in
+  match_and_instantiate (map_trigger (function
+      | Single t -> Single (t, aux t)
+      | Symmetric _ -> assert false
+    ) r)
 
 (* Rule addition callback *)
 (* ************************************************************************ *)
@@ -390,7 +428,7 @@ let assume f =
         Expr.Print.formula f;
     | Some r ->
       Util.info ~section "@[<hov 2>Detected a new rewrite rule:@ %a@]"
-        print_rule r;
+        (print_rule Expr.Print.term) r;
       add_rule r
   in
   ()
