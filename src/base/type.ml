@@ -713,6 +713,12 @@ and apply_attr env res ast l =
     ) (parse_attrs env ast [] l) in
   res
 
+and parse_attr_and env ast =
+  match ast with
+  | { Ast.term = Ast.App ({ Ast.term = Ast.Builtin Ast.And}, l) } ->
+    parse_attrs env ast [] l
+  | _ -> parse_attrs env ast [] [ast]
+
 and parse_attrs env ast acc = function
   | [] -> acc
   | a :: r ->
@@ -958,7 +964,7 @@ let rec parse_fun ty_args t_args env = function
 (* High-level parsing functions *)
 (* ************************************************************************ *)
 
-let new_decl env t id =
+let new_decl env t ?attr id =
   Util.enter_prof section;
   Util.info ~section "Typing declaration:@ @[<hov>%a :@ %a@]"
     Id.print id Ast.print t;
@@ -967,24 +973,26 @@ let new_decl env t id =
     | _ -> assert false
   in
   let tags =
-    let l = parse_attrs env t [] t.Ast.attr in
-    List.fold_left aux Tag.empty l
+    CCOpt.map (fun a ->
+        Util.info ~section "Typing attribute:@ @[<hov>%a@]" Ast.print a;
+        let l = parse_attr_and env a in
+        List.fold_left aux Tag.empty l) attr
   in
   let res =
     match parse_sig env t with
     | `Ty_cstr n ->
-      let c = Expr.Id.ty_fun ~tags (Id.full_name id) n in
+      let c = Expr.Id.ty_fun ?tags (Id.full_name id) n in
       decl_ty_cstr id c (Declared (get_loc t));
       `Type_decl c
     | `Fun_ty (vars, args, ret) ->
-      let f = Expr.Id.term_fun ~tags (Id.full_name id) vars args ret in
+      let f = Expr.Id.term_fun ?tags (Id.full_name id) vars args ret in
       decl_term id f (Declared (get_loc t));
       `Term_decl f
   in
   Util.exit_prof section;
   res
 
-let new_def env t id =
+let new_def env t ?attr id =
   Util.enter_prof section;
   Util.info ~section "Typing definition:@ @[<hov>%a =@ %a@]"
     Id.print id Ast.print t;

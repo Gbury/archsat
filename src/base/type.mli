@@ -105,14 +105,14 @@ val parse_app_formula : (Expr.formula -> Dolmen.Term.t list -> res) typer
 (** {2 High-level functions} *)
 
 val new_decl :
-  (Dolmen.Id.t ->
+  (?attr:Dolmen.Term.t -> Dolmen.Id.t ->
    [ `Type_decl of Expr.ttype Expr.function_descr Expr.id
    | `Term_decl of Expr.ty Expr.function_descr Expr.id
    ]) typer
 (** Parse a declaration. *)
 
 val new_def :
-  (Dolmen.Id.t ->
+  (?attr:Dolmen.Term.t -> Dolmen.Id.t ->
    [ `Type_def of Dolmen.Id.t * Expr.ttype Expr.id list * Expr.ty
    | `Term_def of Dolmen.Id.t * Expr.ttype Expr.id list * Expr.ty Expr.id list * Expr.term
    ]) typer

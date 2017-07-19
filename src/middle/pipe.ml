@@ -173,12 +173,12 @@ let typecheck (opt, c) : typechecked stmt =
   | { S.descr = S.Def (id, t) } ->
     start_section ~section:Type.section Util.info "Definition";
     let env, aux = type_wrap opt in
-    let ret = Type.new_def env t id in
+    let ret = Type.new_def env t ?attr:c.S.attr id in
     (aux ret :> typechecked stmt)
   | { S.descr = S.Decl (id, t) } ->
     start_section ~section:Type.section Util.info "Declaration typing";
     let env, aux = type_wrap opt in
-    let ret = Type.new_decl env t id in
+    let ret = Type.new_decl env t ?attr:c.S.attr id in
     (aux ret :> typechecked stmt)
   | { S.descr = S.Antecedent t } ->
     start_section ~section:Type.section Util.info "Hypothesis typing";
