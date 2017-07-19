@@ -89,11 +89,13 @@ let find_indexed f =
   let s = find_index f in
   S.fold (fun t acc -> T.add (C.find t) acc) s T.empty
 
-let find_all_indexed () =
-  M.fold (fun _ s acc ->
-      S.fold (fun t acc ->
+let find_all_indexed ty =
+  M.fold (fun f s acc ->
+      if Expr.Ty.equal ty Expr.(f.id_type.fun_ret)
+      then S.fold (fun t acc ->
           T.add (C.find t) acc
         ) s acc
+      else acc
     ) index T.empty
 
 (* Matching modulo equivalence classes *)
@@ -248,6 +250,8 @@ let parse_manual_rule = function
       | Some Expr.Inverse -> b
     in
     Some (mk true (Single trigger) result)
+  | ({ Expr.formula = Expr.Equiv ({ Expr.formula = Expr.Equal (a, b) }, _) } as result) ->
+    Some (mk true (Symmetric (a, b)) result)
   | ({ Expr.formula = Expr.Equiv ({ Expr.formula = Expr.Pred trigger }, _) } as result) ->
     Some (mk true (Single trigger) result)
 
@@ -366,7 +370,8 @@ let match_and_instantiate ({ trigger; _ } as rule) =
 let rules_to_match s =
   List.map (map_trigger (function
       | Single term -> Single (term, s)
-      | Symmetric (t, t') -> assert false
+      | Symmetric (t, t') ->
+        Symmetric ((t, s), (t', find_all_indexed t'.Expr.t_type))
     )) !rules
 
 (* Callback used when merging equivalence classes *)
@@ -386,7 +391,7 @@ let callback_rule r =
       wth a left side consisting of a signel variable,
       what term on the right side of the rule could possibly be smaller ?
       on the other hand, it might be one part of a bigger trigger (such as (x = y)) *)
-  | { Expr.term = Expr.Var _ } -> find_all_indexed ()
+    | { Expr.term = Expr.Var _; t_type } -> find_all_indexed t_type
   (** A trigger that consist of a single meta does not contain variable,
       thus has no reason to be a rewrite rule... *)
   | { Expr.term = Expr.Meta _ } -> assert false
@@ -395,7 +400,7 @@ let callback_rule r =
   in
   match_and_instantiate (map_trigger (function
       | Single t -> Single (t, aux t)
-      | Symmetric _ -> assert false
+      | Symmetric (x, y) -> Symmetric ((x, aux x), (y, aux y))
     ) r)
 
 (* Rule addition callback *)
