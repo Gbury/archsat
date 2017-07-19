@@ -80,8 +80,14 @@ let parse_smtlib env ast s args =
 let parse_zf env ast s args =
   if Ast.equal Ast.rwrt_rule ast then
     Some (Type.Tag (Tag.rwrt, ()))
-  else
-    None
+  else match s with
+    | { Id.name = "infix"; ns = Id.Term } ->
+      begin match args with
+        | [ { Ast.term = Ast.Symbol { Id.name; _ } } ] ->
+          Some (Type.Tag (Expr.Print.infix, name))
+        | _ -> assert false
+      end
+    | _ -> None
 
 let _ =
   Semantics.Addon.register "base"
