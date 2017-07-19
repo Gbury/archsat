@@ -178,7 +178,11 @@ exception Cannot_interpret of term
 module Print : sig
   (** Pretty printing functions *)
 
-  val infix : string tag
+  type pretty =
+    | Prefix of string
+    | Infix of string
+
+  val pretty : pretty tag
   (** The infix tag is used for the printing of identifiers.
       When an identifier has an infix tag, its value is used as an infix
       separator for printing applications. *)

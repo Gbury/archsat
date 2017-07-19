@@ -84,7 +84,13 @@ let parse_zf env ast s args =
     | { Id.name = "infix"; ns = Id.Term } ->
       begin match args with
         | [ { Ast.term = Ast.Symbol { Id.name; _ } } ] ->
-          Some (Type.Tag (Expr.Print.infix, name))
+          Some (Type.Tag (Expr.Print.pretty, Expr.Print.Infix name))
+        | _ -> assert false
+      end
+    | { Id.name = "prefix"; ns = Id.Term } ->
+      begin match args with
+        | [ { Ast.term = Ast.Symbol { Id.name; _ } } ] ->
+          Some (Type.Tag (Expr.Print.pretty, Expr.Print.Prefix name))
         | _ -> assert false
       end
     | _ -> None

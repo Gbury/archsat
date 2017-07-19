@@ -145,7 +145,12 @@ end
 
 module Print = struct
 
-  let infix : string tag = Tag.create ()
+  (* Prefix/infix pretty printing info *)
+  type pretty =
+    | Prefix of string
+    | Infix of string
+
+  let pretty : pretty tag = Tag.create ()
 
   let list ?(start="") ?(stop="") ~sep f fmt l =
     let rec aux ~sep f fmt = function
@@ -167,11 +172,14 @@ module Print = struct
     | TyVar v -> id fmt v
     | TyMeta m -> meta fmt m
     | TyApp (f, l) ->
-      begin match Tag.get f.id_tags infix with
+      begin match Tag.get f.id_tags pretty with
         | None ->
           Format.fprintf fmt "@[<hov 2>%a%a@]"
             id f (list ~start:"(" ~stop:")" ~sep:"," ty) l
-        | Some s ->
+        | Some Prefix s ->
+          assert (List.length l = 1);
+          Format.fprintf fmt "@[<hov 2>%s %a@]" s (list ~sep:"" ty) l
+        | Some Infix s ->
           let s' = " " ^ s in
           Format.fprintf fmt "@[<hov 2>%a@]"
             (list ~start:"(" ~stop:")" ~sep:s' ty) l
@@ -191,13 +199,14 @@ module Print = struct
   let fun_ty = signature ty
   let fun_ttype = signature ttype
 
-  let id_infix fmt v =
-    match Tag.get v.id_tags infix with
+  let id_pretty fmt v =
+    match Tag.get v.id_tags pretty with
     | None -> ()
-    | Some s -> Format.fprintf fmt "(%s)" s
+    | Some Prefix s -> Format.fprintf fmt "[%s]" s
+    | Some Infix s -> Format.fprintf fmt "(%s)" s
 
   let id_type print fmt v =
-    Format.fprintf fmt "@[<hov 2>%a%a :@ %a@]" id v id_infix v print v.id_type
+    Format.fprintf fmt "@[<hov 2>%a%a :@ %a@]" id v id_pretty v print v.id_type
 
   let id_ty = id_type ty
   let id_ttype = id_type ttype
@@ -209,7 +218,7 @@ module Print = struct
     | Meta m -> meta fmt m
     | App (f, [], []) -> id fmt f
     | App (f, tys, args) ->
-      begin match Tag.get f.id_tags infix with
+      begin match Tag.get f.id_tags pretty with
         | None ->
           begin match tys with
             | [] ->
@@ -218,10 +227,13 @@ module Print = struct
             | _ ->
               Format.fprintf fmt "%a(@[<hov>%a%a%a@])" id f
                 (list ~sep:"," ty) tys
-                (CCFormat.return (if tys=[] then "" else ";@ ")) ()
+                (CCFormat.return ";@ ") ()
                 (list ~sep:"," term) args
           end
-        | Some s ->
+        | Some Prefix s ->
+          Format.fprintf fmt "@[<hov>%s%a@]"
+            s (list ~start:"(" ~stop:")" ~sep:"" term) args
+        | Some Infix s ->
           let s' = " " ^ s in
           Format.fprintf fmt "%a"
             (list ~start:"(" ~stop:")" ~sep:s' term) args
