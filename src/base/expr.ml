@@ -172,8 +172,9 @@ module Print = struct
           Format.fprintf fmt "@[<hov 2>%a%a@]"
             id f (list ~start:"(" ~stop:")" ~sep:"," ty) l
         | Some s ->
+          let s' = " " ^ s in
           Format.fprintf fmt "@[<hov 2>%a@]"
-            (list ~start:"(" ~stop:")" ~sep:s ty) l
+            (list ~start:"(" ~stop:")" ~sep:s' ty) l
       end
 
   let params fmt = function
@@ -221,8 +222,9 @@ module Print = struct
                 (list ~sep:"," term) args
           end
         | Some s ->
+          let s' = " " ^ s in
           Format.fprintf fmt "%a"
-            (list ~start:"(" ~stop:")" ~sep:s term) args
+            (list ~start:"(" ~stop:")" ~sep:s' term) args
       end
 
   let rec formula_aux fmt f =
