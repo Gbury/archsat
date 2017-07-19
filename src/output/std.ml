@@ -80,13 +80,13 @@ let print_exn opt fmt = function
     let default_loc = Dolmen.ParseLocation.mk
         (Options.input_to_string Options.(opt.input.file)) 0 0 0 0 in
     let loc = CCOpt.get_or ~default:default_loc t.Dolmen.Term.loc in
-    Format.fprintf Format.std_formatter "While typing: '%a'@\n" Dolmen.Term.print t;
+    Format.fprintf Format.std_formatter "While typing:@ '%a'@\n" Dolmen.Term.print t;
     Format.fprintf Format.std_formatter "%a:@\n%s@." Dolmen.ParseLocation.fmt loc msg
 
   (** Extension not found *)
   | Extension.Extension_not_found (sect, ext, l) ->
     Format.fprintf Format.std_formatter
-      "Extension '%s/%s' not found. Available extensions are :@\n%a@."
+      "Extension '%s/%s' not found.@ Available extensions are :@\n%a@."
       sect ext (fun fmt -> List.iter (fun s -> Format.fprintf fmt "%s " s)) l
 
   (** Internal errors. Should not happen *)
@@ -94,7 +94,7 @@ let print_exn opt fmt = function
     Format.fprintf Format.std_formatter "%s@." msg
   | Expr.Type_mismatch (t, ty1, ty2) ->
     Format.fprintf Format.std_formatter
-      "Term %a has type %a but an expression of type %a was expected@."
+      "Term@ %a@ has type %a@ but an expression of type@ %a@ was expected@."
       Expr.Print.term t Expr.Print.ty ty1 Expr.Print.ty ty2
 
   (** Generic catch *)

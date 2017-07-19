@@ -14,6 +14,11 @@ module M = Hashtbl.Make(Expr.Id.Const)
 
 let section = Section.make ~parent:Dispatcher.section "rwrt"
 
+let pp_t ~sep pp fmt t =
+  if T.is_empty t
+  then Format.fprintf fmt "∅"
+  else T.pp ~sep pp fmt t
+
 (* Callbacks on the set of known terms *)
 (* ************************************************************************ *)
 
@@ -207,10 +212,11 @@ let rec print_guards fmt = function
   | g :: r ->
     Format.fprintf fmt "@[<hov>[%a]@,%a@]" print_guard g print_guards r
 
-let print_rule pp fmt { trigger; result; guards; formula; } =
-  Format.fprintf fmt "@[<hov 2>%a@ %a -->@ %a@]"
+let print_rule pp fmt { manual; trigger; result; guards; formula; } =
+  Format.fprintf fmt "@[<hov 2>%a@ %a %s@ %a@]"
     print_guards guards
     (print_trigger pp) trigger
+    (if manual then "==>" else "-->")
     Expr.Print.formula result
 
 (* Detecting Rewrite rules *)
@@ -338,8 +344,8 @@ let instanciate rule subst =
 
 let match_and_instantiate ({ trigger; _ } as rule) =
   let pp fmt (t, s) =
-    Format.fprintf fmt "{%a <-@ %a}"
-      Expr.Print.term t (T.pp ~sep:"," C.print) s
+    Format.fprintf fmt "{{%a <-@ { %a }@,}}"
+      Expr.Print.term t (pp_t ~sep:"," C.print) s
   in
   Util.debug ~section "Matching rule@ %a" (print_rule pp) rule;
   let l = match trigger with
