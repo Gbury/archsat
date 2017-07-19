@@ -13,7 +13,7 @@
 type hash
 type index = private int
 type status = private int
-type tag_map = private Tag.map
+type tag_map = Tag.map
 type 'a meta_index = private int
 
 (** Private aliases to provide access. You should not have any need

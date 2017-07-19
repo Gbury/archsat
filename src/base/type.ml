@@ -703,21 +703,28 @@ let rec parse_expr (env : env) t =
     (* Other cases *)
     | ast -> raise (Typing_error ("Unexpected construction", env, ast))
   in
-  parse_attr env res t t.Ast.attr
+  apply_attr env res t t.Ast.attr
 
-and parse_attr env res ast = function
-  | [] -> res
-  | a :: r ->
-    begin match parse_expr (expect env Nothing) a with
+and apply_attr env res ast l =
+  let () = List.iter (function
       | Tag (tag, v) ->
         apply_tag env ast tag v res;
-        parse_attr env res ast r
+      | _ -> assert false
+    ) (parse_attrs env ast [] l) in
+  res
+
+and parse_attrs env ast acc = function
+  | [] -> acc
+  | a :: r ->
+    begin match parse_expr (expect env Nothing) a with
+      | (Tag _) as res ->
+        parse_attrs env ast (res :: acc) r
       | res ->
         _expected env "tag" a (Some res)
       | exception (Typing_error (msg, _, t)) ->
         Util.warn ~section "%a while parsing an attribute:@\n%s"
           Dolmen.ParseLocation.fmt (get_loc t) msg;
-        parse_attr env res ast r
+        parse_attrs env ast acc r
     end
 
 and parse_var env = function
@@ -955,14 +962,22 @@ let new_decl env t id =
   Util.enter_prof section;
   Util.info ~section "Typing declaration:@ @[<hov>%a :@ %a@]"
     Id.print id Ast.print t;
+  let aux acc = function
+    | Tag (tag, v) -> Tag.add acc tag v
+    | _ -> assert false
+  in
+  let tags =
+    let l = parse_attrs env t [] t.Ast.attr in
+    List.fold_left aux Tag.empty l
+  in
   let res =
     match parse_sig env t with
     | `Ty_cstr n ->
-      let c = Expr.Id.ty_fun (Id.full_name id) n in
+      let c = Expr.Id.ty_fun ~tags (Id.full_name id) n in
       decl_ty_cstr id c (Declared (get_loc t));
       `Type_decl c
     | `Fun_ty (vars, args, ret) ->
-      let f = Expr.Id.term_fun (Id.full_name id) vars args ret in
+      let f = Expr.Id.term_fun ~tags (Id.full_name id) vars args ret in
       decl_term id f (Declared (get_loc t));
       `Term_decl f
   in
