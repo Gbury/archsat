@@ -637,6 +637,66 @@ formed by all assignments in $t$. This lets us define the last rules in Figure~\
 that, together with the other rules, define the \mcsat{} algorithm.
 
 
+\section{\mcsat{} theories}
+
+We can reformulate the constraints that a theory must respect to be a correct \mcsat{}
+theory in a more intuitive way. First the assignments returned by th theory must be consistent
+(i.e there exists a model which satisfies the assignemnts), and they must be compatible with
+the current assertions made by the sat solvers, which means that the assertions that can be
+evaluated using the assignments must not be false. Another way to put it is to say that
+for every assertions there exists a model extendin the assignemnts, that satisfy the assertion.
+This requirement is actually a lot weaker than the usual one required of \smt{} theories,
+where the theory must ensure that there exists a model which satisfies all
+assertions\footnote{Basically, the two quantifiers have exchanged places.}
+
+Since the requirements of an \mcsat{} theory are weaker, it is most of the time, easy to
+take a \smt{} theory and transform it into a \mcsat{} one. The main difference being the
+generation of unsatisfiability explanations which must take into accounts the assignments.
+That means that unsatisfiability explanations must be tautological clauses (as usual),
+whose every atom evaluates to false using the current assignments.
+
+TODO:~formalize the notion of theory with an internal state + transitions
+
+\subsection{Equality}
+
+In order to handle genric equality, a very simple theory is enough. Given a set of assertions
+containing equalities $\mathcal{A}_= = \{ e_i = f_i \}_i$ and inequalities
+$\mathcal{A}_\neq = \{ a_j \neq b_j \}_j$, we do the following:
+
+\begin{itemize}
+  \item when asked for a value to assign to a term $x$, if there is an equation
+    $ x = y \in \mathcal{A}_=$ where $y$ is assigned to $v$\footnote{If there are
+    more than one such equations and not all $v$ are equal, the next step will
+    automatically be triggered}, then return $v$ and
+    stor $x = y$ as the reason of the assignment, else returns an arbitrary
+    term $\hat{x}$
+  \item when informed of a new assignment $x \mapsto v$:
+    \begin{itemize}
+      \item if there exists an equation $x = y$ where $y$ is assigned to a $v'$,
+        such that $v \neq v'$, then return UNSAT with an explanation consisting
+        of the least fixpoint of the set $\{ x = y \}$ by the function:
+        $g(\{ e \bowtie f \} \cup S) = \{ \text{reason}(e), \text{reason}(f), e \bowtie f \} \cup S$
+      \item if there exists an inequation $x \neq y$ where $y$ is assigned to $v$,
+        then return, the least fixpoint of the set $\{ x \neq y \}$ y the same function.
+    \end{itemize}
+\end{itemize}
+
+While that is sufficient, an easy upgrade is to use an union-find algorithm to store
+the reflexive transitive closure of equalities in $\mathcal{A}_=$. Each class is tagged
+with the value first assigned to any of its member. A conflict occurs when two terms
+$x$ and $y$ are in the same class, but assigned to different values, in which case
+we ask the union-find for the explanation of why $x$ and $y$ are in the same class,
+and return that as the unsatisfiability explanation.
+
+in order to avoid
+to depend on the order of the assignments of terms.
+
+
+\subsection{Uninterpreted functions and predicates}
+
+\subsection{Arithmetic}
+
+
 \bibliographystyle{plain}
 \bibliography{biblio}
 

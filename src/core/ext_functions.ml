@@ -1,11 +1,22 @@
 
 let section = Section.make ~parent:Dispatcher.section "functions"
 
+(* Module aliases & wrappers *)
+(* ************************************************************************ *)
+
 module H = Backtrack.Hashtbl(Expr.Term)
 
-let st = H.create Dispatcher.stack
+type info = Extensionnality of Expr.term * Expr.term
 
-let mk_proof l = Dispatcher.mk_proof ~term_args:l "uf" "f-eq"
+type Dispatcher.lemma_info += Fun of info
+
+let mk_proof t t' =
+  Dispatcher.mk_proof "uf" "f-eq" (Fun (Extensionnality (t, t')))
+
+(* Module initialisation *)
+(* ************************************************************************ *)
+
+let st = H.create Dispatcher.stack
 
 let set_interpretation t = fun () ->
   Util.debug ~section "Check interpretation of %a" Expr.Print.term t;
@@ -23,17 +34,17 @@ let set_interpretation t = fun () ->
               let eqs = List.map2 (fun a b -> Expr.Formula.neg (Expr.Formula.eq a b)) l r in
               if Expr.(Term.equal u_v Builtin.Misc.p_true) then begin
                 let res = Expr.Formula.pred t :: Expr.Formula.neg (Expr.Formula.pred t') :: eqs in
-                let proof = mk_proof (t :: t' :: []) in
+                let proof = mk_proof t t' in
                 raise (Dispatcher.Absurd (res, proof))
               end else begin
                 let res = Expr.Formula.pred t' :: Expr.Formula.neg (Expr.Formula.pred t) :: eqs in
-                let proof = mk_proof (t' :: t :: []) in
+                let proof = mk_proof t t' in
                 raise (Dispatcher.Absurd (res, proof))
               end
             | { Expr.term = Expr.App (_, _, r) } ->
               let eqs = List.map2 (fun a b -> Expr.Formula.neg (Expr.Formula.eq a b)) l r in
               let res = Expr.Formula.eq t t' :: eqs in
-              let proof = mk_proof (t :: t' :: []) in
+              let proof = mk_proof t t' in
               raise (Dispatcher.Absurd (res, proof))
             | _ -> assert false
           end
@@ -57,7 +68,22 @@ let uf_pre = function
       set_handler p
     | _ -> ()
 
+(* Proof management *)
+(* ************************************************************************ *)
+
+let dot_info = function
+  | Extensionnality (t, t') ->
+    None, List.map (CCFormat.const Expr.Print.term) [t; t']
+
+(* Plugin registering *)
+(* ************************************************************************ *)
+
+let handle : type ret. ret Dispatcher.msg -> ret option = function
+  | Dot.Info Fun info -> Some (dot_info info)
+  | _ -> None
+
 let register () =
   Dispatcher.Plugin.register "uf"
     ~descr:"Ensures consistency of assignments for function applications."
-    (Dispatcher.mk_ext ~section ~peek:uf_pre ())
+    (Dispatcher.mk_ext ~handle:{Dispatcher.handle} ~section ~peek:uf_pre ())
+

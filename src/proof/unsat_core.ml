@@ -10,14 +10,6 @@ let lit a = a.Dispatcher.SolverTypes.lit
 let compare_clause =
   CCOrd.(map P.to_list (list (map lit Expr.Formula.compare)))
 
-let compare_lemma l1 l2 =
-  let open CCOrd in
-  map (fun l -> l.D.plugin_name) compare l1 l2
-  <?> (map (fun l -> l.D.proof_name) compare, l1, l2)
-  <?> (map (fun l -> l.D.proof_ty_args) (list Expr.Ty.compare), l1, l2)
-  <?> (map (fun l -> l.D.proof_term_args) (list Expr.Term.compare), l1, l2)
-  <?> (map (fun l -> l.D.proof_formula_args) (list Expr.Formula.compare), l1, l2)
-
 module S = Set.Make(struct
     type t = P.proof_node
 
@@ -30,7 +22,11 @@ module S = Set.Make(struct
 
     let compare n1 n2 =
       match n1.P.step, n2.P.step with
-      | P.Lemma l, P.Lemma l' -> compare_lemma l l'
+      | P.Lemma l1, P.Lemma l2 ->
+        let open CCOrd in
+        map (fun l -> l.D.plugin_name) compare l1 l2
+        <?> (map (fun l -> l.D.proof_name) compare, l1, l2)
+        <?> (compare_clause, n1.P.conclusion, n2.P.conclusion)
       | P.Hypothesis, P.Hypothesis
       | P.Assumption, P.Assumption
       | P.Duplicate _, P.Duplicate _

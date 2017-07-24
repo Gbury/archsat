@@ -16,12 +16,12 @@ type _ msg += If_sat : ((Expr.formula -> unit) -> unit) -> unit msg
 
 (** {2 Type for lemmas} *)
 
+type lemma_info = ..
+
 type lemma = private {
   plugin_name : string;
-  proof_name : string;
-  proof_ty_args : Expr.ty list;
-  proof_term_args : Expr.term list;
-  proof_formula_args : Expr.formula list;
+  proof_name  : string;
+  proof_info  : lemma_info;
 }
 
 (** {2 Solver modules} *)
@@ -57,16 +57,9 @@ exception Absurd of Expr.formula list * lemma
 
 (** {2 Proof management} *)
 
-val mk_proof : string ->
-  ?ty_args : Expr.ty list ->
-  ?term_args : Expr.term list ->
-  ?formula_args : Expr.formula list ->
-  string -> lemma
-(** Returns the associated proof. Optional arguments not specified are assumed ot be empty lists.
-    First argument is plugin name, last is proof name *)
-
-val proof_debug : lemma -> string * string option * Expr.term list * Expr.formula list
-(** Some debug output for lemmas (used for dot output). *)
+val mk_proof : string -> string -> lemma_info -> lemma
+(** [mk_proof plugin_name proof_name proof_info] creates a proof using
+    the given values for the respective fields. *)
 
 (** {2 Extension Registering} *)
 
@@ -89,6 +82,10 @@ val mk_ext :
 module Plugin : Extension.S with type ext = ext
 
 (** {2 Solver functions} *)
+
+val ask : string -> 'a msg -> 'a option
+(** Send the given message to the extension with the given name,
+    and returns the return value (if the extension replied). *)
 
 val send : unit msg -> unit
 (** Send the given message to all extensions, ignoring any exception raised

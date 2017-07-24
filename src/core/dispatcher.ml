@@ -19,12 +19,12 @@ module H = Hashtbl.Make(Expr.Term)
 module M = Backtrack.Hashtbl(Expr.Term)
 module F = Backtrack.Hashtbl(Expr.Formula)
 
+type lemma_info = ..
+
 type lemma = {
   plugin_name : string;
-  proof_name : string;
-  proof_ty_args : Expr.ty list;
-  proof_term_args : Expr.term list;
-  proof_formula_args : Expr.formula list;
+  proof_name  : string;
+  proof_info  : lemma_info;
 }
 
 type 'a job = {
@@ -224,24 +224,21 @@ let handle = plugin_handle
 
 let send = plugin_handle (fun () _ -> ()) ()
 
+let ask name msg =
+  let ext = Plugin.find name in
+  let aux = function
+    | None -> (fun x -> x)
+    | Some _ -> assert false
+  in
+  match ext.Plugin.ext.handle with
+  | None -> None
+  | Some h -> h aux None msg
+
 (* Proof management *)
 (* ************************************************************************ *)
 
-let mk_proof plugin_name ?(ty_args=[]) ?(term_args=[]) ?(formula_args=[]) name = {
-  plugin_name;
-  proof_name = name;
-  proof_ty_args = ty_args;
-  proof_term_args = term_args;
-  proof_formula_args = formula_args;
-}
-
-let proof_debug p =
-  let color = match p.proof_name with
-    | "inst" -> Some "PURPLE"
-    | "tab" -> Some "LIGHTBLUE"
-    | _ -> None
-  in
-  p.proof_name, color, p.proof_term_args, p.proof_formula_args
+let mk_proof plugin_name proof_name proof_info =
+  { plugin_name; proof_name; proof_info; }
 
 (* Delayed propagation *)
 (* ************************************************************************ *)

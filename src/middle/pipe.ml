@@ -49,12 +49,13 @@ type solved      = [ type_defs | type_decls | assume | result ]
 
 (* Used for represneting typed statements *)
 type +'a stmt = {
+  id : Dolmen.Id.t;
+  contents  : 'a;
   impl_types : Expr.ttype Expr.function_descr Expr.id list;
   impl_terms : Expr.ty Expr.function_descr Expr.id list;
-  contents  : 'a;
 }
 
-let simple contents = { contents; impl_types = []; impl_terms = []; }
+let simple id contents = { id; contents; impl_types = []; impl_terms = []; }
 
 (* Parsing *)
 (* ************************************************************************ *)
@@ -139,6 +140,22 @@ let expand (opt, c) =
 (* Typechecking *)
 (* ************************************************************************ *)
 
+let stmt_id ref_name =
+  let counter = ref 0 in
+  (fun c ->
+     match c.Dolmen.Statement.id with
+     | { Dolmen.Id.ns = Dolmen.Id.Decl; name = "" } ->
+       let () = incr counter in
+       let name = Format.sprintf "%s_%d" ref_name !counter in
+       Dolmen.Id.mk Dolmen.Id.decl name
+     | id -> id)
+
+let def_id   = stmt_id "def"
+let decl_id  = stmt_id "decl"
+let hyp_id   = stmt_id "hyp"
+let goal_id  = stmt_id "goal"
+let prove_id = stmt_id "prove"
+
 (* TODO, unwind backtrak stack on exceptions ? *)
 let type_wrap ?(goal=false) opt =
   let l = CCOpt.get_exn Options.(opt.input.format) in
@@ -161,7 +178,8 @@ let type_wrap ?(goal=false) opt =
   let env = Type.empty_env
       ~status ~explain ~expect
       ~infer_hook (Semantics.type_env l) in
-  let aux res = {
+  let aux id res = {
+    id;
     impl_types = !tys;
     impl_terms = !terms;
     contents = res;
@@ -174,26 +192,25 @@ let typecheck (opt, c) : typechecked stmt =
     start_section ~section:Type.section Util.info "Definition";
     let env, aux = type_wrap opt in
     let ret = Type.new_def env t ?attr:c.S.attr id in
-    (aux ret :> typechecked stmt)
+    (aux (def_id c) ret :> typechecked stmt)
   | { S.descr = S.Decl (id, t) } ->
     start_section ~section:Type.section Util.info "Declaration typing";
     let env, aux = type_wrap opt in
     let ret = Type.new_decl env t ?attr:c.S.attr id in
-    (aux ret :> typechecked stmt)
+    (aux (decl_id c) ret :> typechecked stmt)
   | { S.descr = S.Antecedent t } ->
     start_section ~section:Type.section Util.info "Hypothesis typing";
     let env, aux = type_wrap opt in
     let ret = Type.new_formula env t in
-    (aux (`Hyp ret) :> typechecked stmt)
+    (aux (hyp_id c) (`Hyp ret) :> typechecked stmt)
   | { S.descr = S.Consequent t } ->
     start_section ~section:Type.section Util.info "Goal typing";
     let env, aux = type_wrap ~goal:true opt in
     let ret = Type.new_formula env t in
-    (aux (`Goal ret) :> typechecked stmt)
+    (aux (goal_id c) (`Goal ret) :> typechecked stmt)
   | { S.descr = S.Prove } ->
-    simple `Solve
-  | _ ->
-    raise (Options.Stmt_not_implemented c)
+    simple (prove_id c) `Solve
+  | _ -> raise (Options.Stmt_not_implemented c)
 
 (* Solving *)
 (* ************************************************************************ *)
@@ -208,13 +225,13 @@ let solve (opt, (c : typechecked stmt)) : solved stmt =
   | ({ contents = `Hyp f; _ } as res) ->
     if opt.Options.solve then begin
       start_section ~section:Dispatcher.section Util.info "Assume hyp";
-      Solver.assume [[f]]
+      Solver.assume c.id [f]
     end;
     res
   | ({ contents = `Goal f; _ } as res) ->
     if opt.Options.solve then begin
       start_section ~section:Dispatcher.section Util.info "Assume goal";
-      Solver.assume [[Expr.Formula.neg f]]
+      Solver.assume c.id [Expr.Formula.neg f]
     end;
     res
   | { contents = `Solve; _ } ->

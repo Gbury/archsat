@@ -10,6 +10,12 @@ module E = Closure.Eq(Expr.Term)
 module S = Set.Make(Expr.Term)
 module M = Map.Make(Expr.Id.Const)
 
+type info =
+  | Trivial
+  | Chain of Expr.term list
+
+type D.lemma_info += Eq of info
+
 (* Union-find payloads and callbacks *)
 (* ************************************************************************ *)
 
@@ -133,7 +139,7 @@ let mk_expl (a, b, l) =
 
 let mk_proof l =
   assert (l <> []);
-  Dispatcher.mk_proof name ~term_args:l "eq-trans"
+  Dispatcher.mk_proof name "eq-trans" (Eq (Chain l))
 
 let wrap f x y =
   try
@@ -194,7 +200,7 @@ let rec set_handler t =
 
 let rec peek = function
   | { Expr.formula = Expr.Equal (a, b) } as f when Expr.Term.equal a b ->
-    D.push [f] (D.mk_proof "ext_eq" "trivial");
+    D.push [f] (D.mk_proof "ext_eq" "trivial" (Eq Trivial));
     set_handler a
   | { Expr.formula = Expr.Equal (a, b) } as f ->
     watch 1 [a; b] (f_eval f);
@@ -206,8 +212,22 @@ let rec peek = function
     peek f
   | _ -> ()
 
+(* Proof managament *)
+(* ************************************************************************ *)
+
+let dot_info = function
+  | Trivial -> None, []
+  | Chain l -> None, List.map (CCFormat.const Expr.Print.term) l
+
+(* Handler & Plugin registering *)
+(* ************************************************************************ *)
+
+let handle : type ret. ret D.msg -> ret option = function
+  | Dot.Info Eq info -> Some (dot_info info)
+  | _ -> None
+
 let register () =
   D.Plugin.register name
     ~descr:"Ensures consistency of assignment with regards to the equality predicates."
-    (D.mk_ext ~section ~assume ~peek ~eval_pred ())
+    (D.mk_ext ~handle:{D.handle} ~section ~assume ~peek ~eval_pred ())
 

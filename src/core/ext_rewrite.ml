@@ -180,6 +180,10 @@ type 'a trigger =
   | Single of 'a
   | Symmetric of 'a * 'a
 
+let trigger_map f = function
+  | Single x -> Single (f x)
+  | Symmetric (x, y) -> Symmetric (f x, f y)
+
 let print_trigger pp fmt = function
   | Single x -> pp fmt x
   | Symmetric (x, y) -> Format.fprintf fmt "%a ~@ %a" pp x pp y
@@ -319,11 +323,17 @@ let parse_rule = function
     end
   | _ -> None
 
+(* Rewrite proofs *)
+(* ************************************************************************ *)
+
+type Dispatcher.lemma_info +=
+  | Inst of Expr.term rule * Mapping.t
+
 (* Instantiate rewrite rules *)
 (* ************************************************************************ *)
 
 let instanciate rule subst =
-  let pp fmt (t, _) = Expr.Print.term fmt t in
+  let pp fmt t = Expr.Print.term fmt t in
   Util.debug ~section "@[<hov 2>Instanciate %a@ with@ %a"
     (print_rule pp) rule Mapping.print subst;
   let res = Mapping.apply_formula subst rule.result in
@@ -331,18 +341,19 @@ let instanciate rule subst =
   | [] ->
     (* Instantiate the rule *)
     Dispatcher.consequence res [rule.formula]
-      (Dispatcher.mk_proof name "rewrite")
+      (Dispatcher.mk_proof name "rewrite" (Inst (rule, subst)))
   | guards ->
     let l = List.map (map_guard (Mapping.apply_term subst)) guards in
     let watched = CCList.flat_map guard_to_list l in
     (* Add a watch to instantiate the rule when the condition is true *)
+    (* TODO: make sure the function is called only once *)
     Dispatcher.watch ~formula:rule.formula name 1 watched
       (fun () ->
          let l' = List.map (map_guard Dispatcher.get_assign) l in
          if List.for_all check_guard l' then begin
            Dispatcher.consequence res
              (rule.formula :: List.map guard_to_formula l)
-             (Dispatcher.mk_proof name "rewrite_cond")
+             (Dispatcher.mk_proof name "rewrite_cond" (Inst (rule, subst)))
          end
       )
 
@@ -361,7 +372,7 @@ let match_and_instantiate ({ trigger; _ } as rule) =
   let seq = match_modulos l in
   List.iter (fun subst ->
       Util.debug ~section "match:@ %a" Mapping.print subst;
-      instanciate rule subst
+      instanciate (map_trigger (trigger_map fst) rule) subst
     ) seq
 
 (* Rewriter callbacks *)

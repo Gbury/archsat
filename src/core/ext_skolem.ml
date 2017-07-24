@@ -1,6 +1,9 @@
 
 let section = Section.make ~parent:Dispatcher.section "skolem"
 
+(* Module & types *)
+(* ************************************************************************ *)
+
 module H = Hashtbl.Make(Expr.Formula)
 
 type kind =
@@ -12,11 +15,20 @@ let kind_list = [
   "skolem", Skolem;
 ]
 
+type Dispatcher.lemma_info +=
+  | Ty of Expr.formula * Expr.formula * Expr.ttype Expr.id list * Expr.ty list
+  | Term of Expr.formula * Expr.formula * Expr.ty Expr.id list * Expr.term list
+
+(* Module initialisation *)
+(* ************************************************************************ *)
+
 let kind_conv = Cmdliner.Arg.enum kind_list
 
 let inst = ref Tau
 
-(* Set-hashtbl to tag translated formulas *)
+(* Helpers *)
+(* ************************************************************************ *)
+
 let seen = H.create 256
 
 let has_been_seen f =
@@ -26,13 +38,11 @@ let has_been_seen f =
 let mark f = H.add seen f 0
 
 (* Proof generation *)
-let mk_proof_ty f p l taus = Dispatcher.mk_proof "skolem"
-    ~ty_args:(List.fold_left2 (fun acc a b -> Expr.Ty.of_id a :: b :: acc) [] l taus)
-    ~formula_args:[f; p] "skolem-ty"
+let mk_proof_ty f p l taus =
+  Dispatcher.mk_proof "skolem" "skolem-ty" (Ty (f, p, l, taus))
 
-let mk_proof_term f p l taus = Dispatcher.mk_proof "skolem"
-    ~term_args:(List.fold_left2 (fun acc a b -> Expr.Term.of_id a :: b :: acc) [] l taus)
-    ~formula_args:[f; p] "skolem-term"
+let mk_proof_term f p l taus =
+  Dispatcher.mk_proof "skolem" "skolem-term" (Term (f, p, l, taus))
 
 let get_ty_taus ty_args t_args l =
   assert (t_args = []);
@@ -43,6 +53,9 @@ let get_ty_taus ty_args t_args l =
 let get_term_taus ty_args t_args l = match !inst with
   | Tau -> List.map Expr.(fun v -> Term.apply (Id.term_fun ("t_" ^ v.id_name) [] [] v.id_type) [] []) l
   | Skolem -> List.map (fun v -> Expr.Term.apply (Expr.Id.term_skolem v) ty_args t_args) l
+
+(* Helpers *)
+(* ************************************************************************ *)
 
 let tau = function
   | { Expr.formula = Expr.Ex (l, (ty_args, t_args), p) } as f ->
@@ -94,8 +107,11 @@ let tau = function
       let q = Expr.Formula.subst subst Expr.Subst.empty Expr.Subst.empty Expr.Subst.empty p in
       Dispatcher.push [Expr.Formula.neg f; Expr.Formula.neg q] (mk_proof_ty f (Expr.Formula.neg q) l taus)
     end
-  (* TODO: Taus for types ? *)
   | _ -> ()
+
+
+(* Cmdliner options and registering *)
+(* ************************************************************************ *)
 
 let opts =
   let docs = Options.ext_sect in

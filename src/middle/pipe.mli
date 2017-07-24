@@ -43,9 +43,10 @@ type solved      = [ type_defs | type_decls | assume | result ]
 (** The type of solved statement *)
 
 type +'a stmt = {
-  impl_types : Expr.ttype Expr.function_descr Expr.id list;
-  impl_terms : Expr.ty Expr.function_descr Expr.id list;
-  contents  : 'a;
+  id          : Dolmen.Id.t;
+  contents    : 'a;
+  impl_types  : Expr.ttype Expr.function_descr Expr.id list;
+  impl_terms  : Expr.ty Expr.function_descr Expr.id list;
 }
 (** Wrapper around statements. It records implicit type declarations. *)
 

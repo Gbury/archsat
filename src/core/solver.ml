@@ -45,6 +45,21 @@ type res =
   | Unsat of proof
   | Unknown
 
+(* Hypothesis table *)
+(* ************************************************************************ *)
+
+let hyp_table = CCVector.create ()
+
+let add_hyp id =
+  let n = CCVector.length hyp_table in
+  let () = CCVector.push hyp_table id in
+  n
+
+let hyp_id c =
+  match c.Dispatcher.SolverTypes.tag with
+  | None -> None
+  | Some tag -> Some (CCVector.get hyp_table tag)
+
 (* Messages *)
 (* ************************************************************************ *)
 
@@ -162,15 +177,13 @@ let solve ?check_model ?check_proof ?export () =
   Util.exit_prof section;
   res
 
-let assume l =
+let assume id l =
   Util.enter_prof section;
-  let l = List.map (List.map Dispatcher.pre_process) l in
+  let tag = add_hyp id in
+  let l' = List.map Dispatcher.pre_process l in
   Util.info ~section "@[<hov 2>New local assumptions:@ @[<hov>%a@]"
-    CCFormat.(
-         hovbox (list ~sep:(return " &&@ ")
-           (hovbox (list ~sep:(return " ||@ ") Expr.Print.formula))
-       )) l;
-  let () = S.assume l in
+    CCFormat.((hovbox (list ~sep:(return " ||@ ") Expr.Print.formula))) l';
+  let () = S.assume ~tag [l'] in
   Util.exit_prof section
 
 let add_atom = S.new_atom

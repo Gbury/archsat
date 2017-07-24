@@ -15,45 +15,60 @@ let sfmt =
   in
   fmt
 
-let ppify pp x = fun fmt () ->
+let box pp x fmt () =
   let () = Buffer.clear buffer in
   let () = Format.fprintf sfmt "%a@?" pp x in
   let s = Buffer.contents buffer in
   Format.fprintf fmt "%s" s
 
+let boxed pp = box pp ()
+
 (* TODO: custom printers to avoid reserved DOT character sequences *)
-let print_ty fmt ty = ppify Expr.Print.ty ty fmt ()
-let print_term fmt t = ppify Expr.Print.term t fmt ()
-let print_formula fmt f = ppify Expr.Print.formula f fmt ()
+let print_ty = Expr.Print.ty
+let print_term = Expr.Print.term
+let print_formula = Expr.Print.formula
 
 (* Printing functor argument *)
 (* ************************************************************************ *)
 
+type _ D.msg +=
+  | Info : D.lemma_info ->
+    (string option * ((Format.formatter -> unit -> unit) list)) D.msg
+
 module Arg = struct
 
-  let print_atom = print_formula
+  let print_atom fmt a =
+    let f = a.Dispatcher.SolverTypes.lit in
+    box Expr.Print.formula f fmt ()
 
-  let lemma_info l =
-    let name = Format.sprintf "%s/%s" l.D.plugin_name l.D.proof_name in
-    let color =
-      match l.D.plugin_name with
-      | "meta" | "inst" -> Some "purple"
-      | "rwrt" -> Some "red"
-      | _ -> Some "blue"
+  let hyp_info c =
+    let id = CCOpt.get_exn @@ Solver.hyp_id c in
+    "Hypothesis", Some "LIGHTBLUE",
+    [fun fmt () -> Dolmen.Id.print fmt id]
+
+  let lemma_info c =
+    let lemma =
+      match c.Dispatcher.SolverTypes.cpremise with
+      | Dispatcher.SolverTypes.Lemma l -> l
+      | _ -> assert false
     in
-    let fmts =
-      List.map (ppify print_ty) l.D.proof_ty_args @
-      List.map (ppify print_term) l.D.proof_term_args @
-      List.map (ppify print_formula) l.D.proof_formula_args
+    let name = Format.sprintf "%s/%s" lemma.D.plugin_name lemma.D.proof_name in
+    let color, fmts =
+      match D.ask lemma.D.plugin_name (Info lemma.D.proof_info) with
+      | Some r -> r
+      | None -> None, [fun fmt () -> Format.fprintf fmt "N/A"]
     in
-    name, color, fmts
+    name, color, List.map boxed fmts
+
+  let assumption_info c =
+    "assumption", Some "LIGHTBLUE", []
 
 end
 
 (* Printing proofs *)
 (* ************************************************************************ *)
 
-module P = Msat.Dot.Simple(Solver.Proof)(Arg)
+module P = Msat.Dot.Make(Solver.Proof)(Arg)
 
 let print = P.print
 

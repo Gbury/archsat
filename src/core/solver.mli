@@ -41,7 +41,7 @@ type res =
 
 (** {2 Core solver} *)
 
-val assume : Expr.formula list list -> unit
+val assume : Dolmen.Id.t -> Expr.formula list -> unit
 (** Add some clauses to the current problem. *)
 
 val solve :
@@ -63,6 +63,9 @@ val add_atom : Expr.formula -> unit
 
 val export_dimacs : Format.formatter -> unit -> unit
 (** Export the current problem in dimacs format. *)
+
+val hyp_id : Dispatcher.SolverTypes.clause -> Dolmen.Id.t option
+(** Get the id of an hypothesis clause. *)
 
 (** {2 Dispatcher messages} *)
 

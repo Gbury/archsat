@@ -1,6 +1,8 @@
 
 let section = Section.make ~parent:Dispatcher.section "inst"
 
+type Dispatcher.lemma_info += Inst of Expr.formula * Expr.formula * Mapping.t
+
 (* Instanciation helpers *)
 (* ************************************************************************ *)
 
@@ -106,10 +108,8 @@ let partition s =
 let simplify s = snd (partition s)
 
 (* Produces a proof for the instanciation of the given formulas and unifiers *)
-let mk_proof f p ty_map t_map = Dispatcher.mk_proof "inst"
-    ~ty_args:(Expr.Subst.fold (fun v t l -> Expr.Ty.of_id v :: t :: l) ty_map [])
-    ~term_args:(Expr.Subst.fold (fun v t l -> Expr.Term.of_id v :: t :: l) t_map [])
-    ~formula_args:[f; p] "inst"
+let mk_proof f p t =
+  Dispatcher.mk_proof "inst" "partial" (Inst (f, p, t))
 
 let to_var s =
   Mapping.fold
@@ -123,7 +123,7 @@ let soft_subst f t =
   let ty_subst = Mapping.ty_var t in
   let term_subst = Mapping.term_var t in
   let q = Expr.Formula.partial_inst ty_subst term_subst f in
-  [ Expr.Formula.neg f; q], mk_proof f q ty_subst term_subst
+  [ Expr.Formula.neg f; q], mk_proof f q t
 
 (* Groundify substitutions *)
 (* ************************************************************************ *)

@@ -3,6 +3,10 @@ module H = Hashtbl.Make(Expr.Formula)
 
 exception Found_unif
 
+type Dispatcher.lemma_info +=
+  | Ty of Expr.formula * Expr.ty list
+  | Term of Expr.formula * Expr.term list
+
 (* Logging sections *)
 (* ************************************************************************ *)
 
@@ -171,10 +175,10 @@ let number () = (H.stats metas).Hashtbl.num_bindings
 
 (* Proofs *)
 let mk_proof_ty f metas =
-  Dispatcher.mk_proof "meta" ~ty_args:([]) "ty"
+  Dispatcher.mk_proof "meta" "ty" (Ty (f, metas))
 
 let mk_proof_term f metas =
-  Dispatcher.mk_proof "meta" ~term_args:([]) "term"
+  Dispatcher.mk_proof "meta" "term" (Term (f, metas))
 
 (* Meta generation & predicates storing *)
 let do_formula =
@@ -268,9 +272,11 @@ let meta_assume = do_formula
 (* ************************************************************************ *)
 
 (* superposition limit *)
+(*
 let sup_limit st =
   let n = fold_diff (fun n _ _ -> n + 1) 0 st in
   n * !sup_max_coef + !sup_max_const
+*)
 
 (* Unification of predicates *)
 let do_inst u =

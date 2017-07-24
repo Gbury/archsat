@@ -1,6 +1,8 @@
 
 let section = Section.make ~parent:Dispatcher.section "prenex"
 
+type Dispatcher.lemma_info += TODO
+
 (* Local environments *)
 (* ************************************************************************ *)
 
@@ -164,7 +166,7 @@ let do_formula f =
     None
   end else begin
     Util.debug ~section "output: %a" Expr.Print.formula f';
-    Some (f', Dispatcher.mk_proof "prenex" "todo")
+    Some (f', Dispatcher.mk_proof "prenex" "pre" TODO)
   end
 
 let register () =
