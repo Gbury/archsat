@@ -335,7 +335,7 @@ module Subst = struct
 
   let print print_key print_value fmt map =
     let aux fmt (key, value) =
-      Format.fprintf fmt "@[<hov>%a ->@ %a@]" print_key key print_value value
+      Format.fprintf fmt "@[<hov>%a ↦@ %a@]" print_key key print_value value
     in
     Format.fprintf fmt "@[<hov>%a@]"
       CCFormat.(seq ~sep:(return ";@ ") aux) (Mi.values map)

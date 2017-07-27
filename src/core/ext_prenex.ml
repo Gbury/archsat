@@ -1,7 +1,9 @@
 
 let section = Section.make ~parent:Dispatcher.section "prenex"
 
-type Dispatcher.lemma_info += TODO
+type lemma_info = TODO
+
+type Dispatcher.lemma_info += Prenex of lemma_info
 
 (* Local environments *)
 (* ************************************************************************ *)
@@ -158,6 +160,9 @@ let rec generalize = function
 
 let prenex = function f -> generalize (specialize empty_env f)
 
+(* Extension registering *)
+(* ************************************************************************ *)
+
 let do_formula f =
   let f' = prenex f in
   Util.debug ~section "input: %a" Expr.Print.formula f;
@@ -166,7 +171,7 @@ let do_formula f =
     None
   end else begin
     Util.debug ~section "output: %a" Expr.Print.formula f';
-    Some (f', Dispatcher.mk_proof "prenex" "pre" TODO)
+    Some (f', Dispatcher.mk_proof "prenex" "pre" (Prenex TODO))
   end
 
 let register () =

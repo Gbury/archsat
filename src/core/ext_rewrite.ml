@@ -326,8 +326,9 @@ let parse_rule = function
 (* Rewrite proofs *)
 (* ************************************************************************ *)
 
-type Dispatcher.lemma_info +=
-  | Inst of Expr.term rule * Mapping.t
+type lemma_info = Inst of Expr.term rule * Mapping.t
+
+type Dispatcher.lemma_info += Rewrite of lemma_info
 
 (* Instantiate rewrite rules *)
 (* ************************************************************************ *)
@@ -341,7 +342,7 @@ let instanciate rule subst =
   | [] ->
     (* Instantiate the rule *)
     Dispatcher.consequence res [rule.formula]
-      (Dispatcher.mk_proof name "rewrite" (Inst (rule, subst)))
+      (Dispatcher.mk_proof name "rewrite" (Rewrite (Inst (rule, subst))))
   | guards ->
     let l = List.map (map_guard (Mapping.apply_term subst)) guards in
     let watched = CCList.flat_map guard_to_list l in
@@ -353,7 +354,7 @@ let instanciate rule subst =
          if List.for_all check_guard l' then begin
            Dispatcher.consequence res
              (rule.formula :: List.map guard_to_formula l)
-             (Dispatcher.mk_proof name "rewrite_cond" (Inst (rule, subst)))
+             (Dispatcher.mk_proof name "rewrite_cond" (Rewrite (Inst (rule, subst))))
          end
       )
 
@@ -439,6 +440,16 @@ let add_rule r =
   (* Call the callback *)
   callback_rule r
 
+(* Proof info *)
+(* ************************************************************************ *)
+
+let dot_info = function
+  | Inst (r, s) ->
+    Some "RED", [
+      CCFormat.const Mapping.print s;
+      CCFormat.const (print_rule Expr.Print.term) r;
+    ]
+
 (* Plugin *)
 (* ************************************************************************ *)
 
@@ -465,10 +476,14 @@ let rec peek = function
     peek f
   | _ -> ()
 
+let handle : type ret. ret Dispatcher.msg -> ret option = function
+  | Dot.Info Rewrite info -> Some (dot_info info)
+  | _ -> None
+
 let register () =
   add_callback callback_term;
   Ext_eq.register_callback name callback_merge;
   Dispatcher.Plugin.register name
     ~descr:"Detects rewrite rules and instantiate them (similarly to triggers)"
-    (Dispatcher.mk_ext ~peek ~assume ~section ())
+    (Dispatcher.mk_ext ~peek ~assume ~section ~handle:{Dispatcher.handle} ())
 

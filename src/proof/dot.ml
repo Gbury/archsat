@@ -1,6 +1,8 @@
 
 module D = Dispatcher
 
+let section = Section.make "dot"
+
 (* Printing wrappers *)
 (* ************************************************************************ *)
 
@@ -43,7 +45,7 @@ module Arg = struct
 
   let hyp_info c =
     let id = CCOpt.get_exn @@ Solver.hyp_id c in
-    "Hypothesis", Some "LIGHTBLUE",
+    "Hypothesis", Some "YELLOW",
     [fun fmt () -> Dolmen.Id.print fmt id]
 
   let lemma_info c =
@@ -56,12 +58,15 @@ module Arg = struct
     let color, fmts =
       match D.ask lemma.D.plugin_name (Info lemma.D.proof_info) with
       | Some r -> r
-      | None -> None, [fun fmt () -> Format.fprintf fmt "N/A"]
+      | None ->
+        Util.warn ~section "Got no lemma info from plugin %s for proof %s"
+          lemma.D.plugin_name lemma.D.proof_name;
+        Some "WHITE", [fun fmt () -> Format.fprintf fmt "N/A"]
     in
     name, color, List.map boxed fmts
 
   let assumption_info c =
-    "assumption", Some "LIGHTBLUE", []
+    "assumption", Some "YELLOW", []
 
 end
 

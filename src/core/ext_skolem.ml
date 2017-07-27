@@ -15,9 +15,11 @@ let kind_list = [
   "skolem", Skolem;
 ]
 
-type Dispatcher.lemma_info +=
-  | Ty of Expr.formula * Expr.formula * Expr.ttype Expr.id list * Expr.ty list
-  | Term of Expr.formula * Expr.formula * Expr.ty Expr.id list * Expr.term list
+type lemma_info =
+  | Ty of Expr.formula * Expr.ty list
+  | Term of Expr.formula * Expr.term list
+
+type Dispatcher.lemma_info += Sk of lemma_info
 
 (* Module initialisation *)
 (* ************************************************************************ *)
@@ -38,11 +40,11 @@ let has_been_seen f =
 let mark f = H.add seen f 0
 
 (* Proof generation *)
-let mk_proof_ty f p l taus =
-  Dispatcher.mk_proof "skolem" "skolem-ty" (Ty (f, p, l, taus))
+let mk_proof_ty f _ _ taus =
+  Dispatcher.mk_proof "skolem" "skolem-ty" (Sk (Ty (f, taus)))
 
-let mk_proof_term f p l taus =
-  Dispatcher.mk_proof "skolem" "skolem-term" (Term (f, p, l, taus))
+let mk_proof_term f _ _ taus =
+  Dispatcher.mk_proof "skolem" "skolem-term" (Sk (Term (f, taus)))
 
 let get_ty_taus ty_args t_args l =
   assert (t_args = []);
@@ -109,9 +111,28 @@ let tau = function
     end
   | _ -> ()
 
+(* Proof management *)
+(* ************************************************************************ *)
+
+let dot_info = function
+  | Ty (f, l) ->
+    Some "LIGHTBLUE", (
+      List.map (CCFormat.const Expr.Print.ty) l @
+      [ CCFormat.const Expr.Print.formula f ]
+    )
+  | Term (f, l) ->
+    Some "LIGHTBLUE", (
+      List.map (CCFormat.const Expr.Print.term) l @
+      [ CCFormat.const Expr.Print.formula f ]
+    )
+
 
 (* Cmdliner options and registering *)
 (* ************************************************************************ *)
+
+let handle : type ret. ret Dispatcher.msg -> ret option = function
+  | Dot.Info Sk info -> Some (dot_info info)
+  | _ -> None
 
 let opts =
   let docs = Options.ext_sect in
@@ -129,5 +150,5 @@ let opts =
 let register () =
   Dispatcher.Plugin.register "skolem" ~options:opts
     ~descr:"Generate skolem or tau for existencially quantified formulas (see options)."
-    (Dispatcher.mk_ext ~section ~assume:tau ())
+    (Dispatcher.mk_ext ~section ~assume:tau ~handle:{Dispatcher.handle} ())
 

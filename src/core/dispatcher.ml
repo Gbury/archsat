@@ -231,8 +231,10 @@ let ask name msg =
     | Some _ -> assert false
   in
   match ext.Plugin.ext.handle with
-  | None -> None
   | Some h -> h aux None msg
+  | None ->
+    Util.warn ~section "Plugin %s has no handle for incoming messages" name;
+    None
 
 (* Proof management *)
 (* ************************************************************************ *)

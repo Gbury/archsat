@@ -1,7 +1,9 @@
 
 let section = Section.make ~parent:Dispatcher.section "inst"
 
-type Dispatcher.lemma_info += Inst of Expr.formula * Expr.formula * Mapping.t
+type lemma_info = Formula of Expr.formula * Mapping.t
+
+type Dispatcher.lemma_info += Inst of lemma_info
 
 (* Instanciation helpers *)
 (* ************************************************************************ *)
@@ -108,8 +110,8 @@ let partition s =
 let simplify s = snd (partition s)
 
 (* Produces a proof for the instanciation of the given formulas and unifiers *)
-let mk_proof f p t =
-  Dispatcher.mk_proof "inst" "partial" (Inst (f, p, t))
+let mk_proof f _ t =
+  Dispatcher.mk_proof "inst" "partial" (Inst (Formula (f, t)))
 
 let to_var s =
   Mapping.fold
@@ -281,8 +283,22 @@ let inst_sat : type ret. ret Dispatcher.msg -> ret option = function
       Some Solver.Sat_ok
   | _ -> None
 
+(* Proof management *)
+(* ************************************************************************ *)
+
+let dot_info = function
+  | Formula (f, t) ->
+    Some "RED", [
+      CCFormat.const Mapping.print t;
+      CCFormat.const Expr.Print.formula f;
+    ]
+
 (* Extension registering *)
 (* ************************************************************************ *)
+
+let handle : type ret. ret Dispatcher.msg -> ret option = function
+  | Dot.Info Inst info -> Some (dot_info info)
+  | _ -> None
 
 let opts =
   let docs = Options.ext_sect in

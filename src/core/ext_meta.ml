@@ -3,9 +3,11 @@ module H = Hashtbl.Make(Expr.Formula)
 
 exception Found_unif
 
-type Dispatcher.lemma_info +=
+type lemma_info =
   | Ty of Expr.formula * Expr.ty list
   | Term of Expr.formula * Expr.term list
+
+type Dispatcher.lemma_info += Meta of lemma_info
 
 (* Logging sections *)
 (* ************************************************************************ *)
@@ -175,10 +177,10 @@ let number () = (H.stats metas).Hashtbl.num_bindings
 
 (* Proofs *)
 let mk_proof_ty f metas =
-  Dispatcher.mk_proof "meta" "ty" (Ty (f, metas))
+  Dispatcher.mk_proof "meta" "ty" (Meta (Ty (f, metas)))
 
 let mk_proof_term f metas =
-  Dispatcher.mk_proof "meta" "term" (Term (f, metas))
+  Dispatcher.mk_proof "meta" "term" (Meta (Term (f, metas)))
 
 (* Meta generation & predicates storing *)
 let do_formula =
@@ -354,7 +356,26 @@ let rec unif_f st = function
     else
       unif_f st SuperAll
 
-let find_all_insts : type ret. ret Dispatcher.msg -> ret option = function
+(* Proof management *)
+(* ************************************************************************ *)
+
+let dot_info = function
+  | Ty (f, l) ->
+    Some "PURPLE", (
+      List.map (CCFormat.const Expr.Print.ty) l @
+      [ CCFormat.const Expr.Print.formula f ]
+    )
+  | Term (f, l) ->
+    Some "PURPLE", (
+      List.map (CCFormat.const Expr.Print.term) l @
+      [ CCFormat.const Expr.Print.formula f ]
+    )
+
+(* Extension registering *)
+(* ************************************************************************ *)
+
+let handle : type ret. ret Dispatcher.msg -> ret option = function
+  | Dot.Info Meta info -> Some (dot_info info)
   | Solver.Found_sat model ->
     (* Create new metas *)
     if !meta_incr then begin
@@ -379,9 +400,6 @@ let find_all_insts : type ret. ret Dispatcher.msg -> ret option = function
     else
       Some Solver.Sat_ok
   | _ -> None
-
-(* Extension registering *)
-(* ************************************************************************ *)
 
 let opts =
   let docs = Options.ext_sect in
@@ -453,8 +471,5 @@ let register () =
   Dispatcher.Plugin.register "meta" ~options:opts
     ~descr:"Generate meta variables for universally quantified formulas, and use unification to push
               possible instanciations to the 'inst' module."
-    (Dispatcher.mk_ext
-       ~handle:{Dispatcher.handle=find_all_insts}
-       ~assume:meta_assume
-       ~section ())
+    (Dispatcher.mk_ext ~handle:{Dispatcher.handle} ~assume:meta_assume ~section ())
 
