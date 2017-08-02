@@ -36,7 +36,7 @@ true: color(always)
         package(containers), package(containers.data),      \
         package(dolmen), package(sequence),                 \
         package(gen), package(oclock),                      \
-        package(spelll)
+        package(spelll), package(uucp), package(uutf)
 
 <test/*>: package(qcheck)
 

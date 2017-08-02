@@ -106,7 +106,7 @@ let dot_info = function
   | True -> None, []
   | And_false -> None, []
   | And (t, t') ->
-    None, List.map (CCFormat.const Expr.Print.formula) [t; t']
+    Some "LIGHTBLUE", List.map (CCFormat.const Dot.Print.formula) [t; t']
   | Or f
   | Imply f
   | Not_imply_left f
@@ -114,7 +114,7 @@ let dot_info = function
   | Equiv_right f
   | Equiv_left f
   | Not_equiv f ->
-    None, [CCFormat.const Expr.Print.formula f]
+    Some "LIGHTBLUE", [CCFormat.const Dot.Print.formula f]
 
 (* Handle & plugin registering *)
 (* ************************************************************************ *)

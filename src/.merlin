@@ -28,6 +28,8 @@ B _build/middle
 
 PKG gen
 PKG msat
+PKG uucp
+PKG uutf
 PKG spelll
 PKG qcheck
 PKG dolmen

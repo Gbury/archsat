@@ -73,7 +73,7 @@ let uf_pre = function
 
 let dot_info = function
   | Extensionnality (t, t') ->
-    None, List.map (CCFormat.const Expr.Print.term) [t; t']
+    None, List.map (CCFormat.const Dot.Print.term) [t; t']
 
 (* Plugin registering *)
 (* ************************************************************************ *)

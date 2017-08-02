@@ -86,6 +86,7 @@ Section
 # Utilities modules
 Util
 Arith
+Escape
 Backtrack
 Comparison
 Extension

@@ -217,7 +217,7 @@ let rec peek = function
 
 let dot_info = function
   | Trivial -> None, []
-  | Chain l -> None, List.map (CCFormat.const Expr.Print.term) l
+  | Chain l -> None, List.map (CCFormat.const Dot.Print.term) l
 
 (* Handler & Plugin registering *)
 (* ************************************************************************ *)

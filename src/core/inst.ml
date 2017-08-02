@@ -289,8 +289,8 @@ let inst_sat : type ret. ret Dispatcher.msg -> ret option = function
 let dot_info = function
   | Formula (f, t) ->
     Some "RED", [
-      CCFormat.const Mapping.print t;
-      CCFormat.const Expr.Print.formula f;
+      CCFormat.const Dot.Print.mapping t;
+      CCFormat.const Dot.Print.formula f;
     ]
 
 (* Extension registering *)

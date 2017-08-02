@@ -56,8 +56,10 @@ type stats_options = {
 
 type proof_options = {
   active      : bool;
+  context     : bool;
   dot         : Format.formatter option;
   unsat_core  : Format.formatter option;
+  coq         : Format.formatter option;
 }
 
 type model_options = {
@@ -148,11 +150,17 @@ let profile_opts enable max_depth sections out =
 let stats_opts enabled =
   { enabled; }
 
-let proof_opts prove dot unsat_core =
+let proof_opts prove context dot unsat_core coq =
   let dot = formatter_of_out_descr dot in
   let unsat_core = formatter_of_out_descr unsat_core in
-  let active = prove || dot <> None || unsat_core <> None in
-  { active; dot; unsat_core; }
+  let coq = formatter_of_out_descr coq in
+  let active = prove
+               || context
+               || dot <> None
+               || unsat_core <> None
+               || coq <> None
+  in
+  { active; context; dot; unsat_core; coq; }
 
 let model_opts active assign = {
   active;
@@ -490,18 +498,28 @@ let proof_t =
                (such as the $(b,--dot) option) must be used." in
     Arg.(value & flag & info ["proof"] ~docs ~doc)
   in
+  let context =
+    let doc = "Sets wether to output typing and lemma context before the proof
+               (only meaningful for certifying proof outputs such as coq, dedukti, ...)" in
+    Arg.(value & flag & info ["context"] ~docs ~doc)
+  in
   let dot_proof =
     let doc = "Set the file to which the program sould output a proof in dot format.
                A special 'stdout' value can be used to use standard output." in
     Arg.(value & opt out_descr `None & info ["dot"] ~docs ~doc)
   in
   let unsat_core =
-    let doc = "Set the file to which the program sould output theunsat core, i.e the list
+    let doc = "Set the file to which the program sould output the unsat core, i.e the list
                of hypothesis used in the proof.
                A special 'stdout' value can be used to use standard output." in
     Arg.(value & opt out_descr `None & info ["unsat-core"] ~docs ~doc)
   in
-  Term.(const proof_opts $ check_proof $ dot_proof $ unsat_core)
+  let coq =
+    let doc = "Set the file to which the program should output a coq proof.
+               A special 'stdout' value can be used to use standard output" in
+    Arg.(value & opt out_descr `None & info ["coq"] ~docs ~doc)
+  in
+  Term.(const proof_opts $ context $ check_proof $ dot_proof $ unsat_core $ coq)
 
 let model_t =
   let docs = model_sect in

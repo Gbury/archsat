@@ -56,8 +56,10 @@ type stats_options = {
 
 type proof_options = {
   active      : bool;
+  context     : bool;
   dot         : Format.formatter option;
   unsat_core  : Format.formatter option;
+  coq         : Format.formatter option;
 }
 
 type model_options = {

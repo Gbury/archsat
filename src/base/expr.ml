@@ -171,30 +171,31 @@ module Print = struct
   let rec ty fmt t = match t.ty with
     | TyVar v -> id fmt v
     | TyMeta m -> meta fmt m
+    | TyApp (f, []) -> id fmt f
     | TyApp (f, l) ->
       begin match Tag.get f.id_tags pretty with
         | None ->
-          Format.fprintf fmt "@[<hov 2>%a%a@]"
-            id f (list ~start:"(" ~stop:")" ~sep:"," ty) l
+          Format.fprintf fmt "@[<hov 2>%a(%a)@]"
+            id f CCFormat.(list ~sep:(return ",@ ") ty) l
         | Some Prefix s ->
           assert (List.length l = 1);
-          Format.fprintf fmt "@[<hov 2>%s %a@]" s (list ~sep:"" ty) l
+          Format.fprintf fmt "@[<hov 2>%s %a@]"
+            s CCFormat.(list ~sep:(return "") ty) l
         | Some Infix s ->
-          let s' = " " ^ s in
-          Format.fprintf fmt "@[<hov 2>%a@]"
-            (list ~start:"(" ~stop:")" ~sep:s' ty) l
+          let sep fmt () = Format.fprintf fmt "%s@ " s in
+          Format.fprintf fmt "@[<hov 2>%a@]" (CCFormat.list ~sep ty) l
       end
 
   let params fmt = function
     | [] -> ()
-    | l ->
-      Format.fprintf fmt "∀ @[<hov>%a@].@ " (list ~sep:"," id) l
+    | l -> Format.fprintf fmt "∀ @[<hov>%a@].@ "
+             CCFormat.(list ~sep:(return ",@ ") id) l
 
   let signature print fmt f =
     match f.fun_args with
     | [] -> Format.fprintf fmt "@[<hov 2>%a%a@]" params f.fun_vars print f.fun_ret
     | l -> Format.fprintf fmt "@[<hov 2>%a%a ->@ %a@]" params f.fun_vars
-             (list ~sep:" ->" print) l print f.fun_ret
+             CCFormat.(list ~sep:(return " ->@ ") print) l print f.fun_ret
 
   let fun_ty = signature ty
   let fun_ttype = signature ttype

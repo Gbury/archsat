@@ -117,13 +117,13 @@ let tau = function
 let dot_info = function
   | Ty (f, l) ->
     Some "LIGHTBLUE", (
-      List.map (CCFormat.const Expr.Print.ty) l @
-      [ CCFormat.const Expr.Print.formula f ]
+      List.map (CCFormat.const Dot.Print.ty) l @
+      [ CCFormat.const Dot.Print.formula f ]
     )
   | Term (f, l) ->
     Some "LIGHTBLUE", (
-      List.map (CCFormat.const Expr.Print.term) l @
-      [ CCFormat.const Expr.Print.formula f ]
+      List.map (CCFormat.const Dot.Print.term) l @
+      [ CCFormat.const Dot.Print.formula f ]
     )
 
 

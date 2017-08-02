@@ -151,11 +151,11 @@ type guard =
   | Pred of Expr.term
   | Eq of Expr.term * Expr.term
 
-let print_guard fmt = function
+let print_guard ?(term=Expr.Print.term) fmt = function
   | Pred p ->
-    Format.fprintf fmt "%a" Expr.Print.term p
+    Format.fprintf fmt "%a" term p
   | Eq (a, b) ->
-    Format.fprintf fmt "%a=%a" Expr.Print.term a Expr.Print.term b
+    Format.fprintf fmt "%a=%a" term a term b
 
 let map_guard f = function
   | Pred p -> Pred (f p)
@@ -213,17 +213,21 @@ let set_formula formula rule = { rule with formula }
 
 let is_manual { manual; } = manual
 
-let rec print_guards fmt = function
+let rec print_guards ?term fmt = function
   | [] -> ()
   | g :: r ->
-    Format.fprintf fmt "@[<hov>[%a]@,%a@]" print_guard g print_guards r
+    Format.fprintf fmt "@[<hov>[%a]@,%a@]"
+      (print_guard ?term) g (print_guards ?term) r
 
-let print_rule pp fmt { manual; trigger; result; guards; formula; } =
-  Format.fprintf fmt "@[<hov 2>%a@ %a %s@ %a@]"
-    print_guards guards
+let print_rule
+    ?(term=Expr.Print.term)
+    ?(formula=Expr.Print.formula) pp
+    fmt { manual; trigger; result; guards; _ } =
+  Format.fprintf fmt "@[<hov 2>%s%a@ %a ↦@ %a@]"
+    (if manual then "(manual)" else "")
+    (print_guards ~term) guards
     (print_trigger pp) trigger
-    (if manual then "==>" else "-->")
-    Expr.Print.formula result
+    formula result
 
 (* Detecting Rewrite rules *)
 (* ************************************************************************ *)
@@ -446,8 +450,12 @@ let add_rule r =
 let dot_info = function
   | Inst (r, s) ->
     Some "RED", [
-      CCFormat.const Mapping.print s;
-      CCFormat.const (print_rule Expr.Print.term) r;
+      CCFormat.const Dot.Print.mapping s;
+      CCFormat.const (
+        print_rule
+          ~term:Dot.Print.term
+          ~formula:Dot.Print.formula
+          Dot.Print.term) r;
     ]
 
 (* Plugin *)
