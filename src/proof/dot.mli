@@ -1,8 +1,8 @@
 
 (* Proofs in the DOT format
 
-   This modules defines helpers for printing dot graphs represneting
-   unsat proofs.
+   This modules defines helpers for printing dot graphs
+   representing unsat proofs.
 *)
 
 (** {2 Dispatcher messages} *)

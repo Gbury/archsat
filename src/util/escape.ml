@@ -156,19 +156,3 @@ let rename ~sep s =
   Format.sprintf "%s%c%d" base sep (n + 1)
 
 
-(* Language-specific escapers *)
-(* ************************************************************************ *)
-
-let coq =
-  let escape = umap (fun i -> function
-      | None -> [ Uchar.of_char '_' ]
-      | Some c ->
-        let g = Uucp.Gc.general_category c in
-        begin match g with
-          | `Lu | `Ll | `Lt | `Lm | `Lo | `Sm -> [ c ]
-          | `Nd when i = 1 -> [ c ]
-          | _ -> [ Uchar.of_char '_' ]
-        end) in
-  mk ~lang:"coq" ~escape ~rename:(rename ~sep:'_')
-
-

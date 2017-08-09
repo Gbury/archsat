@@ -519,7 +519,7 @@ let proof_t =
                A special 'stdout' value can be used to use standard output" in
     Arg.(value & opt out_descr `None & info ["coq"] ~docs ~doc)
   in
-  Term.(const proof_opts $ context $ check_proof $ dot_proof $ unsat_core $ coq)
+  Term.(const proof_opts $ check_proof $ context $ dot_proof $ unsat_core $ coq)
 
 let model_t =
   let docs = model_sect in

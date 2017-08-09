@@ -24,12 +24,15 @@ type expect =
 (** The type of expected result when typing an expression, used to infer
     non-declared symbols. *)
 
+type tag = Any : 'a Tag.t * 'a -> tag
+(** Existencial wrapper around tags *)
+
 type res =
   | Ttype   : res
   | Ty      : Expr.ty -> res
   | Term    : Expr.term -> res
   | Formula : Expr.formula -> res
-  | Tag     : 'a Tag.t * 'a -> res (**)
+  | Tags    : tag list -> res (**)
 (** The results of parsing an untyped term.  *)
 
 type inferred =

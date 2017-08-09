@@ -32,6 +32,10 @@ let print_exn opt fmt = function
   | Options.Out_of_space ->
     print_status opt fmt "Out of space"
 
+  (** File not found *)
+  | Options.File_not_found f ->
+    Format.fprintf fmt "File not found: '%s'" f
+
   (** Could not recognize file extension *)
   | In.Extension_not_found ext ->
     if ext = "" then

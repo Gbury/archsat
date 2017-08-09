@@ -6,6 +6,10 @@
 
 (** {2 Types} *)
 
+type executed = [
+  | `Executed
+]
+
 type type_decls = [
   | `Type_decl of Expr.ttype Expr.function_descr Expr.id
   | `Term_decl of Expr.ty Expr.function_descr Expr.id
@@ -21,6 +25,7 @@ type type_defs = [
 type assume = [
   | `Hyp of Expr.formula
   | `Goal of Expr.formula
+  | `Clause of Expr.formula list
 ]
 (** The type of top-level assertion statements *)
 
@@ -36,10 +41,10 @@ type result = [
 ]
 (** The type of results for a solve instruction. *)
 
-type typechecked = [ type_defs | type_decls | assume | solve ]
+type typechecked = [ executed | type_defs | type_decls | assume | solve ]
 (** The type of statements after typechecking *)
 
-type solved      = [ type_defs | type_decls | assume | result ]
+type solved      = [ executed | type_defs | type_decls | assume | result ]
 (** The type of solved statement *)
 
 type +'a stmt = {

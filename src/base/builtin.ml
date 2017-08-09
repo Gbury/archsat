@@ -12,7 +12,7 @@ module Ast = Dolmen.Term
 
 module Tag = struct
 
-  let rwrt = Tag.create ()
+  let rwrt : unit Tag.t = Tag.create ()
 
 end
 
@@ -46,6 +46,8 @@ let parse_tptp env ast s args =
     Some (Type.parse_app_formula env ast Expr.Formula.f_true args)
   | { Id.name = "$false"; ns = Id.Term } ->
     Some (Type.parse_app_formula env ast Expr.Formula.f_false args)
+  | _ when Id.equal s Id.tptp_role ->
+    Some (Type.Tags [])
   | _ -> None
 
 let parse_smtlib env ast s args =
@@ -78,19 +80,19 @@ let parse_smtlib env ast s args =
   | _ -> None
 
 let parse_zf env ast s args =
-  if Ast.equal Ast.rwrt_rule ast then
-    Some (Type.Tag (Tag.rwrt, ()))
-  else match s with
+  match s with
+    | _ when Id.equal s Id.rwrt_rule ->
+      Some (Type.Tags [Type.Any (Tag.rwrt, ())])
     | { Id.name = "infix"; ns = Id.Term } ->
       begin match args with
         | [ { Ast.term = Ast.Symbol { Id.name; _ } } ] ->
-          Some (Type.Tag (Expr.Print.pretty, Expr.Print.Infix name))
+          Some (Type.Tags [Type.Any (Expr.Print.pretty, Expr.Print.Infix name)])
         | _ -> assert false
       end
     | { Id.name = "prefix"; ns = Id.Term } ->
       begin match args with
         | [ { Ast.term = Ast.Symbol { Id.name; _ } } ] ->
-          Some (Type.Tag (Expr.Print.pretty, Expr.Print.Prefix name))
+          Some (Type.Tags [Type.Any (Expr.Print.pretty, Expr.Print.Prefix name)])
         | _ -> assert false
       end
     | _ -> None

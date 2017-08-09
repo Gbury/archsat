@@ -142,8 +142,8 @@ and formula = private {
   mutable f_vars : (ttype id list * ty id list) option;
 }
 (** The type of formulas in the solver. The list of free arguments in quantifiers
-    is a bit tricky, so you should not touch it
-    (TODO: further explanations in full doc?). *)
+    is a bit tricky, and used mainly for skolemization, so you should probably
+    not touch it. (TODO: further explanations in full doc?). *)
 
 type t_order =
   | Same

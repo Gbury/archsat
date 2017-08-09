@@ -125,7 +125,7 @@ let handle : type ret. ret Dispatcher.msg -> ret option = function
 
 let register () =
   Dispatcher.Plugin.register "logic"
-    ~descr:"Does lazy cnf conversion on input formulas whose topconstructor is a logical connective
+    ~descr:"Does lazy cnf conversion on input formulas whose top constructor is a logical connective
           (i.e quantified formulas are $(b,not) handled by this plugin)."
     (Dispatcher.mk_ext ~handle:{Dispatcher.handle} ~section ~assume:tab_assume ())
 

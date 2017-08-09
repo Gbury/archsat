@@ -270,18 +270,16 @@ let inst_aux f acc k =
     fold f acc (max 1 (Q.size !heap + k))
   end
 
-let inst_sat : type ret. ret Dispatcher.msg -> ret option = function
-  | Solver.Found_sat _ ->
-    Util.info ~section "Treating instanciations (k=%d)" !inst_incr;
-    let n = inst_aux push 0 !inst_incr in
-    Ext_stats.inst_remaining (Q.size !heap + List.length !delayed);
-    Ext_stats.inst_done n;
-    Inst.clock ();
-    if n > 0 then
-      Some (Solver.Assume [])
-    else
-      Some Solver.Sat_ok
-  | _ -> None
+let inst_sat () =
+  Util.info ~section "Treating instanciations (k=%d)" !inst_incr;
+  let n = inst_aux push 0 !inst_incr in
+  Ext_stats.inst_remaining (Q.size !heap + List.length !delayed);
+  Ext_stats.inst_done n;
+  Inst.clock ();
+  if n > 0 then
+    Some (Solver.Assume [])
+  else
+    Some Solver.Sat_ok
 
 (* Proof management *)
 (* ************************************************************************ *)
@@ -298,6 +296,7 @@ let dot_info = function
 
 let handle : type ret. ret Dispatcher.msg -> ret option = function
   | Dot.Info Inst info -> Some (dot_info info)
+  | Solver.Found_sat _ -> inst_sat ()
   | _ -> None
 
 let opts =
@@ -318,5 +317,5 @@ let register () =
   Dispatcher.Plugin.register "inst" ~prio:5 ~options:opts
     ~descr:"Handles the pushing of clauses corresponding to instanciations. This plugin does not
           do anything by itself, but rather is called by other plugins when doing instanciations."
-    (Dispatcher.mk_ext ~section ~handle:{Dispatcher.handle=inst_sat} ())
+    (Dispatcher.mk_ext ~section ~handle:{Dispatcher.handle} ())
 

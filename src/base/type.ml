@@ -118,12 +118,14 @@ type expect =
   | Typed of Expr.ty
 
 (* The type returned after parsing an expression. *)
+type tag = Any : 'a Tag.t * 'a -> tag
+
 type res =
   | Ttype   : res
   | Ty      : Expr.ty -> res
   | Term    : Expr.term -> res
   | Formula : Expr.formula -> res
-  | Tag     : 'a Tag.t * 'a -> res
+  | Tags    : tag list -> res
 
 type inferred =
   | Ty_fun of Expr.ttype Expr.function_descr Expr.id
@@ -356,6 +358,8 @@ let suggest ~limit env fmt id =
 
 exception Continue of Expr.term list
 
+let get_reason_loc = function Inferred l | Declared l -> l
+
 let pp_reason fmt = function
   | Inferred loc -> Format.fprintf fmt "inferred at %a" Dolmen.ParseLocation.fmt loc
   | Declared loc -> Format.fprintf fmt "declared at %a" Dolmen.ParseLocation.fmt loc
@@ -409,7 +413,7 @@ let _expected env s t res =
         | Ty _ -> "a type"
         | Term _ -> "a first-order term"
         | Formula _ -> "a first-order formula"
-        | Tag _ -> "a tag/attribute"
+        | Tags _ -> "a tag/attribute list"
       in
       Format.sprintf "got %s" tmp
   in
@@ -556,6 +560,32 @@ let make_pred env ast_term p =
   with Expr.Type_mismatch (t, ty, ty') ->
     _type_mismatch env t ty ty' ast_term
 
+let mk_quant_ty env mk vars body =
+  (* Check that all quantified variables are actually used *)
+  let fv_ty, fv_t = Expr.Formula.fv body in
+  let unused = List.filter (fun v -> not @@ CCList.mem ~eq:Expr.Id.equal v fv_ty) vars in
+  List.iter (fun v ->
+      Util.warn "%a:@\nQuantified variables unused: %a"
+        Dolmen.ParseLocation.fmt (get_reason_loc (E.find v env.type_locs))
+        Expr.Print.id v) unused;
+  mk vars body
+
+let mk_quant_term env mk vars body =
+  (* Check that all quantified variables are actually used *)
+  let fv_ty, fv_t = Expr.Formula.fv body in
+  let unused = List.filter (fun v -> not @@ CCList.mem ~eq:Expr.Id.equal v fv_t) vars in
+  List.iter (fun v ->
+      Util.warn "%a:@\nQuantified variables unused: %a"
+        Dolmen.ParseLocation.fmt (get_reason_loc (F.find v env.term_locs))
+        Expr.Print.id v) unused;
+  mk vars body
+
+let promote env ast t =
+  match t with
+  | Term t when Expr.(Ty.equal Ty.prop t.t_type) ->
+    Formula (make_pred env ast t)
+  | _ -> t
+
 let infer env s args loc =
   match env.expect with
   | Nothing -> None
@@ -580,7 +610,7 @@ let infer env s args loc =
 
 let apply_tag env ast tag v = function
   | Ttype -> raise (Typing_error ("Cannot tag Ttype", env, ast))
-  | Tag _ -> raise (Typing_error ("Cannot tag a tag", env, ast))
+  | Tags _ -> raise (Typing_error ("Cannot tag a tag list", env, ast))
   | Ty ty -> Expr.Ty.tag ty tag v
   | Term t -> Expr.Term.tag t tag v
   | Formula f -> Expr.Formula.tag f tag v
@@ -658,27 +688,31 @@ let rec parse_expr (env : env) t =
       let ttype_vars, ty_vars, env' =
         parse_quant_vars (expect env (Typed Expr.Ty.base)) vars in
       Formula (
-        Expr.Formula.allty ttype_vars
-          (Expr.Formula.all ty_vars (parse_formula env' f))
-      )
+        mk_quant_ty env' Expr.Formula.allty ttype_vars
+          (mk_quant_term env' Expr.Formula.all ty_vars
+             (parse_formula env' f)))
 
     | { Ast.term = Ast.Binder (Ast.Ex, vars, f) } ->
       let ttype_vars, ty_vars, env' =
         parse_quant_vars (expect env (Typed Expr.Ty.base)) vars in
       Formula (
-        Expr.Formula.exty ttype_vars
-          (Expr.Formula.ex ty_vars (parse_formula env' f))
-      )
+        mk_quant_ty env' Expr.Formula.exty ttype_vars
+          (mk_quant_term env' Expr.Formula.ex ty_vars
+             (parse_formula env' f)))
 
     (* (Dis)Equality *)
     | { Ast.term = Ast.App ({Ast.term = Ast.Builtin Ast.Eq}, l) } as t ->
       begin match l with
         | [a; b] ->
-          Formula (
-            make_eq env t
-              (parse_term env a)
-              (parse_term env b)
-          )
+          begin match promote env t @@ parse_expr env a,
+                      promote env t @@ parse_expr env b with
+            | Term t1, Term t2 ->
+              Formula (make_eq env t t1 t2)
+            | Formula f1, Formula f2 ->
+              Formula (Expr.Formula.equiv f1 f2)
+            | _ ->
+              _expected env "either two terms or two formulas" t None
+          end
         | _ -> _bad_op_arity env "=" 2 t
       end
 
@@ -707,9 +741,8 @@ let rec parse_expr (env : env) t =
 
 and apply_attr env res ast l =
   let () = List.iter (function
-      | Tag (tag, v) ->
+      | Any (tag, v) ->
         apply_tag env ast tag v res;
-      | _ -> assert false
     ) (parse_attrs env ast [] l) in
   res
 
@@ -723,8 +756,8 @@ and parse_attrs env ast acc = function
   | [] -> acc
   | a :: r ->
     begin match parse_expr (expect env Nothing) a with
-      | (Tag _) as res ->
-        parse_attrs env ast (res :: acc) r
+      | Tags l ->
+        parse_attrs env ast (l @ acc) r
       | res ->
         _expected env "tag" a (Some res)
       | exception (Typing_error (msg, _, t)) ->
@@ -818,13 +851,13 @@ and parse_app env ast s args =
             begin match env.builtins env ast s args with
               | Some res -> res
               | None ->
-                Util.warn ~section
-                  "Looking up '%a' failed, possibilities were:@ @[<hov>%a@]"
-                  Id.print s (suggest ~limit:1 env) s;
                 begin match infer env s args (get_loc ast) with
                   | Some Ty_fun f -> parse_app_ty env ast f args
                   | Some Term_fun f -> parse_app_term env ast f args
                   | None ->
+                    Util.error ~section
+                      "Looking up '%a' failed, possibilities were:@ @[<hov>%a@]"
+                      Id.print s (suggest ~limit:1 env) s;
                     raise (Typing_error (
                         Format.asprintf "Scoping error: '%a' not found" Id.print s, env, ast))
                 end
@@ -878,9 +911,7 @@ and parse_term env ast =
   | res -> _expected env "term" ast (Some res)
 
 and parse_formula env ast =
-  match parse_expr (expect env (Typed Expr.Ty.prop)) ast with
-  | Term t when Expr.(Ty.equal Ty.prop t.t_type) ->
-    make_pred env ast t
+  match promote env ast @@ parse_expr (expect env (Typed Expr.Ty.prop)) ast with
   | Formula p -> p
   | res -> _expected env "formula" ast (Some res)
 
@@ -968,10 +999,7 @@ let new_decl env t ?attr id =
   Util.enter_prof section;
   Util.info ~section "Typing declaration:@ @[<hov>%a :@ %a@]"
     Id.print id Ast.print t;
-  let aux acc = function
-    | Tag (tag, v) -> Tag.add acc tag v
-    | _ -> assert false
-  in
+  let aux acc (Any (tag, v)) = Tag.add acc tag v in
   let tags =
     CCOpt.map (fun a ->
         Util.info ~section "Typing attribute:@ @[<hov>%a@]" Ast.print a;
