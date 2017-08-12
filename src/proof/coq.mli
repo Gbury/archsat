@@ -8,10 +8,9 @@
 (** {2 Dispatcher messages} *)
 
 type _ Dispatcher.msg +=
-  | Prove : Format.formatter * string * Dispatcher.lemma_info -> unit Dispatcher.msg (**)
+  | Prove : Format.formatter * Dispatcher.lemma_info -> unit Dispatcher.msg (**)
 (** Sent to the extension that produced a proof; asks for it to prove the
-    clause/lemma it produced, using a coq script which should introduce
-    the clause as an hypothesis with the given name. *)
+    clause/lemma it produced, using a coq script.  *)
 
 (** {2 Printing expressions} *)
 
@@ -39,7 +38,7 @@ val add_hyp : Format.formatter -> (Dolmen.Id.t * Expr.formula) -> unit
 val add_goal : Format.formatter -> (Dolmen.Id.t * Expr.formula) -> unit
 (** Add the goal to the list of goals the next proof will prove. *)
 
-val print_proof : context:bool -> Format.formatter -> Solver.proof -> unit
+val print_proof : Format.formatter -> Solver.proof -> unit
 (** Print a theorem, proving the named goals previously added using the given proof. *)
 
 

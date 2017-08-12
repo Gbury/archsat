@@ -116,11 +116,15 @@ let dot_info = function
   | Not_equiv f ->
     Some "LIGHTBLUE", [CCFormat.const Dot.Print.formula f]
 
+let coq_proof fmt = function
+  | _ -> Format.fprintf fmt "tauto."
+
 (* Handle & plugin registering *)
 (* ************************************************************************ *)
 
 let handle : type ret. ret Dispatcher.msg -> ret option = function
   | Dot.Info Logic info -> Some (dot_info info)
+  | Coq.Prove (fmt, Logic info) -> Some(coq_proof fmt info)
   | _ -> None
 
 let register () =

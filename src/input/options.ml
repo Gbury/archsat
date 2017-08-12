@@ -40,6 +40,7 @@ type output_options = {
 }
 
 type typing_options = {
+  infer   : bool;
   explain : [ `No | `Yes | `Full ];
 }
 
@@ -135,7 +136,8 @@ let output_opts fd format export_dimacs export_icnf =
   let icnf = formatter_of_out_descr export_icnf in
   { format; fmt; dimacs; icnf; }
 
-let typing_opts explain = { explain; }
+let typing_opts infer explain =
+  { infer; explain; }
 
 let profile_opts enable max_depth sections out =
   let enabled =
@@ -150,7 +152,8 @@ let profile_opts enable max_depth sections out =
 let stats_opts enabled =
   { enabled; }
 
-let proof_opts prove context dot unsat_core coq =
+let proof_opts prove no_context dot unsat_core coq =
+  let context = not no_context in
   let dot = formatter_of_out_descr dot in
   let unsat_core = formatter_of_out_descr unsat_core in
   let coq = formatter_of_out_descr coq in
@@ -498,10 +501,10 @@ let proof_t =
                (such as the $(b,--dot) option) must be used." in
     Arg.(value & flag & info ["proof"] ~docs ~doc)
   in
-  let context =
-    let doc = "Sets wether to output typing and lemma context before the proof
+  let no_context =
+    let doc = "Prevent printing context before the formal proof
                (only meaningful for certifying proof outputs such as coq, dedukti, ...)" in
-    Arg.(value & flag & info ["context"] ~docs ~doc)
+    Arg.(value & flag & info ["no-context"] ~docs ~doc)
   in
   let dot_proof =
     let doc = "Set the file to which the program sould output a proof in dot format.
@@ -519,7 +522,7 @@ let proof_t =
                A special 'stdout' value can be used to use standard output" in
     Arg.(value & opt out_descr `None & info ["coq"] ~docs ~doc)
   in
-  Term.(const proof_opts $ check_proof $ context $ dot_proof $ unsat_core $ coq)
+  Term.(const proof_opts $ check_proof $ no_context $ dot_proof $ unsat_core $ coq)
 
 let model_t =
   let docs = model_sect in
@@ -574,13 +577,18 @@ let unit_t =
 
 let type_t =
   let docs = copts_sect in
+  let infer =
+    let doc = Format.asprintf
+        "Force inference of non-declared symbols according to context" in
+    Arg.(value & flag & info ["infer"] ~docs ~doc)
+  in
   let explain =
     let doc = Format.asprintf
         "Explain more precisely typing conflicts, $(docv) may be %s"
         (Arg.doc_alts_enum ~quoted:false explain_list) in
     Arg.(value & opt explain `No & info ["type-explain"] ~docs ~docv:"EXPL" ~doc)
   in
-  Term.(const typing_opts $ explain)
+  Term.(const typing_opts $ infer $ explain)
 
 let copts_t () =
   let docs = copts_sect in

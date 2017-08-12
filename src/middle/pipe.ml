@@ -177,7 +177,9 @@ let type_wrap ?(goal=false) opt =
   in
   let explain = Options.(opt.typing.explain) in
   let expect =
-    match Options.(opt.input.format) with
+    if Options.(opt.typing.infer) then
+      Type.Typed Expr.Ty.prop
+    else match Options.(opt.input.format) with
     | Some In.Tptp -> Type.Typed Expr.Ty.prop
     | Some In.Dimacs -> Type.Typed Expr.Ty.prop
     | _ -> Type.Nothing
@@ -316,7 +318,6 @@ let export (opt, (c : solved stmt)) =
     ()
   | { contents = `Model _; _ }
   | { contents = `Proof _; _ } ->
-    Util.info "Exporting problem to dimacs format";
     pp_opt Solver.export_dimacs Options.(opt.output.dimacs) ()
 
 (* Printing proofs *)
@@ -372,7 +373,6 @@ let print_proof (opt, (c : solved stmt)) =
   | { contents = `Proof p; _ } ->
     let () = pp_opt Unsat_core.print Options.(opt.proof.unsat_core) p in
     let () = pp_opt Dot.print Options.(opt.proof.dot) p in
-    let () = pp_opt
-        (Coq.print_proof ~context:Options.(opt.proof.context)) Options.(opt.proof.coq) p in
+    let () = pp_opt Coq.print_proof Options.(opt.proof.coq) p in
     ()
 

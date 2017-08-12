@@ -200,7 +200,7 @@ let rec set_handler t =
 
 let rec peek = function
   | { Expr.formula = Expr.Equal (a, b) } as f when Expr.Term.equal a b ->
-    D.push [f] (D.mk_proof "ext_eq" "trivial" (Eq Trivial));
+    D.push [f] (D.mk_proof name "trivial" (Eq Trivial));
     set_handler a
   | { Expr.formula = Expr.Equal (a, b) } as f ->
     watch 1 [a; b] (f_eval f);

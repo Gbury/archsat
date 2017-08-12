@@ -22,6 +22,7 @@ module F = Backtrack.Hashtbl(Expr.Formula)
 type lemma_info = ..
 
 type lemma = {
+  id : int;
   plugin_name : string;
   proof_name  : string;
   proof_info  : lemma_info;
@@ -239,8 +240,12 @@ let ask name msg =
 (* Proof management *)
 (* ************************************************************************ *)
 
-let mk_proof plugin_name proof_name proof_info =
-  { plugin_name; proof_name; proof_info; }
+let mk_proof =
+  let r = ref 0 in
+  (fun plugin_name proof_name proof_info ->
+     let () = incr r in
+     { id = !r; plugin_name; proof_name; proof_info; }
+  )
 
 (* Delayed propagation *)
 (* ************************************************************************ *)

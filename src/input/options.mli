@@ -40,6 +40,7 @@ type output_options = {
 }
 
 type typing_options = {
+  infer : bool;
   explain : [ `No | `Yes | `Full ];
 }
 

@@ -450,7 +450,7 @@ module Id = struct
 
   (* Builtin Types *)
   let prop = ty_fun "Prop" 0
-  let base = ty_fun "$i" 0
+  let base = ty_fun "Univ" 0
 
   (* Free variables *)
   let null_fv = [], []

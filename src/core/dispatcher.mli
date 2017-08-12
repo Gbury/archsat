@@ -19,6 +19,7 @@ type _ msg += If_sat : ((Expr.formula -> unit) -> unit) -> unit msg
 type lemma_info = ..
 
 type lemma = private {
+  id : int;
   plugin_name : string;
   proof_name  : string;
   proof_info  : lemma_info;

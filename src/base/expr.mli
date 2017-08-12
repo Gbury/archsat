@@ -8,7 +8,7 @@
 (** {3 Identifiers} *)
 
 (** Identifiers are the basic building blocks used to build types terms and expressions
-    in tabsat. *)
+    in archsat. *)
 
 type hash
 type index = private int
