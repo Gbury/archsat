@@ -1,4 +1,6 @@
 
+#require "uucp";;
+#require "uutf";;
 #require "unix";;
 #require "ocamlgraph";;
 #require "cmdliner";;
@@ -21,7 +23,6 @@ open Archsat;;
 #install_printer Expr.Print.ty;;
 #install_printer Expr.Print.term;;
 #install_printer Expr.Print.formula;;
-#install_printer Unif.print;;
 #install_printer Index.Fingerprint.print;;
 #install_printer Ext_eq.Class.print;;
 
