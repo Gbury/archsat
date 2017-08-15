@@ -344,9 +344,13 @@ let print_proof (opt, (c : solved stmt)) =
   (* Not much to do with these... *)
   | { contents = `Executed; _ }
   | { contents = `Type_def _; _ }
-  | { contents = `Term_def _; _ }
-  | { contents = `Model _; _ }
-  | { contents = `Unknown; _ } -> ()
+  | { contents = `Term_def _; _ } -> ()
+  | { contents = `Model _; _ } ->
+    if Options.(opt.proof.active) then
+      Util.warn "Proof check.output activated, but no proof was found"
+  | { contents = `Unknown; _ } ->
+    if Options.(opt.proof.active) then
+      Util.warn "Proof check.output activated, but a model was found"
 
   (* Interesting parts *)
   | { contents = `Type_decl f; _ } ->

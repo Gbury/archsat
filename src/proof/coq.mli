@@ -7,8 +7,29 @@
 
 (** {2 Dispatcher messages} *)
 
+module M : Map.S with type key = Expr.formula
+
+type raw_proof = Format.formatter -> unit -> unit
+
+type ordered_proof = {
+  order : Expr.formula list;
+  proof : raw_proof;
+}
+
+type impl_proof = {
+  prefix  : string;
+  left    : Expr.formula list;
+  right   : Expr.formula list;
+  proof   : Format.formatter -> string M.t -> unit;
+}
+
+type proof_style =
+  | Raw of raw_proof
+  | Ordered of ordered_proof
+  | Implication of impl_proof
+
 type _ Dispatcher.msg +=
-  | Prove : Format.formatter * Dispatcher.lemma_info -> unit Dispatcher.msg (**)
+  | Prove : Dispatcher.lemma_info -> proof_style Dispatcher.msg (**)
 (** Sent to the extension that produced a proof; asks for it to prove the
     clause/lemma it produced, using a coq script.  *)
 
@@ -23,6 +44,26 @@ module Print : sig
   val ty : Format.formatter -> Expr.ty -> unit
   val term : Format.formatter -> Expr.term -> unit
   val formula : Format.formatter -> Expr.formula -> unit
+
+  val path : Format.formatter -> int * int -> unit
+  val path_to : Format.formatter -> Expr.formula * Expr.f_order -> unit
+
+  val pattern :
+    start:(Format.formatter -> unit -> unit) ->
+    stop:(Format.formatter -> unit -> unit) ->
+    sep:(Format.formatter -> unit -> unit) ->
+    (Format.formatter -> Expr.formula -> unit) ->
+    Format.formatter -> Expr.f_order -> unit
+
+  val pattern_or :
+    (Format.formatter -> Expr.formula -> unit) ->
+    Format.formatter -> Expr.f_order -> unit
+  val pattern_and :
+    (Format.formatter -> Expr.formula -> unit) ->
+    Format.formatter -> Expr.f_order -> unit
+  val pattern_intro_and :
+    (Format.formatter -> Expr.formula -> unit) ->
+    Format.formatter -> Expr.f_order -> unit
 
 end
 
