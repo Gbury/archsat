@@ -7,12 +7,13 @@ let section = Section.make ~parent:Dispatcher.section "functions"
 module H = Backtrack.Hashtbl(Expr.Term)
 
 type info =
-    Extensionnality of bool * Expr.formula list * Expr.term * Expr.term
+  | Fun of Expr.formula list * Expr.term * Expr.term
+  | Pred of Expr.formula list * Expr.formula * Expr.formula
 
-type Dispatcher.lemma_info += Fun of info
+type Dispatcher.lemma_info += UF of info
 
-let mk_proof is_prop eqs t t' =
-  Dispatcher.mk_proof "uf" "f-eq" (Fun (Extensionnality (is_prop, eqs, t, t')))
+let mk_proof info =
+  Dispatcher.mk_proof "uf" "f-eq" (UF info)
 
 (* Module initialisation *)
 (* ************************************************************************ *)
@@ -32,22 +33,24 @@ let set_interpretation t = fun () ->
           if not (Expr.Term.equal t_v u_v) then begin
             match t' with
             | { Expr.term = Expr.App (_, _, r) } when is_prop ->
-              let eqs = List.map2 (fun a b -> Expr.Formula.eq a b) l r in
+              let p = Expr.Formula.pred t in
+              let p' = Expr.Formula.pred t' in
+              let eqs = List.map2 (fun a b -> Expr.Formula.eq a b) r l in
               let l = List.map Expr.Formula.neg eqs in
               if Expr.(Term.equal u_v Builtin.Misc.p_true) then begin
-                let res = Expr.Formula.pred t :: Expr.Formula.neg (Expr.Formula.pred t') :: l in
-                let proof = mk_proof is_prop eqs t t' in
+                let res = p :: Expr.Formula.neg p' :: l in
+                let proof = mk_proof (Pred (eqs, p, p')) in
                 raise (Dispatcher.Absurd (res, proof))
               end else begin
-                let res = Expr.Formula.pred t' :: Expr.Formula.neg (Expr.Formula.pred t) :: l in
-                let proof = mk_proof is_prop eqs t t' in
+                let res = p' :: Expr.Formula.neg p :: l in
+                let proof = mk_proof (Pred (eqs, p', p)) in
                 raise (Dispatcher.Absurd (res, proof))
               end
             | { Expr.term = Expr.App (_, _, r) } ->
               let eqs = List.map2 (fun a b -> Expr.Formula.eq a b) l r in
               let l = List.map Expr.Formula.neg eqs in
               let res = Expr.Formula.eq t t' :: l in
-              let proof = mk_proof is_prop eqs t t' in
+              let proof = mk_proof (Fun (eqs, t, t')) in
               raise (Dispatcher.Absurd (res, proof))
             | _ -> assert false
           end
@@ -75,29 +78,33 @@ let uf_pre = function
 (* ************************************************************************ *)
 
 let dot_info = function
-  | Extensionnality (_, _, t, t') ->
+  | Fun (_, t, t') ->
     None, List.map (CCFormat.const Dot.Print.term) [t; t']
+  | Pred (_, t, t') ->
+    None, List.map (CCFormat.const Dot.Print.formula) [t; t']
 
 let coq_proof = function
-  | Extensionnality (false, l, t, t') ->
+  | Fun (l, t, t') ->
     Coq.(Implication {
         left = l;
         right = [Expr.Formula.eq t t'];
         prefix = "eq_";
         proof = (fun fmt m ->
-            Format.fprintf fmt "%a@ exact eq_refl."
+            Format.fprintf fmt "@[<hov>%a@ exact eq_refl.@]"
               CCFormat.(list ~sep:(return "@ ") (fun fmt eq ->
                   Format.fprintf fmt "rewrite %s." (M.find eq m))) l
           )
       })
-
-  | Extensionnality (true, l, t, t') ->
+  | Pred (l, p, p') ->
     Coq.(Implication {
-        left = l;
-        right = [Expr.Formula.eq t t'];
+        left = p' :: l;
+        right = [p];
         prefix = "eq_";
         proof = (fun fmt m ->
-            Format.fprintf fmt "(* TODO *).@ "
+            Format.fprintf fmt "@[<hov>%a@ exact %s.@]"
+              CCFormat.(list ~sep:(return "@ ") (fun fmt eq ->
+                  Format.fprintf fmt "rewrite %s." (M.find eq m))) l
+              (M.find p' m)
           )
       })
 
@@ -105,8 +112,8 @@ let coq_proof = function
 (* ************************************************************************ *)
 
 let handle : type ret. ret Dispatcher.msg -> ret option = function
-  | Dot.Info Fun info -> Some (dot_info info)
-  | Coq.Prove Fun info -> Some (coq_proof info)
+  | Dot.Info UF info -> Some (dot_info info)
+  | Coq.Prove UF info -> Some (coq_proof info)
   | _ -> None
 
 let register () =
