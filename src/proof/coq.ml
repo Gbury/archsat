@@ -12,6 +12,12 @@ module Print = struct
 
   let pretty = Tag.create ()
 
+  let () =
+    Expr.Id.tag Expr.Id.prop pretty (Expr.Print.Prefix "Prop")
+
+  let () =
+    Expr.Id.tag Expr.Id.base pretty (Expr.Print.Prefix "Set")
+
   let t =
     let name (Escape.Any.Id id) =
       match Expr.Id.get_tag id pretty with
@@ -233,6 +239,25 @@ module Print = struct
 
 end
 
+(* Printing contexts *)
+(* ************************************************************************ *)
+
+(** Keep in mind the relation Dolmen id -> clause *)
+module H = Hashtbl.Make(Dolmen.Id)
+
+let hyp_table = H.create 1013
+
+let declare_ty fmt f =
+  Format.fprintf fmt "Parameter %a.@." Print.const_ttype f
+
+let declare_term fmt f =
+  Format.fprintf fmt "Parameter %a.@." Print.const_ty f
+
+let add_hyp fmt (id, l) =
+  H.add hyp_table id l;
+  Format.fprintf fmt "Axiom %a : @[<hov>%a@].@." Print.dolmen id
+    CCFormat.(list ~sep:(return {|@ \/@ |}) Print.formula) l
+
 (* Proving plugin's lemmas *)
 (* ************************************************************************ *)
 
@@ -350,6 +375,61 @@ module Lemma = struct
       TODO:use a proper exception instead of assert false *)
   let prove_assumption fmt name clause = assert false
 
+  (** clausify or-separated clauses into mSAT encoding of clauses *)
+  let clausify fmt (orig, l, dest, a) =
+    (** assert goal clause *)
+    let pp_atom fmt atom =
+      let pos = Dispatcher.SolverTypes.(atom.var.pa) in
+      if atom == pos then
+        Format.fprintf fmt "~ %a" Print.atom atom
+      else
+        Format.fprintf fmt "~ ~ %a" Print.atom pos
+    in
+    Format.fprintf fmt "assert (%s: @[<hov>%a@ ->@ False@]).@ " dest
+      CCFormat.(array ~sep:(return " ->@ ") pp_atom) a;
+    let _, m = Array.fold_left (fun (i, acc) atom ->
+        let name = Format.sprintf "Ax%d" i in
+        (i + 1, M.add (formula atom) (name, formula atom) acc)) (0, M.empty) a in
+    let aux fmt atom = Format.fprintf fmt "%s" (fst @@ M.find (formula atom) m) in
+    Format.fprintf fmt "intros %a.@ " CCFormat.(array ~sep:(return " ") aux) a;
+    (** wrapper around equalities to reorder them *)
+    let pp_exact fmt (f, s) =
+      let name, f' = M.find f m in
+      match f with
+      | { Expr.formula = Expr.Equal _ } ->
+        let t = CCOpt.get_exn (Expr.Formula.get_tag f Expr.t_order) in
+        let t' = CCOpt.get_exn (Expr.Formula.get_tag f' Expr.t_order) in
+        if t = t'
+        then Format.fprintf fmt "%s %s" name s
+        else Format.fprintf fmt "%s (eq_sym %s)" name s
+      | { Expr.formula = Expr.Not ({ Expr.formula = Expr.Equal _ } as r) } ->
+        begin match f' with
+          | { Expr.formula = Expr.Not ({ Expr.formula = Expr.Equal _ } as r') } ->
+            let t = CCOpt.get_exn (Expr.Formula.get_tag r Expr.t_order) in
+            let t' = CCOpt.get_exn (Expr.Formula.get_tag r' Expr.t_order) in
+            if t = t'
+            then Format.fprintf fmt "%s %s" name s
+            else Format.fprintf fmt "%s (not_eq_sym %s)" name s
+          | _ -> assert false
+        end
+      | _ -> Format.fprintf fmt "%s %s" name s
+    in
+    (** destruct already proved hyp *)
+    match l with
+    | [] -> assert false
+    | [p] ->
+      Format.fprintf fmt "exact (%a)." pp_exact (p, orig)
+    | _ ->
+      let order = Expr.L (List.map (fun f -> Expr.F f) l) in
+      Format.fprintf fmt "@[<hov 2>destruct %s as %a.@ %a@]" orig
+        (Print.pattern_or (fun fmt _ -> Format.fprintf fmt "T")) order
+      CCFormat.(list ~sep:(return "@ ") (fun fmt f ->
+          if Expr.Formula.(equal f_false) f then
+            Format.fprintf fmt "exact T."
+          else
+            Format.fprintf fmt "exact (%a)." pp_exact (f, "T")
+        )) l
+
   (** Prove hypotheses. All hypothses (including negated goals)
       should already be available under their official names
       (i.e. full name of Dolmen id associated with the clause),
@@ -359,8 +439,10 @@ module Lemma = struct
     match Solver.hyp_id clause with
     | None -> assert false (* All hyps should must have been given an id. *)
     | Some id ->
-      Format.fprintf fmt "(* Renaming hypothesis *)@\n";
-      Format.fprintf fmt "pose proof %a as %s.@\n" Print.dolmen id name
+      Format.fprintf fmt "(* Introducing hypothesis %a as %s *)@\n%a@\n"
+        Print.dolmen id name clausify
+        ((Format.asprintf "%a" Print.dolmen id), (H.find hyp_table id),
+         name, clause.Dispatcher.SolverTypes.atoms)
 
   (** Prove lemmas.
       To ensure lemmas are proved in an empty and clean environment,
@@ -368,24 +450,15 @@ module Lemma = struct
       since nested proofs are deprecated in Coq). *)
   let prove_lemma fmt name clause =
     let lemma = CCOpt.get_exn (extract_lemma clause) in
-    Format.fprintf fmt "(* Import lemma %s as %s *)@\n" (lemma_name lemma) name;
-    Format.fprintf fmt "pose proof %s as %s.@\n" (lemma_name lemma) name
+    Format.fprintf fmt "(* Import lemma %s as %s *)@\n%a@\n"
+      (lemma_name lemma) name
+      clausify
+      ((lemma_name lemma), (proof_order clause (lemma_proof lemma)),
+       name, clause.Dispatcher.SolverTypes.atoms)
 
 end
 
 module P = Msat.Coq.Make(Solver.Proof)(Lemma)
-
-(* Printing contexts *)
-(* ************************************************************************ *)
-
-let declare_ty fmt f =
-  Format.fprintf fmt "Parameter %a.@." Print.const_ttype f
-
-let declare_term fmt f =
-  Format.fprintf fmt "Parameter %a.@." Print.const_ty f
-
-let add_hyp fmt (id, f) =
-  Format.fprintf fmt "Axiom %a : %a.@." Print.dolmen id Print.formula f
 
 (* Printing proofs *)
 (* ************************************************************************ *)
@@ -398,10 +471,13 @@ let add_hyp fmt (id, f) =
                 into hypotheses '~ a_i' *)
 let rec intro_aux fmt i = function
   | [] | [_] -> assert false
-  | [x; y] ->
+  | [x, gx; y, gy] ->
+    H.add hyp_table x [gx];
+    H.add hyp_table y [gy];
     Format.fprintf fmt "destruct (%s _ _ G%d) as (%a, %a). clear G%d.@\n"
       "Coq.Logic.Classical_Prop.not_or_and" i Print.dolmen x Print.dolmen y i
-  | x :: r ->
+  | (x, gx) :: r ->
+    H.add hyp_table x [gx];
     Format.fprintf fmt "destruct (%s _ _ G%d) as (%a, G%d). clear G%d.@\n"
       "Coq.Logic.Classical_Prop.not_or_and" i Print.dolmen x (i + 1) i;
     intro_aux fmt (i + 1) r
@@ -410,11 +486,12 @@ let pp_intro fmt l =
   match l with
   | [] -> () (* goal is already 'False', nothing to do *)
   | _ ->
-    Format.fprintf fmt "(* Introduce the goal(s) into the hyps *)";
+    Format.fprintf fmt "(* Introduce the goal(s) into the hyps *)@\n";
     Format.fprintf fmt "apply Coq.Logic.Classical_Prop.NNPP. ";
     begin match l with
       | [] -> assert false
-      | [id] ->
+      | [id, g] ->
+        H.add hyp_table id [g];
         Format.fprintf fmt "intro %a.@\n" Print.dolmen id
       | _ ->
         Format.fprintf fmt "intro G0.@\n";
@@ -445,6 +522,8 @@ let print_proof fmt proof =
   let l = Solver.Proof.unsat_core proof in
   let () = print_lemmas fmt l in
   Format.fprintf fmt "@\nTheorem goal : @[<hov>%a@].@\n" pp_goals goals;
-  Format.fprintf fmt "@[<hov 2>Proof.@\n%a@\n%a@]@\nQed.@." pp_intro names P.print proof
+  Format.fprintf fmt "@[<hov 2>Proof.@\n%a@\n%a@]@\nQed.@."
+    pp_intro (List.combine names (List.map Expr.Formula.neg goals))
+    P.print proof
 
 

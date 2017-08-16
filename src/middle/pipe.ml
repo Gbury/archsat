@@ -362,13 +362,12 @@ let print_proof (opt, (c : solved stmt)) =
       pp_opt Coq.declare_term Options.(opt.proof.coq) f;
     ()
   | { contents = `Clause l ; id; _ } ->
-    let h = Expr.Formula.f_or l in
     if Options.(opt.proof.context) then
-      pp_opt Coq.add_hyp Options.(opt.proof.coq) (id, h);
+      pp_opt Coq.add_hyp Options.(opt.proof.coq) (id, l);
     ()
   | { contents = `Hyp h; id; _ } ->
     if Options.(opt.proof.context) then
-      pp_opt Coq.add_hyp Options.(opt.proof.coq) (id, h);
+      pp_opt Coq.add_hyp Options.(opt.proof.coq) (id, [h]);
     ()
   | { contents = `Goal g; id; _ } ->
     if Options.(opt.proof.context) then

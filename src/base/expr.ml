@@ -26,9 +26,9 @@ type builtin += Base
 type 'ty id = {
   id_type : 'ty;
   id_name : string;
-  id_tags : tag_map;
   index   : index; (** unique *)
   builtin : builtin;
+  mutable id_tags : tag_map;
 }
 
 (* Metavariables, basically, wrapped variables *)
@@ -447,10 +447,11 @@ module Id = struct
 
   (* Tags *)
   let get_tag id k = Tag.get id.id_tags k
+  let tag id k v = id.id_tags <- Tag.add id.id_tags k v
 
   (* Builtin Types *)
-  let prop = ty_fun "Prop" 0
-  let base = ty_fun "Univ" 0
+  let prop = ty_fun "$o" 0
+  let base = ty_fun "$i" 0
 
   (* Free variables *)
   let null_fv = [], []
@@ -1040,7 +1041,12 @@ module Formula = struct
     | Not f' -> f'
     | _ -> mk_formula (Not f)
 
+  let check s = function
+    | [_] -> Util.warn "Trying to make a %s with only one element" s;
+    | _ -> ()
+
   let f_and l =
+    check "conjunction" l;
     let rec aux (o, acc) = function
       | [] -> o, acc
       | ({ formula = And l' } as f) :: r ->
@@ -1057,6 +1063,7 @@ module Formula = struct
       res
 
   let f_or l =
+    check "disjunction" l;
     let rec aux (o, acc) = function
       | [] -> o, acc
       | ({ formula = Or l' } as f) :: r ->

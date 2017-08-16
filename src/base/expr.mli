@@ -31,9 +31,9 @@ type builtin += Base
 type 'ty id = private {
   id_type : 'ty;
   id_name : string;
-  id_tags : tag_map;
   index   : index; (** unique *)
   builtin : builtin;
+  mutable id_tags : tag_map;
 }
 
 (** The type of identifiers. An ['a id] is an identifier whose solver-type
@@ -230,6 +230,9 @@ module Id : sig
 
   val get_tag : _ id -> 'a tag -> 'a option
   (** Get a tag value from an identifier. *)
+
+  val tag : _ id -> 'a tag -> 'a -> unit
+  (** Add a tag to an id. *)
 
   val prop : ttype function_descr id
   val base : ttype function_descr id

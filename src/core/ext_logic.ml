@@ -19,13 +19,13 @@ type info =
              * Expr.formula * Expr.formula list
              * Expr.formula * Expr.formula list
 
-  | Not_imply_left of Expr.formula
-  | Not_imply_right of Expr.formula
+  | Not_imply_left of Expr.formula * Expr.formula
+  | Not_imply_right of Expr.formula * Expr.formula
 
-  | Equiv_right of Expr.formula
-  | Equiv_left of Expr.formula
+  | Equiv_right of Expr.formula * Expr.formula
+  | Equiv_left of Expr.formula * Expr.formula
 
-  | Not_equiv of Expr.formula
+  | Not_equiv of Expr.formula * Expr.formula * Expr.formula
 
 type Dispatcher.lemma_info += Logic of info
 
@@ -102,16 +102,21 @@ let tab = function
     let right = imply_right q in
     push "imply" (Imply (r, p, left, q, right)) (Expr.Formula.neg r :: (left @ right))
   | { Expr.formula = Expr.Not ({ Expr.formula = Expr.Imply (p, q) } as r )  } ->
-    push "not-imply_l" (Not_imply_left r) [r; p];
-    push "not-imply_r" (Not_imply_right r) [r; Expr.Formula.neg q]
+    push "not-imply_l" (Not_imply_left (r, p)) [r; p];
+    push "not-imply_r" (Not_imply_right (r, q)) [r; Expr.Formula.neg q]
 
   (* 'Equiv' traduction *)
   | { Expr.formula = Expr.Equiv (p, q) } as r ->
-    push "equiv" (Equiv_right r) [Expr.Formula.neg r; Expr.Formula.imply p q];
-    push "equiv" (Equiv_left r) [Expr.Formula.neg r; Expr.Formula.imply q p]
+    let nr = Expr.Formula.neg r in
+    let pq = Expr.Formula.imply p q in
+    let qp = Expr.Formula.imply q p in
+    push "equiv_r" (Equiv_right (r, pq)) [nr; pq];
+    push "equiv_l" (Equiv_left (r, qp)) [nr; qp]
   | { Expr.formula = Expr.Not ({ Expr.formula = Expr.Equiv (p, q) } as r )  } ->
-    push "not-equiv" (Not_equiv r)
-      [r; Expr.Formula.f_and [p; Expr.Formula.neg q]; Expr.Formula.f_and [Expr.Formula.neg p; q] ]
+    let pq = Expr.Formula.imply p q in
+    let qp = Expr.Formula.imply q p in
+    push "not-equiv" (Not_equiv (r, pq, qp))
+      [ r; Expr.Formula.neg pq; Expr.Formula.neg qp ]
 
   (* Other formulas (not treated) *)
   | _ -> ()
@@ -136,11 +141,11 @@ let dot_info = function
   | Or (f, _)
   | Not_and (f, _)
   | Imply (f, _, _, _, _)
-  | Not_imply_left f
-  | Not_imply_right f
-  | Equiv_right f
-  | Equiv_left f
-  | Not_equiv f ->
+  | Not_imply_left (f, _)
+  | Not_imply_right (f, _)
+  | Equiv_right (f, _)
+  | Equiv_left (f, _)
+  | Not_equiv (f, _, _) ->
     Some "LIGHTBLUE", [CCFormat.const Dot.Print.formula f]
 
 let coq_imply_left_aux fmt (indent, (i, n)) =
@@ -254,8 +259,57 @@ let coq_proof = function
               coq_imply_left (np + nq, np, 0) coq_imply_right (np + nq, np + 1)
           )
       })
-  | _ -> Coq.Raw (fun fmt () ->
-      Format.fprintf fmt "tauto.")
+
+  | Not_imply_left (init, res) ->
+    Coq.(Ordered {
+        order = [res; init];
+        proof = (fun fmt () ->
+            Format.fprintf fmt "apply Coq.Logic.Classical_Prop.NNPP. intro H0.@ ";
+            Format.fprintf fmt
+              "destruct (Coq.Logic.Classical_Prop.not_or_and _ _ H0) as [H1 H2].@ ";
+            Format.fprintf fmt "exact (H1 (Coq.Logic.Classical_Prop.not_imply_elim _ _ H2))."
+          )
+      })
+  | Not_imply_right (init, res) ->
+    Coq.(Implication {
+        left = [res];
+        right = [init];
+        prefix = "H";
+        proof = (fun fmt m ->
+            Format.fprintf fmt "intros _; exact %s." (M.find res m)
+          )
+      })
+
+  | Equiv_right (init, res) ->
+    Coq.(Implication {
+        left = [init];
+        right = [res];
+        prefix = "E";
+        proof = (fun fmt m ->
+            Format.fprintf fmt "destruct (iff_and %s) as [R _]; exact R."
+              (M.find init m)
+          )
+      })
+  | Equiv_left (init, res) ->
+    Coq.(Implication {
+        left = [init];
+        right = [res];
+        prefix = "E";
+        proof = (fun fmt m ->
+            Format.fprintf fmt "destruct (iff_and %s) as [_ R]; exact R."
+              (M.find init m)
+          )
+      })
+
+  | Not_equiv (init, pq, qp) ->
+    Coq.(Implication {
+        left = [pq; qp];
+        right = [init];
+        prefix = "I";
+        proof = (fun fmt m ->
+            Format.fprintf fmt "rewrite iff_to_and. split; assumption."
+          )
+      })
 
 (* Handle & plugin registering *)
 (* ************************************************************************ *)

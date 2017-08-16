@@ -75,7 +75,12 @@ let parse_smtlib env ast s args =
     Some (parse_f env ast Dolmen.Term.neq_t args)
   | { Id.name = "="; ns = Id.Term } ->
     let l = List.map (Type.parse_term env) args in
-    Some (Type.Formula (Expr.Formula.f_and @@ pair_map Expr.Formula.eq l))
+    let l' = pair_map Expr.Formula.eq l in
+    let res = match l' with
+      | [f] -> f
+      | _ -> Expr.Formula.f_and l'
+    in
+    Some (Type.Formula res)
 
   | _ -> None
 

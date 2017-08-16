@@ -1,2 +1,5 @@
-(assert (and (not (and a b c)) a b c))
+(assert a)
+(assert b)
+(assert c)
+(assert (not (and a b c)))
 (check-sat)

@@ -73,7 +73,7 @@ val declare_ty : Format.formatter -> Expr.ttype Expr.function_descr Expr.id -> u
 val declare_term : Format.formatter -> Expr.ty Expr.function_descr Expr.id -> unit
 (** Print the type declarations for constant symbols *)
 
-val add_hyp : Format.formatter -> (Dolmen.Id.t * Expr.formula) -> unit
+val add_hyp : Format.formatter -> (Dolmen.Id.t * Expr.formula list) -> unit
 (** Print an hypothesis/axiom *)
 
 val add_goal : Format.formatter -> (Dolmen.Id.t * Expr.formula) -> unit

@@ -219,11 +219,45 @@ let dot_info = function
   | Trivial -> None, []
   | Chain l -> None, List.map (CCFormat.const Dot.Print.term) l
 
+let to_eqs l =
+  let rec aux first acc = function
+    | [] -> assert false
+    | [last] ->
+      Expr.Formula.eq first last, List.rev acc
+    | x :: ((y :: _) as r) ->
+      aux first (Expr.Formula.eq x y :: acc) r
+  in
+  match l with
+  | [] | [_] -> assert false
+  | first :: _ -> aux first [] l
+
+let rec coq_aux m fmt = function
+  | [] -> assert false
+  | [x] -> Format.fprintf fmt "%s" (Coq.M.find x m)
+  | x :: r ->
+    Format.fprintf fmt "(eq_trans %s %a)"
+      (Coq.M.find x m) (coq_aux m) r
+
+let coq_proof = function
+  | Trivial ->
+    Coq.Raw (CCFormat.return "exact eq_refl.")
+  | Chain l ->
+    let res, eqs = to_eqs l in
+    Coq.(Implication {
+        left = eqs;
+        right = [res];
+        prefix = "eq_";
+        proof = (fun fmt m ->
+            Format.fprintf fmt "exact %a." (coq_aux m) eqs
+          )
+      })
+
 (* Handler & Plugin registering *)
 (* ************************************************************************ *)
 
 let handle : type ret. ret D.msg -> ret option = function
   | Dot.Info Eq info -> Some (dot_info info)
+  | Coq.Prove Eq info -> Some (coq_proof info)
   | _ -> None
 
 let register () =
