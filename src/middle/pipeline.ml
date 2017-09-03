@@ -2,10 +2,11 @@
 (* Default functions *)
 (* ************************************************************************ *)
 
-let default_finally opt = opt
-
-let default_handler opt fmt exn =
-  Format.fprintf fmt "Exception: @<hov>%s@]@." (Printexc.to_string exn)
+let default_finally opt = function
+  | None -> opt
+  | Some exn ->
+    Util.error "Exception: @<hov>%s@]@." (Printexc.to_string exn);
+    opt
 
 (* GC alarm for time/space limits *)
 (* ************************************************************************ *)
@@ -121,44 +122,33 @@ let run_aux : type a. (opt * a, opt) t -> (opt -> a option) -> opt -> opt option
   fun pipe g opt ->
     match g opt with
     | None -> None
-    | Some x ->
-      Some (eval pipe (opt, x))
+    | Some x -> Some (eval pipe (opt, x))
 
 (** Effectively run a pipeline on all values that come from a generator.
     Time/size limits apply for the complete evaluation of each input
     (so all expanded values count toward the same limit). *)
 let rec run :
   type a.
-  ?finally:(opt -> opt) ->
-  ?print_exn:(opt -> Format.formatter -> exn -> unit) ->
-  (opt -> a option) -> opt -> (opt * a, opt) t -> unit
-  =
-  fun
-    ?(finally=default_finally)
-    ?(print_exn=default_handler)
-    g opt pipe ->
+  ?finally:(opt -> exn option -> opt) ->
+  (opt -> a option) -> opt -> (opt * a, opt) t -> opt
+  = fun ?(finally=default_finally) g opt pipe ->
     let time = opt.Options.time_limit in
     let size = opt.Options.size_limit in
     let al = setup_alarm time size in
     begin
       match run_aux pipe g opt with
-      | None -> delete_alarm al
+      | None ->
+        let () = delete_alarm al in
+        opt
       | Some opt' ->
-        delete_alarm al;
-        let opt'' = try finally opt' with _ -> opt' in
-        run ~finally ~print_exn g opt'' pipe
+        let () = delete_alarm al in
+        let opt'' = try finally opt' None with _ -> opt' in
+        run ~finally g opt'' pipe
       | exception exn ->
-        delete_alarm al;
+        let () = delete_alarm al in
         if Printexc.backtrace_status () then
           Printexc.print_backtrace stdout;
-        let log = match exn with
-          | Options.Sigint
-          | Options.Out_of_time
-          | Options.Out_of_space -> Util.printf
-          | _ -> Util.error ?section:None
-        in
-        log "%a" (print_exn opt) exn;
-        let opt' = try finally opt with _ -> opt in
-        run ~finally ~print_exn g opt' pipe
+        let opt' = try finally opt (Some exn) with _ -> opt in
+        run ~finally g opt' pipe
     end
 

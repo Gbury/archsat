@@ -10,7 +10,10 @@
 
 module Any : sig
 
-  type t = Id : _ Expr.id -> t
+  type t =
+    | Id : _ Expr.id -> t
+    | Dolmen : Dolmen.Id.t -> t
+
   val hash : t -> int
   val equal : t -> t -> bool
 
@@ -19,15 +22,16 @@ end
 (** {2 Environment for escaping} *)
 
 type t
-(** The type of environnment/escaper for a given language. *)
+(** The type of environnment/escaper for a given language.
+    Identifiers printed using a given environment, are escaped, and
+    its actual printed string recorded, in order to avoid future conflicts
+    with other escaped identifiers. *)
 
-val print : t -> Format.formatter -> _ Expr.id -> unit
-(** Printer for identifiers using a given environment, and record its actual
-    printed string, in order to avoid future conflicts with other escaped
-    identifiers. *)
+val id : t -> Format.formatter -> _ Expr.id -> unit
+    (** Printer for archsat identifiers. *)
 
-val print_string : t -> Format.formatter -> string -> unit
-(** Print a given string and escape it, but do not record it. *)
+val dolmen : t -> Format.formatter -> Dolmen.Id.t -> unit
+(** Printer for dolmen identifiers. *)
 
 (** Custom environments *)
 

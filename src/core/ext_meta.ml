@@ -4,8 +4,8 @@ module H = Hashtbl.Make(Expr.Formula)
 exception Found_unif
 
 type lemma_info =
-  | Ty of Expr.formula * Expr.ty list
-  | Term of Expr.formula * Expr.term list
+  | Ty of Expr.formula * Expr.ttype Expr.id list * Expr.ty list * Expr.formula
+  | Term of Expr.formula * Expr.ty Expr.id list * Expr.term list * Expr.formula
 
 type Dispatcher.lemma_info += Meta of lemma_info
 
@@ -176,11 +176,11 @@ let iter f = H.iter (fun e _ -> f e) metas
 let number () = (H.stats metas).Hashtbl.num_bindings
 
 (* Proofs *)
-let mk_proof_ty f metas =
-  Dispatcher.mk_proof "meta" "ty" (Meta (Ty (f, metas)))
+let mk_proof_ty f vars metas q =
+  Dispatcher.mk_proof "meta" "ty" (Meta (Ty (f, vars, metas, q)))
 
-let mk_proof_term f metas =
-  Dispatcher.mk_proof "meta" "term" (Meta (Term (f, metas)))
+let mk_proof_term f vars metas q =
+  Dispatcher.mk_proof "meta" "term" (Meta (Term (f, vars, metas, q)))
 
 (* Meta generation & predicates storing *)
 let do_formula =
@@ -189,22 +189,22 @@ let do_formula =
       let metas = List.map Expr.Term.of_meta (Expr.Meta.of_all f) in
       let subst = List.fold_left2 Expr.Subst.Id.bind Expr.Subst.empty l metas in
       let q = Expr.Formula.subst Expr.Subst.empty Expr.Subst.empty subst Expr.Subst.empty p in
-      Dispatcher.push [Expr.Formula.neg f; q] (mk_proof_term f metas)
+      Dispatcher.push [Expr.Formula.neg f; q] (mk_proof_term f l metas q)
     | { Expr.formula = Expr.Not { Expr.formula = Expr.Ex (l, _, p) } } as f ->
       let metas = List.map Expr.Term.of_meta (Expr.Meta.of_all f) in
       let subst = List.fold_left2 Expr.Subst.Id.bind Expr.Subst.empty l metas in
       let q = Expr.Formula.subst Expr.Subst.empty Expr.Subst.empty subst Expr.Subst.empty p in
-      Dispatcher.push [Expr.Formula.neg f; Expr.Formula.neg q] (mk_proof_term f metas)
+      Dispatcher.push [Expr.Formula.neg f; Expr.Formula.neg q] (mk_proof_term f l metas q)
     | { Expr.formula = Expr.AllTy (l, _, p) } as f ->
       let metas = List.map Expr.Ty.of_meta (Expr.Meta.of_all_ty f) in
       let subst = List.fold_left2 Expr.Subst.Id.bind Expr.Subst.empty l metas in
       let q = Expr.Formula.subst subst Expr.Subst.empty Expr.Subst.empty Expr.Subst.empty p in
-      Dispatcher.push [Expr.Formula.neg f; q] (mk_proof_ty f metas)
+      Dispatcher.push [Expr.Formula.neg f; q] (mk_proof_ty f l metas q)
     | { Expr.formula = Expr.Not { Expr.formula = Expr.ExTy (l, _, p) } } as f ->
       let metas = List.map Expr.Ty.of_meta (Expr.Meta.of_all_ty f) in
       let subst = List.fold_left2 Expr.Subst.Id.bind Expr.Subst.empty l metas in
       let q = Expr.Formula.subst subst Expr.Subst.empty Expr.Subst.empty Expr.Subst.empty p in
-      Dispatcher.push [Expr.Formula.neg f; Expr.Formula.neg q] (mk_proof_ty f metas)
+      Dispatcher.push [Expr.Formula.neg f; Expr.Formula.neg q] (mk_proof_ty f l metas q)
     | _ -> ()
   in function
     | ({ Expr.formula = Expr.Not { Expr.formula = Expr.ExTy _ } } as f)
@@ -360,22 +360,31 @@ let rec unif_f st = function
 (* ************************************************************************ *)
 
 let dot_info = function
-  | Ty (f, l) ->
+  | Ty (f, _, l, _) ->
     Some "PURPLE", (
       List.map (CCFormat.const Dot.Print.ty) l @
       [ CCFormat.const Dot.Print.formula f ]
     )
-  | Term (f, l) ->
+  | Term (f, _, l, _) ->
     Some "PURPLE", (
       List.map (CCFormat.const Dot.Print.term) l @
       [ CCFormat.const Dot.Print.formula f ]
     )
+
+let coq_proof = function
+  | Ty (f, l, metas, q) ->
+    let m = List.fold_left2 Mapping.Var.bind_ty Mapping.empty l metas in
+    Inst.coq_proof (Inst.Formula (f, m, q))
+  | Term (f, l, metas, q) ->
+    let m = List.fold_left2 Mapping.Var.bind_term Mapping.empty l metas in
+    Inst.coq_proof (Inst.Formula (f, m, q))
 
 (* Extension registering *)
 (* ************************************************************************ *)
 
 let handle : type ret. ret Dispatcher.msg -> ret option = function
   | Dot.Info Meta info -> Some (dot_info info)
+  | Coq.Prove Meta info -> Some (coq_proof info)
   | Solver.Found_sat model ->
     (* Create new metas *)
     if !meta_incr then begin

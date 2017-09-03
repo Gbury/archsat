@@ -71,21 +71,39 @@ let () =
       Util.error "%a" (Out.print_exn opt) e;
       exit 2
   in
-  Pipeline.(
-    run
-      ~print_exn:Out.print_exn
-      g opt' (
-      (
-        (fix (apply ~name:"expand" Pipe.expand) (
-            (apply ~name:"execute" Pipe.execute)
-            @>>> (f_map ~name:"typecheck" Pipe.typecheck)
-            @>>> (f_map ~name:"solve" Pipe.solve)
-            @>>> (iter_ ~name:"print_res" Pipe.print_res)
-            @>>> (iter_ ~name:"export" Pipe.export)
-            @>>> (iter_ ~name:"print_proof" Pipe.print_proof)
-            @>>> (apply fst) @>>> _end)
+  let opt'' =
+    Pipeline.(
+      run
+        ~finally:(fun opt e ->
+            match e with
+            | None -> opt
+            | Some exn ->
+              begin match exn with
+                | Options.Sigint
+                | Options.Out_of_time
+                | Options.Out_of_space ->
+                  Out.print_exn opt Format.err_formatter exn;
+                  opt
+                | _ ->
+                  Util.error "%a" (Out.print_exn opt) exn;
+                  Options.error opt
+              end)
+        g opt' (
+        (
+          (fix (apply ~name:"expand" Pipe.expand) (
+              (apply ~name:"execute" Pipe.execute)
+              @>>> (f_map ~name:"typecheck" Pipe.typecheck)
+              @>>> (f_map ~name:"solve" Pipe.solve)
+              @>>> (iter_ ~name:"print_res" Pipe.print_res)
+              @>>> (iter_ ~name:"export" Pipe.export)
+              @>>> (iter_ ~name:"print_proof" Pipe.print_proof)
+              @>>> (apply fst) @>>> _end)
+          )
         )
       )
     )
-  )
+  in
+  match opt''.status with
+  | Options.Ok -> ()
+  | Options.Errored -> exit 1
 

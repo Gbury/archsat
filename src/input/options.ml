@@ -25,6 +25,10 @@ type mode =
   | Regular
   | Interactive
 
+type status =
+  | Ok
+  | Errored
+
 type input_options = {
   mode    : mode;
   format  : input option;
@@ -34,7 +38,6 @@ type input_options = {
 
 type output_options = {
   format  : output;
-  fmt     : Format.formatter;
   icnf    : Format.formatter option;
   dimacs  : Format.formatter option;
 }
@@ -70,6 +73,9 @@ type model_options = {
 
 type opts = {
 
+  (* Internal status *)
+  status  : status;
+
   (* Input&output options *)
   input   : input_options;
   output  : output_options;
@@ -92,6 +98,13 @@ type opts = {
   profile     : profile_options;
   stats       : stats_options;
 }
+
+(* Manipulate options *)
+(* ************************************************************************ *)
+
+let error opt =
+  if opt.input.mode = Interactive then opt
+  else { opt with status = Errored }
 
 (* Misc *)
 (* ************************************************************************ *)
@@ -126,15 +139,10 @@ let input_opts fd format debug =
   | `Stdin, true ->
     `Error (false, "Cannot read stdin and use debug mode")
 
-let output_opts fd format export_dimacs export_icnf =
-  let fmt =
-    match formatter_of_out_descr fd with
-    | Some fmt -> fmt
-    | None -> assert false
-  in
+let output_opts format export_dimacs export_icnf =
   let dimacs = formatter_of_out_descr export_dimacs in
   let icnf = formatter_of_out_descr export_icnf in
-  { format; fmt; dimacs; icnf; }
+  { format; dimacs; icnf; }
 
 let typing_opts infer explain =
   { infer; explain; }
@@ -158,7 +166,6 @@ let proof_opts prove no_context dot unsat_core coq =
   let unsat_core = formatter_of_out_descr unsat_core in
   let coq = formatter_of_out_descr coq in
   let active = prove
-               || context
                || dot <> None
                || unsat_core <> None
                || coq <> None
@@ -203,6 +210,8 @@ let mk_opts
     time size
   =
   {
+    status = Ok;
+
     input;
     output;
     typing;
@@ -444,10 +453,6 @@ let input_t =
 
 let output_t =
   let docs = copts_sect in
-  let fd =
-    let doc = "Output file. If no output is specified, defaults to stdout" in
-    Arg.(value & opt out_descr `Stdout & info ["fmt"] ~docs ~doc)
-  in
   let format =
     let doc = Format.asprintf
         "Set the output format to $(docv) (%s)."
@@ -462,7 +467,7 @@ let output_t =
     let doc = "Export the full SAT problem to icnf format in the given file" in
     Arg.(value & opt out_descr `None & info ["export-icnf"] ~docs ~doc)
   in
-  Term.(const output_opts $ fd $ format $ export_dimacs $ export_icnf)
+  Term.(const output_opts $ format $ export_dimacs $ export_icnf)
 
 let profile_t =
   let docs = prof_sect in

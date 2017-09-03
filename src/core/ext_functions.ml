@@ -90,9 +90,9 @@ let coq_proof = function
         right = [Expr.Formula.eq t t'];
         prefix = "eq_";
         proof = (fun fmt m ->
-            Format.fprintf fmt "@[<hov>%a@ exact eq_refl.@]"
-              CCFormat.(list ~sep:(return "@ ") (fun fmt eq ->
-                  Format.fprintf fmt "rewrite %s." (M.find eq m))) l
+            List.iter (fun eq ->
+                Format.fprintf fmt "rewrite %a.@ " (Proof.Ctx.named m) eq) l;
+            Coq.exact fmt "eq_refl"
           )
       })
   | Pred (l, p, p') ->
@@ -101,10 +101,9 @@ let coq_proof = function
         right = [p];
         prefix = "eq_";
         proof = (fun fmt m ->
-            Format.fprintf fmt "@[<hov>%a@ exact %s.@]"
-              CCFormat.(list ~sep:(return "@ ") (fun fmt eq ->
-                  Format.fprintf fmt "rewrite %s." (M.find eq m))) l
-              (M.find p' m)
+            List.iter (fun eq ->
+                Format.fprintf fmt "rewrite %a.@ " (Proof.Ctx.named m) eq) l;
+            Coq.exact fmt "%a" (Proof.Ctx.named m) p'
           )
       })
 

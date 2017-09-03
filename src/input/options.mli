@@ -1,12 +1,16 @@
 
-(** Global options for the prover. *)
+(** Global options for the prover.
+
+    This module defines options for the prover.
+    Also defines global constants such as sections,
+    mainly for dependency reasons.
+*)
 
 exception Sigint
 exception Out_of_time
 exception Out_of_space
 exception File_not_found of string
 exception Stmt_not_implemented of Dolmen.Statement.t
-
 (** Some exceptions *)
 
 val misc_section : Section.t
@@ -25,6 +29,10 @@ type mode =
   | Interactive
 (** Type for modes of running. *)
 
+type status =
+  | Ok
+  | Errored
+
 type input_options = {
   mode    : mode;
   format  : input option;
@@ -34,7 +42,6 @@ type input_options = {
 
 type output_options = {
   format  : output;
-  fmt     : Format.formatter;
   icnf    : Format.formatter option;
   dimacs  : Format.formatter option;
 }
@@ -69,6 +76,9 @@ type model_options = {
 }
 
 type opts = {
+
+  (* Internal status *)
+  status  : status;
 
   (* Input&output options *)
   input   : input_options;
@@ -115,4 +125,8 @@ val help_secs :
 
 val copts_t : unit -> opts Cmdliner.Term.t
 (** A term to evaluate common options from the command line. *)
+
+val error : opts -> opts
+(** Change the status of the options to [Errored],
+    except if in interactive mode. *)
 

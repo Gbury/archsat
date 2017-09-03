@@ -6,11 +6,23 @@ let section = Section.make "escape"
 
 module Any = struct
 
-  type t = Id : _ Expr.id -> t
+  type t =
+    | Id : _ Expr.id -> t
+    | Dolmen : Dolmen.Id.t -> t
 
-  let hash (Id id) = Expr.Id.hash id
+  let hash = function
+    | Id id -> Expr.Id.hash id
+    | Dolmen id -> Dolmen.Id.hash id
 
-  let equal (Id x) (Id y) = Expr.(x.index = y.index)
+  let equal a b =
+    match a, b with
+    | Id x, Id y -> Expr.(x.index = y.index)
+    | Dolmen x, Dolmen y -> Dolmen.Id.equal x y
+    | _ -> false
+
+  let print fmt = function
+    | Id id -> Expr.Id.print fmt id
+    | Dolmen id -> Dolmen.Id.print fmt id
 
 end
 
@@ -41,9 +53,9 @@ let mk ~lang ~name ~escape ~rename = {
   names = Hashtbl.create 1013;
 }
 
-let pp_assign fmt ((Any.Id id), status, name) =
+let pp_assign fmt (any, status, name) =
   Format.fprintf fmt "@[<hov>%a@ %s@ %s@]"
-    Expr.Print.id id
+    Any.print any
     (match status with
      | Same -> "->"
      | Escaped -> "~>"
@@ -54,7 +66,7 @@ let rec add t any status name =
   match Hashtbl.find t.names name with
   | exception Not_found ->
     add_success t any status name
-  | (Any.Id id) as r ->
+  | r ->
     assert (not (Any.equal any r));
     if status = Same then begin
       match H.find t.table r with
@@ -79,8 +91,7 @@ and add_failure t any status name r =
   assert (new_name <> name);
   add t any Renamed new_name
 
-let escape t id =
-  let any = Any.Id id in
+let escape t any =
   match H.find t.table any with
   | (_, s) -> s
   | exception Not_found ->
@@ -89,11 +100,11 @@ let escape t id =
     let status = if (new_name = name) then Same else Escaped in
     add t any status new_name
 
-let print t fmt id =
-  Format.fprintf fmt "%s" (escape t id)
+let id t fmt id =
+  Format.fprintf fmt "%s" (escape t (Any.Id id))
 
-let print_string t fmt s =
-  Format.fprintf fmt "%s" (t.escape s)
+let dolmen t fmt id =
+  Format.fprintf fmt "%s" (escape t (Any.Dolmen id))
 
 (* Unicode wrapper *)
 (* ************************************************************************ *)

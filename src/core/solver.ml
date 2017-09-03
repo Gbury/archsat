@@ -181,7 +181,7 @@ let assume id l =
   Util.enter_prof section;
   let tag = add_hyp id in
   let l' = List.map Dispatcher.pre_process l in
-  Util.info ~section "@[<hov 2>New hypotheses:@ @[<hov>%a@]"
+  Util.info ~section "@[<hov 2>New hypothesis:@ @[<hov>%a@]"
     CCFormat.((hovbox (list ~sep:(return " ||@ ") Expr.Print.formula))) l';
   let () = S.assume ~tag [l'] in
   Util.exit_prof section

@@ -230,6 +230,10 @@ let typecheck (opt, c) : typechecked stmt =
       and clauses of the dimacs problem, which is of no interest. *)
   | { S.descr = S.Set_logic "dimacs" } ->
     simple none `Executed
+  (** Other set_logics should check whether corresponding plugins are activated ? *)
+  | { S.descr = S.Set_logic _ } -> simple none `Executed
+  (** Set info can always be ignored. *)
+  | { S.descr = S.Set_info _ } -> simple none `Executed
 
   (** Other untreated statements *)
   | _ -> raise (Options.Stmt_not_implemented c)
@@ -323,18 +327,26 @@ let export (opt, (c : solved stmt)) =
 (* Printing proofs *)
 (* ************************************************************************ *)
 
+let declare_ty opt v =
+  if Options.(opt.proof.context) then begin
+    pp_opt Coq.declare_ty Options.(opt.proof.coq) v
+  end
+
+let declare_term opt v =
+  Synth.add_id v;
+  if Options.(opt.proof.context) then begin
+    pp_opt Coq.declare_term Options.(opt.proof.coq) v
+  end
+
 let declare_implicits opt c =
-  if c.impl_types <> [] && c.impl_terms <> [] &&
-     not Options.(opt.proof.context) then
+  if c.impl_types <> [] && c.impl_terms <> [] && not Options.(opt.proof.context) then
     Util.warn "The following symbols are implictly typed: @[<hov>%a%a%a@]"
       CCFormat.(list ~sep:(return ",@ ") Expr.Print.const_ttype) c.impl_types
       CCFormat.(return (if c.impl_types <> [] && c.impl_terms <> [] then ",@ " else "")) ()
       CCFormat.(list ~sep:(return ",@ ") Expr.Print.const_ty) c.impl_terms
   else begin
-    List.iter (fun v ->
-        pp_opt Coq.declare_ty Options.(opt.proof.coq) v) c.impl_types;
-    List.iter (fun v ->
-        pp_opt Coq.declare_term Options.(opt.proof.coq) v) c.impl_terms;
+    List.iter (declare_ty opt) c.impl_types;
+    List.iter (declare_term opt) c.impl_terms;
     ()
   end
 
@@ -353,26 +365,20 @@ let print_proof (opt, (c : solved stmt)) =
       Util.warn "Proof check.output activated, but a model was found"
 
   (* Interesting parts *)
-  | { contents = `Type_decl f; _ } ->
-    if Options.(opt.proof.context) then
-      pp_opt Coq.declare_ty Options.(opt.proof.coq) f;
-    ()
-  | { contents = `Term_decl f; _ } ->
-    if Options.(opt.proof.context) then
-      pp_opt Coq.declare_term Options.(opt.proof.coq) f;
-    ()
+  | { contents = `Type_decl f; _ } -> declare_ty opt f
+  | { contents = `Term_decl f; _ } -> declare_term opt f
   | { contents = `Clause l ; id; _ } ->
+    Proof.add_hyp id l;
     if Options.(opt.proof.context) then
-      pp_opt Coq.add_hyp Options.(opt.proof.coq) (id, l);
+      pp_opt Coq.print_hyp Options.(opt.proof.coq) (id, l);
     ()
   | { contents = `Hyp h; id; _ } ->
+    Proof.add_hyp id [h];
     if Options.(opt.proof.context) then
-      pp_opt Coq.add_hyp Options.(opt.proof.coq) (id, [h]);
+      pp_opt Coq.print_hyp Options.(opt.proof.coq) (id, [h]);
     ()
   | { contents = `Goal g; id; _ } ->
-    if Options.(opt.proof.context) then
-      pp_opt Coq.add_goal Options.(opt.proof.coq) (id, g);
-    ()
+    Proof.add_goal id g
   | { contents = `Proof p; _ } ->
     let () = pp_opt Unsat_core.print Options.(opt.proof.unsat_core) p in
     let () = pp_opt Dot.print Options.(opt.proof.dot) p in

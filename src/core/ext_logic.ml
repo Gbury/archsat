@@ -185,9 +185,9 @@ let coq_proof = function
         prefix = "H";
         proof = (fun fmt m ->
             let order = CCOpt.get_exn (Expr.Formula.get_tag init Expr.f_order) in
-            Format.fprintf fmt "destruct %s as %a; exact %s."
-              (Coq.M.find init m)
-              (Coq.Print.pattern_and (fun fmt f ->
+            Format.fprintf fmt "destruct %a as %a; exact %s."
+              (Proof.Ctx.named m) init
+              (Print.pattern_and (fun fmt f ->
                    if Expr.Formula.equal f res
                    then Format.fprintf fmt "F"
                    else Format.fprintf fmt "_")) order
@@ -201,8 +201,8 @@ let coq_proof = function
         prefix = "H";
         proof = (fun fmt m ->
             let order = CCOpt.get_exn (Expr.Formula.get_tag init Expr.f_order) in
-            Format.fprintf fmt "%a.@ exact %s."
-              Coq.Print.path_to (res, order) (Coq.M.find res m)
+            Format.fprintf fmt "%a.@ exact %a."
+              Print.path_to (res, order) (Proof.Ctx.named m) res
           )
       })
 
@@ -214,8 +214,8 @@ let coq_proof = function
         proof = (fun fmt m ->
             let n = List.length l in
             let order = CCOpt.get_exn (Expr.Formula.get_tag init Expr.f_order) in
-            Format.fprintf fmt "destruct %s as %a.@\n@[<hv>%a@]"
-              (M.find init m)
+            Format.fprintf fmt "destruct %a as %a.@\n@[<hv>%a@]"
+              (Proof.Ctx.named m) init
               (Print.pattern_or (fun fmt f -> Format.fprintf fmt "F")) order
             (fun fmt -> List.iteri (fun i _ ->
                   Format.fprintf fmt "@[<hov 2>- %a.@ exact F.@]@ "
@@ -228,7 +228,7 @@ let coq_proof = function
         right = [init];
         prefix = "H";
         proof = (fun fmt m ->
-            let aux fmt f = Format.fprintf fmt "%s" (M.find f m) in
+            let aux = Proof.Ctx.named m in
             let order = CCOpt.get_exn (Expr.Formula.get_tag init Expr.f_order) in
             Format.fprintf fmt "exact @[<hov>%a@]." (Print.pattern_intro_and aux) order
           )
@@ -252,9 +252,9 @@ let coq_proof = function
             let nq = List.length lq in
             let order_right = CCOpt.get_exn (Expr.Formula.get_tag q Expr.f_order) in
             Format.fprintf fmt
-              "destruct (Coq.Logic.Classical_Prop.imply_to_or _ _ %s) as [T0 | %a].@\n"
-              (Coq.M.find init m)
-              (Coq.Print.pattern_or (fun fmt _ -> Format.fprintf fmt "R")) order_right;
+              "destruct (Coq.Logic.Classical_Prop.imply_to_or _ _ %a) as [T0 | %a].@\n"
+              (Proof.Ctx.named m) init
+              (Print.pattern_or (fun fmt _ -> Format.fprintf fmt "R")) order_right;
             Format.fprintf fmt "@[<v>%a@ %a@]"
               coq_imply_left (np + nq, np, 0) coq_imply_right (np + nq, np + 1)
           )
@@ -276,7 +276,7 @@ let coq_proof = function
         right = [init];
         prefix = "H";
         proof = (fun fmt m ->
-            Format.fprintf fmt "intros _; exact %s." (M.find res m)
+            Format.fprintf fmt "intros _; exact %a." (Proof.Ctx.named m) res
           )
       })
 
@@ -286,8 +286,8 @@ let coq_proof = function
         right = [res];
         prefix = "E";
         proof = (fun fmt m ->
-            Format.fprintf fmt "destruct (iff_and %s) as [R _]; exact R."
-              (M.find init m)
+            Format.fprintf fmt "destruct (iff_and %a) as [R _]; exact R."
+              (Proof.Ctx.named m) init
           )
       })
   | Equiv_left (init, res) ->
@@ -296,8 +296,8 @@ let coq_proof = function
         right = [res];
         prefix = "E";
         proof = (fun fmt m ->
-            Format.fprintf fmt "destruct (iff_and %s) as [_ R]; exact R."
-              (M.find init m)
+            Format.fprintf fmt "destruct (iff_and %a) as [_ R]; exact R."
+              (Proof.Ctx.named m) init
           )
       })
 

@@ -16,6 +16,7 @@ Semantics
 
 # Algos
 Lpo
+Synth
 Heuristic
 Constraints
 
@@ -53,6 +54,7 @@ Ext_constraints
 # Proof manipulations
 Dot
 Coq
+Proof
 Unsat_core
 
 ##### Testing Modules #####

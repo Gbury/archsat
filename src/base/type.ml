@@ -719,10 +719,12 @@ let rec parse_expr (env : env) t =
     | { Ast.term = Ast.App ({Ast.term = Ast.Builtin Ast.Distinct}, args) } as t ->
       let l' = List.map (parse_term env) args in
       let l'' = CCList.diagonal l' in
-      Formula (
-        Expr.Formula.f_and
-          (List.map (fun (a, b) -> Expr.Formula.neg (make_eq env t a b)) l'')
-      )
+      let l''' = List.map (fun (a, b) -> Expr.Formula.neg (make_eq env t a b)) l'' in
+      let f = match l''' with
+        | [f] -> f
+        | _ -> Expr.Formula.f_and l'''
+      in
+      Formula f
 
     (* General case: application *)
     | { Ast.term = Ast.Symbol s } as ast ->

@@ -9,10 +9,13 @@ let section = Section.make "dot"
 module Print = struct
 
   let t =
-    let name (Escape.Any.Id id) =
-      match Expr.Id.get_tag id Expr.Print.pretty with
-      | None -> id.Expr.id_name
-      | Some Expr.Print.(Infix s | Prefix s) -> s
+    let name = function
+      | Escape.Any.Dolmen id -> Dolmen.Id.full_name id
+      | Escape.Any.Id id ->
+        begin match Expr.Id.get_tag id Expr.Print.pretty with
+          | None -> id.Expr.id_name
+          | Some Expr.Print.(Infix s | Prefix s) -> s
+        end
     in
     let rename = Escape.rename ~sep:'_' in
     let escape = Escape.umap (fun i -> function
@@ -46,10 +49,12 @@ module Print = struct
       ) in
     Escape.mk ~lang:"html" ~name ~escape ~rename
 
+  let dolmen fmt id = Escape.dolmen t fmt id
+
   open Expr
 
   let id fmt v =
-    Escape.print t fmt v
+    Escape.id t fmt v
 
   let meta fmt m =
     Format.fprintf fmt "m%d_%a"
@@ -204,7 +209,7 @@ module Arg = struct
   let hyp_info c =
     let id = CCOpt.get_exn @@ Solver.hyp_id c in
     "Hypothesis", Some "YELLOW",
-    [fun fmt () -> Escape.print_string Print.t fmt (Dolmen.Id.full_name id)]
+    [fun fmt () -> Print.dolmen fmt id]
 
   let lemma_info c =
     let lemma =

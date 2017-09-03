@@ -66,6 +66,16 @@ let debug ?section = aux ?section Level.debug
 let enter_prof = Section.enter
 let exit_prof = Section.exit
 
+let within_prof section f arg =
+  enter_prof section;
+  match f arg with
+  | res ->
+    exit_prof section;
+    res
+  | exception exn ->
+    exit_prof section;
+    raise exn
+
 (* Debug output functions *)
 (* ************************************************************************ *)
 

@@ -49,12 +49,9 @@ val eval : ('a, 'b) t -> 'a -> 'b
 (** Evaluate a pipeline to a function. *)
 
 val run :
-  ?finally:(Options.opts -> Options.opts) ->
-  ?print_exn:(Options.opts -> Format.formatter -> exn -> unit) ->
+  ?finally:(Options.opts -> exn option -> Options.opts) ->
   (Options.opts -> 'a option) -> Options.opts ->
-  (Options.opts * 'a, Options.opts) t -> unit
+  (Options.opts * 'a, Options.opts) t -> Options.opts
 (** Loop the evaluation of a pipeline over a generator, and starting options.
-    @param handle_exn a function called on every exception raised during execution.
     @param finally a function called at the end of every iteration (even if an exception
-      has been raised)
-*)
+      has been raised) *)

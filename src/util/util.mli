@@ -39,6 +39,10 @@ val enter_prof : Section.t -> unit
 val exit_prof : Section.t -> unit
 (** Enter & Exit the profiler *)
 
+val within_prof : Section.t -> ('a -> 'b) -> 'a -> 'b
+(** Computes the given function inside the profiler for the given section.
+    The given function can raise an exception safely. *)
+
 val clean_exit : unit -> unit
 (** Properly closes evrything that might have not be closed.
     Cuerrently closes all still active profiling section upon exit. *)

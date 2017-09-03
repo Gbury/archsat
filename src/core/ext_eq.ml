@@ -138,15 +138,18 @@ let mk_expl (a, b, l) =
   (Expr.Formula.eq a b) :: (List.rev_map Expr.Formula.neg (aux [] l))
 
 let mk_proof l =
-  assert (l <> []);
-  Dispatcher.mk_proof name "eq-trans" (Eq (Chain l))
+  match l with
+  | [] -> assert false
+  | [_] -> Dispatcher.mk_proof name "trivial" (Eq Trivial)
+  | _ -> Dispatcher.mk_proof name "eq-trans" (Eq (Chain l))
 
 let wrap f x y =
   try
     f st x y
   with E.Unsat (a, b, l) ->
-    Util.info ~section "Error while adding hypothesis : %a ~ %a"
-      Expr.Print.term x Expr.Print.term y;
+    Util.info ~section "Error while adding hypothesis : %a ~ %a@ @[<hov>{%a}@]"
+      Expr.Print.term x Expr.Print.term y
+      CCFormat.(list ~sep:(return ",@ ") Expr.Print.term) l;
     raise (D.Absurd (mk_expl (a, b, l), mk_proof l))
 
 let tag x = fun () ->
@@ -155,8 +158,9 @@ let tag x = fun () ->
       Expr.Print.term x Expr.Print.term (D.get_assign x);
     E.add_tag st x (D.get_assign x)
   with E.Unsat (a, b, l) ->
-    Util.info ~section "Error while tagging : %a -> %a"
-      Expr.Print.term x Expr.Print.term (D.get_assign x);
+    Util.info ~section "Error while tagging : %a -> %a@ @[<hov>{%a}@]"
+      Expr.Print.term x Expr.Print.term (D.get_assign x)
+      CCFormat.(list ~sep:(return ",@ ") Expr.Print.term) l;
     let res = mk_expl (a, b, l) in
     let proof = mk_proof l in
     raise (D.Absurd (res, proof))
@@ -233,10 +237,11 @@ let to_eqs l =
 
 let rec coq_aux m fmt = function
   | [] -> assert false
-  | [x] -> Format.fprintf fmt "%s" (Coq.M.find x m)
+  | [x] ->
+    Format.fprintf fmt "%a" (Proof.Ctx.named m) x
   | x :: r ->
-    Format.fprintf fmt "(eq_trans %s %a)"
-      (Coq.M.find x m) (coq_aux m) r
+    Format.fprintf fmt "(eq_trans %a %a)"
+      (Proof.Ctx.named m) x (coq_aux m) r
 
 let coq_proof = function
   | Trivial ->

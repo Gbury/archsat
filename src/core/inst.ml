@@ -1,7 +1,7 @@
 
 let section = Section.make ~parent:Dispatcher.section "inst"
 
-type lemma_info = Formula of Expr.formula * Mapping.t
+type lemma_info = Formula of Expr.formula * Mapping.t * Expr.formula
 
 type Dispatcher.lemma_info += Inst of lemma_info
 
@@ -110,8 +110,8 @@ let partition s =
 let simplify s = snd (partition s)
 
 (* Produces a proof for the instanciation of the given formulas and unifiers *)
-let mk_proof f _ t =
-  Dispatcher.mk_proof "inst" "partial" (Inst (Formula (f, t)))
+let mk_proof f q t =
+  Dispatcher.mk_proof "inst" "partial" (Inst (Formula (f, t, q)))
 
 let to_var s =
   Mapping.fold
@@ -285,17 +285,65 @@ let inst_sat () =
 (* ************************************************************************ *)
 
 let dot_info = function
-  | Formula (f, t) ->
+  | Formula (f, t, _) ->
     Some "RED", [
       CCFormat.const Dot.Print.mapping t;
       CCFormat.const Dot.Print.formula f;
     ]
+
+let coq_proof = function
+  | Formula ({ Expr.formula = Expr.All (l, _, _) } as f, t, q) ->
+    Coq.(Implication {
+        left = [f];
+        right = [q];
+        prefix = "Q";
+        proof = (fun fmt ctx ->
+            let l', l'' = List.fold_left (fun (vars, args) x ->
+                match Mapping.Var.get_term_opt t x with
+                | None -> x :: vars, Expr.Term.of_id x :: args
+                | Some t -> vars, t :: args) ([], []) l in
+            let vars = List.rev l' in
+            let args = List.rev l'' in
+            begin match vars with
+              | [] -> Coq.exact fmt "%a" (Coq.app_t ctx) (f, args)
+              | _ -> Coq.exact fmt "fun %a => %a"
+                       Coq.fun_binder vars (Coq.app_t ctx) (f, args)
+            end);
+      })
+  | Formula ({ Expr.formula = Expr.Not ({
+      Expr.formula = Expr.Ex (l, _, _) } as f' )} as f, t, q) ->
+    assert false
+      (*
+    Coq.(Ordered {
+        order = [ f' ; q];
+        proof = (fun fmt () ->
+            let ctx = Proof.Ctx.mk ~prefix:"Q" () in
+            Format.fprintf fmt
+              "elim %a;intro %a;[left;exact %a|right].@ "
+              Coq.Print.formula f' (Proof.Ctx.named ctx) f (Proof.Ctx.named ctx) f;
+            Format.fprintf fmt "pose proof () as %a";
+            let l', l'' = List.fold_left (fun (vars, args) x ->
+                match Mapping.Var.get_term_opt t x with
+                | None -> x :: vars, Expr.Term.of_id x :: args
+                | Some t -> vars, t :: args) ([], []) l in
+            let vars = List.rev l' in
+            let args = List.rev l'' in
+            begin match vars with
+              | [] -> Coq.exact fmt "%a" (Coq.app_t ctx) (f, args)
+              | _ -> Coq.exact fmt "fun %a => %a"
+                       Coq.fun_binder vars (Coq.app_t ctx) (f, args)
+            end
+          );
+      })
+         *)
+  | _ -> assert false
 
 (* Extension registering *)
 (* ************************************************************************ *)
 
 let handle : type ret. ret Dispatcher.msg -> ret option = function
   | Dot.Info Inst info -> Some (dot_info info)
+  | Coq.Prove Inst info -> Some (coq_proof info)
   | Solver.Found_sat _ -> inst_sat ()
   | _ -> None
 

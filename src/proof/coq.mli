@@ -7,8 +7,6 @@
 
 (** {2 Dispatcher messages} *)
 
-module M : Map.S with type key = Expr.formula
-
 type raw_proof = Format.formatter -> unit -> unit
 
 type ordered_proof = {
@@ -20,7 +18,7 @@ type impl_proof = {
   prefix  : string;
   left    : Expr.formula list;
   right   : Expr.formula list;
-  proof   : Format.formatter -> string M.t -> unit;
+  proof   : Format.formatter -> Proof.Ctx.t -> unit;
 }
 
 type proof_style =
@@ -33,12 +31,41 @@ type _ Dispatcher.msg +=
 (** Sent to the extension that produced a proof; asks for it to prove the
     clause/lemma it produced, using a coq script.  *)
 
+
+(** {2 Main} *)
+
+val declare_ty : Format.formatter -> Expr.ttype Expr.function_descr Expr.id -> unit
+val declare_term : Format.formatter -> Expr.ty Expr.function_descr Expr.id -> unit
+(** Print the type declarations for constant symbols *)
+
+val print_hyp : Format.formatter -> (Dolmen.Id.t * Expr.formula list) -> unit
+(** Print an hypothesis/axiom *)
+
+val print_proof : Format.formatter -> Solver.proof -> unit
+(** Print a theorem, proving the named goals previously added using the given proof. *)
+
+
+(** {2 Proof helpers} *)
+
+val exact : Format.formatter -> ('a, Format.formatter, unit) format -> 'a
+(** Helper to use the 'exact' coq tactic. *)
+
+val pose_proof : Proof.Ctx.t -> Expr.formula ->
+  Format.formatter -> ('a, Format.formatter, unit) format -> 'a
+(** Helper to use the 'pose proof' coq tactic. *)
+
+val fun_binder : Format.formatter -> _ Expr.id list -> unit
+(** Helper to print function arguments, effectively prints the
+    space-separated list of ids. *)
+
+val app_t : Proof.Ctx.t -> Format.formatter -> Expr.formula * Expr.term list -> unit
+(** Helper to print the application of the named formula to a list of arguments. *)
+
 (** {2 Printing expressions} *)
 
 module Print : sig
 
   val id : Format.formatter -> _ Expr.id -> unit
-  val meta : Format.formatter -> _ Expr.meta -> unit
   val dolmen : Format.formatter -> Dolmen.Id.t -> unit
 
   val ty : Format.formatter -> Expr.ty -> unit
@@ -66,20 +93,4 @@ module Print : sig
     Format.formatter -> Expr.f_order -> unit
 
 end
-
-(** {2 Main} *)
-
-val declare_ty : Format.formatter -> Expr.ttype Expr.function_descr Expr.id -> unit
-val declare_term : Format.formatter -> Expr.ty Expr.function_descr Expr.id -> unit
-(** Print the type declarations for constant symbols *)
-
-val add_hyp : Format.formatter -> (Dolmen.Id.t * Expr.formula list) -> unit
-(** Print an hypothesis/axiom *)
-
-val add_goal : Format.formatter -> (Dolmen.Id.t * Expr.formula) -> unit
-(** Add the goal to the list of goals the next proof will prove. *)
-
-val print_proof : Format.formatter -> Solver.proof -> unit
-(** Print a theorem, proving the named goals previously added using the given proof. *)
-
 

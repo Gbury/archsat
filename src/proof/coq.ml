@@ -1,8 +1,6 @@
 
 let section = Section.make "coq"
 
-module M = Map.Make(Expr.Formula)
-
 let formula a = a.Dispatcher.SolverTypes.lit
 
 (* Printing wrappers *)
@@ -19,10 +17,13 @@ module Print = struct
     Expr.Id.tag Expr.Id.base pretty (Expr.Print.Prefix "Set")
 
   let t =
-    let name (Escape.Any.Id id) =
-      match Expr.Id.get_tag id pretty with
-      | None -> id.Expr.id_name
-      | Some Expr.Print.(Infix s | Prefix s) -> s
+    let name = function
+      | Escape.Any.Dolmen id -> Dolmen.Id.full_name id
+      | Escape.Any.Id id ->
+        begin match Expr.Id.get_tag id pretty with
+        | None -> id.Expr.id_name
+        | Some Expr.Print.(Infix s | Prefix s) -> s
+        end
     in
     let rename = Escape.rename ~sep:'_' in
     let escape = Escape.umap (fun i -> function
@@ -36,24 +37,17 @@ module Print = struct
           end) in
     Escape.mk ~lang:"coq" ~name ~escape ~rename
 
-  let dolmen fmt id =
-    Escape.print_string t fmt (Dolmen.Id.full_name id)
+  let dolmen fmt id = Escape.dolmen t fmt id
 
   open Expr
 
-  let id fmt v =
-    Escape.print t fmt v
-
-  let meta fmt m =
-    (* metas should be replaced by someting else,
-       for instance an arbitrary ground term of its type *)
-    assert false
+  let id fmt v = Escape.id t fmt v
 
   let ttype fmt = function Type -> Format.fprintf fmt "Type"
 
   let rec ty fmt t = match t.ty with
     | TyVar v -> id fmt v
-    | TyMeta m -> meta fmt m
+    | TyMeta m -> ty fmt Synth.ty
     | TyApp (f, []) -> id fmt f
     | TyApp (f, l) ->
       begin match Tag.get f.id_tags pretty with
@@ -65,24 +59,24 @@ module Print = struct
           Format.fprintf fmt "@[<hov 1>(%a)@]" (CCFormat.list ~sep ty) l
       end
 
-  let params pp fmt = function
+  let params pre pp fmt = function
     | [] -> ()
     | l ->
       let aux fmt v =
         Format.fprintf fmt "@[<h>(%a :@ %a)@]@ "
           id v pp v.id_type
       in
-      Format.fprintf fmt "forall @[<hov>%a@],@ "
-        CCFormat.(list ~sep:(return "@ ") aux) l
+      Format.fprintf fmt "%s @[<hov>%a@],@ "
+        pre CCFormat.(list ~sep:(return "@ ") aux) l
 
   let signature print fmt f =
     match f.fun_args with
     | [] ->
       Format.fprintf fmt "@[<hov 2>%a%a@]"
-        (params ttype) f.fun_vars print f.fun_ret
+        (params "forall" ttype) f.fun_vars print f.fun_ret
     | l ->
       Format.fprintf fmt "@[<hov 2>%a%a ->@ %a@]"
-        (params ttype) f.fun_vars
+        (params "forall" ttype) f.fun_vars
         CCFormat.(list ~sep:(return " ->@ ") print) l print f.fun_ret
 
   let fun_ty = signature ty
@@ -117,6 +111,11 @@ module Print = struct
           let sep fmt () = Format.fprintf fmt "@ %a@ " id f in
           Format.fprintf fmt "(%a)" CCFormat.(list ~sep term) args
       end
+
+  and meta fmt m =
+    match Synth.term m.meta_id.id_type with
+    | None -> assert false
+    | Some t -> term fmt t
 
   let rec formula fmt f =
     match f.formula with
@@ -160,17 +159,17 @@ module Print = struct
     | Equiv (p, q) -> Format.fprintf fmt "@[<hov>%a@ <->@ %a@]" formula p formula q
 
     | All (l, _, f) ->
-      Format.fprintf fmt "@[<hov 2>forall @[<hov>%a@],@ %a@]"
-        (params ty) l formula_aux f
+      Format.fprintf fmt "@[<hov 2>%a%a@]"
+        (params "forall" ty) l formula_aux f
     | AllTy (l, _, f) ->
-      Format.fprintf fmt "@[<hov 2>forall @[<hov>%a@],@ %a@]"
-        (params ttype) l formula_aux f
+      Format.fprintf fmt "@[<hov 2>%a%a@]"
+        (params "forall" ttype) l formula_aux f
     | Ex (l, _, f) ->
-      Format.fprintf fmt "@[<hov 2>exists @[<hov>%a@],@ %a@]"
-        (params ty) l formula_aux f
+      Format.fprintf fmt "@[<hov 2>%a%a@]"
+        (params "exists" ty) l formula_aux f
     | ExTy (l, _, f) ->
-      Format.fprintf fmt "@[<hov 2>exists @[<hov>%a@],@ %a@]"
-        (params ttype) l formula_aux f
+      Format.fprintf fmt "@[<hov 2>%a%a@]"
+        (params "exists" ttype) l formula_aux f
 
   and tree ~sep fmt = function
     | F f -> formula fmt f
@@ -242,21 +241,34 @@ end
 (* Printing contexts *)
 (* ************************************************************************ *)
 
-(** Keep in mind the relation Dolmen id -> clause *)
-module H = Hashtbl.Make(Dolmen.Id)
-
-let hyp_table = H.create 1013
-
 let declare_ty fmt f =
   Format.fprintf fmt "Parameter %a.@." Print.const_ttype f
 
 let declare_term fmt f =
   Format.fprintf fmt "Parameter %a.@." Print.const_ty f
 
-let add_hyp fmt (id, l) =
-  H.add hyp_table id l;
+let print_hyp fmt (id, l) =
   Format.fprintf fmt "Axiom %a : @[<hov>%a@].@." Print.dolmen id
     CCFormat.(list ~sep:(return {|@ \/@ |}) Print.formula) l
+
+(* Coq proof helpers *)
+(* ************************************************************************ *)
+
+let exact fmt format =
+  Format.fprintf fmt ("exact (" ^^ format ^^ ").")
+
+let pose_proof ctx f fmt format =
+  Format.kfprintf (fun fmt ->
+      Format.fprintf fmt ") as %a." (Proof.Ctx.named ctx) f)
+    fmt ("pose proof (" ^^ format)
+
+
+let fun_binder fmt args =
+  CCFormat.(list ~sep:(return "@ ") Print.id) fmt args
+
+let app_t ctx fmt (f, l) =
+  Format.fprintf fmt "%a @[<hov>%a@]"
+    (Proof.Ctx.named ctx) f CCFormat.(list ~sep:(return "@ ") Print.term) l
 
 (* Proving plugin's lemmas *)
 (* ************************************************************************ *)
@@ -273,7 +285,7 @@ type impl_proof = {
   prefix  : string;
   left    : Expr.formula list;
   right   : Expr.formula list;
-  proof   : Format.formatter -> string M.t -> unit;
+  proof   : Format.formatter -> Proof.Ctx.t -> unit;
 }
 
 type proof_style =
@@ -332,21 +344,22 @@ let proof_printer clause = function
   | Raw proof | Ordered { proof; _ } -> proof
   | Implication { prefix; left; proof; } ->
     fun fmt () ->
-      let _, m = List.fold_left (fun (i, acc) f ->
-          let name = Format.sprintf "%s%d" prefix i in
-          (i + 1, M.add f name acc)) (0, M.empty) left
-      in
+      let ctx = Proof.Ctx.mk ~prefix () in
       let () = List.iter (fun f ->
           Format.fprintf fmt
-            "apply Coq.Logic.Classical_Prop.imply_to_or; intro %s.@ "
-            (M.find f m)) left
+            "apply Coq.Logic.Classical_Prop.imply_to_or; intro %a.@ "
+            (Proof.Ctx.named ctx) f
+        ) left
       in
-      proof fmt m
+      proof fmt ctx
 
 let pp_break fmt (i, j) = Format.pp_print_break fmt i j
 
 (* Prove a lemma (outside of the main proof environment) *)
 let print_lemma fmt clause lemma =
+  Util.debug ~section "@[<hv>Proving theory lemma %s/%s:@ @[<hov>%a@]@]"
+    lemma.Dispatcher.plugin_name lemma.Dispatcher.proof_name
+    Dispatcher.SolverTypes.pp_clause clause;
   let proof = lemma_proof lemma in
   Format.fprintf fmt "@\n(* Proving lemma %s/%s *)@\n"
     lemma.Dispatcher.plugin_name lemma.Dispatcher.proof_name;
@@ -385,16 +398,14 @@ module Lemma = struct
       else
         Format.fprintf fmt "~ ~ %a" Print.atom pos
     in
-    Format.fprintf fmt "assert (%s: @[<hov>%a@ ->@ False@]).@ " dest
+    Format.fprintf fmt "assert (%s: @[<hv>%a ->@ False@]).@ " dest
       CCFormat.(array ~sep:(return " ->@ ") pp_atom) a;
-    let _, m = Array.fold_left (fun (i, acc) atom ->
-        let name = Format.sprintf "Ax%d" i in
-        (i + 1, M.add (formula atom) (name, formula atom) acc)) (0, M.empty) a in
-    let aux fmt atom = Format.fprintf fmt "%s" (fst @@ M.find (formula atom) m) in
+    let ctx = Proof.Ctx.mk ~prefix:"Ax" () in
+    let aux fmt atom = Proof.Ctx.named ctx fmt (formula atom) in
     Format.fprintf fmt "intros %a.@ " CCFormat.(array ~sep:(return " ") aux) a;
     (** wrapper around equalities to reorder them *)
     let pp_exact fmt (f, s) =
-      let name, f' = M.find f m in
+      let f', name = Proof.Ctx.find ctx f in
       match f with
       | { Expr.formula = Expr.Equal _ } ->
         let t = CCOpt.get_exn (Expr.Formula.get_tag f Expr.t_order) in
@@ -441,7 +452,7 @@ module Lemma = struct
     | Some id ->
       Format.fprintf fmt "(* Introducing hypothesis %a as %s *)@\n%a@\n"
         Print.dolmen id name clausify
-        ((Format.asprintf "%a" Print.dolmen id), (H.find hyp_table id),
+        ((Format.asprintf "%a" Print.dolmen id), (Proof.find_hyp id),
          name, clause.Dispatcher.SolverTypes.atoms)
 
   (** Prove lemmas.
@@ -472,12 +483,9 @@ module P = Msat.Coq.Make(Solver.Proof)(Lemma)
 let rec intro_aux fmt i = function
   | [] | [_] -> assert false
   | [x, gx; y, gy] ->
-    H.add hyp_table x [gx];
-    H.add hyp_table y [gy];
     Format.fprintf fmt "destruct (%s _ _ G%d) as (%a, %a). clear G%d.@\n"
       "Coq.Logic.Classical_Prop.not_or_and" i Print.dolmen x Print.dolmen y i
   | (x, gx) :: r ->
-    H.add hyp_table x [gx];
     Format.fprintf fmt "destruct (%s _ _ G%d) as (%a, G%d). clear G%d.@\n"
       "Coq.Logic.Classical_Prop.not_or_and" i Print.dolmen x (i + 1) i;
     intro_aux fmt (i + 1) r
@@ -491,28 +499,16 @@ let pp_intro fmt l =
     begin match l with
       | [] -> assert false
       | [id, g] ->
-        H.add hyp_table id [g];
         Format.fprintf fmt "intro %a.@\n" Print.dolmen id
       | _ ->
         Format.fprintf fmt "intro G0.@\n";
         intro_aux fmt 0 l
     end
 
-(** Record named goals to ouput a proper theorem later *)
-let _goals = ref []
-
-let add_goal _ (id, g) =
-  _goals := (id, g) :: !_goals
-
-let get_goals () =
-  let l = !_goals in
-  _goals := [];
-  l
-
 (** Print both the goals (as theorem), and its proof. *)
 let print_proof fmt proof =
   Format.pp_set_margin fmt 100;
-  let names, goals = List.split (get_goals ()) in
+  let names, goals = List.split (Proof.get_goals ()) in
   let pp_goals fmt = function
     | [] -> Format.fprintf fmt "False"
     | l -> CCFormat.(list ~sep:(return {|@ \/@ |}) Print.formula) fmt l
@@ -522,8 +518,9 @@ let print_proof fmt proof =
   let l = Solver.Proof.unsat_core proof in
   let () = print_lemmas fmt l in
   Format.fprintf fmt "@\nTheorem goal : @[<hov>%a@].@\n" pp_goals goals;
-  Format.fprintf fmt "@[<hov 2>Proof.@\n%a@\n%a@]@\nQed.@."
-    pp_intro (List.combine names (List.map Expr.Formula.neg goals))
-    P.print proof
+  let l' = List.combine names (List.map Expr.Formula.neg goals) in
+  Format.fprintf fmt
+    "@[<hov 2>Proof.@\n%a@\n%a@]@\nQed.@."
+    pp_intro l' P.print proof
 
 
