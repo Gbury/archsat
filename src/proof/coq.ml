@@ -3,6 +3,39 @@ let section = Section.make "coq"
 
 let formula a = a.Dispatcher.SolverTypes.lit
 
+(* Type definitions *)
+(* ************************************************************************ *)
+
+type prelude =
+  | Require of string
+
+type raw_proof = {
+  prelude : prelude list;
+  proof : Format.formatter -> unit -> unit;
+}
+
+type ordered_proof = {
+  prelude : prelude list;
+  order : Expr.formula list;
+  proof : Format.formatter -> unit -> unit;
+}
+
+type impl_proof = {
+  prelude : prelude list;
+  prefix  : string;
+  left    : Expr.formula list;
+  right   : Expr.formula list;
+  proof   : Format.formatter -> Proof.Ctx.t -> unit;
+}
+
+type proof_style =
+  | Raw of raw_proof
+  | Ordered of ordered_proof
+  | Implication of impl_proof
+
+type _ Dispatcher.msg +=
+  | Prove : Dispatcher.lemma_info -> proof_style Dispatcher.msg
+
 (* Printing wrappers *)
 (* ************************************************************************ *)
 
@@ -191,17 +224,21 @@ module Print = struct
         (pattern ~start ~stop ~sep pp) (Expr.L r)
         stop ()
 
-  let pattern_or =
+  let pattern_or pp fmt =
     let open CCFormat in
-    pattern ~start:(return "[") ~stop:(return "]") ~sep:(return " | ")
+    pattern ~start:(return "[") ~stop:(return "]") ~sep:(return " | ") pp fmt
 
-  let pattern_and =
+  let pattern_and pp fmt =
     let open CCFormat in
-    pattern ~start:(return "[") ~stop:(return "]") ~sep:(return " ")
+    pattern ~start:(return "[") ~stop:(return "]") ~sep:(return " ") pp fmt
 
-  let pattern_intro_and =
+  let pattern_ex pp fmt =
     let open CCFormat in
-    pattern ~start:(return "(conj@ ") ~stop:(return ")") ~sep:(return "@ ")
+    pattern ~start:(return "[") ~stop:(return "]") ~sep:(return " ") pp fmt
+
+  let pattern_intro_and pp fmt =
+    let open CCFormat in
+    pattern ~start:(return "(conj@ ") ~stop:(return ")") ~sep:(return "@ ") pp fmt
 
   let rec path_aux fmt (i, n) =
     if i = 1 then
@@ -273,203 +310,244 @@ let app_t ctx fmt (f, l) =
 (* Proving plugin's lemmas *)
 (* ************************************************************************ *)
 
-(** Types for different proof styles *)
-type raw_proof = Format.formatter -> unit -> unit
+module Lemma = struct
 
-type ordered_proof = {
-  order : Expr.formula list;
-  proof : raw_proof;
-}
+  (** Internal lemma name *)
+  let name lemma =
+    Format.sprintf "lemma_%d" lemma.Dispatcher.id
 
-type impl_proof = {
-  prefix  : string;
-  left    : Expr.formula list;
-  right   : Expr.formula list;
-  proof   : Format.formatter -> Proof.Ctx.t -> unit;
-}
+  let extract clause =
+    match clause.Dispatcher.SolverTypes.cpremise with
+    | Dispatcher.SolverTypes.Lemma lemma -> Some lemma
+    | _ -> None
 
-type proof_style =
-  | Raw of raw_proof
-  | Ordered of ordered_proof
-  | Implication of impl_proof
+  (** Small wrapper around the dispatcher's message system
+      Also memoise proofs using a hashtbl. *)
+  let _proofs = Hashtbl.create 4013
 
-type _ Dispatcher.msg +=
-  | Prove : Dispatcher.lemma_info -> proof_style Dispatcher.msg
-
-
-(** Internal lemma name *)
-let lemma_name lemma =
-  Format.sprintf "lemma_%d" lemma.Dispatcher.id
-
-let extract_lemma clause =
-  match clause.Dispatcher.SolverTypes.cpremise with
-  | Dispatcher.SolverTypes.Lemma lemma -> Some lemma
-  | _ -> None
-
-
-(** Small wrapper around the dispatcher's message system *)
-let lemma_proof lemma =
-  match Dispatcher.ask lemma.Dispatcher.plugin_name
-          (Prove (lemma.Dispatcher.proof_info)) with
-  | Some p -> p
-  | None ->
-    Util.warn ~section "Got no coq proof from plugin %s for proof %s"
-      lemma.Dispatcher.plugin_name lemma.Dispatcher.proof_name;
-    Raw (fun fmt () ->
-        Format.fprintf fmt
-          "(* Got no proof from plugin, try and complete the proof by hand ? *)")
-
-let proof_order clause = function
-  | Raw proof ->
-    List.map formula @@ Array.to_list clause.Dispatcher.SolverTypes.atoms
-  | Ordered { order ; proof } ->
-    (** Check that the given ordered clause if included in the one
-        we have to prove. *)
-    assert (List.for_all (fun f -> Array.exists (fun a ->
-        Expr.Formula.equal f (formula a)
-      ) clause.Dispatcher.SolverTypes.atoms) order);
-    order
-  | Implication { prefix; left; right; proof; } ->
-    (** Check that the given ordered clause if included in the one
-        we have to prove. *)
-    assert (List.for_all (fun f -> Array.exists (fun a ->
-        Expr.Formula.equal (Expr.Formula.neg f) (formula a)
-      ) clause.Dispatcher.SolverTypes.atoms) left);
-    assert (List.for_all (fun f -> Array.exists (fun a ->
-        Expr.Formula.equal f (formula a)
-      ) clause.Dispatcher.SolverTypes.atoms) right);
-    List.map Expr.Formula.neg left @ right
-
-let proof_printer clause = function
-  | Raw proof | Ordered { proof; _ } -> proof
-  | Implication { prefix; left; proof; } ->
-    fun fmt () ->
-      let ctx = Proof.Ctx.mk ~prefix () in
-      let () = List.iter (fun f ->
-          Format.fprintf fmt
-            "apply Coq.Logic.Classical_Prop.imply_to_or; intro %a.@ "
-            (Proof.Ctx.named ctx) f
-        ) left
+  let get_proof lemma =
+    try Hashtbl.find _proofs lemma.Dispatcher.id
+    with Not_found ->
+      let res =
+        match Dispatcher.ask lemma.Dispatcher.plugin_name
+                (Prove (lemma.Dispatcher.proof_info)) with
+        | Some p -> p
+        | None ->
+          Util.warn ~section "Got no coq proof from plugin %s for proof %s"
+            lemma.Dispatcher.plugin_name lemma.Dispatcher.proof_name;
+          Raw {
+            prelude = [];
+            proof = fun fmt () ->
+              Format.fprintf fmt
+                "(* Got no proof from plugin, try and complete the proof by hand ? *)"
+          }
       in
-      proof fmt ctx
+      let () = Hashtbl.add _proofs lemma.Dispatcher.id res in
+      res
 
-let pp_break fmt (i, j) = Format.pp_print_break fmt i j
+  let proof_order clause = function
+    | Raw proof ->
+      List.map formula @@ Array.to_list clause.Dispatcher.SolverTypes.atoms
+    | Ordered { order ; proof } ->
+      (** Check that the given ordered clause if included in the one
+          we have to prove. *)
+      assert (List.for_all (fun f -> Array.exists (fun a ->
+          Expr.Formula.equal f (formula a)
+        ) clause.Dispatcher.SolverTypes.atoms) order);
+      order
+    | Implication { prefix; left; right; proof; } ->
+      (** Check that the given ordered clause if included in the one
+          we have to prove. *)
+      assert (List.for_all (fun f -> Array.exists (fun a ->
+          Expr.Formula.equal (Expr.Formula.neg f) (formula a)
+        ) clause.Dispatcher.SolverTypes.atoms) left);
+      assert (List.for_all (fun f -> Array.exists (fun a ->
+          Expr.Formula.equal f (formula a)
+        ) clause.Dispatcher.SolverTypes.atoms) right);
+      List.map Expr.Formula.neg left @ right
 
-(* Prove a lemma (outside of the main proof environment) *)
-let print_lemma fmt clause lemma =
-  Util.debug ~section "@[<hv>Proving theory lemma %s/%s:@ @[<hov>%a@]@]"
-    lemma.Dispatcher.plugin_name lemma.Dispatcher.proof_name
-    Dispatcher.SolverTypes.pp_clause clause;
-  let proof = lemma_proof lemma in
-  Format.fprintf fmt "@\n(* Proving lemma %s/%s *)@\n"
-    lemma.Dispatcher.plugin_name lemma.Dispatcher.proof_name;
-  Format.fprintf fmt "@[<hov 2>Lemma %s: %a.@]@\n@[<hv 2>Proof.@ %a%aQed.@]@\n"
-    (lemma_name lemma)
-    CCFormat.(list ~sep:(return {|@ \/@ |}) Print.formula)
-    (proof_order clause proof)
-    (proof_printer clause proof) ()
-    pp_break (1,-2)
+  let proof_printer clause = function
+    | Raw { proof; _ } | Ordered { proof; _ } -> proof
+    | Implication { prefix; left; proof; } ->
+      fun fmt () ->
+        let ctx = Proof.Ctx.mk ~prefix () in
+        let () = List.iter (fun f ->
+            Format.fprintf fmt
+              "apply Coq.Logic.Classical_Prop.imply_to_or; intro %a.@ "
+              (Proof.Ctx.named ctx) f
+          ) left
+        in
+        proof fmt ctx
 
-let print_lemmas fmt l =
-  let aux c = CCOpt.iter (print_lemma fmt c) (extract_lemma c) in
-  List.iter aux l
+  let pp_break fmt (i, j) = Format.pp_print_break fmt i j
+
+  (* Prove a lemma (outside of the main proof environment) *)
+  let print fmt clause lemma =
+    Util.debug ~section "@[<hv>Proving theory lemma %s/%s:@ @[<hov>%a@]@]"
+      lemma.Dispatcher.plugin_name lemma.Dispatcher.proof_name
+      Dispatcher.SolverTypes.pp_clause clause;
+    let proof = get_proof lemma in
+    Format.fprintf fmt "@\n(* Proving lemma %s/%s *)@\n"
+      lemma.Dispatcher.plugin_name lemma.Dispatcher.proof_name;
+    Format.fprintf fmt "@[<hov 2>Lemma %s: %a.@]@\n@[<hv 2>Proof.@ %a%aQed.@]@\n"
+      (name lemma)
+      CCFormat.(list ~sep:(return {|@ \/@ |}) Print.formula)
+      (proof_order clause proof)
+      (proof_printer clause proof) ()
+      pp_break (1,-2)
+
+  let print_all fmt l =
+    let aux c = CCOpt.iter (print fmt c) (extract c) in
+    List.iter aux l
+
+end
 
 (* Printing mSAT proofs *)
 (* ************************************************************************ *)
 
-module Lemma = struct
+module P = Msat.Coq.Make(Solver.Proof)(struct
 
-  (** Print mSAT atoms *)
-  let print_atom = Print.atom
+    (** Print mSAT atoms *)
+    let print_atom = Print.atom
 
-  (** Prove assumptions.
-      These raise en Error, because assumptions should only
-      be used temporarily (to help with proof search).
-      TODO:use a proper exception instead of assert false *)
-  let prove_assumption fmt name clause = assert false
+    (** Prove assumptions.
+        These raise en Error, because assumptions should only
+        be used temporarily (to help with proof search).
+        TODO:use a proper exception instead of assert false *)
+    let prove_assumption fmt name clause = assert false
 
-  (** clausify or-separated clauses into mSAT encoding of clauses *)
-  let clausify fmt (orig, l, dest, a) =
-    (** assert goal clause *)
-    let pp_atom fmt atom =
-      let pos = Dispatcher.SolverTypes.(atom.var.pa) in
-      if atom == pos then
-        Format.fprintf fmt "~ %a" Print.atom atom
-      else
-        Format.fprintf fmt "~ ~ %a" Print.atom pos
-    in
-    Format.fprintf fmt "assert (%s: @[<hv>%a ->@ False@]).@ " dest
-      CCFormat.(array ~sep:(return " ->@ ") pp_atom) a;
-    let ctx = Proof.Ctx.mk ~prefix:"Ax" () in
-    let aux fmt atom = Proof.Ctx.named ctx fmt (formula atom) in
-    Format.fprintf fmt "intros %a.@ " CCFormat.(array ~sep:(return " ") aux) a;
-    (** wrapper around equalities to reorder them *)
-    let pp_exact fmt (f, s) =
-      let f', name = Proof.Ctx.find ctx f in
-      match f with
-      | { Expr.formula = Expr.Equal _ } ->
-        let t = CCOpt.get_exn (Expr.Formula.get_tag f Expr.t_order) in
-        let t' = CCOpt.get_exn (Expr.Formula.get_tag f' Expr.t_order) in
-        if t = t'
-        then Format.fprintf fmt "%s %s" name s
-        else Format.fprintf fmt "%s (eq_sym %s)" name s
-      | { Expr.formula = Expr.Not ({ Expr.formula = Expr.Equal _ } as r) } ->
-        begin match f' with
-          | { Expr.formula = Expr.Not ({ Expr.formula = Expr.Equal _ } as r') } ->
-            let t = CCOpt.get_exn (Expr.Formula.get_tag r Expr.t_order) in
-            let t' = CCOpt.get_exn (Expr.Formula.get_tag r' Expr.t_order) in
-            if t = t'
-            then Format.fprintf fmt "%s %s" name s
-            else Format.fprintf fmt "%s (not_eq_sym %s)" name s
-          | _ -> assert false
-        end
-      | _ -> Format.fprintf fmt "%s %s" name s
-    in
-    (** destruct already proved hyp *)
-    match l with
-    | [] -> assert false
-    | [p] ->
-      Format.fprintf fmt "exact (%a)." pp_exact (p, orig)
-    | _ ->
-      let order = Expr.L (List.map (fun f -> Expr.F f) l) in
-      Format.fprintf fmt "@[<hov 2>destruct %s as %a.@ %a@]" orig
-        (Print.pattern_or (fun fmt _ -> Format.fprintf fmt "T")) order
-      CCFormat.(list ~sep:(return "@ ") (fun fmt f ->
-          if Expr.Formula.(equal f_false) f then
-            Format.fprintf fmt "exact T."
-          else
-            Format.fprintf fmt "exact (%a)." pp_exact (f, "T")
-        )) l
+    (** clausify or-separated clauses into mSAT encoding of clauses *)
+    let clausify fmt (orig, l, dest, a) =
+      (** assert goal clause *)
+      let pp_atom fmt atom =
+        let pos = Dispatcher.SolverTypes.(atom.var.pa) in
+        if atom == pos then
+          Format.fprintf fmt "~ %a" Print.atom atom
+        else
+          Format.fprintf fmt "~ ~ %a" Print.atom pos
+      in
+      Format.fprintf fmt "assert (%s: @[<hv>%a ->@ False@]).@ " dest
+        CCFormat.(array ~sep:(return " ->@ ") pp_atom) a;
+      let ctx = Proof.Ctx.mk ~prefix:"Ax" () in
+      let aux fmt atom = Proof.Ctx.named ctx fmt (formula atom) in
+      Format.fprintf fmt "intros %a.@ " CCFormat.(array ~sep:(return " ") aux) a;
+      (** wrapper around equalities to reorder them *)
+      let pp_exact fmt (f, s) =
+        let f', name = Proof.Ctx.find ctx f in
+        match f with
+        | { Expr.formula = Expr.Equal _ } ->
+          let t = CCOpt.get_exn (Expr.Formula.get_tag f Expr.t_order) in
+          let t' = CCOpt.get_exn (Expr.Formula.get_tag f' Expr.t_order) in
+          if t = t'
+          then Format.fprintf fmt "%s %s" name s
+          else Format.fprintf fmt "%s (eq_sym %s)" name s
+        | { Expr.formula = Expr.Not ({ Expr.formula = Expr.Equal _ } as r) } ->
+          begin match f' with
+            | { Expr.formula = Expr.Not ({ Expr.formula = Expr.Equal _ } as r') } ->
+              let t = CCOpt.get_exn (Expr.Formula.get_tag r Expr.t_order) in
+              let t' = CCOpt.get_exn (Expr.Formula.get_tag r' Expr.t_order) in
+              if t = t'
+              then Format.fprintf fmt "%s %s" name s
+              else Format.fprintf fmt "%s (not_eq_sym %s)" name s
+            | _ -> assert false
+          end
+        | _ -> Format.fprintf fmt "%s %s" name s
+      in
+      (** destruct already proved hyp *)
+      match l with
+      | [] -> assert false
+      | [p] ->
+        Format.fprintf fmt "exact (%a)." pp_exact (p, orig)
+      | _ ->
+        let order = Expr.L (List.map (fun f -> Expr.F f) l) in
+        Format.fprintf fmt "@[<hov 2>destruct %s as %a.@ %a@]" orig
+          (Print.pattern_or (fun fmt _ -> Format.fprintf fmt "T")) order
+          CCFormat.(list ~sep:(return "@ ") (fun fmt f ->
+              if Expr.Formula.(equal f_false) f then
+                Format.fprintf fmt "exact T."
+              else
+                Format.fprintf fmt "exact (%a)." pp_exact (f, "T")
+            )) l
 
-  (** Prove hypotheses. All hypothses (including negated goals)
-      should already be available under their official names
-      (i.e. full name of Dolmen id associated with the clause),
-      so it should really just be a matter of introducing the right
-      name for it. *)
-  let prove_hyp fmt name clause =
-    match Solver.hyp_id clause with
-    | None -> assert false (* All hyps should must have been given an id. *)
-    | Some id ->
-      Format.fprintf fmt "(* Introducing hypothesis %a as %s *)@\n%a@\n"
-        Print.dolmen id name clausify
-        ((Format.asprintf "%a" Print.dolmen id), (Proof.find_hyp id),
+    (** Prove hypotheses. All hypothses (including negated goals)
+        should already be available under their official names
+        (i.e. full name of Dolmen id associated with the clause),
+        so it should really just be a matter of introducing the right
+        name for it. *)
+    let prove_hyp fmt name clause =
+      match Solver.hyp_id clause with
+      | None -> assert false (* All hyps should must have been given an id. *)
+      | Some id ->
+        Format.fprintf fmt "(* Introducing hypothesis %a as %s *)@\n%a@\n"
+          Print.dolmen id name clausify
+          ((Format.asprintf "%a" Print.dolmen id), (Proof.find_hyp id),
+           name, clause.Dispatcher.SolverTypes.atoms)
+
+    (** Prove lemmas.
+        To ensure lemmas are proved in an empty and clean environment,
+        We first prove them in a coq 'Lemma' (outside the main proof,
+        since nested proofs are deprecated in Coq). *)
+    let prove_lemma fmt name clause =
+      let lemma = CCOpt.get_exn (Lemma.extract clause) in
+      Format.fprintf fmt "(* Import lemma %s as %s *)@\n%a@\n"
+        (Lemma.name lemma) name
+        clausify
+        ((Lemma.name lemma), (Lemma.proof_order clause (Lemma.get_proof lemma)),
          name, clause.Dispatcher.SolverTypes.atoms)
 
-  (** Prove lemmas.
-      To ensure lemmas are proved in an empty and clean environment,
-      We first prove them in a coq 'Lemma' (outside the main proof,
-      since nested proofs are deprecated in Coq). *)
-  let prove_lemma fmt name clause =
-    let lemma = CCOpt.get_exn (extract_lemma clause) in
-    Format.fprintf fmt "(* Import lemma %s as %s *)@\n%a@\n"
-      (lemma_name lemma) name
-      clausify
-      ((lemma_name lemma), (proof_order clause (lemma_proof lemma)),
-       name, clause.Dispatcher.SolverTypes.atoms)
+  end)
+
+(* Proof prelude *)
+(* ************************************************************************ *)
+
+module Prelude = struct
+
+  (** Standard values *)
+  let classical = Require "Coq.Logic.Classical"
+
+  (** Efficient storing of global prelude *)
+  module S = Set.Make(struct
+      type t = string
+      let compare s s' =
+        CCOrd.((map String.length compare) s s'
+               <?> (compare, s, s'))
+    end)
+
+  type t = {
+    requires : S.t;
+  }
+
+  let add_require t s =
+    { (* t with *) requires = S.add s t.requires; }
+
+  let add t = function
+    | Require s -> add_require t s
+
+  let empty ~goal =
+    let t = { requires = S.empty; } in
+    if goal then add t classical else t
+
+  let get_prelude = function
+    | Raw { prelude; _ }
+    | Ordered { prelude; _ }
+    | Implication { left = []; prelude; _ } -> prelude
+    | Implication { prelude; _ } -> classical :: prelude
+
+  let gather t l =
+    List.fold_left (fun acc lemma ->
+        let p = Lemma.get_proof lemma in
+        List.fold_left add acc (get_prelude p)
+      ) t (CCList.filter_map Lemma.extract l)
+
+  let print_requires fmt t =
+    S.iter (fun s ->
+        Format.fprintf fmt "Require Import %s.@ " s) t.requires
+
+  let print fmt t =
+    Format.fprintf fmt "@[<h 2>%a@]"
+      print_requires t
 
 end
-
-module P = Msat.Coq.Make(Solver.Proof)(Lemma)
 
 (* Printing proofs *)
 (* ************************************************************************ *)
@@ -490,9 +568,20 @@ let rec intro_aux fmt i = function
       "Coq.Logic.Classical_Prop.not_or_and" i Print.dolmen x (i + 1) i;
     intro_aux fmt (i + 1) r
 
-let pp_intro fmt l =
+let pp_intros fmt l =
   match l with
   | [] -> () (* goal is already 'False', nothing to do *)
+  (** When a single goal is *not* is negation, it means that it is
+      originally a negation, so we can directly introduce it. *)
+  | [ id, { Expr.formula = Expr.Not _ } ] ->
+    Format.fprintf fmt "(* Introduce the goal(s) into the hyps *)@\n";
+    Format.fprintf fmt "apply Coq.Logic.Classical_Prop.NNPP. ";
+    Format.fprintf fmt "intro %a.@\n" Print.dolmen id
+  (** Interesting case (faster than match every other variant) *)
+  | [ id, _ ] ->
+    Format.fprintf fmt "(* Introduce the goal(s) into the hyps *)@\n";
+    Format.fprintf fmt "intro %a.@\n" Print.dolmen id
+  (** General case *)
   | _ ->
     Format.fprintf fmt "(* Introduce the goal(s) into the hyps *)@\n";
     Format.fprintf fmt "apply Coq.Logic.Classical_Prop.NNPP. ";
@@ -505,22 +594,23 @@ let pp_intro fmt l =
         intro_aux fmt 0 l
     end
 
+let pp_goals fmt = function
+  | [] -> Format.fprintf fmt "False"
+  | l -> CCFormat.(list ~sep:(return {|@ \/@ |}) Print.formula) fmt l
+
 (** Print both the goals (as theorem), and its proof. *)
 let print_proof fmt proof =
   Format.pp_set_margin fmt 100;
   let names, goals = List.split (Proof.get_goals ()) in
-  let pp_goals fmt = function
-    | [] -> Format.fprintf fmt "False"
-    | l -> CCFormat.(list ~sep:(return {|@ \/@ |}) Print.formula) fmt l
-  in
-  Format.fprintf fmt "@\n(* Coq proof generated by Archsat *)@\n@\n";
-  Format.fprintf fmt "Require Import Coq.Logic.Classical_Prop.@\n";
   let l = Solver.Proof.unsat_core proof in
-  let () = print_lemmas fmt l in
+  let goal = match goals with [] -> false | _ -> true in
+  let prelude = Prelude.(gather (empty ~goal) l) in
+  Format.fprintf fmt "@\n(* Coq proof generated by Archsat *)@\n@\n";
+  Format.fprintf fmt "%a@\n%a" Prelude.print prelude Lemma.print_all l;
   Format.fprintf fmt "@\nTheorem goal : @[<hov>%a@].@\n" pp_goals goals;
   let l' = List.combine names (List.map Expr.Formula.neg goals) in
   Format.fprintf fmt
     "@[<hov 2>Proof.@\n%a@\n%a@]@\nQed.@."
-    pp_intro l' P.print proof
+    pp_intros l' P.print proof
 
 

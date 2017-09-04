@@ -175,11 +175,17 @@ let rec coq_imply_right fmt (n, i) =
     coq_imply_right fmt (n, i + 1)
   end
 
+
 let coq_proof = function
-  | True -> Coq.Raw (CCFormat.return "exact I.")
+  | True ->
+    Coq.(Raw {
+        prelude = [];
+        proof = CCFormat.return "exact I.";
+      })
 
   | And (init, res) ->
     Coq.(Implication {
+        prelude = [];
         left = [init];
         right = [res];
         prefix = "H";
@@ -196,6 +202,7 @@ let coq_proof = function
       })
   | Not_or (init, res) ->
     Coq.(Implication {
+        prelude = [];
         left = [res];
         right = [init];
         prefix = "H";
@@ -208,6 +215,7 @@ let coq_proof = function
 
   | Or (init, l) ->
     Coq.(Implication {
+        prelude = [];
         left = [init];
         right = l;
         prefix = "H";
@@ -224,6 +232,7 @@ let coq_proof = function
       })
   | Not_and (init, l) ->
     Coq.(Implication {
+        prelude = [];
         left = l;
         right = [init];
         prefix = "H";
@@ -236,6 +245,7 @@ let coq_proof = function
 
   | Imply (init, _, [p], _, [q]) ->
     Coq.(Ordered {
+        prelude = [Prelude.classical];
         order = [Expr.Formula.neg init; p; q];
         proof = (fun fmt () ->
             Format.fprintf fmt "apply Coq.Logic.Classical_Prop.imply_to_or.@ ";
@@ -244,6 +254,7 @@ let coq_proof = function
       })
   | Imply (init, p, lp, q, lq) ->
     Coq.(Implication {
+        prelude = [Prelude.classical];
         left = [init];
         right = lp @ lq;
         prefix = "H";
@@ -262,6 +273,7 @@ let coq_proof = function
 
   | Not_imply_left (init, res) ->
     Coq.(Ordered {
+        prelude = [Prelude.classical];
         order = [res; init];
         proof = (fun fmt () ->
             Format.fprintf fmt "apply Coq.Logic.Classical_Prop.NNPP. intro H0.@ ";
@@ -272,6 +284,7 @@ let coq_proof = function
       })
   | Not_imply_right (init, res) ->
     Coq.(Implication {
+        prelude = [];
         left = [res];
         right = [init];
         prefix = "H";
@@ -282,6 +295,7 @@ let coq_proof = function
 
   | Equiv_right (init, res) ->
     Coq.(Implication {
+        prelude = [];
         left = [init];
         right = [res];
         prefix = "E";
@@ -292,6 +306,7 @@ let coq_proof = function
       })
   | Equiv_left (init, res) ->
     Coq.(Implication {
+        prelude = [];
         left = [init];
         right = [res];
         prefix = "E";
@@ -303,6 +318,7 @@ let coq_proof = function
 
   | Not_equiv (init, pq, qp) ->
     Coq.(Implication {
+        prelude = [];
         left = [pq; qp];
         right = [init];
         prefix = "I";

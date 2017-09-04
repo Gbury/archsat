@@ -1,6 +1,8 @@
 % #expect: unsat
 
-fof(ax, axiom, ? [ X ] : X != X ).
+tff(a, type, ( a : $i ) ).
 
-fof(goal, conjecture, false ).
+tff(ax, axiom, ? [ X ] : X != X ).
+
+tff(goal, conjecture, $false ).
 

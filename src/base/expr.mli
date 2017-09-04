@@ -152,9 +152,11 @@ type t_order =
 val t_order : t_order Tag.t
 (** Tags containing information about the order of arguments for equalities. *)
 
-type f_order =
-  | F of formula
-  | L of f_order list
+type 'a order =
+  | F of 'a
+  | L of 'a order list
+
+type f_order = formula order
 
 val f_order : f_order Tag.t
 (** Tags containing information about the inital order of arfuments for the

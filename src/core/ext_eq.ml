@@ -245,10 +245,14 @@ let rec coq_aux m fmt = function
 
 let coq_proof = function
   | Trivial ->
-    Coq.Raw (CCFormat.return "exact eq_refl.")
+    Coq.(Raw {
+      prelude = [];
+      proof = CCFormat.return "exact eq_refl.";
+    })
   | Chain l ->
     let res, eqs = to_eqs l in
     Coq.(Implication {
+        prelude = [];
         left = eqs;
         right = [res];
         prefix = "eq_";

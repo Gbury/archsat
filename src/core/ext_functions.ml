@@ -86,6 +86,7 @@ let dot_info = function
 let coq_proof = function
   | Fun (l, t, t') ->
     Coq.(Implication {
+        prelude = [];
         left = l;
         right = [Expr.Formula.eq t t'];
         prefix = "eq_";
@@ -97,6 +98,7 @@ let coq_proof = function
       })
   | Pred (l, p, p') ->
     Coq.(Implication {
+        prelude = [];
         left = p' :: l;
         right = [p];
         prefix = "eq_";

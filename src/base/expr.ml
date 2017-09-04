@@ -115,9 +115,11 @@ type t_order =
   | Same
   | Inverse
 
-type f_order =
-  | F of formula
-  | L of f_order list
+type 'a order =
+  | F of 'a
+  | L of 'a order list
+
+type f_order = formula order
 
 let t_order : t_order Tag.t = Tag.create ()
 let f_order : f_order Tag.t = Tag.create ()

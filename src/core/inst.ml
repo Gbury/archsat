@@ -291,9 +291,57 @@ let dot_info = function
       CCFormat.const Dot.Print.formula f;
     ]
 
+let coq_destruct ctx fmt = function
+  | { Expr.formula = Expr.Not ({
+      Expr.formula = Expr.Ex(l, _, _)})} as q ->
+    let o = Expr.L (List.rev @@ (Expr.F (`Quant q)) ::
+                                List.rev_map (fun x -> Expr.F (`Var x)) l) in
+    let pp fmt = function
+      | `Var x -> Coq.Print.id fmt x
+      | `Quant q -> Proof.Ctx.named ctx fmt q
+    in
+    Format.fprintf fmt "intro %a.@ destruct %a as %a.@ "
+      (Proof.Ctx.named ctx) q (Proof.Ctx.named ctx) q (Coq.Print.pattern_ex pp) o;
+    true
+  | _ -> false
+
+let coq_norm fmt = function
+  | { Expr.formula = Expr.Not _ } -> ()
+  | _ -> Format.fprintf fmt "apply Coq.Logic.Classical_Prop.NNPP.@ "
+
+let rec coq_inst_ex partial ctx m cur fmt = function
+  | [] -> ()
+  | x :: r ->
+    let t = match Mapping.Var.get_term_opt m x with
+      | None -> Expr.Term.of_id x
+      | Some t -> t
+    in
+    begin match r with
+      | [] ->
+        begin match partial with
+          | Some q ->
+            let next = Proof.Ctx.new_name ctx in
+            Format.fprintf fmt
+              "pose proof ((Coq.Logic.Classical_Pred_Type.not_ex_all_not _ _ %s) %a) as %s.@ "
+              cur Coq.Print.term t next;
+            Format.fprintf fmt "exact (%s %a)." next (Proof.Ctx.named ctx) q
+          | None ->
+            Format.fprintf fmt
+              "exact ((Coq.Logic.Classical_Pred_Type.not_ex_all_not _ _ %s) %a)."
+              cur Coq.Print.term t
+        end
+      | _ ->
+        let next = Proof.Ctx.new_name ctx in
+        Format.fprintf fmt
+          "pose proof ((Coq.Logic.Classical_Pred_Type.not_ex_all_not _ _ %s) %a) as %s.@ "
+          cur Coq.Print.term t next;
+        coq_inst_ex partial ctx m next fmt r
+    end
+
 let coq_proof = function
   | Formula ({ Expr.formula = Expr.All (l, _, _) } as f, t, q) ->
     Coq.(Implication {
+        prelude = [];
         left = [f];
         right = [q];
         prefix = "Q";
@@ -310,32 +358,28 @@ let coq_proof = function
                        Coq.fun_binder vars (Coq.app_t ctx) (f, args)
             end);
       })
-  | Formula ({ Expr.formula = Expr.Not ({
-      Expr.formula = Expr.Ex (l, _, _) } as f' )} as f, t, q) ->
-    assert false
-      (*
+  | Formula ({ Expr.formula = Expr.Not (
+      { Expr.formula = Expr.Ex (l, _, _) } as f' )}, t, q) ->
     Coq.(Ordered {
+        prelude = [Prelude.classical];
         order = [ f' ; q];
         proof = (fun fmt () ->
-            let ctx = Proof.Ctx.mk ~prefix:"Q" () in
-            Format.fprintf fmt
-              "elim %a;intro %a;[left;exact %a|right].@ "
-              Coq.Print.formula f' (Proof.Ctx.named ctx) f (Proof.Ctx.named ctx) f;
-            Format.fprintf fmt "pose proof () as %a";
-            let l', l'' = List.fold_left (fun (vars, args) x ->
-                match Mapping.Var.get_term_opt t x with
-                | None -> x :: vars, Expr.Term.of_id x :: args
-                | Some t -> vars, t :: args) ([], []) l in
-            let vars = List.rev l' in
-            let args = List.rev l'' in
-            begin match vars with
-              | [] -> Coq.exact fmt "%a" (Coq.app_t ctx) (f, args)
-              | _ -> Coq.exact fmt "fun %a => %a"
-                       Coq.fun_binder vars (Coq.app_t ctx) (f, args)
-            end
+            let ctx = Proof.Ctx.mk ~prefix:"B" () in
+            (** The classical_right tactic fails if no hyps are present,
+                hence we firt add the following trivial hyp *)
+            Format.fprintf fmt "pose proof True as B.@ ";
+            (** The following is quite fragile, seeing as we rely on
+                the classical_right tactic introducing "H". *)
+            Format.fprintf fmt "classical_right.@ ";
+            (** When q does not start with a negation, it means that a double negation
+                was automatically eliminated, thus in that case, we need to use NNPP *)
+            coq_norm fmt q;
+            (** Destruct the goal *)
+            let is_partial = coq_destruct ctx fmt q in
+            let partial = if is_partial then Some q else None in
+            coq_inst_ex partial ctx t "H" fmt l
           );
       })
-         *)
   | _ -> assert false
 
 (* Extension registering *)

@@ -7,14 +7,22 @@
 
 (** {2 Dispatcher messages} *)
 
-type raw_proof = Format.formatter -> unit -> unit
+type prelude = private
+  | Require of string
+
+type raw_proof = {
+  prelude : prelude list;
+  proof : Format.formatter -> unit -> unit;
+}
 
 type ordered_proof = {
+  prelude : prelude list;
   order : Expr.formula list;
-  proof : raw_proof;
+  proof : Format.formatter -> unit -> unit;
 }
 
 type impl_proof = {
+  prelude : prelude list;
   prefix  : string;
   left    : Expr.formula list;
   right   : Expr.formula list;
@@ -44,6 +52,14 @@ val print_hyp : Format.formatter -> (Dolmen.Id.t * Expr.formula list) -> unit
 val print_proof : Format.formatter -> Solver.proof -> unit
 (** Print a theorem, proving the named goals previously added using the given proof. *)
 
+
+(** {2 Prelude} *)
+
+module Prelude : sig
+
+  val classical : prelude
+
+end
 
 (** {2 Proof helpers} *)
 
@@ -79,18 +95,21 @@ module Print : sig
     start:(Format.formatter -> unit -> unit) ->
     stop:(Format.formatter -> unit -> unit) ->
     sep:(Format.formatter -> unit -> unit) ->
-    (Format.formatter -> Expr.formula -> unit) ->
-    Format.formatter -> Expr.f_order -> unit
+    (Format.formatter -> 'a -> unit) ->
+    Format.formatter -> 'a Expr.order -> unit
 
   val pattern_or :
-    (Format.formatter -> Expr.formula -> unit) ->
-    Format.formatter -> Expr.f_order -> unit
+    (Format.formatter -> 'a -> unit) ->
+    Format.formatter -> 'a Expr.order -> unit
   val pattern_and :
-    (Format.formatter -> Expr.formula -> unit) ->
-    Format.formatter -> Expr.f_order -> unit
+    (Format.formatter -> 'a -> unit) ->
+    Format.formatter -> 'a Expr.order -> unit
+  val pattern_ex :
+    (Format.formatter -> 'a -> unit) ->
+    Format.formatter -> 'a Expr.order -> unit
   val pattern_intro_and :
-    (Format.formatter -> Expr.formula -> unit) ->
-    Format.formatter -> Expr.f_order -> unit
+    (Format.formatter -> 'a -> unit) ->
+    Format.formatter -> 'a Expr.order -> unit
 
 end
 
