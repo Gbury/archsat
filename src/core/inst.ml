@@ -309,34 +309,14 @@ let coq_norm fmt = function
   | { Expr.formula = Expr.Not _ } -> ()
   | _ -> Format.fprintf fmt "apply Coq.Logic.Classical_Prop.NNPP.@ "
 
-let rec coq_inst_ex partial ctx m cur fmt = function
-  | [] -> ()
-  | x :: r ->
-    let t = match Mapping.Var.get_term_opt m x with
-      | None -> Expr.Term.of_id x
-      | Some t -> t
-    in
-    begin match r with
-      | [] ->
-        begin match partial with
-          | Some q ->
-            let next = Proof.Ctx.new_name ctx in
-            Format.fprintf fmt
-              "pose proof ((Coq.Logic.Classical_Pred_Type.not_ex_all_not _ _ %s) %a) as %s.@ "
-              cur Coq.Print.term t next;
-            Format.fprintf fmt "exact (%s %a)." next (Proof.Ctx.named ctx) q
-          | None ->
-            Format.fprintf fmt
-              "exact ((Coq.Logic.Classical_Pred_Type.not_ex_all_not _ _ %s) %a)."
-              cur Coq.Print.term t
-        end
-      | _ ->
-        let next = Proof.Ctx.new_name ctx in
-        Format.fprintf fmt
-          "pose proof ((Coq.Logic.Classical_Pred_Type.not_ex_all_not _ _ %s) %a) as %s.@ "
-          cur Coq.Print.term t next;
-        coq_inst_ex partial ctx m next fmt r
-    end
+let coq_inst_ex m cur fmt x =
+  let t = match Mapping.Var.get_term_opt m x with
+    | None -> Expr.Term.of_id x
+    | Some t -> t
+  in
+  Format.fprintf fmt
+    "(Coq.Logic.Classical_Pred_Type.not_ex_all_not _ _ %s) %a"
+    cur Coq.Print.term t
 
 let coq_proof = function
   | Formula ({ Expr.formula = Expr.All (l, _, _) } as f, t, q) ->
@@ -376,8 +356,11 @@ let coq_proof = function
             coq_norm fmt q;
             (** Destruct the goal *)
             let is_partial = coq_destruct ctx fmt q in
-            let partial = if is_partial then Some q else None in
-            coq_inst_ex partial ctx t "H" fmt l
+            let s = Coq.sequence ctx (coq_inst_ex t) "H" fmt l in
+            if is_partial then
+              Coq.exact fmt "%s %a" s (Proof.Ctx.named ctx) q
+            else
+              Coq.exact fmt "%s" s
           );
       })
   | _ -> assert false

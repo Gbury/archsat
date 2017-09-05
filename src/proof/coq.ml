@@ -307,6 +307,16 @@ let app_t ctx fmt (f, l) =
   Format.fprintf fmt "%a @[<hov>%a@]"
     (Proof.Ctx.named ctx) f CCFormat.(list ~sep:(return "@ ") Print.term) l
 
+let sequence ctx pp start fmt l =
+  let rec aux ctx pp fmt curr = function
+    | [] -> curr
+    | x :: r ->
+      let next = Proof.Ctx.new_name ctx in
+      Format.fprintf fmt "pose proof (%a) as %s.@ " (pp curr) x next;
+      aux ctx pp fmt next r
+  in
+  aux ctx pp fmt start l
+
 (* Proving plugin's lemmas *)
 (* ************************************************************************ *)
 
@@ -351,20 +361,34 @@ module Lemma = struct
     | Ordered { order ; proof } ->
       (** Check that the given ordered clause if included in the one
           we have to prove. *)
-      assert (List.for_all (fun f -> Array.exists (fun a ->
+      if not (List.for_all (fun f -> Array.exists (fun a ->
           Expr.Formula.equal f (formula a)
-        ) clause.Dispatcher.SolverTypes.atoms) order);
-      order
+        ) clause.Dispatcher.SolverTypes.atoms) order) then
+        raise (Dispatcher.Bad_assertion (
+          Format.asprintf "Wrong clause for ordered lemma:@\n%a@\n%a"
+            Dispatcher.SolverTypes.pp_clause clause
+            CCFormat.(list ~sep:(return " //@ ") Print.formula) order))
+      else
+        order
     | Implication { prefix; left; right; proof; } ->
       (** Check that the given ordered clause if included in the one
           we have to prove. *)
-      assert (List.for_all (fun f -> Array.exists (fun a ->
+      if not (List.for_all (fun f -> Array.exists (fun a ->
           Expr.Formula.equal (Expr.Formula.neg f) (formula a)
-        ) clause.Dispatcher.SolverTypes.atoms) left);
-      assert (List.for_all (fun f -> Array.exists (fun a ->
+        ) clause.Dispatcher.SolverTypes.atoms) left) then
+        raise (Dispatcher.Bad_assertion (
+            Format.asprintf "Wrong hyp for implication lemma:@\n%a@\n%a"
+              Dispatcher.SolverTypes.pp_clause clause
+              CCFormat.(list ~sep:(return " //@ ") Print.formula) left))
+      else if not (List.for_all (fun f -> Array.exists (fun a ->
           Expr.Formula.equal f (formula a)
-        ) clause.Dispatcher.SolverTypes.atoms) right);
-      List.map Expr.Formula.neg left @ right
+        ) clause.Dispatcher.SolverTypes.atoms) right) then
+        raise (Dispatcher.Bad_assertion (
+            Format.asprintf "Wrong conclusion for implication lemma:@\n%a@\n%a"
+              Dispatcher.SolverTypes.pp_clause clause
+              CCFormat.(list ~sep:(return " //@ ") Print.formula) right))
+      else
+        List.map Expr.Formula.neg left @ right
 
   let proof_printer clause = function
     | Raw { proof; _ } | Ordered { proof; _ } -> proof

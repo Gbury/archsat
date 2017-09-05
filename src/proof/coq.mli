@@ -77,6 +77,12 @@ val fun_binder : Format.formatter -> _ Expr.id list -> unit
 val app_t : Proof.Ctx.t -> Format.formatter -> Expr.formula * Expr.term list -> unit
 (** Helper to print the application of the named formula to a list of arguments. *)
 
+val sequence : Proof.Ctx.t ->
+  (string -> Format.formatter -> 'a -> unit) ->
+  string -> Format.formatter -> 'a list -> string
+(** Print a sequence of inference.
+    TODO: more explicit documentation. *)
+
 (** {2 Printing expressions} *)
 
 module Print : sig
