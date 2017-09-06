@@ -84,7 +84,7 @@ let print_exn opt fmt = function
     let default_loc = Dolmen.ParseLocation.mk
         (Options.input_to_string Options.(opt.input.file)) 0 0 0 0 in
     let loc = CCOpt.get_or ~default:default_loc t.Dolmen.Term.loc in
-    Format.fprintf Format.std_formatter "While typing:@ '%a'@\n" Dolmen.Term.print t;
+    Format.fprintf Format.std_formatter "@[<hv>While typing:@ @[<hov>%a@]@]@\n" Dolmen.Term.print t;
     Format.fprintf Format.std_formatter "%a:@\n%s@." Dolmen.ParseLocation.fmt loc msg
 
   (** Extension not found *)

@@ -403,6 +403,12 @@ let mk_expl preface env fmt t =
     Format.fprintf fmt "%s\n%a" preface (explain ~full:true env) t
 
 (* Convenience functions *)
+let _infer_var env t =
+  let msg = Format.asprintf
+      "Inferring type for a variable, please check the scope of your quantifications"
+  in
+  raise (Typing_error (msg, env, t))
+
 let _expected env s t res =
   let msg = match res with
     | None -> "the expression doesn't match what was expected"
@@ -586,7 +592,8 @@ let promote env ast t =
     Formula (make_pred env ast t)
   | _ -> t
 
-let infer env s args loc =
+let infer env ast s args loc =
+  if Dolmen.Id.(s.ns = Var) then _infer_var env ast;
   match env.expect with
   | Nothing -> None
   | Type ->
@@ -853,7 +860,7 @@ and parse_app env ast s args =
             begin match env.builtins env ast s args with
               | Some res -> res
               | None ->
-                begin match infer env s args (get_loc ast) with
+                begin match infer env ast s args (get_loc ast) with
                   | Some Ty_fun f -> parse_app_ty env ast f args
                   | Some Term_fun f -> parse_app_term env ast f args
                   | None ->
