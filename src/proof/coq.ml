@@ -7,7 +7,8 @@ let formula a = a.Dispatcher.SolverTypes.lit
 (* ************************************************************************ *)
 
 type prelude =
-  | Require of string
+  | Require : string -> prelude
+  | Notation : 'a Expr.id * (Format.formatter -> 'a Expr.id -> unit) -> prelude
 
 type raw_proof = {
   prelude : prelude list;
@@ -41,13 +42,26 @@ type _ Dispatcher.msg +=
 
 module Print = struct
 
+  (** Traps are there to enforce translation of certain
+      types of terms into another type/term. *)
+  module Hty = Hashtbl.Make(Expr.Ty)
+  module Hterm = Hashtbl.Make(Expr.Term)
+
+  let ty_traps = Hty.create 13
+  let term_traps = Hterm.create 13
+
+  let trap_ty = Hty.add ty_traps
+  let trap_term = Hterm.add term_traps
+
+  open Expr
+
   let pretty = Tag.create ()
 
   let () =
-    Expr.Id.tag Expr.Id.prop pretty (Expr.Print.Prefix "Prop")
+    Expr.Id.tag Expr.Id.prop pretty (Print.Prefix "Prop")
 
   let () =
-    Expr.Id.tag Expr.Id.base pretty (Expr.Print.Prefix "Set")
+    Expr.Id.tag Expr.Id.base pretty (Print.Prefix "Set")
 
   let t =
     let name = function
@@ -55,7 +69,7 @@ module Print = struct
       | Escape.Any.Id id ->
         begin match Expr.Id.get_tag id pretty with
         | None -> id.Expr.id_name
-        | Some Expr.Print.(Infix s | Prefix s) -> s
+        | Some (Print.Infix s | Print.Prefix s) -> s
         end
     in
     let rename = Escape.rename ~sep:'_' in
@@ -72,24 +86,27 @@ module Print = struct
 
   let dolmen fmt id = Escape.dolmen t fmt id
 
-  open Expr
-
   let id fmt v = Escape.id t fmt v
 
-  let ttype fmt = function Type -> Format.fprintf fmt "Type"
+  let ttype fmt = function Expr.Type -> Format.fprintf fmt "Type"
 
-  let rec ty fmt t = match t.ty with
-    | TyVar v -> id fmt v
-    | TyMeta m -> ty fmt Synth.ty
-    | TyApp (f, []) -> id fmt f
-    | TyApp (f, l) ->
-      begin match Tag.get f.id_tags pretty with
-        | None | Some Print.Prefix _ ->
-          Format.fprintf fmt "@[<hov 1>(%a@ %a)@]"
-            id f CCFormat.(list ~sep:(return "@ ") ty) l
-        | Some Print.Infix _ ->
-          let sep fmt () = Format.fprintf fmt "@ %a@ " id f in
-          Format.fprintf fmt "@[<hov 1>(%a)@]" (CCFormat.list ~sep ty) l
+  let rec ty fmt t =
+    match Hty.find ty_traps t with
+    | t' -> ty fmt t'
+    | exception Not_found ->
+      begin match t.ty with
+        | TyVar v -> id fmt v
+        | TyMeta m -> ty fmt Synth.ty
+        | TyApp (f, []) -> id fmt f
+        | TyApp (f, l) ->
+          begin match Tag.get f.id_tags pretty with
+            | None | Some Print.Prefix _ ->
+              Format.fprintf fmt "@[<hov 1>(%a@ %a)@]"
+                id f CCFormat.(list ~sep:(return "@ ") ty) l
+            | Some Print.Infix _ ->
+              let sep fmt () = Format.fprintf fmt "@ %a@ " id f in
+              Format.fprintf fmt "@[<hov 1>(%a)@]" (CCFormat.list ~sep ty) l
+          end
       end
 
   let params pre pp fmt = function
@@ -123,26 +140,31 @@ module Print = struct
   let const_ty = id_type fun_ty
   let const_ttype = id_type fun_ttype
 
-  let rec term fmt t = match t.term with
-    | Var v -> id fmt v
-    | Meta m -> meta fmt m
-    | App (f, [], []) -> id fmt f
-    | App (f, tys, args) ->
-      begin match Tag.get f.id_tags pretty with
-        | None | Some Print.Prefix _ ->
-          begin match tys with
-            | [] ->
-              Format.fprintf fmt "(@[<hov>%a@ %a@])"
-                id f CCFormat.(list ~sep:(return "@ ") term) args
-            | _ ->
-              Format.fprintf fmt "(@[<hov>%a@ %a@ %a@])" id f
-                CCFormat.(list ~sep:(return "@ ") ty) tys
-                CCFormat.(list ~sep:(return "@ ") term) args
+  let rec term fmt t =
+    match Hterm.find term_traps t with
+    | t' -> term fmt t'
+    | exception Not_found ->
+      begin match t.term with
+        | Var v -> id fmt v
+        | Meta m -> meta fmt m
+        | App (f, [], []) -> id fmt f
+        | App (f, tys, args) ->
+          begin match Tag.get f.id_tags pretty with
+            | None | Some Print.Prefix _ ->
+              begin match tys with
+                | [] ->
+                  Format.fprintf fmt "(@[<hov>%a@ %a@])"
+                    id f CCFormat.(list ~sep:(return "@ ") term) args
+                | _ ->
+                  Format.fprintf fmt "(@[<hov>%a@ %a@ %a@])" id f
+                    CCFormat.(list ~sep:(return "@ ") ty) tys
+                    CCFormat.(list ~sep:(return "@ ") term) args
+              end
+            | Some Print.Infix _ ->
+              assert (tys = []);
+              let sep fmt () = Format.fprintf fmt "@ %a@ " id f in
+              Format.fprintf fmt "(%a)" CCFormat.(list ~sep term) args
           end
-        | Some Print.Infix _ ->
-          assert (tys = []);
-          let sep fmt () = Format.fprintf fmt "@ %a@ " id f in
-          Format.fprintf fmt "(%a)" CCFormat.(list ~sep term) args
       end
 
   and meta fmt m =
@@ -264,10 +286,10 @@ module Print = struct
         List.rev acc
       | L l ->
         begin match CCList.find_idx (exists_in_order goal) l with
-        | None -> assert false
-        | Some (i, o) ->
-          let n = List.length l in
-          aux ((i + 1, n) :: acc) o
+          | None -> assert false
+          | Some (i, o) ->
+            let n = List.length l in
+            aux ((i + 1, n) :: acc) o
         end
     in
     let l = aux [] order in
@@ -365,9 +387,9 @@ module Lemma = struct
           Expr.Formula.equal f (formula a)
         ) clause.Dispatcher.SolverTypes.atoms) order) then
         raise (Dispatcher.Bad_assertion (
-          Format.asprintf "Wrong clause for ordered lemma:@\n%a@\n%a"
-            Dispatcher.SolverTypes.pp_clause clause
-            CCFormat.(list ~sep:(return " //@ ") Print.formula) order))
+            Format.asprintf "Wrong clause for ordered lemma:@\n%a@\n%a"
+              Dispatcher.SolverTypes.pp_clause clause
+              CCFormat.(list ~sep:(return " //@ ") Print.formula) order))
       else
         order
     | Implication { prefix; left; right; proof; } ->
@@ -524,38 +546,92 @@ module P = Msat.Coq.Make(Solver.Proof)(struct
 (* Proof prelude *)
 (* ************************************************************************ *)
 
+module Prelude_t = struct
+
+  (** Standard functions *)
+  type t = prelude
+
+  let _string s s' =
+    CCOrd.((map String.length compare) s s'
+           <?> (compare, s, s'))
+
+  let _discr = function
+    | Require _ -> 0
+    | Notation _ -> 0
+
+  let hash = function
+    | Require s ->
+      CCHash.(pair int string) (0, s)
+    | Notation (id, s) ->
+      CCHash.(pair int Expr.Id.hash) (1, id)
+
+  let compare p p' =
+    match p, p' with
+    | Require s, Require s' -> _string s s'
+    | Notation (id, s), Notation (id', s') ->
+      (** Only one notation per id is authorized *)
+      compare id.Expr.index id'.Expr.index
+    | _ -> compare (_discr p) (_discr p')
+
+  let equal p p' = compare p p' = 0
+
+  let print fmt = function
+    | Require s ->
+      Format.fprintf fmt "Require Import %s.@ " s
+    | Notation (id, f) ->
+      Format.fprintf fmt "Notation %a := @[<hov 1>(%a)@].@ "
+        Print.id id f id
+
+end
+
 module Prelude = struct
 
+  include Prelude_t
+
+  (** Set of preludes *)
+  module S = Set.Make(Prelude_t)
+
+  (** Dependencies between preludes *)
+  module G = Graph.Imperative.Digraph.Concrete(Prelude_t)
+  module T = Graph.Topological.Make_stable(G)
+  module O = Graph.Oper.I(G)
+
+  let g = G.create ()
+
+  let mk ~deps t =
+    let () = G.add_vertex g t in
+    let () = S.iter (fun x -> G.add_edge g x t) deps in
+    t
+
+  let require ?(deps=S.empty) s = mk ~deps (Require s)
+
+  let abbrev ?(deps=S.empty) id pp = mk ~deps (Notation (id, pp))
+
   (** Standard values *)
-  let classical = Require "Coq.Logic.Classical"
+  let epsilon = require "Coq.Logic.Epsilon"
+  let classical = require "Coq.Logic.Classical"
+
+  let topo iter l =
+    let _ = O.add_transitive_closure ~reflexive:true g in
+    T.iter (fun v -> if S.exists (G.mem_edge g v) l then iter v) g
+
+end
+
+module Preludes = struct
 
   (** Efficient storing of global prelude *)
-  module S = Set.Make(struct
-      type t = string
-      let compare s s' =
-        CCOrd.((map String.length compare) s s'
-               <?> (compare, s, s'))
-    end)
 
-  type t = {
-    requires : S.t;
-  }
-
-  let add_require t s =
-    { (* t with *) requires = S.add s t.requires; }
-
-  let add t = function
-    | Require s -> add_require t s
+  let add t p = Prelude.S.add p t
 
   let empty ~goal =
-    let t = { requires = S.empty; } in
-    if goal then add t classical else t
+    let t = Prelude.S.empty in
+    if goal then add t Prelude.classical else t
 
   let get_prelude = function
     | Raw { prelude; _ }
     | Ordered { prelude; _ }
     | Implication { left = []; prelude; _ } -> prelude
-    | Implication { prelude; _ } -> classical :: prelude
+    | Implication { prelude; _ } -> Prelude.classical :: prelude
 
   let gather t l =
     List.fold_left (fun acc lemma ->
@@ -563,13 +639,8 @@ module Prelude = struct
         List.fold_left add acc (get_prelude p)
       ) t (CCList.filter_map Lemma.extract l)
 
-  let print_requires fmt t =
-    S.iter (fun s ->
-        Format.fprintf fmt "Require Import %s.@ " s) t.requires
-
-  let print fmt t =
-    Format.fprintf fmt "@[<h 2>%a@]"
-      print_requires t
+  let print fmt l =
+    Prelude.topo (Prelude.print fmt) l
 
 end
 
@@ -597,7 +668,7 @@ let pp_intros fmt l =
   | [] -> () (* goal is already 'False', nothing to do *)
   (** When a single goal is *not* is negation, it means that it is
       originally a negation, so we can directly introduce it. *)
-  | [ id, { Expr.formula = Expr.Not _ } ] ->
+  | [ id, { Expr.formula = (Expr.Not _ | Expr.True )} ] ->
     Format.fprintf fmt "(* Introduce the goal(s) into the hyps *)@\n";
     Format.fprintf fmt "apply Coq.Logic.Classical_Prop.NNPP. ";
     Format.fprintf fmt "intro %a.@\n" Print.dolmen id
@@ -628,9 +699,9 @@ let print_proof fmt proof =
   let names, goals = List.split (Proof.get_goals ()) in
   let l = Solver.Proof.unsat_core proof in
   let goal = match goals with [] -> false | _ -> true in
-  let prelude = Prelude.(gather (empty ~goal) l) in
+  let prelude = Preludes.(gather (empty ~goal) l) in
   Format.fprintf fmt "@\n(* Coq proof generated by Archsat *)@\n@\n";
-  Format.fprintf fmt "%a@\n%a" Prelude.print prelude Lemma.print_all l;
+  Format.fprintf fmt "@[<v>%a@]@\n%a" Preludes.print prelude Lemma.print_all l;
   Format.fprintf fmt "@\nTheorem goal : @[<hov>%a@].@\n" pp_goals goals;
   let l' = List.combine names (List.map Expr.Formula.neg goals) in
   Format.fprintf fmt

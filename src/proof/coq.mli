@@ -7,8 +7,7 @@
 
 (** {2 Dispatcher messages} *)
 
-type prelude = private
-  | Require of string
+type prelude
 
 type raw_proof = {
   prelude : prelude list;
@@ -57,7 +56,29 @@ val print_proof : Format.formatter -> Solver.proof -> unit
 
 module Prelude : sig
 
-  val classical : prelude
+  type t = prelude
+  (** Type alias *)
+
+  val hash : t -> int
+  val equal : t -> t -> bool
+  val compare : t -> t -> int
+  (** Usual functions *)
+
+  module S : Set.S with type elt = t
+  (** Moduel to create sets of preludes *)
+
+  val epsilon : t
+  (** The prelude requiring the epsilon module, i.e. "Coq.Logic.Epsilon" *)
+
+  val classical : t
+  (** The prelude requiring classical Logic, i.e "Coq.Logic.Classical" *)
+
+  val require : ?deps:S.t -> string -> t
+  (** Add a "Require  mport" prelude *)
+
+  val abbrev : ?deps:S.t -> 'a Expr.id ->
+    (Format.formatter -> 'a Expr.id -> unit) -> t
+  (** Add a notation for identifiers. *)
 
 end
 
@@ -83,9 +104,25 @@ val sequence : Proof.Ctx.t ->
 (** Print a sequence of inference.
     TODO: more explicit documentation. *)
 
+
 (** {2 Printing expressions} *)
 
 module Print : sig
+
+
+  (** {2 Modifying printing} *)
+
+  val pretty : Expr.Print.pretty Expr.tag
+  (** Pretty tag to change the pinted name of a symbol, and/or
+      control whether it is an infix or prefix symbol. *)
+
+  val trap_ty : Expr.ty -> Expr.ty -> unit
+  val trap_term : Expr.term -> Expr.term -> unit
+  (** "Trap" types and terms. A trapped type or term will be replaced
+      with its associated type/term when printing. *)
+
+
+  (** {2 Effective Printing} *)
 
   val id : Format.formatter -> _ Expr.id -> unit
   val dolmen : Format.formatter -> Dolmen.Id.t -> unit

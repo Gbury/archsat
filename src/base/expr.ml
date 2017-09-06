@@ -450,6 +450,16 @@ module Id = struct
   (* Tags *)
   let get_tag id k = Tag.get id.id_tags k
   let tag id k v = id.id_tags <- Tag.add id.id_tags k v
+  let cached f =
+    let t = Tag.create () in
+    (function id ->
+     match get_tag id t with
+     | Some res -> res
+     | None ->
+       let res = f id in
+       tag id t res;
+       res
+    )
 
   (* Builtin Types *)
   let prop = ty_fun "$o" 0
@@ -722,6 +732,16 @@ module Ty = struct
   (* Tags *)
   let get_tag ty k = Tag.get ty.ty_tags k
   let tag ty k v = ty.ty_tags <- Tag.add ty.ty_tags k v
+  let cached f =
+    let t = Tag.create () in
+    (function ty ->
+     match get_tag ty t with
+     | Some res -> res
+     | None ->
+       let res = f ty in
+       tag ty t res;
+       res
+    )
 
   (* Builtin types *)
   let prop = apply Id.prop []
@@ -829,6 +849,16 @@ module Term = struct
   (* Tags *)
   let get_tag t k = Tag.get t.t_tags k
   let tag t k v = t.t_tags <- Tag.add t.t_tags k v
+  let cached f =
+    let t = Tag.create () in
+    (function term ->
+     match get_tag term t with
+     | Some res -> res
+     | None ->
+       let res = f term in
+       tag term t res;
+       res
+    )
 
   (* Substitutions *)
   let rec subst_aux ~fix ty_var_map ty_meta_map t_var_map t_meta_map t =
@@ -976,11 +1006,11 @@ module Formula = struct
       | Ex (l1, _, h1), Ex (l2, _, h2)
       | All (l1, _, h1), All (l2, _, h2) ->
         CCOrd.Infix.(CCOrd.list Id.compare l1 l2
-                       <?> (compare, h1, h2))
+                     <?> (compare, h1, h2))
       | ExTy (l1, _, h1), ExTy (l2, _, h2)
       | AllTy (l1, _, h1), AllTy (l2, _, h2) ->
         CCOrd.Infix.(CCOrd.list Id.compare l1 l2
-                       <?> (compare, h1, h2))
+                     <?> (compare, h1, h2))
       | _, _ -> Pervasives.compare (discr f) (discr g)
 
   let equal u v =
@@ -1223,11 +1253,21 @@ module Formula = struct
      List.map (Term.subst ~fix:false ty_var_map Subst.empty t_var_map Subst.empty) t_args)
 
   let rec partial_inst ty_var_map t_var_map f = match f.formula with
+    | Ex (l, args, p) ->
+      let l' = List.filter (fun v -> not (Subst.Id.mem v t_var_map)) l in
+      let q = partial_inst ty_var_map t_var_map p in
+      let args' = free_args_inst ty_var_map t_var_map args in
+      if l' = [] then q else mk_formula (Ex (l', args', q))
     | All (l, args, p) ->
       let l' = List.filter (fun v -> not (Subst.Id.mem v t_var_map)) l in
       let q = partial_inst ty_var_map t_var_map p in
       let args' = free_args_inst ty_var_map t_var_map args in
       if l' = [] then q else mk_formula (All (l', args', q))
+    | ExTy (l, args, p) ->
+      let l' = List.filter (fun v -> not (Subst.Id.mem v ty_var_map)) l in
+      let q = partial_inst ty_var_map t_var_map p in
+      let args' = free_args_inst ty_var_map t_var_map args in
+      if l' = [] then q else mk_formula (ExTy (l', args', q))
     | AllTy (l, args, p) ->
       let l' = List.filter (fun v -> not (Subst.Id.mem v ty_var_map)) l in
       let q = partial_inst ty_var_map t_var_map p in
@@ -1238,11 +1278,21 @@ module Formula = struct
       let q = partial_inst ty_var_map t_var_map p in
       let args' = free_args_inst ty_var_map t_var_map args in
       neg (if l' = [] then q else mk_formula (Ex (l', args', q)))
+    | Not { formula = All (l, args, p) } ->
+      let l' = List.filter (fun v -> not (Subst.Id.mem v t_var_map)) l in
+      let q = partial_inst ty_var_map t_var_map p in
+      let args' = free_args_inst ty_var_map t_var_map args in
+      neg (if l' = [] then q else mk_formula (All (l', args', q)))
     | Not { formula = ExTy (l, args, p) } ->
       let l' = List.filter (fun v -> not (Subst.Id.mem v ty_var_map)) l in
       let q = partial_inst ty_var_map t_var_map p in
       let args' = free_args_inst ty_var_map t_var_map args in
       neg (if l' = [] then q else mk_formula (ExTy (l', args', q)))
+    | Not { formula = AllTy (l, args, p) } ->
+      let l' = List.filter (fun v -> not (Subst.Id.mem v ty_var_map)) l in
+      let q = partial_inst ty_var_map t_var_map p in
+      let args' = free_args_inst ty_var_map t_var_map args in
+      neg (if l' = [] then q else mk_formula (AllTy (l', args', q)))
     | _ -> subst_aux ~fix:false ty_var_map Subst.empty t_var_map Subst.empty f
 
 end

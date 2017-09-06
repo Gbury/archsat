@@ -236,6 +236,9 @@ module Id : sig
   val tag : _ id -> 'a tag -> 'a -> unit
   (** Add a tag to an id. *)
 
+  val cached : ('a id -> 'b) -> 'a id -> 'b
+  (** Cache a computation on ids. *)
+
   val prop : ttype function_descr id
   val base : ttype function_descr id
   (** Constants representing the type for propositions and a default type
@@ -441,6 +444,9 @@ module Ty : sig
   val get_tag : ty -> 'a tag -> 'a option
   (** Returns the local data associated with the given tag, if if exists *)
 
+  val cached : (ty -> 'a) -> (ty -> 'a)
+  (** Cache a computaiton using a fresh tag. *)
+
 end
 
 (** {2 Terms} *)
@@ -499,6 +505,9 @@ module Term : sig
 
   val get_tag : term -> 'a tag -> 'a option
   (** Returns the local data associated with the given tag, if if exists *)
+
+  val cached : (term -> 'a) -> (term -> 'a)
+  (** Cache a computaiton using a fresh tag. *)
 
 end
 
