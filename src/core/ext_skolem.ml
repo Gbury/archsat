@@ -170,7 +170,7 @@ let tau = function
       let q = Expr.Formula.subst Expr.Subst.empty Expr.Subst.empty subst Expr.Subst.empty p in
       Dispatcher.push [Expr.Formula.neg f; q] (mk_proof_term f q l taus)
     end
-  | { Expr.formula = Expr.Not { Expr.formula = Expr.Ex (l, (ty_args, t_args), p) } } as f ->
+  | { Expr.formula = Expr.Not { Expr.formula = Expr.All (l, (ty_args, t_args), p) } } as f ->
     if not (has_been_seen f) then begin
       mark f;
       Util.debug ~section "@[<hov 2>New formula:@ %a@\nwith free variables:@ %a,@ %a"
@@ -194,7 +194,7 @@ let tau = function
       let q = Expr.Formula.subst subst Expr.Subst.empty Expr.Subst.empty Expr.Subst.empty p in
       Dispatcher.push [Expr.Formula.neg f; q] (mk_proof_ty f q l taus)
     end
-  | { Expr.formula = Expr.Not { Expr.formula = Expr.ExTy (l, (ty_args, t_args), p) } } as f ->
+  | { Expr.formula = Expr.Not { Expr.formula = Expr.AllTy (l, (ty_args, t_args), p) } } as f ->
     assert (t_args = []);
     if not (has_been_seen f) then begin
       mark f;
