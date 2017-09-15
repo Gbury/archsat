@@ -115,14 +115,16 @@ let mark f = H.add seen f 0
 
 (* instanciate the first var *)
 let ty_inst_first ty = function
-  | { Expr.formula = Expr.ExTy ((x :: _), _, _) } as f ->
+  | ({ Expr.formula = Expr.ExTy ((x :: _), _, _) } as f)
+  | ({ Expr.formula = Expr.Not { Expr.formula = Expr.AllTy ((x :: _), _, _) } } as f) ->
     Expr.Formula.partial_inst
       (Expr.Subst.Id.bind Expr.Subst.empty x ty)
       Expr.Subst.empty f
   | _ -> assert false
 
 let term_inst_first term = function
-  | { Expr.formula = Expr.Ex ((x :: _), _, _) } as f ->
+  | ({ Expr.formula = Expr.Ex ((x :: _), _, _) } as f)
+  | ({ Expr.formula = Expr.Not { Expr.formula = Expr.All ((x :: _), _, _) } } as f) ->
     Expr.Formula.partial_inst Expr.Subst.empty
       (Expr.Subst.Id.bind Expr.Subst.empty x term) f
   | _ -> assert false
@@ -225,11 +227,13 @@ let dot_info = function
     )
 
 let pp_coq_fun_ex fmt = function
-  | { Expr.formula = Expr.ExTy ((x :: _), _, _) } as f ->
+  | ({ Expr.formula = Expr.ExTy ((x :: _), _, _) } as f)
+  | ({ Expr.formula = Expr.Not { Expr.formula = Expr.AllTy ((x :: _), _, _) } } as f) ->
     let s = Expr.Subst.Id.bind Expr.Subst.empty x (Expr.Ty.of_id x) in
     let f' = Expr.Formula.partial_inst s Expr.Subst.empty f in
     Format.fprintf fmt "fun %a => %a" Coq.Print.id x Coq.Print.formula f'
-  | { Expr.formula = Expr.Ex ((x :: _), _, _) } as f ->
+  | ({ Expr.formula = Expr.Ex ((x :: _), _, _) } as f)
+  | ({ Expr.formula = Expr.Not { Expr.formula = Expr.All ((x :: _), _, _) } } as f) ->
     let s = Expr.Subst.Id.bind Expr.Subst.empty x (Expr.Term.of_id x) in
     let f' = Expr.Formula.partial_inst Expr.Subst.empty s f in
     Util.debug ~section "subst: %a ----> %a" Expr.Print.formula f Expr.Print.formula f';
@@ -244,16 +248,20 @@ let pp_coq_ty_prelude fmt e =
 let pp_coq_term_prelude fmt e =
   let f = CCOpt.get_exn @@ Expr.Id.get_tag e def in
   Format.fprintf fmt "@[<hv 2>Coq.Logic.Epsilon.epsilon@ (inhabits @[<hov>%a@])@ @[<hov 1>(%a)@]@]"
-    Coq.Print.term (CCOpt.get_exn @@ Synth.term Expr.(e.id_type)) pp_coq_fun_ex f
+    Coq.Print.term (Synth.term Expr.(e.id_type)) pp_coq_fun_ex f
+
+let ty_cache = CCCache.unbounded ~eq:Expr.Ty.equal ~hash:Expr.Ty.hash 42
+let term_cache = CCCache.unbounded ~eq:Expr.Term.equal ~hash:Expr.Term.hash 42
 
 let rec coq_preludes tys ts =
   Sterm.fold (fun t acc ->
       Coq.Prelude.S.add (coq_term_prelude t) acc) ts
     (Sty.fold (fun ty acc ->
-         Coq.Prelude.S.add (coq_ty_prelude ty) acc) tys Coq.Prelude.S.empty)
+         Coq.Prelude.S.add (coq_ty_prelude ty) acc) tys
+        (Coq.Prelude.S.singleton Coq.Prelude.epsilon))
 
 and coq_ty_prelude ty =
-  Expr.Ty.cached (fun ty ->
+  CCCache.with_cache ty_cache (fun ty ->
       let e = epsilon_ty () in
       let () = Expr.Id.tag e def
           (CCOpt.get_exn @@ Expr.Ty.get_tag ty def) in
@@ -267,7 +275,7 @@ and coq_ty_prelude ty =
     ) ty
 
 and coq_term_prelude term =
-  Expr.Term.cached (fun term ->
+  CCCache.with_cache term_cache (fun term ->
       let e = epsilon_term Expr.(term.t_type) in
       let () = Expr.Id.tag e def
           (CCOpt.get_exn @@ Expr.Term.get_tag term def) in
@@ -280,37 +288,66 @@ and coq_term_prelude term =
         Coq.Prelude.abbrev ~deps e pp_coq_term_prelude
     ) term
 
-let coq_ex_ty s fmt _ =
-  Format.fprintf fmt "@[<hov 2>Coq.Logic.Epsilon.epsilon_spec@ (inhabits %a) _ %s@]"
-    Coq.Print.ty Synth.ty s
+let pp_ex is_not_all fmt s =
+  if not is_not_all then Format.fprintf fmt "%s" s
+  else Format.fprintf fmt "(Coq.Logic.Classical_Pred_Type.not_all_ex_not _ _ %s)" s
 
-let coq_ex s fmt t =
-  Format.fprintf fmt "@[<hov 2>Coq.Logic.Epsilon.epsilon_spec@ (inhabits %a) _ %s@]"
-    Coq.Print.term (CCOpt.get_exn @@ Synth.term Expr.(t.t_type)) s
+let coq_ex_ty is_not_all s fmt _ =
+  Format.fprintf fmt "@[<hov 2>Coq.Logic.Epsilon.epsilon_spec@ (inhabits %a) _@ %a@]"
+    Coq.Print.ty Synth.ty (pp_ex is_not_all) s
+
+let coq_ex is_not_all s fmt t =
+  Format.fprintf fmt "@[<hov 2>Coq.Logic.Epsilon.epsilon_spec@ (inhabits %a) _@ %a@]"
+    Coq.Print.term (Synth.term Expr.(t.t_type)) (pp_ex is_not_all) s
 
 let coq_proof = function
-  | Ty (f, l, q) ->
+  | Ty ({ Expr.formula = Expr.ExTy _} as f, l, q) ->
     Coq.(Implication {
         prefix = "Q";
         prelude = Prelude.epsilon :: List.map coq_ty_prelude l;
         left = [f];
         right = [q];
         proof = (fun fmt ctx ->
-            let res = Coq.sequence ctx coq_ex_ty (Proof.Ctx.name ctx f) fmt l in
+            let res = Coq.sequence ctx (coq_ex_ty false) (Proof.Ctx.name ctx f) fmt l in
             Coq.exact fmt "%s" res
           );
       })
-  | Term (f, l, q) ->
+  | Ty ({ Expr.formula = Expr.Not ({Expr.formula = Expr.AllTy _} as f) }, l, q) ->
+    Coq.(Ordered {
+        prelude = Prelude.epsilon :: Prelude.classical :: List.map coq_ty_prelude l;
+        order = [f; q];
+        proof = (fun fmt () ->
+            let ctx = Proof.Ctx.mk ~prefix:"Q" () in
+            Format.fprintf fmt "pose proof True as B.@ ";
+            Format.fprintf fmt "classical_right.@ ";
+            let res = Coq.sequence ctx (coq_ex_ty true) "H" fmt l in
+            Coq.exact fmt "%s" res
+          );
+      })
+  | Term ({ Expr.formula = Expr.Ex _} as f, l, q) ->
     Coq.(Implication {
         prefix = "Q";
         prelude = Prelude.epsilon :: List.map coq_term_prelude l;
         left = [f];
         right = [q];
         proof = (fun fmt ctx ->
-            let res = Coq.sequence ctx coq_ex (Proof.Ctx.name ctx f) fmt l in
+            let res = Coq.sequence ctx (coq_ex false) (Proof.Ctx.name ctx f) fmt l in
             Coq.exact fmt "%s" res
           );
       })
+  | Term ({ Expr.formula = Expr.Not ({Expr.formula = Expr.All _} as f) }, l, q) ->
+    Coq.(Ordered {
+        prelude = Prelude.epsilon :: Prelude.classical :: List.map coq_term_prelude l;
+        order = [f; q];
+        proof = (fun fmt () ->
+            let ctx = Proof.Ctx.mk ~prefix:"Q" () in
+            Format.fprintf fmt "pose proof True as B.@ ";
+            Format.fprintf fmt "classical_right.@ ";
+            let res = Coq.sequence ctx (coq_ex true) "H" fmt l in
+            Coq.exact fmt "%s" res
+          );
+      })
+  | _ -> assert false
 
 
 (* Cmdliner options and registering *)

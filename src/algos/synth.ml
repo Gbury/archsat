@@ -9,6 +9,8 @@ module H = Hashtbl.Make(Expr.Ty)
 module S = Set.Make(Expr.Id.Const)
 module T = Set.Make(Expr.Ty)
 
+exception Cannot_find
+
 (* Helper functions *)
 (* ************************************************************************ *)
 
@@ -92,10 +94,15 @@ and find_term s ty =
 
 let ty = Expr.Ty.base
 
-let term = Util.within_prof section (find_term T.empty)
+let term_aux ty =
+  match find_term T.empty ty with
+  | Some t -> t
+  | None -> raise Cannot_find
 
-let register term =
-  let ty = Expr.(term.t_type) in
+let term = Util.within_prof section term_aux
+
+let register t =
+  let ty = Expr.(t.t_type) in
   assert (Expr.Ty.fv ty = ([], []));
-  H.add table ty term
+  H.add table ty t
 

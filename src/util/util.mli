@@ -9,6 +9,15 @@
 val printf : ('a, Format.formatter, unit) format -> 'a
 (** Print the given format string on the program output *)
 
+(** {2 Size functions} *)
+
+val size : 'a -> float
+(** Reutnrs the size of the transitive closure of the given object, in bytes *)
+
+val print_size : Format.formatter -> float -> unit
+(** Print a siez (in bytes), using a human readble format *)
+
+
 (** {2 Logging functions} *)
 
 val cleanup : unit -> unit

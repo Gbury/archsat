@@ -9,6 +9,9 @@
 
 (** {2 Synhtetizing} *)
 
+exception Cannot_find
+(** Raised when it was not possible to find synthetize a term. *)
+
 val add_id : Expr.ty Expr.function_descr Expr.id -> unit
 (** Add the given function symbol to the set of known symbols. *)
 
@@ -20,6 +23,7 @@ val ty : Expr.ty
 (** A type to replace type metas with. Will be compatible with
     synthetized terms. *)
 
-val term : Expr.ty -> Expr.term option
-(** Tries and generated a term of the given type. *)
+val term : Expr.ty -> Expr.term
+(** Tries and generated a term of the given type.
+    @raise Not_found if couldn't synthetize a term. *)
 
