@@ -320,11 +320,9 @@ let coq_inst_ex m cur fmt x =
 
 let coq_proof = function
   | Formula ({ Expr.formula = Expr.All (l, _, _) } as f, t, q) ->
-    Coq.(Implication {
-        prelude = [];
-        left = [f];
-        right = [q];
+    Coq.({
         prefix = "Q";
+        prelude = [];
         proof = (fun fmt ctx ->
             let l', l'' = List.fold_left (fun (vars, args) x ->
                 match Mapping.Var.get_term_opt t x with
@@ -340,11 +338,10 @@ let coq_proof = function
       })
   | Formula ({ Expr.formula = Expr.Not (
       { Expr.formula = Expr.Ex (l, _, _) } as f' )}, t, q) ->
-    Coq.(Ordered {
+    Coq.({
+        prefix = "Q";
         prelude = [Prelude.classical];
-        order = [ f' ; q];
-        proof = (fun fmt () ->
-            let ctx = Proof.Ctx.mk ~prefix:"B" () in
+        proof = (fun fmt ctx ->
             (** The classical_right tactic fails if no hyps are present,
                 hence we firt add the following trivial hyp *)
             Format.fprintf fmt "pose proof True as B.@ ";
@@ -370,7 +367,7 @@ let coq_proof = function
 
 let handle : type ret. ret Dispatcher.msg -> ret option = function
   | Dot.Info Inst info -> Some (dot_info info)
-  | Coq.Prove Inst info -> Some (coq_proof info)
+  (* | Coq.Prove Inst info -> Some (coq_proof info) *)
   | Solver.Found_sat _ -> inst_sat ()
   | _ -> None
 

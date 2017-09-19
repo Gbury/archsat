@@ -85,27 +85,23 @@ let dot_info = function
 
 let coq_proof = function
   | Fun (l, t, t') ->
-    Coq.(Implication {
+    Coq.({
+        prefix = "E";
         prelude = [];
-        left = l;
-        right = [Expr.Formula.eq t t'];
-        prefix = "eq_";
-        proof = (fun fmt m ->
+        proof = (fun fmt ctx ->
             List.iter (fun eq ->
-                Format.fprintf fmt "rewrite %a.@ " (Proof.Ctx.named m) eq) l;
+                Format.fprintf fmt "rewrite %a.@ " (Proof.Ctx.named ctx) eq) l;
             Coq.exact fmt "eq_refl"
           )
       })
   | Pred (l, p, p') ->
-    Coq.(Implication {
+    Coq.({
+        prefix = "E";
         prelude = [];
-        left = p' :: l;
-        right = [p];
-        prefix = "eq_";
-        proof = (fun fmt m ->
+        proof = (fun fmt ctx ->
             List.iter (fun eq ->
-                Format.fprintf fmt "rewrite %a.@ " (Proof.Ctx.named m) eq) l;
-            Coq.exact fmt "%a" (Proof.Ctx.named m) p'
+                Format.fprintf fmt "rewrite %a.@ " (Proof.Ctx.named ctx) eq) l;
+            Coq.exact fmt "%a" (Proof.Ctx.named ctx) p'
           )
       })
 
@@ -114,7 +110,7 @@ let coq_proof = function
 
 let handle : type ret. ret Dispatcher.msg -> ret option = function
   | Dot.Info UF info -> Some (dot_info info)
-  | Coq.Prove UF info -> Some (coq_proof info)
+  (* | Coq.Prove UF info -> Some (coq_proof info) *)
   | _ -> None
 
 let register () =

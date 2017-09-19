@@ -302,22 +302,19 @@ let coq_ex is_not_all s fmt t =
 
 let coq_proof = function
   | Ty ({ Expr.formula = Expr.ExTy _} as f, l, q) ->
-    Coq.(Implication {
+    Coq.({
         prefix = "Q";
         prelude = Prelude.epsilon :: List.map coq_ty_prelude l;
-        left = [f];
-        right = [q];
         proof = (fun fmt ctx ->
             let res = Coq.sequence ctx (coq_ex_ty false) (Proof.Ctx.name ctx f) fmt l in
             Coq.exact fmt "%s" res
           );
       })
   | Ty ({ Expr.formula = Expr.Not ({Expr.formula = Expr.AllTy _} as f) }, l, q) ->
-    Coq.(Ordered {
+    Coq.({
+        prefix = "Q";
         prelude = Prelude.epsilon :: Prelude.classical :: List.map coq_ty_prelude l;
-        order = [f; q];
-        proof = (fun fmt () ->
-            let ctx = Proof.Ctx.mk ~prefix:"Q" () in
+        proof = (fun fmt ctx ->
             Format.fprintf fmt "pose proof True as B.@ ";
             Format.fprintf fmt "classical_right.@ ";
             let res = Coq.sequence ctx (coq_ex_ty true) "H" fmt l in
@@ -325,22 +322,19 @@ let coq_proof = function
           );
       })
   | Term ({ Expr.formula = Expr.Ex _} as f, l, q) ->
-    Coq.(Implication {
+    Coq.({
         prefix = "Q";
         prelude = Prelude.epsilon :: List.map coq_term_prelude l;
-        left = [f];
-        right = [q];
         proof = (fun fmt ctx ->
             let res = Coq.sequence ctx (coq_ex false) (Proof.Ctx.name ctx f) fmt l in
             Coq.exact fmt "%s" res
           );
       })
   | Term ({ Expr.formula = Expr.Not ({Expr.formula = Expr.All _} as f) }, l, q) ->
-    Coq.(Ordered {
+    Coq.({
+        prefix = "Q";
         prelude = Prelude.epsilon :: Prelude.classical :: List.map coq_term_prelude l;
-        order = [f; q];
-        proof = (fun fmt () ->
-            let ctx = Proof.Ctx.mk ~prefix:"Q" () in
+        proof = (fun fmt ctx ->
             Format.fprintf fmt "pose proof True as B.@ ";
             Format.fprintf fmt "classical_right.@ ";
             let res = Coq.sequence ctx (coq_ex true) "H" fmt l in
@@ -355,7 +349,7 @@ let coq_proof = function
 
 let handle : type ret. ret Dispatcher.msg -> ret option = function
   | Dot.Info Sk info -> Some (dot_info info)
-  | Coq.Prove Sk info -> Some (coq_proof info)
+  (* | Coq.Prove Sk info -> Some (coq_proof info) *)
   | _ -> None
 
 let opts =

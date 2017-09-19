@@ -9,34 +9,16 @@
 
 type prelude
 
-type raw_proof = {
-  prelude : prelude list;
-  proof : Format.formatter -> unit -> unit;
-}
-
-type ordered_proof = {
-  prelude : prelude list;
-  order : Expr.formula list;
-  proof : Format.formatter -> unit -> unit;
-}
-
-type impl_proof = {
-  prelude : prelude list;
+type tactic = {
   prefix  : string;
-  left    : Expr.formula list;
-  right   : Expr.formula list;
+  prelude : prelude list;
   proof   : Format.formatter -> Proof.Ctx.t -> unit;
 }
 
-type proof_style =
-  | Raw of raw_proof
-  | Ordered of ordered_proof
-  | Implication of impl_proof
-
 type _ Dispatcher.msg +=
-  | Prove : Dispatcher.lemma_info -> proof_style Dispatcher.msg (**)
-(** Sent to the extension that produced a proof; asks for it to prove the
-    clause/lemma it produced, using a coq script.  *)
+  | Tactic : Dispatcher.lemma_info -> tactic Dispatcher.msg (**)
+(** Sent to the extension that produced a proof;
+    asks for it to prove the clause/lemma it produced, using a coq tactics. *)
 
 
 (** {2 Main} *)
@@ -86,6 +68,10 @@ end
 
 val exact : Format.formatter -> ('a, Format.formatter, unit) format -> 'a
 (** Helper to use the 'exact' coq tactic. *)
+
+val not_not : Proof.Ctx.t -> Format.formatter -> Expr.formula -> unit
+(** When in a context where we have [~ ~ f] as hyp, and goal [false],
+    replaces [~ ~ f] by [f] in the hyps. *)
 
 val pose_proof : Proof.Ctx.t -> Expr.formula ->
   Format.formatter -> ('a, Format.formatter, unit) format -> 'a
