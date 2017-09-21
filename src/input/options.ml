@@ -177,9 +177,19 @@ let model_opts active assign = {
   assign = formatter_of_out_descr assign;
 }
 
+let gc_opts
+    minor_heap_size major_heap_increment
+    space_overhead max_overhead allocation_policy =
+  Gc.({ (get ()) with
+        minor_heap_size; major_heap_increment;
+        space_overhead; max_overhead; allocation_policy;
+      }
+     )
+
 (* Side-effects options *)
-let set_opts gc bt quiet lvl log_time debug msat_log colors opt =
+let set_opts gc gc_opt bt quiet lvl log_time debug msat_log colors opt =
   CCFormat.set_color_default colors;
+  let () = Gc.set gc_opt in
   if gc then at_exit (fun () -> Gc.print_stat stdout;);
   if bt then Printexc.record_backtrace true;
   if quiet then Section.clear_debug Section.root
@@ -405,6 +415,7 @@ let stats_sect = "STATISTICS OPTIONS"
 let ext_sect = "ADVANCED OPTIONS"
 let proof_sect = "PROOF OPTIONS"
 let model_sect = "MODEL OPTIONS"
+let gc_sect = "GC OPTIONS"
 
 let help_secs ext_doc sext_doc = [
   `S copts_sect;
@@ -422,6 +433,7 @@ let help_secs ext_doc sext_doc = [
     `P "Options primarily used by the extensions (use only if you know what you're doing !).";
     `S prof_sect;
     `S stats_sect;
+    `S gc_sect;
     `S "BUGS";
     `P "TODO";
   ]
@@ -431,6 +443,31 @@ let log_sections () =
   Section.iter (fun s ->
       if not Section.(equal root s) then l := Section.full_name s :: !l);
   List.sort Pervasives.compare !l
+
+let gc_t =
+  let docs = gc_sect in
+  let minor_heap_size =
+    let doc = "Set Gc.minor_heap_size" in
+    Arg.(value & opt int 1_000_000 & info ["gc-s"] ~docs ~doc)
+  in
+  let major_heap_increment =
+    let doc = "Set Gc.major_heap_increment" in
+    Arg.(value & opt int 100 & info ["gc-i"] ~docs ~doc)
+  in
+  let space_overhead =
+    let doc = "Set Gc.space_overhead" in
+    Arg.(value & opt int 200 & info ["gc-o"] ~docs ~doc)
+  in
+  let max_overhead =
+    let doc = "Set Gc.max_overhead" in
+    Arg.(value & opt int 500 & info ["gc-O"] ~docs ~doc)
+  in
+  let allocation_policy =
+    let doc = "Set Gc.allocation policy" in
+    Arg.(value & opt int 0 & info ["gc-a"] ~docs ~doc)
+  in
+  Term.((const gc_opts $ minor_heap_size $ major_heap_increment $
+         space_overhead $ max_overhead $ allocation_policy))
 
 let input_t =
   let docs = copts_sect in
@@ -578,7 +615,7 @@ let unit_t =
     let doc = "Activate coloring of output" in
     Arg.(value & opt bool true & info ["color"] ~docs ~doc)
   in
-  Term.(const set_opts $ gc $ bt $ quiet $ log $ log_time $ debug $ msat_log $ colors)
+  Term.(const set_opts $ gc $ gc_t $ bt $ quiet $ log $ log_time $ debug $ msat_log $ colors)
 
 let type_t =
   let docs = copts_sect in
