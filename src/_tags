@@ -1,6 +1,9 @@
 # Compilation options
 true: color(always)
 
+# optimization options
+true: inline(100), optimize(3), unbox_closures, unbox_closures_factor(20)
+
 <util>: include
 <base>: include
 <misc>: include

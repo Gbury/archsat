@@ -38,6 +38,7 @@ depends: [
   "oclock"
   "sequence"
   "spelll"
+  "uucp"
 ]
 available: [
   ocaml-version >= "4.04.0"
