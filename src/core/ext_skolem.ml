@@ -318,19 +318,19 @@ let coq_proof = function
           Coq.exact fmt "%s" res
         )
   | Term ({ Expr.formula = Expr.Ex _} as f, l, q) ->
-    Coq.tactic ~prefix:"Q"
+    Coq.tactic ~prefix:"Q" ~normalize:(Coq.Mem [f])
       ~prelude:(Coq.Prelude.epsilon :: List.map coq_term_prelude l) (fun fmt ctx ->
           let res = Coq.sequence ctx (coq_ex false) (Proof.Ctx.name ctx f) fmt l in
-          Coq.exact fmt "%s" res
+          Coq.exact fmt "%a %s" (Proof.Ctx.named ctx) (Expr.Formula.neg q) res
         )
-  | Term ({ Expr.formula = Expr.Not ({Expr.formula = Expr.All _} as f) }, l, q) ->
+  | Term ({ Expr.formula = Expr.Not {Expr.formula = Expr.All _} }, l, q) ->
     Coq.tactic ~prefix:"Q"
       ~prelude:(Coq.Prelude.epsilon :: Coq.Prelude.classical ::
                 List.map coq_term_prelude l) (fun fmt ctx ->
           Format.fprintf fmt "pose proof True as B.@ ";
           Format.fprintf fmt "classical_right.@ ";
           let res = Coq.sequence ctx (coq_ex true) "H" fmt l in
-          Coq.exact fmt "%s" res
+          Coq.exact fmt "%a %s" (Proof.Ctx.named ctx) (Expr.Formula.neg q) res
         )
   | _ -> assert false
 
@@ -340,7 +340,7 @@ let coq_proof = function
 
 let handle : type ret. ret Dispatcher.msg -> ret option = function
   | Dot.Info Sk info -> Some (dot_info info)
-  (* | Coq.Prove Sk info -> Some (coq_proof info) *)
+  | Coq.Tactic Sk info -> Some (coq_proof info)
   | _ -> None
 
 let opts =

@@ -293,21 +293,16 @@ let dot_info = function
 
 let coq_destruct ctx fmt = function
   | { Expr.formula = Expr.Not ({
-      Expr.formula = Expr.Ex(l, _, _)})} as q ->
+      Expr.formula = Expr.Ex(l, _, _)} as q)} ->
     let o = Expr.L (List.rev @@ (Expr.F (`Quant q)) ::
                                 List.rev_map (fun x -> Expr.F (`Var x)) l) in
     let pp fmt = function
       | `Var x -> Coq.Print.id fmt x
       | `Quant q -> Proof.Ctx.named ctx fmt q
     in
-    Format.fprintf fmt "intro %a.@ destruct %a as %a.@ "
-      (Proof.Ctx.named ctx) q (Proof.Ctx.named ctx) q (Coq.Print.pattern_ex pp) o;
-    true
-  | _ -> false
-
-let coq_norm fmt = function
-  | { Expr.formula = Expr.Not _ } -> ()
-  | _ -> Format.fprintf fmt "apply Coq.Logic.Classical_Prop.NNPP.@ "
+    Format.fprintf fmt "destruct %a as %a.@ "
+      (Proof.Ctx.named ctx) q (Coq.Print.pattern_ex pp) o
+  | _ -> ()
 
 let coq_inst_ex m cur fmt x =
   let t = match Mapping.Var.get_term_opt m x with
@@ -328,29 +323,22 @@ let coq_proof = function
         let vars = List.rev l' in
         let args = List.rev l'' in
         begin match vars with
-          | [] -> Coq.exact fmt "%a" (Coq.app_t ctx) (f, args)
-          | _ -> Coq.exact fmt "fun %a => %a"
-                   Coq.fun_binder vars (Coq.app_t ctx) (f, args)
+          | [] ->
+            Coq.exact fmt "%a (%a)"
+              (Proof.Ctx.named ctx) (Expr.Formula.neg q)
+              (Coq.app_t ctx) (f, args)
+          | _ ->
+            Coq.exact fmt "%a (fun %a => %a)"
+              (Proof.Ctx.named ctx) (Expr.Formula.neg q)
+              Coq.fun_binder vars (Coq.app_t ctx) (f, args)
         end)
   | Formula ({ Expr.formula = Expr.Not (
-      { Expr.formula = Expr.Ex (l, _, _) } as f' )}, t, q) ->
+      { Expr.formula = Expr.Ex (l, _, _) })} as f', t, q) ->
     Coq.tactic ~prefix:"Q" ~prelude:[Coq.Prelude.classical] (fun fmt ctx ->
-        (** The classical_right tactic fails if no hyps are present,
-            hence we first add the following trivial hyp *)
-        Format.fprintf fmt "pose proof True as B.@ ";
-        (** The following is quite fragile, seeing as we rely on
-            the classical_right tactic introducing "H". *)
-        Format.fprintf fmt "classical_right.@ ";
-        (** When q does not start with a negation, it means that a double negation
-            was automatically eliminated, thus in that case, we need to use NNPP *)
-        coq_norm fmt q;
         (** Destruct the goal *)
-        let is_partial = coq_destruct ctx fmt q in
-        let s = Coq.sequence ctx (coq_inst_ex t) "H" fmt l in
-        if is_partial then
-          Coq.exact fmt "%s %a" s (Proof.Ctx.named ctx) q
-        else
-          Coq.exact fmt "%s" s
+        let () = coq_destruct ctx fmt q in
+        let s = Coq.sequence ctx (coq_inst_ex t) (Proof.Ctx.name ctx f') fmt l in
+        Coq.exact fmt "%s %a" s (Proof.Ctx.named ctx) (Expr.Formula.neg q)
       )
   | _ -> assert false
 
@@ -359,7 +347,7 @@ let coq_proof = function
 
 let handle : type ret. ret Dispatcher.msg -> ret option = function
   | Dot.Info Inst info -> Some (dot_info info)
-  (* | Coq.Prove Inst info -> Some (coq_proof info) *)
+  | Coq.Tactic Inst info -> Some (coq_proof info)
   | Solver.Found_sat _ -> inst_sat ()
   | _ -> None
 
