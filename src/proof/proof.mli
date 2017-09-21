@@ -55,6 +55,9 @@ module Ctx : sig
   val add : t -> Expr.formula -> unit
   (** Add a formula to the map, a new name is automatically generated for it. *)
 
+  val add_force : t -> Expr.formula -> string -> unit
+  (** Add the given formula using the given name. *)
+
   val name : t -> Expr.formula -> string
   (** Find the name associated to a formula in a map (including wrapper). *)
 

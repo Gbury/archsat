@@ -11,7 +11,7 @@ module S = Set.Make(Expr.Term)
 module M = Map.Make(Expr.Id.Const)
 
 type info =
-  | Trivial
+  | Trivial of Expr.formula
   | Chain of Expr.term list
 
 type D.lemma_info += Eq of info
@@ -140,8 +140,11 @@ let mk_expl (a, b, l) =
 let mk_proof l =
   match l with
   | [] -> assert false
-  | [_] -> Dispatcher.mk_proof name "trivial" (Eq Trivial)
-  | _ -> Dispatcher.mk_proof name "eq-trans" (Eq (Chain l))
+  | [x] ->
+    let f = Expr.Formula.(eq x x) in
+    Dispatcher.mk_proof name "trivial" (Eq (Trivial f))
+  | _ ->
+    Dispatcher.mk_proof name "eq-trans" (Eq (Chain l))
 
 let wrap f x y =
   try
@@ -204,7 +207,7 @@ let rec set_handler t =
 
 let rec peek = function
   | { Expr.formula = Expr.Equal (a, b) } as f when Expr.Term.equal a b ->
-    D.push [f] (D.mk_proof name "trivial" (Eq Trivial));
+    D.push [f] (D.mk_proof name "trivial" (Eq (Trivial f)));
     set_handler a
   | { Expr.formula = Expr.Equal (a, b) } as f ->
     watch 1 [a; b] (f_eval f);
@@ -220,7 +223,7 @@ let rec peek = function
 (* ************************************************************************ *)
 
 let dot_info = function
-  | Trivial -> None, []
+  | Trivial _ -> None, []
   | Chain l -> None, List.map (CCFormat.const Dot.Print.term) l
 
 let to_eqs l =
@@ -244,12 +247,16 @@ let rec coq_aux m fmt = function
       (Proof.Ctx.named m) x (coq_aux m) r
 
 let coq_proof = function
-  | Trivial ->
-    Coq.tactic (fun fmt ctx -> assert false)
+  | Trivial f ->
+    Coq.tactic (fun fmt ctx ->
+        Coq.exact fmt "%a eq_refl" (Proof.Ctx.named ctx) (Expr.Formula.neg f)
+      )
   | Chain l ->
-    let res, eqs = to_eqs l in
+    let res, eqs = to_eqs (List.rev l) in
     Coq.tactic ~prefix:"E" (fun fmt ctx ->
-        Format.fprintf fmt "exact %a." (coq_aux ctx) eqs
+        Format.fprintf fmt "exact (%a %a)."
+          (Proof.Ctx.named ctx) (Expr.Formula.neg res)
+          (coq_aux ctx) eqs
       )
 
 
@@ -258,7 +265,7 @@ let coq_proof = function
 
 let handle : type ret. ret D.msg -> ret option = function
   | Dot.Info Eq info -> Some (dot_info info)
-  (* | Coq.Prove Eq info -> Some (coq_proof info) *)
+  | Coq.Tactic Eq info -> Some (coq_proof info)
   | _ -> None
 
 let register () =

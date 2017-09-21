@@ -80,14 +80,17 @@ module Ctx = struct
     let () = t.count <- t.count + 1 in
     Format.sprintf "%s%d" t.prefix t.count
 
-  let add_aux t f =
+  let add_aux t f g =
     match Hf.find t.names f with
     | (f', name) -> raise (Added_twice f')
     | exception Not_found ->
-      let name = new_name t in
+      let name = g t in
       let res = (f, name) in
       Hf.add t.names f res;
       name
+
+  let add_force t f name =
+    ignore (add_aux t f (fun _ -> name))
 
   (* Printing *)
   let named t fmt f =
@@ -95,10 +98,10 @@ module Ctx = struct
     t.wrapper CCFormat.(const string name) fmt (f, f')
 
   let intro t fmt f =
-    Format.fprintf fmt "%s" (add_aux t f)
+    Format.fprintf fmt "%s" (add_aux t f new_name)
 
   (* Wrappers *)
-  let add t f = ignore (add_aux t f)
+  let add t f = ignore (add_aux t f new_name)
   let name t f = Format.asprintf "%a" (named t) f
 
 end

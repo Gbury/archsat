@@ -164,14 +164,20 @@ let coq_proof = function
           )
 
   | And (init, res) ->
-    Coq.tactic ~prefix:"A" ~normalize:Coq.All (fun fmt ctx ->
+    Coq.tactic ~prefix:"A" ~normalize:(Coq.Mem [init]) (fun fmt ctx ->
             let order = CCOpt.get_exn (Expr.Formula.get_tag init Expr.f_order) in
-            Format.fprintf fmt "destruct %a as %a.@ exact F."
+            Format.fprintf fmt "destruct %a as %a.@ "
               (Proof.Ctx.named ctx) init
               (Coq.Print.pattern_and (fun fmt f ->
                    if Expr.Formula.equal f res
-                   then Format.fprintf fmt "F"
-                   else Format.fprintf fmt "_")) order
+                   then Proof.Ctx.intro ctx fmt f
+                   else Format.fprintf fmt "_")) order;
+            if Expr.Formula.equal res Expr.Formula.f_false then
+              Coq.exact fmt "%a" (Proof.Ctx.named ctx) res
+            else
+              Coq.exact fmt "%a %a"
+                (Proof.Ctx.named ctx) (Expr.Formula.neg res)
+                (Proof.Ctx.named ctx) res
           )
   | Not_or (init, res) ->
     Coq.tactic ~prefix:"O" ~normalize:Coq.All (fun fmt ctx ->
@@ -216,7 +222,7 @@ let coq_proof = function
         | Some o ->
           Format.fprintf fmt "destruct %a as @[<hov>%a@].@ "
             (Proof.Ctx.named ctx) init
-            (Coq.Print.pattern_or (Proof.Ctx.named ctx)) o;
+            (Coq.Print.pattern_or (Proof.Ctx.intro ctx)) o;
           Coq.Print.pattern ~start:CCFormat.silent ~stop:CCFormat.silent
             ~sep:(CCFormat.return "@ ") (fun fmt f ->
                 Coq.exact fmt "%a %a"

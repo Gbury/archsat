@@ -86,12 +86,16 @@ let dot_info = function
 let coq_proof = function
   | Fun (l, t, t') ->
     Coq.tactic ~prefix:"E" (fun fmt ctx ->
+        Format.fprintf fmt "apply %a.@ "
+          (Proof.Ctx.named ctx) (Expr.Formula.(neg @@ eq t t'));
         List.iter (fun eq ->
             Format.fprintf fmt "rewrite %a.@ " (Proof.Ctx.named ctx) eq) l;
         Coq.exact fmt "eq_refl"
       )
   | Pred (l, p, p') ->
     Coq.tactic ~prefix:"E" (fun fmt ctx ->
+        Format.fprintf fmt "apply %a.@ "
+          (Proof.Ctx.named ctx) (Expr.Formula.neg p);
         List.iter (fun eq ->
             Format.fprintf fmt "rewrite %a.@ " (Proof.Ctx.named ctx) eq) l;
         Coq.exact fmt "%a" (Proof.Ctx.named ctx) p'
@@ -103,7 +107,7 @@ let coq_proof = function
 
 let handle : type ret. ret Dispatcher.msg -> ret option = function
   | Dot.Info UF info -> Some (dot_info info)
-  (* | Coq.Prove UF info -> Some (coq_proof info) *)
+  | Coq.Tactic UF info -> Some (coq_proof info)
   | _ -> None
 
 let register () =

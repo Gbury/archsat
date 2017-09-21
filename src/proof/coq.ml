@@ -419,22 +419,30 @@ module Tactic = Msat.Coq.Make(Solver.Proof)(struct
       let aux fmt atom = Proof.Ctx.intro ctx fmt (Expr.Formula.neg @@ formula atom) in
       Format.fprintf fmt "intros %a." CCFormat.(array ~sep:(return " ") aux) a
 
-    let destroy_disj ctx fmt (orig, l) =
+    let destroy_disj ctx fmt (orig, a, l) =
       match l with
       | [] -> assert false
       | [p] ->
-        Format.fprintf fmt "exact (%a %s)."
-          (Proof.Ctx.named ctx) (Expr.Formula.neg p) orig
+        let () = Proof.Ctx.add_force ctx p orig in
+        let f = formula a.(0) in
+        Format.fprintf fmt "exact (%a %a)."
+        (Proof.Ctx.named ctx) (Expr.Formula.neg f)
+        (Proof.Ctx.named ctx) f
       | _ ->
         let order = Expr.L (List.map (fun f -> Expr.F f) l) in
         Format.fprintf fmt "@[<hov 2>destruct %s as %a.@ %a@]" orig
-          (Print.pattern_or (fun fmt _ -> Format.fprintf fmt "T")) order
-          CCFormat.(list ~sep:(return "@ ") (fun fmt f ->
+          (Print.pattern_or (Proof.Ctx.intro ctx)) order
+          CCFormat.(list ~sep:(return "@ ") (fun fmt p ->
+              let f = CCOpt.get_exn @@ CCArray.find (fun x ->
+                  let f = formula x in
+                  if Expr.Formula.equal f p then Some f else None
+                ) a in
               if Expr.Formula.(equal f_false) f then
-                Format.fprintf fmt "exact T."
+                Format.fprintf fmt "exact %a." (Proof.Ctx.named ctx) f
               else
-                Format.fprintf fmt "exact (%a T)."
+                Format.fprintf fmt "exact (%a %a)."
                   (Proof.Ctx.named ctx) (Expr.Formula.neg f)
+                  (Proof.Ctx.named ctx) f
             )) l
 
     (** clausify or-separated clauses into mSAT encoding of clauses *)
@@ -443,7 +451,7 @@ module Tactic = Msat.Coq.Make(Solver.Proof)(struct
       Format.fprintf fmt "@[<v 2>%a@ @[<hv>%a@ %a@]@]"
         assert_clause (dest, a)
         (intro_clause ctx) a
-        (destroy_disj ctx) (orig, l)
+        (destroy_disj ctx) (orig, a, l)
     (** destruct already proved hyp *)
 
     (** Prove hypotheses. All hypothses (including negated goals)
