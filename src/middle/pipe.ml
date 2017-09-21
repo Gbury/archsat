@@ -380,6 +380,7 @@ let print_proof (opt, (c : solved stmt)) =
   | { contents = `Goal g; id; _ } ->
     Proof.add_goal id g
   | { contents = `Proof p; _ } ->
+    Util.info "Proof size: %a" Util.print_size (Util.size p);
     let () = pp_opt Unsat_core.print Options.(opt.proof.unsat_core) p in
     let () = pp_opt Dot.print Options.(opt.proof.dot) p in
     let () = pp_opt Coq.print_proof Options.(opt.proof.coq) p in

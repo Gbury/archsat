@@ -1,9 +1,14 @@
 # Compilation options
-true: color(always)
+true: bin_annot, color(always)
 
 # optimization options
 true: inline(100), optimize(3), unbox_closures, unbox_closures_factor(20)
 
+# Some warnings
+<**/*.ml>: warn_K, warn_Y, warn_X, warn(-58)
+<**/*.cm*>: debug
+
+# Include paths
 <util>: include
 <base>: include
 <misc>: include
@@ -15,10 +20,6 @@ true: inline(100), optimize(3), unbox_closures, unbox_closures_factor(20)
 <input>: include
 <middle>: include
 <output>: include
-
-# Some warnings
-<**/*.ml>: warn_K, warn_Y, warn_X, warn(-58)
-<**/*.cm*>: debug
 
 # Pack management
 <util/*.*>: for-pack(Archsat)

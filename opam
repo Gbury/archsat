@@ -39,6 +39,7 @@ depends: [
   "sequence"
   "spelll"
   "uucp"
+  "uutf" { >= "1.0" }
 ]
 available: [
   ocaml-version >= "4.04.0"

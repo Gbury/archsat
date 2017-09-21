@@ -386,7 +386,7 @@ let coq_proof = function
 
 let handle : type ret. ret Dispatcher.msg -> ret option = function
   | Dot.Info Meta info -> Some (dot_info info)
-  | Coq.Prove Meta info -> Some (coq_proof info)
+  (* | Coq.Prove Meta info -> Some (coq_proof info) *)
   | Solver.Found_sat model ->
     (* Create new metas *)
     if !meta_incr then begin

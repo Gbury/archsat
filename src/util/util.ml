@@ -11,6 +11,31 @@ let cleanup () = need_cleanup := true
 let time = ref true
 let disable_time () = time := false
 
+(* Siez computation *)
+(* ************************************************************************ *)
+
+let size x =
+  let t = Obj.repr x in
+  let h = Obj.reachable_words t in
+  (float) h *. (float) Sys.word_size /. 8.
+
+let size_string f =
+  let n = int_of_float f in
+  let aux n div = n / div, n mod div in
+  let n_tera, n = aux n 1_000_000_000_000 in
+  let n_giga, n = aux n 1_000_000_000 in
+  let n_mega, n = aux n 1_000_000 in
+  let n_kilo, n = aux n 1_000 in
+  let print_aux s n = if n <> 0 then (string_of_int n) ^ s else "" in
+  (print_aux "To" n_tera) ^
+  (print_aux "Go" n_giga) ^
+  (print_aux "Mo" n_mega) ^
+  (print_aux "ko" n_kilo) ^
+  (print_aux "" n)
+
+let print_size fmt f =
+  Format.fprintf fmt "%s" (size_string f)
+
 (* Output functions *)
 (* ************************************************************************ *)
 

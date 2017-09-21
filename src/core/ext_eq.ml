@@ -245,20 +245,21 @@ let rec coq_aux m fmt = function
 
 let coq_proof = function
   | Trivial ->
-    Coq.(Raw {
-      prelude = [];
-      proof = CCFormat.return "exact eq_refl.";
+    Coq.({
+        prefix = "";
+        prelude = [];
+        proof = (fun fmt ctx ->
+            assert false
+          );
     })
   | Chain l ->
     let res, eqs = to_eqs l in
-    Coq.(Implication {
+    Coq.({
+        prefix = "E";
         prelude = [];
-        left = eqs;
-        right = [res];
-        prefix = "eq_";
-        proof = (fun fmt m ->
-            Format.fprintf fmt "exact %a." (coq_aux m) eqs
-          )
+        proof = (fun fmt ctx ->
+            Format.fprintf fmt "exact %a." (coq_aux ctx) eqs
+          );
       })
 
 (* Handler & Plugin registering *)
@@ -266,7 +267,7 @@ let coq_proof = function
 
 let handle : type ret. ret D.msg -> ret option = function
   | Dot.Info Eq info -> Some (dot_info info)
-  | Coq.Prove Eq info -> Some (coq_proof info)
+  (* | Coq.Prove Eq info -> Some (coq_proof info) *)
   | _ -> None
 
 let register () =

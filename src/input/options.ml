@@ -275,21 +275,7 @@ let parse_time arg =
     | _ -> `Error "bad numeric argument"
   with Failure _ -> `Error "bad numeric argument"
 
-let size_string f =
-  let n = int_of_float f in
-  let aux n div = n / div, n mod div in
-  let n_tera, n = aux n 1_000_000_000_000 in
-  let n_giga, n = aux n 1_000_000_000 in
-  let n_mega, n = aux n 1_000_000 in
-  let n_kilo, n = aux n 1_000 in
-  let print_aux s n = if n <> 0 then (string_of_int n) ^ s else "" in
-  (print_aux "To" n_tera) ^
-  (print_aux "Go" n_giga) ^
-  (print_aux "Mo" n_mega) ^
-  (print_aux "ko" n_kilo) ^
-  (print_aux "" n)
-
-let print_size fmt f = Format.fprintf fmt "%s" (size_string f)
+let print_size = Util.print_size
 
 let parse_size arg =
   let l = String.length arg in
@@ -330,8 +316,8 @@ let output_mode = function
 let bool_opt s bool = if bool then Printf.sprintf "[%s]" s else ""
 
 let log_opts opt =
-  Util.log "Limits : %s / %s"
-    (time_string opt.time_limit) (size_string opt.size_limit);
+  Util.log "Limits : %s / %a"
+    (time_string opt.time_limit) print_size opt.size_limit;
   Util.log "Options : %s%s%s%s[in: %s][out: %s]"
     (output_mode opt.input.mode)
     (bool_opt "solve" opt.solve)

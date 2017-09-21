@@ -34,52 +34,52 @@ let clear_goals () = goals := []
 
 module Ctx = struct
 
-  module Hs = Hashtbl.Make(CCString)
   module Hf = Hashtbl.Make(Expr.Formula)
 
   exception No_prefix
 
+  type wrapper = (Format.formatter -> unit -> unit) ->
+      Format.formatter -> (Expr.formula * Expr.formula) -> unit
+
   type t = {
     (** Prefixed formula name map *)
-    count : int Hs.t;
-    mutable prefix : string option;
+    prefix : string;
+    wrapper : wrapper;
+    mutable count : int;
     names : (Expr.formula * string) Hf.t;
   }
 
-  let mk ?prefix () = {
-    prefix;
-    count = Hs.create 3;
-    names = Hf.create 13;
+  let _wrap pp fmt _ = pp fmt ()
+
+  let mk ?(wrapper=_wrap) ~prefix = {
+    prefix; wrapper;
+    count = 0; names = Hf.create 13;
   }
 
   (* Named formulas with a prefix. *)
-  let prefix t s = t.prefix <- Some s
-
   let find t = Hf.find t.names
 
-  let name t f = snd (find t f)
-
   let new_name t =
-    match t.prefix with
-    | None -> raise No_prefix
-    | Some prefix ->
-      let i = try Hs.find t.count prefix with Not_found -> 0 in
-      let () = Hs.add t.count prefix (i + 1) in
-      Format.sprintf "%s%d" prefix i
+    let () = t.count <- t.count + 1 in
+    Format.sprintf "%s%d" t.prefix t.count
 
   let add_aux t f =
     match Hf.find t.names f with
-    | (_, name) -> name
+    | (f', name) -> f', name
     | exception Not_found ->
       let name = new_name t in
-      Hf.add t.names f (f, name);
-      name
+      let res = (f, name) in
+      Hf.add t.names f res;
+      res
 
-  let add t f = ignore (add_aux t f)
-
-  (* Printer wrapper *)
+  (* Printing *)
   let named t fmt f =
-    Format.fprintf fmt "%s" (add_aux t f)
+    let (f', name) = add_aux t f in
+    t.wrapper CCFormat.(const string name) fmt (f, f')
+
+  (* Wrappers *)
+  let add t f = ignore (add_aux t f)
+  let name t f = Format.asprintf "%a" (named t) f
 
 end
 

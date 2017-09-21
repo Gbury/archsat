@@ -1,0 +1,6 @@
+(assert (or a (or b c) d))
+(assert (not a))
+(assert (not b))
+(assert (not c))
+(assert (not d))
+(check-sat)

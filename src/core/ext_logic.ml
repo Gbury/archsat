@@ -178,86 +178,81 @@ let rec coq_imply_right fmt (n, i) =
 
 let coq_proof = function
   | True ->
-    Coq.(Raw {
+    Coq.({
+        prefix = "X";
         prelude = [];
-        proof = CCFormat.return "exact I.";
+        proof = (fun fmt ctx ->
+            Coq.exact fmt "%a I" (Proof.Ctx.named ctx) (Expr.Formula.f_false)
+          );
       })
 
   | And (init, res) ->
-    Coq.(Implication {
+    Coq.({
+        prefix = "A";
         prelude = [];
-        left = [init];
-        right = [res];
-        prefix = "H";
-        proof = (fun fmt m ->
+        proof = (fun fmt ctx ->
             let order = CCOpt.get_exn (Expr.Formula.get_tag init Expr.f_order) in
-            Format.fprintf fmt "destruct %a as %a; exact %s."
-              (Proof.Ctx.named m) init
+            Format.fprintf fmt "apply %a.@ intros %a.@ exact F."
+              (Proof.Ctx.named ctx) init
               (Print.pattern_and (fun fmt f ->
                    if Expr.Formula.equal f res
                    then Format.fprintf fmt "F"
                    else Format.fprintf fmt "_")) order
-              "F"
           );
       })
   | Not_or (init, res) ->
-    Coq.(Implication {
+    Coq.({
+        prefix = "O";
         prelude = [];
-        left = [res];
-        right = [init];
-        prefix = "H";
-        proof = (fun fmt m ->
+        proof = (fun fmt ctx ->
             let order = CCOpt.get_exn (Expr.Formula.get_tag init Expr.f_order) in
-            Format.fprintf fmt "%a.@ exact %a."
-              Print.path_to (res, order) (Proof.Ctx.named m) res
+            Format.fprintf fmt "%a@ apply %a.@ %a. exact %a."
+              (Coq.not_not ctx) res (Proof.Ctx.named ctx) (Expr.Formula.neg init)
+              Print.path_to (res, order) (Proof.Ctx.named ctx) res
           )
       })
 
   | Or (init, l) ->
-    Coq.(Implication {
+    Coq.({
+        prefix = "O";
         prelude = [];
-        left = [init];
-        right = l;
-        prefix = "H";
-        proof = (fun fmt m ->
-            let n = List.length l in
+        proof = (fun fmt ctx ->
             let order = CCOpt.get_exn (Expr.Formula.get_tag init Expr.f_order) in
-            Format.fprintf fmt "destruct %a as %a.@\n@[<hv>%a@]"
-              (Proof.Ctx.named m) init
+            Format.fprintf fmt "apply %a.@ intros %a.@ @[<hv>%a@]"
+              (Proof.Ctx.named ctx) init
               (Print.pattern_or (fun fmt f -> Format.fprintf fmt "F")) order
-            (fun fmt -> List.iteri (fun i _ ->
-                  Format.fprintf fmt "@[<hov 2>- %a.@ exact F.@]@ "
-                    Print.path (i + 1, n))) l
+              CCFormat.(list ~sep:(return "@ ") (fun fmt f ->
+                  Format.fprintf fmt "exact (%a F)."
+                    (Proof.Ctx.named ctx) (Expr.Formula.neg f)
+                )) l
           )
       })
   | Not_and (init, l) ->
-    Coq.(Implication {
+    Coq.({
+        prefix = "A";
         prelude = [];
-        left = l;
-        right = [init];
-        prefix = "H";
-        proof = (fun fmt m ->
-            let aux = Proof.Ctx.named m in
+        proof = (fun fmt ctx ->
             let order = CCOpt.get_exn (Expr.Formula.get_tag init Expr.f_order) in
-            Format.fprintf fmt "exact @[<hov>%a@]." (Print.pattern_intro_and aux) order
+            Format.fprintf fmt "%a@ exact (%a @[<hov>%a@])."
+              CCFormat.(list ~sep:(return "@ ") (Coq.not_not ctx)) l
+              (Proof.Ctx.named ctx) (Expr.Formula.neg init)
+              (Print.pattern_intro_and (Proof.Ctx.named ctx)) order
           )
       })
 
   | Imply (init, _, [p], _, [q]) ->
-    Coq.(Ordered {
+    Coq.({
+        prefix = "Ax";
         prelude = [Prelude.classical];
-        order = [Expr.Formula.neg init; p; q];
-        proof = (fun fmt () ->
+        proof = (fun fmt ctx ->
             Format.fprintf fmt "apply Coq.Logic.Classical_Prop.imply_to_or.@ ";
             Format.fprintf fmt "apply Coq.Logic.Classical_Prop.imply_to_or."
           );
       })
   | Imply (init, p, lp, q, lq) ->
-    Coq.(Implication {
+    Coq.({
+        prefix = "Ax";
         prelude = [Prelude.classical];
-        left = [init];
-        right = lp @ lq;
-        prefix = "H";
         proof = (fun fmt m ->
             let np = List.length lp in
             let nq = List.length lq in
@@ -272,10 +267,10 @@ let coq_proof = function
       })
 
   | Not_imply_left (init, res) ->
-    Coq.(Ordered {
+    Coq.({
+        prefix = "Ax";
         prelude = [Prelude.classical];
-        order = [res; init];
-        proof = (fun fmt () ->
+        proof = (fun fmt ctx ->
             Format.fprintf fmt "apply Coq.Logic.Classical_Prop.NNPP. intro H0.@ ";
             Format.fprintf fmt
               "destruct (Coq.Logic.Classical_Prop.not_or_and _ _ H0) as [H1 H2].@ ";
@@ -283,33 +278,27 @@ let coq_proof = function
           )
       })
   | Not_imply_right (init, res) ->
-    Coq.(Implication {
+    Coq.({
+        prefix = "Ax";
         prelude = [];
-        left = [res];
-        right = [init];
-        prefix = "H";
         proof = (fun fmt m ->
             Format.fprintf fmt "intros _; exact %a." (Proof.Ctx.named m) res
           )
       })
 
   | Equiv_right (init, res) ->
-    Coq.(Implication {
-        prelude = [];
-        left = [init];
-        right = [res];
+    Coq.({
         prefix = "E";
+        prelude = [];
         proof = (fun fmt m ->
             Format.fprintf fmt "destruct (iff_and %a) as [R _]; exact R."
               (Proof.Ctx.named m) init
           )
       })
   | Equiv_left (init, res) ->
-    Coq.(Implication {
-        prelude = [];
-        left = [init];
-        right = [res];
+    Coq.({
         prefix = "E";
+        prelude = [];
         proof = (fun fmt m ->
             Format.fprintf fmt "destruct (iff_and %a) as [_ R]; exact R."
               (Proof.Ctx.named m) init
@@ -317,12 +306,10 @@ let coq_proof = function
       })
 
   | Not_equiv (init, pq, qp) ->
-    Coq.(Implication {
-        prelude = [];
-        left = [pq; qp];
-        right = [init];
+    Coq.({
         prefix = "I";
-        proof = (fun fmt m ->
+        prelude = [];
+        proof = (fun fmt _ ->
             Format.fprintf fmt "rewrite iff_to_and. split; assumption."
           )
       })
@@ -332,7 +319,7 @@ let coq_proof = function
 
 let handle : type ret. ret Dispatcher.msg -> ret option = function
   | Dot.Info Logic info -> Some (dot_info info)
-  | Coq.Prove Logic info -> Some(coq_proof info)
+  | Coq.Tactic Logic info -> Some (coq_proof info)
   | _ -> None
 
 let register () =

@@ -10,37 +10,29 @@ type prelude =
   | Require : string -> prelude
   | Notation : 'a Expr.id * (Format.formatter -> 'a Expr.id -> unit) -> prelude
 
-type raw_proof = {
-  prelude : prelude list;
-  proof : Format.formatter -> unit -> unit;
-}
-
-type ordered_proof = {
-  prelude : prelude list;
-  order : Expr.formula list;
-  proof : Format.formatter -> unit -> unit;
-}
-
-type impl_proof = {
-  prelude : prelude list;
+type tactic = {
   prefix  : string;
-  left    : Expr.formula list;
-  right   : Expr.formula list;
+  prelude : prelude list;
   proof   : Format.formatter -> Proof.Ctx.t -> unit;
 }
 
-type proof_style =
-  | Raw of raw_proof
-  | Ordered of ordered_proof
-  | Implication of impl_proof
-
 type _ Dispatcher.msg +=
-  | Prove : Dispatcher.lemma_info -> proof_style Dispatcher.msg
+  | Tactic : Dispatcher.lemma_info -> tactic Dispatcher.msg
+
+(* Small wrappers *)
+(* ************************************************************************ *)
+
+let extract clause =
+  match clause.Dispatcher.SolverTypes.cpremise with
+  | Dispatcher.SolverTypes.Lemma lemma -> Some lemma
+  | _ -> None
 
 (* Printing wrappers *)
 (* ************************************************************************ *)
 
 module Print = struct
+
+  let section = Section.make ~parent:section "print"
 
   (** Traps are there to enforce translation of certain
       types of terms into another type/term. *)
@@ -50,8 +42,15 @@ module Print = struct
   let ty_traps = Hty.create 13
   let term_traps = Hterm.create 13
 
-  let trap_ty = Hty.add ty_traps
-  let trap_term = Hterm.add term_traps
+  let trap_ty key v =
+    Util.debug ~section "trap: %a --> %a"
+      Expr.Print.ty key Expr.Print.ty v;
+    Hty.add ty_traps key v
+
+  let trap_term key v =
+    Util.debug ~section "trap: %a --> %a"
+      Expr.Print.term key Expr.Print.term v;
+    Hterm.add term_traps key v
 
   open Expr
 
@@ -68,8 +67,8 @@ module Print = struct
       | Escape.Any.Dolmen id -> Dolmen.Id.full_name id
       | Escape.Any.Id id ->
         begin match Expr.Id.get_tag id pretty with
-        | None -> id.Expr.id_name
-        | Some (Print.Infix s | Print.Prefix s) -> s
+          | None -> id.Expr.id_name
+          | Some (Print.Infix s | Print.Prefix s) -> s
         end
     in
     let rename = Escape.rename ~sep:'_' in
@@ -167,10 +166,7 @@ module Print = struct
           end
       end
 
-  and meta fmt m =
-    match Synth.term m.meta_id.id_type with
-    | None -> assert false
-    | Some t -> term fmt t
+  and meta fmt m = term fmt (Synth.term m.meta_id.id_type)
 
   let rec formula fmt f =
     match f.formula with
@@ -295,6 +291,29 @@ module Print = struct
     let l = aux [] order in
     Format.fprintf fmt "@[<hov>%a@]" CCFormat.(list ~sep:(return ";@ ") path_aux) l
 
+  let wrapper pp fmt (f, f') =
+    match f with
+    | { Expr.formula = Expr.Equal _ } ->
+      let t = CCOpt.get_exn (Expr.Formula.get_tag f Expr.t_order) in
+      let t' = CCOpt.get_exn (Expr.Formula.get_tag f' Expr.t_order) in
+      if t = t' then pp fmt ()
+      else Format.fprintf fmt "(eq_sym %a)" pp ()
+    | { Expr.formula = Expr.Not ({ Expr.formula = Expr.Equal _ } as r) } ->
+      begin match f' with
+        | { Expr.formula = Expr.Not ({ Expr.formula = Expr.Equal _ } as r') } ->
+          let t = CCOpt.get_exn (Expr.Formula.get_tag r Expr.t_order) in
+          let t' = CCOpt.get_exn (Expr.Formula.get_tag r' Expr.t_order) in
+          if t = t' then pp fmt ()
+          else Format.fprintf fmt "(not_eq_sym %a)" pp ()
+        | _ -> assert false
+      end
+    | _ -> pp fmt ()
+
+  let ctx prefix =
+    (* Some prefix are reserved by msat... *)
+    assert (prefix <> "H" && prefix <> "T" && prefix <> "R");
+    Proof.Ctx.mk ~wrapper ~prefix
+
 end
 
 (* Printing contexts *)
@@ -310,11 +329,17 @@ let print_hyp fmt (id, l) =
   Format.fprintf fmt "Axiom %a : @[<hov>%a@].@." Print.dolmen id
     CCFormat.(list ~sep:(return {|@ \/@ |}) Print.formula) l
 
-(* Coq proof helpers *)
+(* Coq tactic helpers *)
 (* ************************************************************************ *)
 
 let exact fmt format =
   Format.fprintf fmt ("exact (" ^^ format ^^ ").")
+
+let not_not ctx fmt f =
+  Format.fprintf fmt "apply %a; clear %a; intro %a."
+    (Proof.Ctx.named ctx) f
+    (Proof.Ctx.named ctx) f
+    (Proof.Ctx.named ctx) f
 
 let pose_proof ctx f fmt format =
   Format.kfprintf (fun fmt ->
@@ -339,119 +364,37 @@ let sequence ctx pp start fmt l =
   in
   aux ctx pp fmt start l
 
-(* Proving plugin's lemmas *)
+(* Printing tactic coq proofs *)
 (* ************************************************************************ *)
 
-module Lemma = struct
+(* Getting tactics from plugins *)
+let _tactic_cache =
+  CCCache.unbounded 4013
+    ~eq:(fun l l' -> Dispatcher.(l.id = l'.id))
+    ~hash:(fun l -> CCHash.int l.Dispatcher.id)
 
-  (** Internal lemma name *)
-  let name lemma =
-    Format.sprintf "lemma_%d" lemma.Dispatcher.id
+let _default_tactic = {
+  prelude = [];
+  prefix = "A";
+  proof = (fun fmt _ ->
+      Format.fprintf fmt "(* TODO: complete proof *)"
+    )
+}
 
-  let extract clause =
-    match clause.Dispatcher.SolverTypes.cpremise with
-    | Dispatcher.SolverTypes.Lemma lemma -> Some lemma
-    | _ -> None
+let get_tactic =
+  CCCache.with_cache _tactic_cache (fun lemma ->
+      Util.debug ~section "Getting tactic for %s/%s"
+        lemma.Dispatcher.plugin_name lemma.Dispatcher.proof_name;
+      match Dispatcher.ask lemma.Dispatcher.plugin_name
+              (Tactic (lemma.Dispatcher.proof_info)) with
+      | Some p -> p
+      | None ->
+        Util.warn ~section "Got no coq proof from plugin %s for proof %s"
+          lemma.Dispatcher.plugin_name lemma.Dispatcher.proof_name;
+        _default_tactic
+    )
 
-  (** Small wrapper around the dispatcher's message system
-      Also memoise proofs using a hashtbl. *)
-  let _proofs = Hashtbl.create 4013
-
-  let get_proof lemma =
-    try Hashtbl.find _proofs lemma.Dispatcher.id
-    with Not_found ->
-      let res =
-        match Dispatcher.ask lemma.Dispatcher.plugin_name
-                (Prove (lemma.Dispatcher.proof_info)) with
-        | Some p -> p
-        | None ->
-          Util.warn ~section "Got no coq proof from plugin %s for proof %s"
-            lemma.Dispatcher.plugin_name lemma.Dispatcher.proof_name;
-          Raw {
-            prelude = [];
-            proof = fun fmt () ->
-              Format.fprintf fmt
-                "(* Got no proof from plugin, try and complete the proof by hand ? *)"
-          }
-      in
-      let () = Hashtbl.add _proofs lemma.Dispatcher.id res in
-      res
-
-  let proof_order clause = function
-    | Raw proof ->
-      List.map formula @@ Array.to_list clause.Dispatcher.SolverTypes.atoms
-    | Ordered { order ; proof } ->
-      (** Check that the given ordered clause if included in the one
-          we have to prove. *)
-      if not (List.for_all (fun f -> Array.exists (fun a ->
-          Expr.Formula.equal f (formula a)
-        ) clause.Dispatcher.SolverTypes.atoms) order) then
-        raise (Dispatcher.Bad_assertion (
-            Format.asprintf "Wrong clause for ordered lemma:@\n%a@\n%a"
-              Dispatcher.SolverTypes.pp_clause clause
-              CCFormat.(list ~sep:(return " //@ ") Print.formula) order))
-      else
-        order
-    | Implication { prefix; left; right; proof; } ->
-      (** Check that the given ordered clause if included in the one
-          we have to prove. *)
-      if not (List.for_all (fun f -> Array.exists (fun a ->
-          Expr.Formula.equal (Expr.Formula.neg f) (formula a)
-        ) clause.Dispatcher.SolverTypes.atoms) left) then
-        raise (Dispatcher.Bad_assertion (
-            Format.asprintf "Wrong hyp for implication lemma:@\n%a@\n%a"
-              Dispatcher.SolverTypes.pp_clause clause
-              CCFormat.(list ~sep:(return " //@ ") Print.formula) left))
-      else if not (List.for_all (fun f -> Array.exists (fun a ->
-          Expr.Formula.equal f (formula a)
-        ) clause.Dispatcher.SolverTypes.atoms) right) then
-        raise (Dispatcher.Bad_assertion (
-            Format.asprintf "Wrong conclusion for implication lemma:@\n%a@\n%a"
-              Dispatcher.SolverTypes.pp_clause clause
-              CCFormat.(list ~sep:(return " //@ ") Print.formula) right))
-      else
-        List.map Expr.Formula.neg left @ right
-
-  let proof_printer clause = function
-    | Raw { proof; _ } | Ordered { proof; _ } -> proof
-    | Implication { prefix; left; proof; } ->
-      fun fmt () ->
-        let ctx = Proof.Ctx.mk ~prefix () in
-        let () = List.iter (fun f ->
-            Format.fprintf fmt
-              "apply Coq.Logic.Classical_Prop.imply_to_or; intro %a.@ "
-              (Proof.Ctx.named ctx) f
-          ) left
-        in
-        proof fmt ctx
-
-  let pp_break fmt (i, j) = Format.pp_print_break fmt i j
-
-  (* Prove a lemma (outside of the main proof environment) *)
-  let print fmt clause lemma =
-    Util.debug ~section "@[<hv>Proving theory lemma %s/%s:@ @[<hov>%a@]@]"
-      lemma.Dispatcher.plugin_name lemma.Dispatcher.proof_name
-      Dispatcher.SolverTypes.pp_clause clause;
-    let proof = get_proof lemma in
-    Format.fprintf fmt "@\n(* Proving lemma %s/%s *)@\n"
-      lemma.Dispatcher.plugin_name lemma.Dispatcher.proof_name;
-    Format.fprintf fmt "@[<hov 2>Lemma %s: %a.@]@\n@[<hv 2>Proof.@ %a%aQed.@]@\n"
-      (name lemma)
-      CCFormat.(list ~sep:(return {|@ \/@ |}) Print.formula)
-      (proof_order clause proof)
-      (proof_printer clause proof) ()
-      pp_break (1,-2)
-
-  let print_all fmt l =
-    let aux c = CCOpt.iter (print fmt c) (extract c) in
-    List.iter aux l
-
-end
-
-(* Printing mSAT proofs *)
-(* ************************************************************************ *)
-
-module P = Msat.Coq.Make(Solver.Proof)(struct
+module Tactic = Msat.Coq.Make(Solver.Proof)(struct
 
     (** Print mSAT atoms *)
     let print_atom = Print.atom
@@ -462,9 +405,7 @@ module P = Msat.Coq.Make(Solver.Proof)(struct
         TODO:use a proper exception instead of assert false *)
     let prove_assumption fmt name clause = assert false
 
-    (** clausify or-separated clauses into mSAT encoding of clauses *)
-    let clausify fmt (orig, l, dest, a) =
-      (** assert goal clause *)
+    let assert_clause fmt (dest, a) =
       let pp_atom fmt atom =
         let pos = Dispatcher.SolverTypes.(atom.var.pa) in
         if atom == pos then
@@ -472,38 +413,19 @@ module P = Msat.Coq.Make(Solver.Proof)(struct
         else
           Format.fprintf fmt "~ ~ %a" Print.atom pos
       in
-      Format.fprintf fmt "assert (%s: @[<hv>%a ->@ False@]).@ " dest
-        CCFormat.(array ~sep:(return " ->@ ") pp_atom) a;
-      let ctx = Proof.Ctx.mk ~prefix:"Ax" () in
-      let aux fmt atom = Proof.Ctx.named ctx fmt (formula atom) in
-      Format.fprintf fmt "intros %a.@ " CCFormat.(array ~sep:(return " ") aux) a;
-      (** wrapper around equalities to reorder them *)
-      let pp_exact fmt (f, s) =
-        let f', name = Proof.Ctx.find ctx f in
-        match f with
-        | { Expr.formula = Expr.Equal _ } ->
-          let t = CCOpt.get_exn (Expr.Formula.get_tag f Expr.t_order) in
-          let t' = CCOpt.get_exn (Expr.Formula.get_tag f' Expr.t_order) in
-          if t = t'
-          then Format.fprintf fmt "%s %s" name s
-          else Format.fprintf fmt "%s (eq_sym %s)" name s
-        | { Expr.formula = Expr.Not ({ Expr.formula = Expr.Equal _ } as r) } ->
-          begin match f' with
-            | { Expr.formula = Expr.Not ({ Expr.formula = Expr.Equal _ } as r') } ->
-              let t = CCOpt.get_exn (Expr.Formula.get_tag r Expr.t_order) in
-              let t' = CCOpt.get_exn (Expr.Formula.get_tag r' Expr.t_order) in
-              if t = t'
-              then Format.fprintf fmt "%s %s" name s
-              else Format.fprintf fmt "%s (not_eq_sym %s)" name s
-            | _ -> assert false
-          end
-        | _ -> Format.fprintf fmt "%s %s" name s
-      in
-      (** destruct already proved hyp *)
+      Format.fprintf fmt "assert (%s: @[<hv>%a ->@ False@])."
+        dest CCFormat.(array ~sep:(return " ->@ ") pp_atom) a
+
+    let intro_clause ctx fmt a =
+      let aux fmt atom = Proof.Ctx.named ctx fmt (Expr.Formula.neg @@ formula atom) in
+      Format.fprintf fmt "intros %a." CCFormat.(array ~sep:(return " ") aux) a
+
+    let destroy_disj ctx fmt (orig, l) =
       match l with
       | [] -> assert false
       | [p] ->
-        Format.fprintf fmt "exact (%a)." pp_exact (p, orig)
+        Format.fprintf fmt "exact (%a %s)."
+          (Proof.Ctx.named ctx) (Expr.Formula.neg p) orig
       | _ ->
         let order = Expr.L (List.map (fun f -> Expr.F f) l) in
         Format.fprintf fmt "@[<hov 2>destruct %s as %a.@ %a@]" orig
@@ -512,8 +434,18 @@ module P = Msat.Coq.Make(Solver.Proof)(struct
               if Expr.Formula.(equal f_false) f then
                 Format.fprintf fmt "exact T."
               else
-                Format.fprintf fmt "exact (%a)." pp_exact (f, "T")
+                Format.fprintf fmt "exact (%a T)."
+                  (Proof.Ctx.named ctx) (Expr.Formula.neg f)
             )) l
+
+    (** clausify or-separated clauses into mSAT encoding of clauses *)
+    let clausify fmt (orig, l, dest, a) =
+      let ctx = Print.ctx "Ax" in
+      Format.fprintf fmt "@[<v 2>%a@ @[<hv>%a@ %a@]@]"
+        assert_clause (dest, a)
+        (intro_clause ctx) a
+        (destroy_disj ctx) (orig, l)
+      (** destruct already proved hyp *)
 
     (** Prove hypotheses. All hypothses (including negated goals)
         should already be available under their official names
@@ -529,17 +461,19 @@ module P = Msat.Coq.Make(Solver.Proof)(struct
           ((Format.asprintf "%a" Print.dolmen id), (Proof.find_hyp id),
            name, clause.Dispatcher.SolverTypes.atoms)
 
-    (** Prove lemmas.
-        To ensure lemmas are proved in an empty and clean environment,
-        We first prove them in a coq 'Lemma' (outside the main proof,
-        since nested proofs are deprecated in Coq). *)
+    (** Prove lemmas. *)
     let prove_lemma fmt name clause =
-      let lemma = CCOpt.get_exn (Lemma.extract clause) in
-      Format.fprintf fmt "(* Import lemma %s as %s *)@\n%a@\n"
-        (Lemma.name lemma) name
-        clausify
-        ((Lemma.name lemma), (Lemma.proof_order clause (Lemma.get_proof lemma)),
-         name, clause.Dispatcher.SolverTypes.atoms)
+      let lemma = CCOpt.get_exn (extract clause) in
+      let tactic = get_tactic lemma in
+      Format.fprintf fmt "(* Proving lemma %s/%s as %s *)@\n"
+        lemma.Dispatcher.plugin_name lemma.Dispatcher.proof_name name;
+      (* Assert the lemma *)
+      let ctx = Print.ctx tactic.prefix in
+      let a = clause.Dispatcher.SolverTypes.atoms in
+      Format.fprintf fmt "@[<v 2>%a@ @[<hv>%a@ %a@]@]@ "
+        assert_clause (name, a)
+        (intro_clause ctx) a
+        tactic.proof ctx
 
   end)
 
@@ -547,6 +481,8 @@ module P = Msat.Coq.Make(Solver.Proof)(struct
 (* ************************************************************************ *)
 
 module Prelude_t = struct
+
+  let section = Section.make ~parent:section "prelude"
 
   (** Standard functions *)
   type t = prelude
@@ -557,7 +493,7 @@ module Prelude_t = struct
 
   let _discr = function
     | Require _ -> 0
-    | Notation _ -> 0
+    | Notation _ -> 1
 
   let hash = function
     | Require s ->
@@ -575,7 +511,13 @@ module Prelude_t = struct
 
   let equal p p' = compare p p' = 0
 
-  let print fmt = function
+  let debug fmt = function
+    | Require s -> Format.fprintf fmt "require: %s" s
+    | Notation (id, _) -> Format.fprintf fmt "notation: %a" Expr.Print.id id
+
+  let print fmt p =
+    Util.debug ~section "printing %a" debug p;
+    match p with
     | Require s ->
       Format.fprintf fmt "Require Import %s.@ " s
     | Notation (id, f) ->
@@ -601,9 +543,11 @@ module Prelude = struct
   let mk ~deps t =
     let () = G.add_vertex g t in
     let () = S.iter (fun x ->
-        Util.debug ~section "edge: %a -> %a" print x print t;
+        Util.debug ~section "%a ---> %a"
+          debug x debug t;
         G.add_edge g x t
-      ) deps in
+      ) deps
+    in
     t
 
   let require ?(deps=S.empty) s = mk ~deps (Require s)
@@ -622,27 +566,28 @@ end
 
 module Preludes = struct
 
-  (** Efficient storing of global prelude *)
+  let section = Prelude.section
 
   let add t p = Prelude.S.add p t
 
   let empty ~goal =
+    Util.debug ~section "Generating empty prelude%s"
+      (if goal then " (with classical for goals)" else "");
     let t = Prelude.S.empty in
     if goal then add t Prelude.classical else t
 
   let get_prelude = function
-    | Raw { prelude; _ }
-    | Ordered { prelude; _ }
-    | Implication { left = []; prelude; _ } -> prelude
-    | Implication { prelude; _ } -> Prelude.classical :: prelude
+    | { prelude; _ } -> prelude
 
-  let gather t l =
+  let from_tactics t l =
     List.fold_left (fun acc lemma ->
-        let p = Lemma.get_proof lemma in
+        let p = get_tactic lemma in
         List.fold_left add acc (get_prelude p)
-      ) t (CCList.filter_map Lemma.extract l)
+      ) t (CCList.filter_map extract l)
 
   let print fmt l =
+    Util.debug ~section "Printing preludes: @[<v>%a@]"
+      CCFormat.(list ~sep:(return "@ ") Prelude.debug) (Prelude.S.elements l);
     Prelude.topo (Prelude.print fmt) l
 
 end
@@ -702,13 +647,13 @@ let print_proof fmt proof =
   let names, goals = List.split (Proof.get_goals ()) in
   let l = Solver.Proof.unsat_core proof in
   let goal = match goals with [] -> false | _ -> true in
-  let prelude = Preludes.(gather (empty ~goal) l) in
+  let preludes = Preludes.(from_tactics (empty ~goal) l) in
   Format.fprintf fmt "@\n(* Coq proof generated by Archsat *)@\n@\n";
-  Format.fprintf fmt "@[<v>%a@]@\n%a" Preludes.print prelude Lemma.print_all l;
+  Format.fprintf fmt "@[<v>%a@]" Preludes.print preludes;
   Format.fprintf fmt "@\nTheorem goal : @[<hov>%a@].@\n" pp_goals goals;
   let l' = List.combine names (List.map Expr.Formula.neg goals) in
   Format.fprintf fmt
     "@[<hov 2>Proof.@\n%a@\n%a@]@\nQed.@."
-    pp_intros l' P.print proof
+    pp_intros l' Tactic.print proof
 
 
