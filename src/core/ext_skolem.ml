@@ -130,7 +130,7 @@ let term_inst_first term = function
 (* Proof generation *)
 let mk_proof_ty f q _ taus =
   let _ = List.fold_left (fun f' ty ->
-      let () = Expr.Ty.tag ty def f in
+      let () = Expr.Ty.tag ty def f' in
       ty_inst_first ty f') f taus
   in
   Dispatcher.mk_proof "skolem" "skolem-ty" (Sk (Ty (f, taus, q)))
@@ -138,8 +138,8 @@ let mk_proof_ty f q _ taus =
 let mk_proof_term f q _ taus =
   let _ = List.fold_left (fun f' term ->
       Util.debug ~section "tagging: %a -> %a"
-        Expr.Print.term term Expr.Print.formula f;
-      let () = Expr.Term.tag term def f in
+        Expr.Print.term term Expr.Print.formula f';
+      let () = Expr.Term.tag term def f' in
       term_inst_first term f') f taus
   in
   Dispatcher.mk_proof "skolem" "skolem-term" (Sk (Term (f, taus, q)))
@@ -232,7 +232,6 @@ let pp_coq_fun_ex fmt = function
   | { Expr.formula = Expr.Ex ((x :: _), _, _) } as f ->
     let s = Expr.Subst.Id.bind Expr.Subst.empty x (Expr.Term.of_id x) in
     let f' = Expr.Formula.partial_inst Expr.Subst.empty s f in
-    Util.debug ~section "subst: %a ----> %a" Expr.Print.formula f Expr.Print.formula f';
     Format.fprintf fmt "fun %a => %a" Coq.Print.id x Coq.Print.formula f'
   | _ -> assert false
 
@@ -250,7 +249,8 @@ let rec coq_preludes tys ts =
   Sterm.fold (fun t acc ->
       Coq.Prelude.S.add (coq_term_prelude t) acc) ts
     (Sty.fold (fun ty acc ->
-         Coq.Prelude.S.add (coq_ty_prelude ty) acc) tys Coq.Prelude.S.empty)
+         Coq.Prelude.S.add (coq_ty_prelude ty) acc) tys
+        (Coq.Prelude.S.singleton Coq.Prelude.epsilon))
 
 and coq_ty_prelude ty =
   Expr.Ty.cached (fun ty ->
@@ -269,8 +269,10 @@ and coq_ty_prelude ty =
 and coq_term_prelude term =
   Expr.Term.cached (fun term ->
       let e = epsilon_term Expr.(term.t_type) in
-      let () = Expr.Id.tag e def
-          (CCOpt.get_exn @@ Expr.Term.get_tag term def) in
+      let f = CCOpt.get_exn @@ Expr.Term.get_tag term def in
+      let () = Expr.Id.tag e def f in
+      Util.debug ~section "def: %a // %a --> %a"
+        Expr.Print.id e Expr.Print.term term Expr.Print.formula f;
       let res = Expr.Term.of_id e in
       let () = Coq.Print.trap_term term res in
       match Expr.Term.get_tag term deps with

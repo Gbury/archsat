@@ -600,7 +600,10 @@ module Prelude = struct
 
   let mk ~deps t =
     let () = G.add_vertex g t in
-    let () = S.iter (fun x -> G.add_edge g x t) deps in
+    let () = S.iter (fun x ->
+        Util.debug ~section "edge: %a -> %a" print x print t;
+        G.add_edge g x t
+      ) deps in
     t
 
   let require ?(deps=S.empty) s = mk ~deps (Require s)
