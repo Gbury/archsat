@@ -15,12 +15,13 @@ type info =
   | Or of Expr.formula * Expr.formula list
   | Not_and of Expr.formula * Expr.formula list
 
-  | Imply of Expr.formula
-             * Expr.formula * Expr.formula list
-             * Expr.formula * Expr.formula list
+  | Imply_chain of Expr.formula *
+                   Expr.formula list *
+                   Expr.formula list *
+                   Expr.formula
 
-  | Not_imply_left of Expr.formula * Expr.formula
   | Not_imply_right of Expr.formula * Expr.formula
+  | Not_imply_left of Expr.formula * Expr.formula * Expr.formula
 
   | Equiv_right of Expr.formula * Expr.formula
   | Equiv_left of Expr.formula * Expr.formula
@@ -69,10 +70,19 @@ let imply_left p =
   | { Expr.formula = Expr.And l } -> l
   | p -> [p]
 
+let pattern_imply_left = function
+  | { Expr.formula = Expr.And _ } as p ->
+    CCOpt.get_exn @@ Expr.Formula.get_tag p Expr.f_order
+  | p -> Expr.(L [F p])
+
 let imply_right = function
   | { Expr.formula = Expr.Or l } -> l
   | q -> [q]
 
+let rec imply_chain acc left = function
+  | { Expr.formula = Expr.Imply (p, q) } ->
+    imply_chain (p :: acc) ((imply_left p) @ left) q
+  | f -> (List.rev acc), left, f, imply_right f
 
 (* Main function *)
 (* ************************************************************************ *)
@@ -98,11 +108,10 @@ let tab = function
 
   (* 'Imply' traduction *)
   | { Expr.formula = Expr.Imply (p, q) } as r ->
-    let left = imply_left p in
-    let right = imply_right q in
-    push "imply" (Imply (r, p, left, q, right)) (Expr.Formula.neg r :: (left @ right))
+    let l, left, s, right = imply_chain [] [] r in
+    push "imply" (Imply_chain (r, l, left, s)) (Expr.Formula.neg r :: (left @ right))
   | { Expr.formula = Expr.Not ({ Expr.formula = Expr.Imply (p, q) } as r )  } ->
-    push "not-imply_l" (Not_imply_left (r, p)) [r; p];
+    push "not-imply_l" (Not_imply_left (r, p, q)) [r; p];
     push "not-imply_r" (Not_imply_right (r, q)) [r; Expr.Formula.neg q]
 
   (* 'Equiv' traduction *)
@@ -140,179 +149,113 @@ let dot_info = function
 
   | Or (f, _)
   | Not_and (f, _)
-  | Imply (f, _, _, _, _)
-  | Not_imply_left (f, _)
+  | Imply_chain (f, _, _, _)
+  | Not_imply_left (f, _, _)
   | Not_imply_right (f, _)
   | Equiv_right (f, _)
   | Equiv_left (f, _)
   | Not_equiv (f, _, _) ->
     Some "LIGHTBLUE", [CCFormat.const Dot.Print.formula f]
 
-let coq_imply_left_aux fmt (indent, (i, n)) =
-  Util.debug ~section "coq_imply_left_aux (%d, (%d, %d))" indent n i;
-  Format.fprintf fmt "%s %a. exact R."
-    (String.make indent '+')
-    Coq.Print.path (i, n)
-
-let rec coq_imply_left fmt (total, n, i) =
-  if n = 2 then
-    Format.fprintf fmt "@[<v 2>%s destruct (%s _ _ T%d) as [R | R].@ %a@ %a@]"
-      (if i = 0 then "-" else String.make i '+')
-      "Coq.Logic.Classical_Prop.not_and_or" i
-      coq_imply_left_aux (i + 1, (i + 1, total))
-      coq_imply_left_aux (i + 1, (i + 2, total))
-  else (* n > 2 *)
-    Format.fprintf fmt "@[<v 2>%s destruct (%s _ _ T%d) as [R | T%d].@ %a@ %a@]"
-      (if i = 0 then "-" else String.make i '+')
-      "Coq.Logic.Classical_Prop.not_and_or" i (i + 1)
-      coq_imply_left_aux (i + 1, (i + 1, total))
-      coq_imply_left (total, n - 1, i + 1)
-
-let rec coq_imply_right fmt (n, i) =
-  if i > n then ()
-  else begin
-    Format.fprintf fmt "- %a. exact R.@ " Coq.Print.path (i, n);
-    coq_imply_right fmt (n, i + 1)
-  end
-
-
 let coq_proof = function
   | True ->
-    Coq.({
-        prefix = "X";
-        prelude = [];
-        proof = (fun fmt ctx ->
+    Coq.tactic ~prefix:"X" (fun fmt ctx ->
             Coq.exact fmt "%a I" (Proof.Ctx.named ctx) (Expr.Formula.f_false)
-          );
-      })
+          )
 
   | And (init, res) ->
-    Coq.({
-        prefix = "A";
-        prelude = [];
-        proof = (fun fmt ctx ->
+    Coq.tactic ~prefix:"A" ~normalize:Coq.All (fun fmt ctx ->
             let order = CCOpt.get_exn (Expr.Formula.get_tag init Expr.f_order) in
-            Format.fprintf fmt "apply %a.@ intros %a.@ exact F."
+            Format.fprintf fmt "destruct %a as %a.@ exact F."
               (Proof.Ctx.named ctx) init
-              (Print.pattern_and (fun fmt f ->
+              (Coq.Print.pattern_and (fun fmt f ->
                    if Expr.Formula.equal f res
                    then Format.fprintf fmt "F"
                    else Format.fprintf fmt "_")) order
-          );
-      })
-  | Not_or (init, res) ->
-    Coq.({
-        prefix = "O";
-        prelude = [];
-        proof = (fun fmt ctx ->
-            let order = CCOpt.get_exn (Expr.Formula.get_tag init Expr.f_order) in
-            Format.fprintf fmt "%a@ apply %a.@ %a. exact %a."
-              (Coq.not_not ctx) res (Proof.Ctx.named ctx) (Expr.Formula.neg init)
-              Print.path_to (res, order) (Proof.Ctx.named ctx) res
           )
-      })
+  | Not_or (init, res) ->
+    Coq.tactic ~prefix:"O" ~normalize:Coq.All (fun fmt ctx ->
+            let order = CCOpt.get_exn (Expr.Formula.get_tag init Expr.f_order) in
+            Format.fprintf fmt "apply %a.@ %a. exact %a."
+              (Proof.Ctx.named ctx) (Expr.Formula.neg init)
+              Coq.Print.path_to (res, order) (Proof.Ctx.named ctx) res
+          )
 
   | Or (init, l) ->
-    Coq.({
-        prefix = "O";
-        prelude = [];
-        proof = (fun fmt ctx ->
+    Coq.tactic ~prefix:"O" ~normalize:(Coq.Mem [init]) (fun fmt ctx ->
             let order = CCOpt.get_exn (Expr.Formula.get_tag init Expr.f_order) in
-            Format.fprintf fmt "apply %a.@ intros %a.@ @[<hv>%a@]"
+            Format.fprintf fmt "destruct %a as %a.@ @[<hv>%a@]"
               (Proof.Ctx.named ctx) init
-              (Print.pattern_or (fun fmt f -> Format.fprintf fmt "F")) order
+              (Coq.Print.pattern_or (fun fmt f -> Format.fprintf fmt "F")) order
               CCFormat.(list ~sep:(return "@ ") (fun fmt f ->
                   Format.fprintf fmt "exact (%a F)."
                     (Proof.Ctx.named ctx) (Expr.Formula.neg f)
                 )) l
           )
-      })
   | Not_and (init, l) ->
-    Coq.({
-        prefix = "A";
-        prelude = [];
-        proof = (fun fmt ctx ->
+    Coq.tactic ~prefix:"A" ~normalize:Coq.All (fun fmt ctx ->
             let order = CCOpt.get_exn (Expr.Formula.get_tag init Expr.f_order) in
-            Format.fprintf fmt "%a@ exact (%a @[<hov>%a@])."
-              CCFormat.(list ~sep:(return "@ ") (Coq.not_not ctx)) l
+            Format.fprintf fmt "exact (%a @[<hov>%a@])."
               (Proof.Ctx.named ctx) (Expr.Formula.neg init)
-              (Print.pattern_intro_and (Proof.Ctx.named ctx)) order
+              (Coq.Print.pattern_intro_and (Proof.Ctx.named ctx)) order
           )
-      })
+  | Imply_chain (init, left, l, q) ->
+    Coq.tactic ~prefix:"Ax"
+      ~normalize:(Coq.Mem (init :: (List.map Expr.Formula.neg l))) (fun fmt ctx ->
+        Format.fprintf fmt "specialize (%a @[<hov>%a@]).@ "
+          (Proof.Ctx.named ctx) init
+          CCFormat.(list ~sep:(return "@ ") (fun fmt f ->
+              Coq.Print.pattern_intro_and (Proof.Ctx.named ctx) fmt
+                (pattern_imply_left f)
+            )) left;
+        match Expr.Formula.get_tag q Expr.f_order with
+        | None ->
+          Coq.exact fmt "%a %a"
+            (Proof.Ctx.named ctx) (Expr.Formula.neg q)
+            (Proof.Ctx.named ctx) init
+        | Some o ->
+          Format.fprintf fmt "destruct %a as @[<hov>%a@].@ "
+            (Proof.Ctx.named ctx) init
+            (Coq.Print.pattern_or (Proof.Ctx.named ctx)) o;
+          Coq.Print.pattern ~start:CCFormat.silent ~stop:CCFormat.silent
+            ~sep:(CCFormat.return "@ ") (fun fmt f ->
+                Coq.exact fmt "%a %a"
+                  (Proof.Ctx.named ctx) (Expr.Formula.neg f)
+                  (Proof.Ctx.named ctx) f
+              ) fmt o
+        )
 
-  | Imply (init, _, [p], _, [q]) ->
-    Coq.({
-        prefix = "Ax";
-        prelude = [Prelude.classical];
-        proof = (fun fmt ctx ->
-            Format.fprintf fmt "apply Coq.Logic.Classical_Prop.imply_to_or.@ ";
-            Format.fprintf fmt "apply Coq.Logic.Classical_Prop.imply_to_or."
-          );
-      })
-  | Imply (init, p, lp, q, lq) ->
-    Coq.({
-        prefix = "Ax";
-        prelude = [Prelude.classical];
-        proof = (fun fmt m ->
-            let np = List.length lp in
-            let nq = List.length lq in
-            let order_right = CCOpt.get_exn (Expr.Formula.get_tag q Expr.f_order) in
-            Format.fprintf fmt
-              "destruct (Coq.Logic.Classical_Prop.imply_to_or _ _ %a) as [T0 | %a].@\n"
-              (Proof.Ctx.named m) init
-              (Print.pattern_or (fun fmt _ -> Format.fprintf fmt "R")) order_right;
-            Format.fprintf fmt "@[<v>%a@ %a@]"
-              coq_imply_left (np + nq, np, 0) coq_imply_right (np + nq, np + 1)
-          )
-      })
-
-  | Not_imply_left (init, res) ->
-    Coq.({
-        prefix = "Ax";
-        prelude = [Prelude.classical];
-        proof = (fun fmt ctx ->
-            Format.fprintf fmt "apply Coq.Logic.Classical_Prop.NNPP. intro H0.@ ";
-            Format.fprintf fmt
-              "destruct (Coq.Logic.Classical_Prop.not_or_and _ _ H0) as [H1 H2].@ ";
-            Format.fprintf fmt "exact (H1 (Coq.Logic.Classical_Prop.not_imply_elim _ _ H2))."
-          )
-      })
+  | Not_imply_left (init, p, q) ->
+    Coq.tactic ~prefix:"Ax" ~normalize:(Coq.Mem []) (fun fmt ctx ->
+        Coq.exact fmt "%a (fun %a => False_ind %a (%a %a))"
+          (Proof.Ctx.named ctx) (Expr.Formula.neg init)
+          (Proof.Ctx.intro ctx) p
+          Coq.Print.formula q
+          (Proof.Ctx.named ctx) (Expr.Formula.neg p)
+          (Proof.Ctx.named ctx) p
+      )
   | Not_imply_right (init, res) ->
-    Coq.({
-        prefix = "Ax";
-        prelude = [];
-        proof = (fun fmt m ->
-            Format.fprintf fmt "intros _; exact %a." (Proof.Ctx.named m) res
-          )
-      })
+    Coq.tactic ~prefix:"Ax" (fun fmt ctx ->
+        Coq.exact fmt "%a (fun _ => %a)"
+          (Proof.Ctx.named ctx) (Expr.Formula.neg init)
+          (Proof.Ctx.named ctx) res
+      )
 
-  | Equiv_right (init, res) ->
-    Coq.({
-        prefix = "E";
-        prelude = [];
-        proof = (fun fmt m ->
-            Format.fprintf fmt "destruct (iff_and %a) as [R _]; exact R."
-              (Proof.Ctx.named m) init
-          )
-      })
+  | Equiv_right (init, res)
   | Equiv_left (init, res) ->
-    Coq.({
-        prefix = "E";
-        prelude = [];
-        proof = (fun fmt m ->
-            Format.fprintf fmt "destruct (iff_and %a) as [_ R]; exact R."
-              (Proof.Ctx.named m) init
-          )
-      })
+    Coq.tactic ~prefix:"E" (fun fmt ctx ->
+        Format.fprintf fmt "apply %a.@ rewrite %a.@ exact (fun x => x)."
+          (Proof.Ctx.named ctx) (Expr.Formula.neg res)
+          (Proof.Ctx.named ctx) init
+      )
 
   | Not_equiv (init, pq, qp) ->
-    Coq.({
-        prefix = "I";
-        prelude = [];
-        proof = (fun fmt _ ->
-            Format.fprintf fmt "rewrite iff_to_and. split; assumption."
-          )
-      })
+    Coq.tactic ~prefix:"I" (fun fmt ctx ->
+        Format.fprintf fmt "apply %a.@ split.@ exact (%a).@ exact (%a)."
+          (Proof.Ctx.named ctx) (Expr.Formula.neg init)
+          (Proof.Ctx.named ctx) pq
+          (Proof.Ctx.named ctx) qp
+      )
 
 (* Handle & plugin registering *)
 (* ************************************************************************ *)

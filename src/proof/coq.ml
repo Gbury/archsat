@@ -10,8 +10,14 @@ type prelude =
   | Require : string -> prelude
   | Notation : 'a Expr.id * (Format.formatter -> 'a Expr.id -> unit) -> prelude
 
+type 'a selector =
+  | All
+  | Mem of 'a list
+  | Pred of ('a -> bool)
+
 type tactic = {
   prefix  : string;
+  normalize : Expr.formula selector;
   prelude : prelude list;
   proof   : Format.formatter -> Proof.Ctx.t -> unit;
 }
@@ -21,6 +27,9 @@ type _ Dispatcher.msg +=
 
 (* Small wrappers *)
 (* ************************************************************************ *)
+
+let tactic ?(prefix="A") ?(normalize=All) ?(prelude=[]) proof =
+  { prefix; normalize; prelude; proof; }
 
 let extract clause =
   match clause.Dispatcher.SolverTypes.cpremise with
@@ -335,15 +344,9 @@ let print_hyp fmt (id, l) =
 let exact fmt format =
   Format.fprintf fmt ("exact (" ^^ format ^^ ").")
 
-let not_not ctx fmt f =
-  Format.fprintf fmt "apply %a; clear %a; intro %a."
-    (Proof.Ctx.named ctx) f
-    (Proof.Ctx.named ctx) f
-    (Proof.Ctx.named ctx) f
-
 let pose_proof ctx f fmt format =
   Format.kfprintf (fun fmt ->
-      Format.fprintf fmt ") as %a." (Proof.Ctx.named ctx) f)
+      Format.fprintf fmt ") as %a." (Proof.Ctx.intro ctx) f)
     fmt ("pose proof (" ^^ format)
 
 
@@ -373,13 +376,9 @@ let _tactic_cache =
     ~eq:(fun l l' -> Dispatcher.(l.id = l'.id))
     ~hash:(fun l -> CCHash.int l.Dispatcher.id)
 
-let _default_tactic = {
-  prelude = [];
-  prefix = "A";
-  proof = (fun fmt _ ->
-      Format.fprintf fmt "(* TODO: complete proof *)"
-    )
-}
+let _default_tactic = tactic (fun fmt _ ->
+    Format.fprintf fmt "(* TODO: complete proof *)"
+  )
 
 let get_tactic =
   CCCache.with_cache _tactic_cache (fun lemma ->
@@ -417,7 +416,7 @@ module Tactic = Msat.Coq.Make(Solver.Proof)(struct
         dest CCFormat.(array ~sep:(return " ->@ ") pp_atom) a
 
     let intro_clause ctx fmt a =
-      let aux fmt atom = Proof.Ctx.named ctx fmt (Expr.Formula.neg @@ formula atom) in
+      let aux fmt atom = Proof.Ctx.intro ctx fmt (Expr.Formula.neg @@ formula atom) in
       Format.fprintf fmt "intros %a." CCFormat.(array ~sep:(return " ") aux) a
 
     let destroy_disj ctx fmt (orig, l) =
@@ -445,7 +444,7 @@ module Tactic = Msat.Coq.Make(Solver.Proof)(struct
         assert_clause (dest, a)
         (intro_clause ctx) a
         (destroy_disj ctx) (orig, l)
-      (** destruct already proved hyp *)
+    (** destruct already proved hyp *)
 
     (** Prove hypotheses. All hypothses (including negated goals)
         should already be available under their official names
@@ -461,6 +460,32 @@ module Tactic = Msat.Coq.Make(Solver.Proof)(struct
           ((Format.asprintf "%a" Print.dolmen id), (Proof.find_hyp id),
            name, clause.Dispatcher.SolverTypes.atoms)
 
+    (** Negated formulas in a clause will be introduced as double
+        negations, while context lookups will try and find
+        the original formula (because double negation is automatically
+        erased by the smart constructors in Expr), so this function
+        will be used ot normalize the double negations. *)
+    let not_not ctx fmt f =
+      Format.fprintf fmt "apply %a; clear %a; intro %a."
+        (Proof.Ctx.named ctx) f
+        (Proof.Ctx.named ctx) f
+        (Proof.Ctx.named ctx) f
+
+    let normalize_pred = function
+      | Pred p -> p
+      | All -> (fun _ -> true)
+      | Mem l -> (fun f -> List.exists (Expr.Formula.equal f) l)
+
+    let normalize_clause selector ctx fmt a =
+      let p = normalize_pred selector in
+        Array.iter (fun atom ->
+            let pos = Dispatcher.SolverTypes.(atom.var.pa) in
+            if atom == pos then ()
+            else if p (formula pos) then
+              Format.fprintf fmt "%a@ "
+                (not_not ctx) (formula pos)
+          ) a
+
     (** Prove lemmas. *)
     let prove_lemma fmt name clause =
       let lemma = CCOpt.get_exn (extract clause) in
@@ -470,9 +495,10 @@ module Tactic = Msat.Coq.Make(Solver.Proof)(struct
       (* Assert the lemma *)
       let ctx = Print.ctx tactic.prefix in
       let a = clause.Dispatcher.SolverTypes.atoms in
-      Format.fprintf fmt "@[<v 2>%a@ @[<hv>%a@ %a@]@]@ "
+      Format.fprintf fmt "@[<v 2>%a@ @[<hv>%a@ %a%a@]@]@ "
         assert_clause (name, a)
         (intro_clause ctx) a
+        (normalize_clause tactic.normalize ctx) a
         tactic.proof ctx
 
   end)

@@ -5,21 +5,27 @@
     corresponding to unsatisfiability proofs.
 *)
 
-(** {2 Dispatcher messages} *)
+(** {2 Types} *)
 
 type prelude
+(** Abstract type representing preludes, i.e. requirements
+    for tactics. *)
 
-type tactic = {
-  prefix  : string;
-  prelude : prelude list;
-  proof   : Format.formatter -> Proof.Ctx.t -> unit;
-}
+type tactic
+(** Abstract type repreenting tactics. *)
+
+type 'a selector =
+  | All
+  | Mem of 'a list
+  | Pred of ('a -> bool)
+(** Type for selectors of value of type ['a]. *)
+
+(** {2 Dispatcher messages} *)
 
 type _ Dispatcher.msg +=
   | Tactic : Dispatcher.lemma_info -> tactic Dispatcher.msg (**)
 (** Sent to the extension that produced a proof;
     asks for it to prove the clause/lemma it produced, using a coq tactics. *)
-
 
 (** {2 Main} *)
 
@@ -64,14 +70,17 @@ module Prelude : sig
 
 end
 
-(** {2 Proof helpers} *)
+(** {2 Tactic helpers} *)
+
+val tactic :
+  ?prefix:string ->
+  ?normalize:(Expr.formula selector) ->
+  ?prelude:prelude list ->
+  (Format.formatter -> Proof.Ctx.t -> unit) -> tactic
+(** Create a tactic. *)
 
 val exact : Format.formatter -> ('a, Format.formatter, unit) format -> 'a
 (** Helper to use the 'exact' coq tactic. *)
-
-val not_not : Proof.Ctx.t -> Format.formatter -> Expr.formula -> unit
-(** When in a context where we have [~ ~ f] as hyp, and goal [false],
-    replaces [~ ~ f] by [f] in the hyps. *)
 
 val pose_proof : Proof.Ctx.t -> Expr.formula ->
   Format.formatter -> ('a, Format.formatter, unit) format -> 'a

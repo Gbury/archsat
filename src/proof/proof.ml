@@ -34,12 +34,27 @@ let clear_goals () = goals := []
 
 module Ctx = struct
 
+  exception Added_twice of Expr.formula
+  exception Not_introduced of Expr.formula
+
+  let () =
+    Printexc.register_printer (function
+        | Added_twice f ->
+          Some (Format.asprintf
+                  "Following formula has been adde twice to context:@ %a"
+                  Expr.Print.formula f)
+        | Not_introduced f ->
+          Some (Format.asprintf
+                  "Following formula is used in a context where it is not declared:@ %a"
+                  Expr.Print.formula f)
+        | _ -> None
+      )
+
+
   module Hf = Hashtbl.Make(Expr.Formula)
 
-  exception No_prefix
-
   type wrapper = (Format.formatter -> unit -> unit) ->
-      Format.formatter -> (Expr.formula * Expr.formula) -> unit
+    Format.formatter -> (Expr.formula * Expr.formula) -> unit
 
   type t = {
     (** Prefixed formula name map *)
@@ -57,7 +72,9 @@ module Ctx = struct
   }
 
   (* Named formulas with a prefix. *)
-  let find t = Hf.find t.names
+  let find t f =
+    try Hf.find t.names f
+    with Not_found -> raise (Not_introduced f)
 
   let new_name t =
     let () = t.count <- t.count + 1 in
@@ -65,17 +82,20 @@ module Ctx = struct
 
   let add_aux t f =
     match Hf.find t.names f with
-    | (f', name) -> f', name
+    | (f', name) -> raise (Added_twice f')
     | exception Not_found ->
       let name = new_name t in
       let res = (f, name) in
       Hf.add t.names f res;
-      res
+      name
 
   (* Printing *)
   let named t fmt f =
-    let (f', name) = add_aux t f in
+    let (f', name) = find t f in
     t.wrapper CCFormat.(const string name) fmt (f, f')
+
+  let intro t fmt f =
+    Format.fprintf fmt "%s" (add_aux t f)
 
   (* Wrappers *)
   let add t f = ignore (add_aux t f)

@@ -44,9 +44,11 @@ module Ctx : sig
   val mk : ?wrapper:wrapper -> prefix:string -> t
   (** The empty context, takes as argument the prefix to give to the names. *)
 
-  val named : t -> Format.formatter -> Expr.formula -> unit
-  (** Add the formula if it wasn't yet, and then print its name. *)
+  val intro : t -> Format.formatter -> Expr.formula -> unit
+  (** Generated a name for the formula, register it, and print it. *)
 
+  val named : t -> Format.formatter -> Expr.formula -> unit
+  (** Print the formula's registered name. *)
 
   (** {5 Advanced functions} *)
 

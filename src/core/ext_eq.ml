@@ -245,22 +245,13 @@ let rec coq_aux m fmt = function
 
 let coq_proof = function
   | Trivial ->
-    Coq.({
-        prefix = "";
-        prelude = [];
-        proof = (fun fmt ctx ->
-            assert false
-          );
-    })
+    Coq.tactic (fun fmt ctx -> assert false)
   | Chain l ->
     let res, eqs = to_eqs l in
-    Coq.({
-        prefix = "E";
-        prelude = [];
-        proof = (fun fmt ctx ->
-            Format.fprintf fmt "exact %a." (coq_aux ctx) eqs
-          );
-      })
+    Coq.tactic ~prefix:"E" (fun fmt ctx ->
+        Format.fprintf fmt "exact %a." (coq_aux ctx) eqs
+      )
+
 
 (* Handler & Plugin registering *)
 (* ************************************************************************ *)

@@ -85,25 +85,18 @@ let dot_info = function
 
 let coq_proof = function
   | Fun (l, t, t') ->
-    Coq.({
-        prefix = "E";
-        prelude = [];
-        proof = (fun fmt ctx ->
-            List.iter (fun eq ->
-                Format.fprintf fmt "rewrite %a.@ " (Proof.Ctx.named ctx) eq) l;
-            Coq.exact fmt "eq_refl"
-          )
-      })
+    Coq.tactic ~prefix:"E" (fun fmt ctx ->
+        List.iter (fun eq ->
+            Format.fprintf fmt "rewrite %a.@ " (Proof.Ctx.named ctx) eq) l;
+        Coq.exact fmt "eq_refl"
+      )
   | Pred (l, p, p') ->
-    Coq.({
-        prefix = "E";
-        prelude = [];
-        proof = (fun fmt ctx ->
-            List.iter (fun eq ->
-                Format.fprintf fmt "rewrite %a.@ " (Proof.Ctx.named ctx) eq) l;
-            Coq.exact fmt "%a" (Proof.Ctx.named ctx) p'
-          )
-      })
+    Coq.tactic ~prefix:"E" (fun fmt ctx ->
+        List.iter (fun eq ->
+            Format.fprintf fmt "rewrite %a.@ " (Proof.Ctx.named ctx) eq) l;
+        Coq.exact fmt "%a" (Proof.Ctx.named ctx) p'
+      )
+
 
 (* Plugin registering *)
 (* ************************************************************************ *)

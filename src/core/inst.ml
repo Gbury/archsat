@@ -320,46 +320,38 @@ let coq_inst_ex m cur fmt x =
 
 let coq_proof = function
   | Formula ({ Expr.formula = Expr.All (l, _, _) } as f, t, q) ->
-    Coq.({
-        prefix = "Q";
-        prelude = [];
-        proof = (fun fmt ctx ->
-            let l', l'' = List.fold_left (fun (vars, args) x ->
-                match Mapping.Var.get_term_opt t x with
-                | None -> x :: vars, Expr.Term.of_id x :: args
-                | Some t -> vars, t :: args) ([], []) l in
-            let vars = List.rev l' in
-            let args = List.rev l'' in
-            begin match vars with
-              | [] -> Coq.exact fmt "%a" (Coq.app_t ctx) (f, args)
-              | _ -> Coq.exact fmt "fun %a => %a"
-                       Coq.fun_binder vars (Coq.app_t ctx) (f, args)
-            end);
-      })
+    Coq.tactic ~prefix:"Q" (fun fmt ctx ->
+        let l', l'' = List.fold_left (fun (vars, args) x ->
+            match Mapping.Var.get_term_opt t x with
+            | None -> x :: vars, Expr.Term.of_id x :: args
+            | Some t -> vars, t :: args) ([], []) l in
+        let vars = List.rev l' in
+        let args = List.rev l'' in
+        begin match vars with
+          | [] -> Coq.exact fmt "%a" (Coq.app_t ctx) (f, args)
+          | _ -> Coq.exact fmt "fun %a => %a"
+                   Coq.fun_binder vars (Coq.app_t ctx) (f, args)
+        end)
   | Formula ({ Expr.formula = Expr.Not (
       { Expr.formula = Expr.Ex (l, _, _) } as f' )}, t, q) ->
-    Coq.({
-        prefix = "Q";
-        prelude = [Prelude.classical];
-        proof = (fun fmt ctx ->
-            (** The classical_right tactic fails if no hyps are present,
-                hence we firt add the following trivial hyp *)
-            Format.fprintf fmt "pose proof True as B.@ ";
-            (** The following is quite fragile, seeing as we rely on
-                the classical_right tactic introducing "H". *)
-            Format.fprintf fmt "classical_right.@ ";
-            (** When q does not start with a negation, it means that a double negation
-                was automatically eliminated, thus in that case, we need to use NNPP *)
-            coq_norm fmt q;
-            (** Destruct the goal *)
-            let is_partial = coq_destruct ctx fmt q in
-            let s = Coq.sequence ctx (coq_inst_ex t) "H" fmt l in
-            if is_partial then
-              Coq.exact fmt "%s %a" s (Proof.Ctx.named ctx) q
-            else
-              Coq.exact fmt "%s" s
-          );
-      })
+    Coq.tactic ~prefix:"Q" ~prelude:[Coq.Prelude.classical] (fun fmt ctx ->
+        (** The classical_right tactic fails if no hyps are present,
+            hence we first add the following trivial hyp *)
+        Format.fprintf fmt "pose proof True as B.@ ";
+        (** The following is quite fragile, seeing as we rely on
+            the classical_right tactic introducing "H". *)
+        Format.fprintf fmt "classical_right.@ ";
+        (** When q does not start with a negation, it means that a double negation
+            was automatically eliminated, thus in that case, we need to use NNPP *)
+        coq_norm fmt q;
+        (** Destruct the goal *)
+        let is_partial = coq_destruct ctx fmt q in
+        let s = Coq.sequence ctx (coq_inst_ex t) "H" fmt l in
+        if is_partial then
+          Coq.exact fmt "%s %a" s (Proof.Ctx.named ctx) q
+        else
+          Coq.exact fmt "%s" s
+      )
   | _ -> assert false
 
 (* Extension registering *)

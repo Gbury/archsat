@@ -303,45 +303,35 @@ let coq_ex is_not_all s fmt t =
 
 let coq_proof = function
   | Ty ({ Expr.formula = Expr.ExTy _} as f, l, q) ->
-    Coq.({
-        prefix = "Q";
-        prelude = Prelude.epsilon :: List.map coq_ty_prelude l;
-        proof = (fun fmt ctx ->
+    Coq.tactic ~prefix:"Q"
+      ~prelude:(Coq.Prelude.epsilon :: List.map coq_ty_prelude l) (fun fmt ctx ->
             let res = Coq.sequence ctx (coq_ex_ty false) (Proof.Ctx.name ctx f) fmt l in
             Coq.exact fmt "%s" res
-          );
-      })
+        )
   | Ty ({ Expr.formula = Expr.Not ({Expr.formula = Expr.AllTy _} as f) }, l, q) ->
-    Coq.({
-        prefix = "Q";
-        prelude = Prelude.epsilon :: Prelude.classical :: List.map coq_ty_prelude l;
-        proof = (fun fmt ctx ->
-            Format.fprintf fmt "pose proof True as B.@ ";
-            Format.fprintf fmt "classical_right.@ ";
-            let res = Coq.sequence ctx (coq_ex_ty true) "H" fmt l in
-            Coq.exact fmt "%s" res
-          );
-      })
+    Coq.tactic ~prefix:"Q"
+      ~prelude:(Coq.Prelude.epsilon :: Coq.Prelude.classical ::
+                List.map coq_ty_prelude l) (fun fmt ctx ->
+          Format.fprintf fmt "pose proof True as B.@ ";
+          Format.fprintf fmt "classical_right.@ ";
+          let res = Coq.sequence ctx (coq_ex_ty true) "H" fmt l in
+          Coq.exact fmt "%s" res
+        )
   | Term ({ Expr.formula = Expr.Ex _} as f, l, q) ->
-    Coq.({
-        prefix = "Q";
-        prelude = Prelude.epsilon :: List.map coq_term_prelude l;
-        proof = (fun fmt ctx ->
-            let res = Coq.sequence ctx (coq_ex false) (Proof.Ctx.name ctx f) fmt l in
-            Coq.exact fmt "%s" res
-          );
-      })
+    Coq.tactic ~prefix:"Q"
+      ~prelude:(Coq.Prelude.epsilon :: List.map coq_term_prelude l) (fun fmt ctx ->
+          let res = Coq.sequence ctx (coq_ex false) (Proof.Ctx.name ctx f) fmt l in
+          Coq.exact fmt "%s" res
+        )
   | Term ({ Expr.formula = Expr.Not ({Expr.formula = Expr.All _} as f) }, l, q) ->
-    Coq.({
-        prefix = "Q";
-        prelude = Prelude.epsilon :: Prelude.classical :: List.map coq_term_prelude l;
-        proof = (fun fmt ctx ->
-            Format.fprintf fmt "pose proof True as B.@ ";
-            Format.fprintf fmt "classical_right.@ ";
-            let res = Coq.sequence ctx (coq_ex true) "H" fmt l in
-            Coq.exact fmt "%s" res
-          );
-      })
+    Coq.tactic ~prefix:"Q"
+      ~prelude:(Coq.Prelude.epsilon :: Coq.Prelude.classical ::
+                List.map coq_term_prelude l) (fun fmt ctx ->
+          Format.fprintf fmt "pose proof True as B.@ ";
+          Format.fprintf fmt "classical_right.@ ";
+          let res = Coq.sequence ctx (coq_ex true) "H" fmt l in
+          Coq.exact fmt "%s" res
+        )
   | _ -> assert false
 
 
