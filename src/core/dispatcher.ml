@@ -1,6 +1,6 @@
 
 let section = Section.make "core"
-let solver_section = Section.make "solver"
+let solver_section = Section.make "sat"
 let plugin_section = Section.make ~parent:section "plugin"
 
 let dummy_section = Section.make "DUMMY"
