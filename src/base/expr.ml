@@ -1208,6 +1208,12 @@ module Formula = struct
     match f.formula with
     | True | False -> f
     | Equal (a, b) ->
+      let a, b =
+        match get_tag f t_order with
+        | None -> assert false
+        | Some Same -> a, b
+        | Some Inverse -> b, a
+      in
       let new_a = Term.subst ~fix ty_var_map ty_meta_map t_var_map t_meta_map a in
       let new_b = Term.subst ~fix ty_var_map ty_meta_map t_var_map t_meta_map b in
       if a == new_a && b == new_b then f
@@ -1220,14 +1226,16 @@ module Formula = struct
       let new_p = subst_aux ~fix ty_var_map ty_meta_map t_var_map t_meta_map p in
       if p == new_p then f
       else neg new_p
-    | And l ->
-      let new_l = List.map (subst_aux ~fix ty_var_map ty_meta_map t_var_map t_meta_map) l in
-      if List.for_all2 (==) l new_l then f
-      else f_and new_l
+    | And _ ->
+      let o = CCOpt.get_exn @@ get_tag f f_order in
+      let o'= Order.map (subst_aux ~fix ty_var_map ty_meta_map t_var_map t_meta_map) o in
+      if Order.for_all2 (==) o o' then f
+      else Order.build f_and o'
     | Or l ->
-      let new_l = List.map (subst_aux ~fix ty_var_map ty_meta_map t_var_map t_meta_map) l in
-      if List.for_all2 (==) l new_l then f
-      else f_or new_l
+      let o = CCOpt.get_exn @@ get_tag f f_order in
+      let o'= Order.map (subst_aux ~fix ty_var_map ty_meta_map t_var_map t_meta_map) o in
+      if Order.for_all2 (==) o o' then f
+      else Order.build f_or o'
     | Imply (p, q) ->
       let new_p = subst_aux ~fix ty_var_map ty_meta_map t_var_map t_meta_map p in
       let new_q = subst_aux ~fix ty_var_map ty_meta_map t_var_map t_meta_map q in
