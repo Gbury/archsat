@@ -104,7 +104,7 @@ let parse_zf env ast s args =
 
 let _ =
   Semantics.Addon.register "base"
-    ~descr:"Defines the base types/builtins of languages (such as tptp's $i and $o)"
+    ~descr:"Defines the base types/builtins of languages"
     (Semantics.mk_ext ~zf:parse_zf ~tptp:parse_tptp ~smtlib:parse_smtlib ())
 
 
