@@ -124,6 +124,24 @@ type f_order = formula order
 let t_order : t_order Tag.t = Tag.create ()
 let f_order : f_order Tag.t = Tag.create ()
 
+module Order = struct
+
+  let rec map f = function
+    | F x -> F (f x)
+    | L l -> L (List.map (map f) l)
+
+  let rec for_all2 p o o' =
+    match o, o' with
+    | F x, F y -> p x y
+    | L l, L l' -> List.for_all2 (for_all2 p) l l'
+    | _ -> false
+
+  let rec build mk = function
+    | F x -> x
+    | L l -> mk (List.map (build mk) l)
+
+end
+
 (* Exceptions *)
 (* ************************************************************************ *)
 
