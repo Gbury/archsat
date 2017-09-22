@@ -1278,48 +1278,49 @@ module Formula = struct
     (List.map (Ty.subst ~fix:false ty_var_map Subst.empty) ty_args,
      List.map (Term.subst ~fix:false ty_var_map Subst.empty t_var_map Subst.empty) t_args)
 
-  let rec partial_inst ty_var_map t_var_map f = match f.formula with
+  let rec partial_inst ty_var_map t_var_map f =
+    match f.formula with
     | Ex (l, args, p) ->
       let l' = List.filter (fun v -> not (Subst.Id.mem v t_var_map)) l in
-      let q = partial_inst ty_var_map t_var_map p in
+      let q = subst_aux ~fix:false ty_var_map Subst.empty t_var_map Subst.empty p in
       let args' = free_args_inst ty_var_map t_var_map args in
       if l' = [] then q else mk_formula (Ex (l', args', q))
     | All (l, args, p) ->
       let l' = List.filter (fun v -> not (Subst.Id.mem v t_var_map)) l in
-      let q = partial_inst ty_var_map t_var_map p in
+      let q = subst_aux ~fix:false ty_var_map Subst.empty t_var_map Subst.empty p in
       let args' = free_args_inst ty_var_map t_var_map args in
       if l' = [] then q else mk_formula (All (l', args', q))
     | ExTy (l, args, p) ->
       let l' = List.filter (fun v -> not (Subst.Id.mem v ty_var_map)) l in
-      let q = partial_inst ty_var_map t_var_map p in
+      let q = subst_aux ~fix:false ty_var_map Subst.empty t_var_map Subst.empty p in
       let args' = free_args_inst ty_var_map t_var_map args in
       if l' = [] then q else mk_formula (ExTy (l', args', q))
     | AllTy (l, args, p) ->
       let l' = List.filter (fun v -> not (Subst.Id.mem v ty_var_map)) l in
-      let q = partial_inst ty_var_map t_var_map p in
+      let q = subst_aux ~fix:false ty_var_map Subst.empty t_var_map Subst.empty p in
       let args' = free_args_inst ty_var_map t_var_map args in
       if l' = [] then q else mk_formula (AllTy (l', args', q))
     | Not { formula = Ex (l, args, p) } ->
       let l' = List.filter (fun v -> not (Subst.Id.mem v t_var_map)) l in
-      let q = partial_inst ty_var_map t_var_map p in
+      let q = subst_aux ~fix:false ty_var_map Subst.empty t_var_map Subst.empty p in
       let args' = free_args_inst ty_var_map t_var_map args in
       neg (if l' = [] then q else mk_formula (Ex (l', args', q)))
     | Not { formula = All (l, args, p) } ->
       let l' = List.filter (fun v -> not (Subst.Id.mem v t_var_map)) l in
-      let q = partial_inst ty_var_map t_var_map p in
+      let q = subst_aux ~fix:false ty_var_map Subst.empty t_var_map Subst.empty p in
       let args' = free_args_inst ty_var_map t_var_map args in
       neg (if l' = [] then q else mk_formula (All (l', args', q)))
     | Not { formula = ExTy (l, args, p) } ->
       let l' = List.filter (fun v -> not (Subst.Id.mem v ty_var_map)) l in
-      let q = partial_inst ty_var_map t_var_map p in
+      let q = subst_aux ~fix:false ty_var_map Subst.empty t_var_map Subst.empty p in
       let args' = free_args_inst ty_var_map t_var_map args in
       neg (if l' = [] then q else mk_formula (ExTy (l', args', q)))
     | Not { formula = AllTy (l, args, p) } ->
       let l' = List.filter (fun v -> not (Subst.Id.mem v ty_var_map)) l in
-      let q = partial_inst ty_var_map t_var_map p in
+      let q = subst_aux ~fix:false ty_var_map Subst.empty t_var_map Subst.empty p in
       let args' = free_args_inst ty_var_map t_var_map args in
       neg (if l' = [] then q else mk_formula (AllTy (l', args', q)))
-    | _ -> subst_aux ~fix:false ty_var_map Subst.empty t_var_map Subst.empty f
+    | _ -> raise (Invalid_argument "Expr.partial_inst")
 
 end
 
