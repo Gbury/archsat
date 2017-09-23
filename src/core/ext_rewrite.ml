@@ -227,11 +227,27 @@ let print_rule
     (print_trigger pp) trigger
     formula result
 
-(* Detecting Rewrite rules *)
+(* Plugin state *)
 (* ************************************************************************ *)
 
-let rules = ref []
-let () = Backtrack.Stack.attach Dispatcher.stack rules
+let active_rules = ref []
+let inactive_rules = ref []
+let () = Backtrack.Stack.attach Dispatcher.stack active_rules
+let () = Backtrack.Stack.attach Dispatcher.stack inactive_rules
+
+type mode =
+  | Auto
+  | Manual
+
+let current_mode () =
+  match !active_rules with
+  | [] -> None
+  | r :: _ -> Some (if is_manual r then Manual else Auto)
+
+let allow_mixed = ref false
+
+(* Detecting Rewrite rules *)
+(* ************************************************************************ *)
 
 (* Parse an arbitrary formula as a rewrite rule *)
 let parse_guard = function
@@ -386,7 +402,7 @@ let rules_to_match s =
       | Single term -> Single (term, s)
       | Symmetric (t, t') ->
         Symmetric ((t, s), (t', find_all_indexed t'.Expr.t_type))
-    )) !rules
+    )) !active_rules
 
 (* Callback used when merging equivalence classes *)
 let callback_merge a b t =
@@ -422,25 +438,26 @@ let callback_rule r =
 
 (* When adding a new rule, we have to try and instantiate it. *)
 let add_rule r =
-  let () = rules := r :: !rules in
-  (* Check if the set of rules is manual *)
-  begin match List.partition is_manual !rules with
-    (* No rules, shouldn't happen since we just added a rule *)
-    | [], []  -> assert false
-    (* No auto-detected rules, we're in the manual case, the user should
-       know what she's doing, thus evrything is ok. *)
-    | _, []   -> ()
-    (* No manual rules, we should make the rewrite system confluent.
-       TODO: complete the rewrite rule system *)
-    | [], _   -> ()
-    (* Mixed case, it really isn't clear what we should do in these cases... *)
-    | l, _    ->
-      Util.warn ~section
-        "Mixed set of rewrite rules detected, removing auto rules";
-      rules := l
-  end;
-  (* Call the callback *)
-  callback_rule r
+  match !allow_mixed, current_mode (), is_manual r with
+  | true, _, _
+  | false, None, _
+  | false, Some Manual, true
+  | false, Some Auto, false ->
+    active_rules := r :: !active_rules;
+    callback_rule r
+  | false, Some Manual, false ->
+    Util.warn ~section "Auto rule detected while in manual mode";
+    Util.info ~section "@[<hv>Ignoring rule:@ %a@]" (print_rule Expr.Print.term) r;
+    inactive_rules := r :: !inactive_rules
+  | false, Some Auto, true ->
+    Util.warn ~section "Detected manual rule while auto rules present";
+    Util.info ~section "@[<hv>Keeping manual rules only:@ @[<v>%a@]@]"
+      CCFormat.(list ~sep:(return "@ ") (print_rule Expr.Print.term)) !inactive_rules;
+    Util.info ~section "@[<hv>Discarding auto rules:@ @[<v>%a@]@]"
+      CCFormat.(list ~sep:(return "@ ") (print_rule Expr.Print.term)) !active_rules;
+    let l = !inactive_rules in
+    inactive_rules := !active_rules;
+    active_rules := l
 
 (* Proof info *)
 (* ************************************************************************ *)
@@ -486,10 +503,22 @@ let handle : type ret. ret Dispatcher.msg -> ret option = function
   | Dot.Info Rewrite info -> Some (dot_info info)
   | _ -> None
 
+let options =
+  let docs = Options.ext_sect in
+  let aux b =
+    allow_mixed := b
+  in
+  let allow_mixed =
+    let doc = "Allow mixed set of rewriting rules, i.e. allow automatically
+               detected rules together with manually specified rules." in
+    Cmdliner.Arg.(value & opt bool false & info ["rwrt.mixed"] ~docs ~doc)
+  in
+  Cmdliner.Term.(pure aux $ allow_mixed)
+
 let register () =
   add_callback callback_term;
   Ext_eq.register_callback name callback_merge;
-  Dispatcher.Plugin.register name
+  Dispatcher.Plugin.register name ~options
     ~descr:"Detects rewrite rules and instantiate them (similarly to triggers)"
     (Dispatcher.mk_ext ~peek ~assume ~section ~handle:{Dispatcher.handle} ())
 
