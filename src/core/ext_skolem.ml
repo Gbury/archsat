@@ -323,8 +323,8 @@ let coq_proof = function
           let res = Coq.sequence ctx (coq_ex false) (Proof.Ctx.name ctx f) fmt l in
           Coq.exact fmt "%a %s" (Proof.Ctx.named ctx) (Expr.Formula.neg q) res
         )
-  | Term ({ Expr.formula = Expr.Not {Expr.formula = Expr.All _} }, l, q) ->
-    Coq.tactic ~prefix:"Q"
+  | Term ({ Expr.formula = Expr.Not {Expr.formula = Expr.All _} } as f, l, q) ->
+    Coq.tactic ~prefix:"Q" ~normalize:(Coq.Mem [f])
       ~prelude:(Coq.Prelude.epsilon :: Coq.Prelude.classical ::
                 List.map coq_term_prelude l) (fun fmt ctx ->
           Format.fprintf fmt "pose proof True as B.@ ";

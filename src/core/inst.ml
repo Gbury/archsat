@@ -315,7 +315,7 @@ let coq_inst_ex m cur fmt x =
 
 let coq_proof = function
   | Formula ({ Expr.formula = Expr.All (l, _, _) } as f, t, q) ->
-    Coq.tactic ~prefix:"Q" (fun fmt ctx ->
+    Coq.tactic ~prefix:"Q" ~normalize:(Coq.Mem [f]) (fun fmt ctx ->
         let l', l'' = List.fold_left (fun (vars, args) x ->
             match Mapping.Var.get_term_opt t x with
             | None -> x :: vars, Expr.Term.of_id x :: args
@@ -334,7 +334,8 @@ let coq_proof = function
         end)
   | Formula ({ Expr.formula = Expr.Not (
       { Expr.formula = Expr.Ex (l, _, _) })} as f', t, q) ->
-    Coq.tactic ~prefix:"Q" ~prelude:[Coq.Prelude.classical] (fun fmt ctx ->
+    Coq.tactic ~prefix:"Q" ~normalize:Coq.All
+      ~prelude:[Coq.Prelude.classical] (fun fmt ctx ->
         (** Destruct the goal *)
         let () = coq_destruct ctx fmt q in
         let s = Coq.sequence ctx (coq_inst_ex t) (Proof.Ctx.name ctx f') fmt l in
