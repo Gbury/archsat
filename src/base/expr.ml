@@ -256,35 +256,35 @@ module Print = struct
             s (list ~start:"(" ~stop:")" ~sep:"" term) args
         | Some Infix s ->
           let s' = " " ^ s in
-          Format.fprintf fmt "%a"
+          Format.fprintf fmt "@[<hov>%a@]"
             (list ~start:"(" ~stop:")" ~sep:s' term) args
       end
 
   let rec formula_aux fmt f =
     let aux fmt f = match f.formula with
       | Equal _ | Pred _ | True | False -> formula_aux fmt f
-      | _ -> Format.fprintf fmt "(@ %a@ )" formula_aux f
+      | _ -> Format.fprintf fmt "@[<hov 2>( %a )@]" formula_aux f
     in
     match f.formula with
     | Pred t -> Format.fprintf fmt "%a" term t
-    | Equal (a, b) -> Format.fprintf fmt "@[<hov>%a@ =@ %a@]" term a term b
+    | Equal (a, b) -> Format.fprintf fmt "@[<hv>%a =@ %a@]" term a term b
 
     | True  -> Format.fprintf fmt "⊤"
     | False -> Format.fprintf fmt "⊥"
     | Not f -> Format.fprintf fmt "@[<hov 2>¬ %a@]" aux f
-    | And l -> Format.fprintf fmt "@[<hov>%a@]" (list ~sep:" ∧" aux) l
-    | Or l  -> Format.fprintf fmt "@[<hov>%a@]" (list ~sep:" ∨" aux) l
+    | And l -> Format.fprintf fmt "@[<hv>%a@]" (list ~sep:" ∧" aux) l
+    | Or l  -> Format.fprintf fmt "@[<hv>%a@]" (list ~sep:" ∨" aux) l
 
-    | Imply (p, q)    -> Format.fprintf fmt "@[<hov>%a@ ⇒@ %a@]" aux p aux q
-    | Equiv (p, q)    -> Format.fprintf fmt "@[<hov>%a@ ⇔@ %a@]" aux p aux q
+    | Imply (p, q)    -> Format.fprintf fmt "@[<hv>%a ⇒@ %a@]" aux p aux q
+    | Equiv (p, q)    -> Format.fprintf fmt "@[<hv>%a ⇔@ %a@]" aux p aux q
 
-    | All (l, _, f)   -> Format.fprintf fmt "@[<hov 2>∀ @[<hov>%a@].@ %a@]"
+    | All (l, _, f)   -> Format.fprintf fmt "@[<hv 2>∀ @[<hov>%a@].@ %a@]"
                            (list ~sep:"," id_ty) l formula_aux f
-    | AllTy (l, _, f) -> Format.fprintf fmt "@[<hov 2>∀ @[<hov>%a@].@ %a@]"
+    | AllTy (l, _, f) -> Format.fprintf fmt "@[<hv 2>∀ @[<hov>%a@].@ %a@]"
                            (list ~sep:"," id_ttype) l formula_aux f
-    | Ex (l, _, f)    -> Format.fprintf fmt "@[<hov 2>∃ @[<hov>%a@].@ %a@]"
+    | Ex (l, _, f)    -> Format.fprintf fmt "@[<hv 2>∃ @[<hov>%a@].@ %a@]"
                            (list ~sep:"," id_ty) l formula_aux f
-    | ExTy (l, _, f)  -> Format.fprintf fmt "@[<hov 2>∃ @[<hov>%a@].@ %a@]"
+    | ExTy (l, _, f)  -> Format.fprintf fmt "@[<hv 2>∃ @[<hov>%a@].@ %a@]"
                            (list ~sep:"," id_ttype) l formula_aux f
 
   let formula fmt f = Format.fprintf fmt "⟦@[<hov>%a@]⟧" formula_aux f

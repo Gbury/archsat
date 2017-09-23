@@ -106,8 +106,6 @@ let match_types pats args subst =
   with
   | Match.Impossible_term _ -> assert false
   | Match.Impossible_ty (a, b) ->
-    Util.debug ~section "Couldn't match %a <-> %a"
-      Expr.Print.ty a Expr.Print.ty b;
     None
 
 let match_modulo_var v c subst =
