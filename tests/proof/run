@@ -4,7 +4,7 @@
 
 for f in `find ./ -type f -path "*/*.*" | sort`; do
 
-  if ! ../../archsat -x +meta --meta.find=auto --infer $f --coq proof.v > log; then
+  if ! ../../archsat -x +meta --meta.find=auto --meta.incr=true --infer $f --coq proof.v > log; then
     echo -e "\e[1;31m[FAIL]\e[0m $f (prover run)"
     exit 1
   fi
