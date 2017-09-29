@@ -293,13 +293,24 @@ let pp_ex is_not_all fmt s =
   if not is_not_all then Format.fprintf fmt "%s" s
   else Format.fprintf fmt "(Coq.Logic.Classical_Pred_Type.not_all_ex_not _ _ %s)" s
 
+let pp_not_ex_not fmt s =
+  Format.fprintf fmt "(Coq.Logic.Classical_Pred_Type.not_all_not_ex _ _ %s)" s
+
 let coq_ex_ty is_not_all s fmt _ =
   Format.fprintf fmt "@[<hov 2>Coq.Logic.Epsilon.epsilon_spec@ (inhabits %a) _@ %a@]"
     Coq.Print.ty Synth.ty (pp_ex is_not_all) s
 
+let coq_not_ex_not_ty s fmt _ =
+  Format.fprintf fmt "@[<hov 2>Coq.Logic.Epsilon.epsilon_spec@ (inhabits %a) _@ %a@]"
+    Coq.Print.ty Synth.ty pp_not_ex_not s
+
 let coq_ex is_not_all s fmt t =
   Format.fprintf fmt "@[<hov 2>Coq.Logic.Epsilon.epsilon_spec@ (inhabits %a) _@ %a@]"
     Coq.Print.term (Synth.term Expr.(t.t_type)) (pp_ex is_not_all) s
+
+let coq_not_ex_not s fmt t =
+  Format.fprintf fmt "@[<hov 2>Coq.Logic.Epsilon.epsilon_spec@ (inhabits %a) _@ %a@]"
+    Coq.Print.term (Synth.term Expr.(t.t_type)) pp_not_ex_not s
 
 let coq_proof = function
   | Ty ({ Expr.formula = Expr.ExTy _} as f, l, q) ->
@@ -308,8 +319,21 @@ let coq_proof = function
             let res = Coq.sequence ctx (coq_ex_ty false) (Proof.Ctx.name ctx f) fmt l in
             Coq.exact fmt "%s" res
         )
+  | Ty ({ Expr.formula = Expr.Not {Expr.formula = Expr.AllTy (
+      _, _, { Expr.formula = Expr.Not _ } ) } } as f, l, q) ->
+    Coq.tactic ~prefix:"Q" ~normalize:(Coq.Mem [f])
+      ~prelude:(Coq.Prelude.epsilon :: Coq.Prelude.classical ::
+                List.map coq_ty_prelude l) (fun fmt ctx ->
+          let l', last = match CCList.take_drop (List.length l - 1) l with
+            | res, [x] -> res, x
+            | _ -> assert false
+          in
+          let tmp = Coq.sequence ctx (coq_ex_ty true) (Proof.Ctx.name ctx f) fmt l' in
+          Coq.exact fmt "%a (%a)"
+            (Proof.Ctx.named ctx) (Expr.Formula.neg q) (coq_not_ex_not_ty tmp) last
+        )
   | Ty ({ Expr.formula = Expr.Not ({Expr.formula = Expr.AllTy _} as f) }, l, q) ->
-    Coq.tactic ~prefix:"Q"
+    Coq.tactic ~prefix:"Q" ~normalize:(Coq.Mem [f])
       ~prelude:(Coq.Prelude.epsilon :: Coq.Prelude.classical ::
                 List.map coq_ty_prelude l) (fun fmt ctx ->
           let res = Coq.sequence ctx (coq_ex_ty true) (Proof.Ctx.name ctx f) fmt l in
@@ -320,6 +344,19 @@ let coq_proof = function
       ~prelude:(Coq.Prelude.epsilon :: List.map coq_term_prelude l) (fun fmt ctx ->
           let res = Coq.sequence ctx (coq_ex false) (Proof.Ctx.name ctx f) fmt l in
           Coq.exact fmt "%a %s" (Proof.Ctx.named ctx) (Expr.Formula.neg q) res
+        )
+  | Term ({ Expr.formula = Expr.Not {Expr.formula = Expr.All (
+      _, _, { Expr.formula = Expr.Not _ } ) } } as f, l, q) ->
+    Coq.tactic ~prefix:"Q" ~normalize:(Coq.Mem [f])
+      ~prelude:(Coq.Prelude.epsilon :: Coq.Prelude.classical ::
+                List.map coq_term_prelude l) (fun fmt ctx ->
+          let l', last = match CCList.take_drop (List.length l - 1) l with
+            | res, [x] -> res, x
+            | _ -> assert false
+          in
+          let tmp = Coq.sequence ctx (coq_ex true) (Proof.Ctx.name ctx f) fmt l' in
+          Coq.exact fmt "%a (%a)"
+            (Proof.Ctx.named ctx) (Expr.Formula.neg q) (coq_not_ex_not tmp) last
         )
   | Term ({ Expr.formula = Expr.Not {Expr.formula = Expr.All _} } as f, l, q) ->
     Coq.tactic ~prefix:"Q" ~normalize:(Coq.Mem [f])
