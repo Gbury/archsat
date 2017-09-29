@@ -312,9 +312,7 @@ let coq_proof = function
     Coq.tactic ~prefix:"Q"
       ~prelude:(Coq.Prelude.epsilon :: Coq.Prelude.classical ::
                 List.map coq_ty_prelude l) (fun fmt ctx ->
-          Format.fprintf fmt "pose proof True as B.@ ";
-          Format.fprintf fmt "classical_right.@ ";
-          let res = Coq.sequence ctx (coq_ex_ty true) "H" fmt l in
+          let res = Coq.sequence ctx (coq_ex_ty true) (Proof.Ctx.name ctx f) fmt l in
           Coq.exact fmt "%s" res
         )
   | Term ({ Expr.formula = Expr.Ex _} as f, l, q) ->
@@ -327,9 +325,7 @@ let coq_proof = function
     Coq.tactic ~prefix:"Q" ~normalize:(Coq.Mem [f])
       ~prelude:(Coq.Prelude.epsilon :: Coq.Prelude.classical ::
                 List.map coq_term_prelude l) (fun fmt ctx ->
-          Format.fprintf fmt "pose proof True as B.@ ";
-          Format.fprintf fmt "classical_right.@ ";
-          let res = Coq.sequence ctx (coq_ex true) "H" fmt l in
+          let res = Coq.sequence ctx (coq_ex true) (Proof.Ctx.name ctx f) fmt l in
           Coq.exact fmt "%a %s" (Proof.Ctx.named ctx) (Expr.Formula.neg q) res
         )
   | _ -> assert false
