@@ -2,5 +2,5 @@
 
 fof(ax, axiom, ! [ X , Y ] : p(X, Y) ).
 
-fof(goal, conjecture, p(a, a) ).
+fof(goal, conjecture, p(a, b) ).
 
