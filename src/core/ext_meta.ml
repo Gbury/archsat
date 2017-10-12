@@ -188,23 +188,23 @@ let do_formula =
     | { Expr.formula = Expr.All (l, _, p) } as f ->
       let metas = List.map Expr.Term.of_meta (Expr.Meta.of_all f) in
       let subst = List.fold_left2 Expr.Subst.Id.bind Expr.Subst.empty l metas in
-      let q = Expr.Formula.subst Expr.Subst.empty Expr.Subst.empty subst Expr.Subst.empty p in
+      let q = Expr.Formula.subst ~t_var_map:subst p in
       Dispatcher.push [Expr.Formula.neg f; q] (mk_proof_term f l metas q)
     | { Expr.formula = Expr.Not { Expr.formula = Expr.Ex (l, _, p) } } as f ->
       let metas = List.map Expr.Term.of_meta (Expr.Meta.of_all f) in
       let subst = List.fold_left2 Expr.Subst.Id.bind Expr.Subst.empty l metas in
-      let q = Expr.Formula.subst Expr.Subst.empty Expr.Subst.empty subst Expr.Subst.empty p in
+      let q = Expr.Formula.subst ~t_var_map:subst p in
       let q' = Expr.Formula.neg q in
       Dispatcher.push [Expr.Formula.neg f; q'] (mk_proof_term f l metas q')
     | { Expr.formula = Expr.AllTy (l, _, p) } as f ->
       let metas = List.map Expr.Ty.of_meta (Expr.Meta.of_all_ty f) in
       let subst = List.fold_left2 Expr.Subst.Id.bind Expr.Subst.empty l metas in
-      let q = Expr.Formula.subst subst Expr.Subst.empty Expr.Subst.empty Expr.Subst.empty p in
+      let q = Expr.Formula.subst ~ty_var_map:subst p in
       Dispatcher.push [Expr.Formula.neg f; q] (mk_proof_ty f l metas q)
     | { Expr.formula = Expr.Not { Expr.formula = Expr.ExTy (l, _, p) } } as f ->
       let metas = List.map Expr.Ty.of_meta (Expr.Meta.of_all_ty f) in
       let subst = List.fold_left2 Expr.Subst.Id.bind Expr.Subst.empty l metas in
-      let q = Expr.Formula.subst subst Expr.Subst.empty Expr.Subst.empty Expr.Subst.empty p in
+      let q = Expr.Formula.subst ~ty_var_map:subst p in
       let q' = Expr.Formula.neg q in
       Dispatcher.push [Expr.Formula.neg f; q'] (mk_proof_ty f l metas q')
     | _ -> ()

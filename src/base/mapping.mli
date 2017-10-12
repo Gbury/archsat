@@ -39,31 +39,40 @@ val fixpoint : t -> t
 val remove_refl : t -> t
 (** Remove from the mappings bindings of a variable/meta to itself. *)
 
-val map : (Expr.ty -> Expr.ty) -> (Expr.term -> Expr.term)  -> t -> t
-(** Map some functions over the types and terms used in the mapping. *)
+val map :
+  (Expr.ty -> Expr.ty) ->
+  (Expr.term -> Expr.term) ->
+  (Expr.formula -> Expr.formula) -> t -> t
+(** Map some functions over the types, terms and formulas used in the mapping. *)
 
 val merge :
   ?ty_var:(Expr.Id.Ttype.t -> Expr.ty option -> Expr.ty option -> Expr.ty option) ->
   ?ty_meta:(Expr.Meta.Ttype.t -> Expr.ty option -> Expr.ty option -> Expr.ty option) ->
   ?term_var:(Expr.Id.Ty.t -> Expr.term option -> Expr.term option -> Expr.term option) ->
   ?term_meta:(Expr.Meta.Ty.t -> Expr.term option -> Expr.term option -> Expr.term option) ->
+  ?formula_var:(Expr.Id.Ty.t -> Expr.formula option -> Expr.formula option -> Expr.formula option) ->
+  ?formula_meta:(Expr.Meta.Ty.t -> Expr.formula option -> Expr.formula option -> Expr.formula option) ->
   t -> t -> t
 (** Merge two mappings. *)
-
-val filter :
-  ?ty_var:(Expr.Id.Ttype.t -> Expr.ty -> bool) ->
-  ?ty_meta:(Expr.Meta.Ttype.t -> Expr.ty -> bool) ->
-  ?term_var:(Expr.Id.Ty.t -> Expr.term -> bool) ->
-  ?term_meta:(Expr.Meta.Ty.t -> Expr.term -> bool) ->
-  t -> t
-(** Fold on mappings. *)
 
 val fold :
   ?ty_var:(Expr.Id.Ttype.t -> Expr.ty -> 'a -> 'a) ->
   ?ty_meta:(Expr.Meta.Ttype.t -> Expr.ty -> 'a -> 'a) ->
   ?term_var:(Expr.Id.Ty.t -> Expr.term -> 'a -> 'a) ->
   ?term_meta:(Expr.Meta.Ty.t -> Expr.term -> 'a -> 'a) ->
+  ?formula_var:(Expr.Id.Ty.t -> Expr.formula -> 'a -> 'a) ->
+  ?formula_meta:(Expr.Meta.Ty.t -> Expr.formula -> 'a -> 'a) ->
   t -> 'a -> 'a
+(** Fold on mappings. *)
+
+val filter :
+  ?ty_var:(Expr.Id.Ttype.t -> Expr.ty -> bool) ->
+  ?ty_meta:(Expr.Meta.Ttype.t -> Expr.ty -> bool) ->
+  ?term_var:(Expr.Id.Ty.t -> Expr.term -> bool) ->
+  ?term_meta:(Expr.Meta.Ty.t -> Expr.term -> bool) ->
+  ?formula_var:(Expr.Id.Ty.t -> Expr.formula -> bool) ->
+  ?formula_meta:(Expr.Meta.Ty.t -> Expr.formula -> bool) ->
+  t -> t
 (** Fold on mappings. *)
 
 val exists :
@@ -71,6 +80,8 @@ val exists :
   ?ty_meta:(Expr.Meta.Ttype.t -> Expr.ty -> bool) ->
   ?term_var:(Expr.Id.Ty.t -> Expr.term -> bool) ->
   ?term_meta:(Expr.Meta.Ty.t -> Expr.term -> bool) ->
+  ?formula_var:(Expr.Id.Ty.t -> Expr.formula -> bool) ->
+  ?formula_meta:(Expr.Meta.Ty.t -> Expr.formula -> bool) ->
   t -> bool
 (** Is there a binding that satisfies the given predicate ? *)
 
@@ -79,6 +90,8 @@ val for_all :
   ?ty_meta:(Expr.Meta.Ttype.t -> Expr.ty -> bool) ->
   ?term_var:(Expr.Id.Ty.t -> Expr.term -> bool) ->
   ?term_meta:(Expr.Meta.Ty.t -> Expr.term -> bool) ->
+  ?formula_var:(Expr.Id.Ty.t -> Expr.formula -> bool) ->
+  ?formula_meta:(Expr.Meta.Ty.t -> Expr.formula -> bool) ->
   t -> bool
 (** Do all the bindings verify the given predicates ? *)
 
@@ -104,19 +117,23 @@ module Var : sig
 
   val mem_ty : t -> Expr.Id.Ttype.t -> bool
   val mem_term : t -> Expr.Id.Ty.t -> bool
+  val mem_formula : t -> Expr.Id.Ty.t -> bool
   (** Does the given identifier is mapped ? *)
 
   val get_ty : t -> Expr.Id.Ttype.t -> Expr.ty
   val get_term : t -> Expr.Id.Ty.t -> Expr.term
+  val get_formula : t -> Expr.Id.Ty.t -> Expr.formula
   (** Get the value mapped to an identiier in the mapping.
       @raise Not_found if the identifier is not bound. *)
 
   val get_ty_opt : t -> Expr.Id.Ttype.t -> Expr.ty option
   val get_term_opt : t -> Expr.Id.Ty.t -> Expr.term option
+  val get_formula_opt : t -> Expr.Id.Ty.t -> Expr.formula option
   (** Get the value mapped to an identifier in hte mapping. *)
 
   val bind_ty : t -> Expr.Id.Ttype.t -> Expr.ty -> t
   val bind_term : t -> Expr.Id.Ty.t -> Expr.term -> t
+  val bind_formula : t -> Expr.Id.Ty.t -> Expr.formula -> t
   (** Add a new binding to the mapping.
       Will overwrite any previously existing binding. *)
 
@@ -129,19 +146,23 @@ module Meta : sig
 
   val mem_ty : t -> Expr.Meta.Ttype.t -> bool
   val mem_term : t -> Expr.Meta.Ty.t -> bool
+  val mem_formula : t -> Expr.Meta.Ty.t -> bool
   (** Does the given identifier is mapped ? *)
 
   val get_ty : t -> Expr.Meta.Ttype.t -> Expr.ty
   val get_term : t -> Expr.Meta.Ty.t -> Expr.term
+  val get_formula : t -> Expr.Meta.Ty.t -> Expr.formula
   (** Get the value mapped to an identiier in the mapping.
       @raise Not_found if the identifier is not bound. *)
 
   val get_ty_opt : t -> Expr.Meta.Ttype.t -> Expr.ty option
   val get_term_opt : t -> Expr.Meta.Ty.t -> Expr.term option
+  val get_formula_opt : t -> Expr.Meta.Ty.t -> Expr.formula option
   (** Get the value mapped to an identifier in hte mapping. *)
 
   val bind_ty : t -> Expr.Meta.Ttype.t -> Expr.ty -> t
   val bind_term : t -> Expr.Meta.Ty.t -> Expr.term -> t
+  val bind_formula : t -> Expr.Meta.Ty.t -> Expr.formula -> t
   (** Add a new binding to the mapping.
       Will overwrite any previously existing binding. *)
 
@@ -150,10 +171,12 @@ end
 
 (** {2 Substitution extraction} *)
 
-val ty_var : t -> (Expr.Id.Ttype.t, Expr.ty) Expr.Subst.t
-val ty_meta : t -> (Expr.Meta.Ttype.t, Expr.ty) Expr.Subst.t
-val term_var : t -> (Expr.Id.Ty.t, Expr.term) Expr.Subst.t
-val term_meta : t -> (Expr.Meta.Ty.t, Expr.term) Expr.Subst.t
+val ty_var : t -> Expr.Ty.var_subst
+val ty_meta : t -> Expr.Ty.meta_subst
+val term_var : t -> Expr.Term.var_subst
+val term_meta : t -> Expr.Term.meta_subst
+val formula_var : t -> Expr.Formula.var_subst
+val formula_meta : t -> Expr.Formula.meta_subst
 (** Extract a substitution from a mapping. *)
 
 

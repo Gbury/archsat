@@ -21,10 +21,10 @@ include module type of Expr_test.C
 val (!%) : Expr.ttype Expr.id -> Expr.ty
 (** Prefix operator to turn a variable symbol into a type. *)
 
-val (!~) : Expr.ttype Expr.function_descr Expr.id -> Expr.ty
+val (!~) : Expr.Id.TyCstr.t -> Expr.ty
 (** Prefix operator to turn a constant symbol (wiht no arguments) int a type *)
 
-val (@@) : Expr.ttype Expr.function_descr Expr.id -> Expr.ty list -> Expr.ty
+val (@@) : Expr.Id.TyCstr.t -> Expr.ty list -> Expr.ty
 (** Infix operator for application of type constructors *)
 
 
@@ -37,10 +37,10 @@ val (#:) : Expr.ty -> int -> Expr.term
 (** Infix operator to generate a meta from a type and an integer, and
     return the corresponding term. *)
 
-val (~~) : Expr.ty Expr.function_descr Expr.id -> Expr.term
+val (~~) : Expr.Id.Const.t -> Expr.term
 (** Prefix symbol to turn a constant symbol (with no arguments) into a term. *)
 
-val (@) : Expr.ty Expr.function_descr Expr.id -> Expr.term list -> Expr.term
+val (@) : Expr.Id.Const.t -> Expr.term list -> Expr.term
 (** Infix operator for temr application (with no type arguments) *)
 
 

@@ -628,6 +628,22 @@ module Meta = struct
       let acc' = List.fold_left free_ty acc tys in
       List.fold_left free_term acc' args
 
+  let rec free_formula acc t = match t.formula with
+    | Pred p -> free_term acc p
+    | Equal (a, b) -> free_term (free_term acc a) b
+    | True | False -> acc
+    | Not f -> free_formula acc f
+    | And l
+    | Or l -> List.fold_left free_formula acc l
+    | Imply (p, q)
+    | Equiv (p, q) ->
+      free_formula (free_formula acc p) q
+    | All (_, _, f)
+    | AllTy (_, _, f)
+    | Ex (_, _, f)
+    | ExTy (_, _, f) ->
+      free_formula acc f
+
   (* Metas refer to an index which stores the defining formula for the variable *)
   type meta_def =
     | Term of formula * ty meta list
@@ -943,7 +959,10 @@ end
 (* ************************************************************************ *)
 
 module Formula = struct
+
   type t = formula
+  type var_subst = (ty id, formula) Subst.t
+  type meta_subst = (ty meta, formula) Subst.t
 
   (* Hash & Comparisons *)
   let h_eq    = 2
@@ -1065,6 +1084,8 @@ module Formula = struct
       let res = free_vars f in
       f.f_vars <- Some res;
       res
+
+  let fm f = Meta.free_formula ([], []) f
 
   let to_free_args (tys, ts) = List.map Ty.of_id tys, List.map Term.of_id ts
 
@@ -1204,7 +1225,7 @@ module Formula = struct
           (Subst.Id.remove v subst) (v :: acc) r
 
   (* TODO: Check free variables of substitutions for quantifiers ? *)
-  let rec subst_aux ~fix ty_var_map ty_meta_map t_var_map t_meta_map f =
+  let rec subst_aux ~fix ty_vmap ty_mmap t_vmap t_mmap f_vmap f_mmap f =
     match f.formula with
     | True | False -> f
     | Equal (a, b) ->
@@ -1214,111 +1235,120 @@ module Formula = struct
         | Some Same -> a, b
         | Some Inverse -> b, a
       in
-      let new_a = Term.subst ~fix ty_var_map ty_meta_map t_var_map t_meta_map a in
-      let new_b = Term.subst ~fix ty_var_map ty_meta_map t_var_map t_meta_map b in
+      let new_a = Term.subst ~fix ty_vmap ty_mmap t_vmap t_mmap a in
+      let new_b = Term.subst ~fix ty_vmap ty_mmap t_vmap t_mmap b in
       if a == new_a && b == new_b then f
       else eq new_a new_b
+    | Pred { term = Var v; } when Subst.Id.mem v f_vmap ->
+      subst_aux ~fix ty_vmap ty_mmap t_vmap t_mmap f_vmap f_mmap (Subst.Id.get v f_vmap)
+    | Pred { term = Meta m; } when Subst.Meta.mem m f_mmap ->
+      subst_aux ~fix ty_vmap ty_mmap t_vmap t_mmap f_vmap f_mmap (Subst.Meta.get m f_mmap)
     | Pred t ->
-      let new_t = Term.subst ~fix ty_var_map ty_meta_map t_var_map t_meta_map t in
-      if t == new_t then f
-      else pred new_t
+      let new_t = Term.subst ~fix ty_vmap ty_mmap t_vmap t_mmap t in
+      if t == new_t then f else pred new_t
     | Not p ->
-      let new_p = subst_aux ~fix ty_var_map ty_meta_map t_var_map t_meta_map p in
+      let new_p = subst_aux ~fix ty_vmap ty_mmap t_vmap t_mmap f_vmap f_mmap p in
       if p == new_p then f
       else neg new_p
     | And _ ->
       let o = CCOpt.get_exn @@ get_tag f f_order in
-      let o'= Order.map (subst_aux ~fix ty_var_map ty_meta_map t_var_map t_meta_map) o in
+      let o'= Order.map (subst_aux ~fix ty_vmap ty_mmap t_vmap t_mmap f_vmap f_mmap) o in
       if Order.for_all2 (==) o o' then f
       else Order.build f_and o'
     | Or l ->
       let o = CCOpt.get_exn @@ get_tag f f_order in
-      let o'= Order.map (subst_aux ~fix ty_var_map ty_meta_map t_var_map t_meta_map) o in
+      let o'= Order.map (subst_aux ~fix ty_vmap ty_mmap t_vmap t_mmap f_vmap f_mmap) o in
       if Order.for_all2 (==) o o' then f
       else Order.build f_or o'
     | Imply (p, q) ->
-      let new_p = subst_aux ~fix ty_var_map ty_meta_map t_var_map t_meta_map p in
-      let new_q = subst_aux ~fix ty_var_map ty_meta_map t_var_map t_meta_map q in
+      let new_p = subst_aux ~fix ty_vmap ty_mmap t_vmap t_mmap f_vmap f_mmap p in
+      let new_q = subst_aux ~fix ty_vmap ty_mmap t_vmap t_mmap f_vmap f_mmap q in
       if p == new_p && q == new_q then f
       else imply new_p new_q
     | Equiv (p, q) ->
-      let new_p = subst_aux ~fix ty_var_map ty_meta_map t_var_map t_meta_map p in
-      let new_q = subst_aux ~fix ty_var_map ty_meta_map t_var_map t_meta_map q in
+      let new_p = subst_aux ~fix ty_vmap ty_mmap t_vmap t_mmap f_vmap f_mmap p in
+      let new_q = subst_aux ~fix ty_vmap ty_mmap t_vmap t_mmap f_vmap f_mmap q in
       if p == new_p && q == new_q then f
       else equiv new_p new_q
     | All (l, (ty, t), p) ->
-      let l', t_map = new_binder_subst ty_var_map ty_meta_map t_var_map [] l in
+      let l', t_map = new_binder_subst ty_vmap ty_mmap t_vmap [] l in
       List.iter2 Id.copy_term_skolem l l';
-      let tys = List.map (Ty.subst ty_var_map ty_meta_map) ty in
-      let ts = List.map (Term.subst ty_var_map ty_meta_map t_var_map t_meta_map) t in
-      mk_formula (All (l', (tys, ts), (subst_aux ~fix ty_var_map ty_meta_map t_map t_meta_map p)))
+      let tys = List.map (Ty.subst ty_vmap ty_mmap) ty in
+      let ts = List.map (Term.subst ty_vmap ty_mmap t_vmap t_mmap) t in
+      mk_formula (All (l', (tys, ts), (subst_aux ~fix ty_vmap ty_mmap t_map t_mmap f_vmap f_mmap p)))
     | Ex (l, (ty, t), p) ->
-      let l', t_map = new_binder_subst ty_var_map ty_meta_map t_var_map [] l in
+      let l', t_map = new_binder_subst ty_vmap ty_mmap t_vmap [] l in
       List.iter2 Id.copy_term_skolem l l';
-      let tys = List.map (Ty.subst ty_var_map ty_meta_map) ty in
-      let ts = List.map (Term.subst ty_var_map ty_meta_map t_var_map t_meta_map) t in
-      mk_formula (Ex (l', (tys, ts), (subst_aux ~fix ty_var_map ty_meta_map t_map t_meta_map p)))
+      let tys = List.map (Ty.subst ty_vmap ty_mmap) ty in
+      let ts = List.map (Term.subst ty_vmap ty_mmap t_vmap t_mmap) t in
+      mk_formula (Ex (l', (tys, ts), (subst_aux ~fix ty_vmap ty_mmap t_map t_mmap f_vmap f_mmap p)))
     | AllTy (l, (ty, t), p) ->
       assert (t = []);
-      let tys = List.map (Ty.subst ty_var_map ty_meta_map) ty in
-      mk_formula (AllTy (l, (tys, t), (subst_aux ~fix ty_var_map ty_meta_map t_var_map t_meta_map p)))
+      let tys = List.map (Ty.subst ty_vmap ty_mmap) ty in
+      mk_formula (AllTy (l, (tys, t), (subst_aux ~fix ty_vmap ty_mmap t_vmap t_mmap f_vmap f_mmap p)))
     | ExTy (l, (ty, t), p) ->
       assert (t = []);
-      let tys = List.map (Ty.subst ty_var_map ty_meta_map) ty in
-      mk_formula (ExTy (l, (tys, t), (subst_aux ~fix ty_var_map ty_meta_map t_var_map t_meta_map p)))
+      let tys = List.map (Ty.subst ty_vmap ty_mmap) ty in
+      mk_formula (ExTy (l, (tys, t), (subst_aux ~fix ty_vmap ty_mmap t_vmap t_mmap f_vmap f_mmap p)))
 
-  let subst ?(fix=true) ty_var_map ty_meta_map t_var_map t_meta_map f =
+  let subst ?(fix=true)
+      ?(ty_var_map=Subst.empty) ?(ty_meta_map=Subst.empty)
+      ?(t_var_map=Subst.empty) ?(t_meta_map=Subst.empty)
+      ?(f_var_map=Subst.empty) ?(f_meta_map=Subst.empty) f =
     if Subst.is_empty ty_var_map && Subst.is_empty ty_meta_map &&
-       Subst.is_empty t_var_map && Subst.is_empty t_meta_map then
+       Subst.is_empty t_var_map && Subst.is_empty t_meta_map &&
+       Subst.is_empty f_var_map && Subst.is_empty f_meta_map then
       f
     else
-      subst_aux ~fix ty_var_map ty_meta_map t_var_map t_meta_map f
+      subst_aux ~fix ty_var_map ty_meta_map t_var_map t_meta_map f_var_map f_meta_map f
 
-  let free_args_inst ty_var_map t_var_map (ty_args, t_args) =
-    (List.map (Ty.subst ~fix:false ty_var_map Subst.empty) ty_args,
-     List.map (Term.subst ~fix:false ty_var_map Subst.empty t_var_map Subst.empty) t_args)
+  let free_args_inst ty_vmap t_vmap (ty_args, t_args) =
+    (List.map (Ty.subst ~fix:false ty_vmap Subst.empty) ty_args,
+     List.map (Term.subst ~fix:false ty_vmap Subst.empty t_vmap Subst.empty) t_args)
 
-  let partial_inst ty_var_map t_var_map f =
+  let _empty = Subst.empty
+
+  let partial_inst ty_vmap t_vmap f =
     match f.formula with
     | Ex (l, args, p) ->
-      let l' = List.filter (fun v -> not (Subst.Id.mem v t_var_map)) l in
-      let q = subst_aux ~fix:false ty_var_map Subst.empty t_var_map Subst.empty p in
-      let args' = free_args_inst ty_var_map t_var_map args in
+      let l' = List.filter (fun v -> not (Subst.Id.mem v t_vmap)) l in
+      let q = subst_aux ~fix:false ty_vmap _empty t_vmap _empty _empty _empty p in
+      let args' = free_args_inst ty_vmap t_vmap args in
       if l' = [] then q else mk_formula (Ex (l', args', q))
     | All (l, args, p) ->
-      let l' = List.filter (fun v -> not (Subst.Id.mem v t_var_map)) l in
-      let q = subst_aux ~fix:false ty_var_map Subst.empty t_var_map Subst.empty p in
-      let args' = free_args_inst ty_var_map t_var_map args in
+      let l' = List.filter (fun v -> not (Subst.Id.mem v t_vmap)) l in
+      let q = subst_aux ~fix:false ty_vmap _empty t_vmap _empty _empty _empty p in
+      let args' = free_args_inst ty_vmap t_vmap args in
       if l' = [] then q else mk_formula (All (l', args', q))
     | ExTy (l, args, p) ->
-      let l' = List.filter (fun v -> not (Subst.Id.mem v ty_var_map)) l in
-      let q = subst_aux ~fix:false ty_var_map Subst.empty t_var_map Subst.empty p in
-      let args' = free_args_inst ty_var_map t_var_map args in
+      let l' = List.filter (fun v -> not (Subst.Id.mem v ty_vmap)) l in
+      let q = subst_aux ~fix:false ty_vmap _empty t_vmap _empty _empty _empty p in
+      let args' = free_args_inst ty_vmap t_vmap args in
       if l' = [] then q else mk_formula (ExTy (l', args', q))
     | AllTy (l, args, p) ->
-      let l' = List.filter (fun v -> not (Subst.Id.mem v ty_var_map)) l in
-      let q = subst_aux ~fix:false ty_var_map Subst.empty t_var_map Subst.empty p in
-      let args' = free_args_inst ty_var_map t_var_map args in
+      let l' = List.filter (fun v -> not (Subst.Id.mem v ty_vmap)) l in
+      let q = subst_aux ~fix:false ty_vmap _empty t_vmap _empty _empty _empty p in
+      let args' = free_args_inst ty_vmap t_vmap args in
       if l' = [] then q else mk_formula (AllTy (l', args', q))
     | Not { formula = Ex (l, args, p) } ->
-      let l' = List.filter (fun v -> not (Subst.Id.mem v t_var_map)) l in
-      let q = subst_aux ~fix:false ty_var_map Subst.empty t_var_map Subst.empty p in
-      let args' = free_args_inst ty_var_map t_var_map args in
+      let l' = List.filter (fun v -> not (Subst.Id.mem v t_vmap)) l in
+      let q = subst_aux ~fix:false ty_vmap _empty t_vmap _empty _empty _empty p in
+      let args' = free_args_inst ty_vmap t_vmap args in
       neg (if l' = [] then q else mk_formula (Ex (l', args', q)))
     | Not { formula = All (l, args, p) } ->
-      let l' = List.filter (fun v -> not (Subst.Id.mem v t_var_map)) l in
-      let q = subst_aux ~fix:false ty_var_map Subst.empty t_var_map Subst.empty p in
-      let args' = free_args_inst ty_var_map t_var_map args in
+      let l' = List.filter (fun v -> not (Subst.Id.mem v t_vmap)) l in
+      let q = subst_aux ~fix:false ty_vmap _empty t_vmap _empty _empty _empty p in
+      let args' = free_args_inst ty_vmap t_vmap args in
       neg (if l' = [] then q else mk_formula (All (l', args', q)))
     | Not { formula = ExTy (l, args, p) } ->
-      let l' = List.filter (fun v -> not (Subst.Id.mem v ty_var_map)) l in
-      let q = subst_aux ~fix:false ty_var_map Subst.empty t_var_map Subst.empty p in
-      let args' = free_args_inst ty_var_map t_var_map args in
+      let l' = List.filter (fun v -> not (Subst.Id.mem v ty_vmap)) l in
+      let q = subst_aux ~fix:false ty_vmap _empty t_vmap _empty _empty _empty p in
+      let args' = free_args_inst ty_vmap t_vmap args in
       neg (if l' = [] then q else mk_formula (ExTy (l', args', q)))
     | Not { formula = AllTy (l, args, p) } ->
-      let l' = List.filter (fun v -> not (Subst.Id.mem v ty_var_map)) l in
-      let q = subst_aux ~fix:false ty_var_map Subst.empty t_var_map Subst.empty p in
-      let args' = free_args_inst ty_var_map t_var_map args in
+      let l' = List.filter (fun v -> not (Subst.Id.mem v ty_vmap)) l in
+      let q = subst_aux ~fix:false ty_vmap _empty t_vmap _empty _empty _empty p in
+      let args' = free_args_inst ty_vmap t_vmap args in
       neg (if l' = [] then q else mk_formula (AllTy (l', args', q)))
     | _ -> raise (Invalid_argument "Expr.partial_inst")
 

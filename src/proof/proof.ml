@@ -20,7 +20,7 @@ let add_goal id g =
     | [] -> ()
     | _ -> Util.warn ~section "%s%s"
              "Multiple goals are not very well supported,@ "
-             "please consider having a single goal at a time"
+             "please consider having a single goal at any time"
   end;
   add_hyp id [Expr.Formula.neg g];
   goals := (id, g) :: !goals
@@ -103,6 +103,45 @@ module Ctx = struct
   (* Wrappers *)
   let add t f = ignore (add_aux t f new_name)
   let name t f = Format.asprintf "%a" (named t) f
+
+end
+
+(* Proof constants *)
+(* ************************************************************************ *)
+
+module Id = struct
+
+  type ('a, 'b) pi = 'a Expr.id option * 'b
+
+  type 'a ty =
+    | Ret     : 'a -> 'a ty
+    | Pi_ty   : (Expr.ttype, Expr.ty) pi    * 'a ty -> 'a ty
+    | Pi_term : (Expr.ty, Expr.term) pi     * 'a ty -> 'a ty
+    | Pi_form : (Expr.ty, Expr.formula) pi  * 'a ty -> 'a ty
+
+  type t = Expr.formula ty Expr.id
+
+end
+
+(* Proof terms *)
+(* ************************************************************************ *)
+
+module Term = struct
+
+  type t =
+    | Fun of Expr.formula Expr.id list * t
+    | App of Id.t * t list
+
+end
+
+(* Proof Tactics *)
+(* ************************************************************************ *)
+
+module Tactic = struct
+
+  type t =
+    | Intro of string list
+    | Apply of Id.t
 
 end
 

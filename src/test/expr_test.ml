@@ -513,7 +513,7 @@ module Formula = struct
     | { Expr.formula = Expr.All (vars, _, _) } as q_f ->
       let metas = List.map Expr.Term.of_meta (Expr.Meta.of_all q_f) in
       let subst = List.fold_left2 Expr.Subst.Id.bind Expr.Subst.empty vars metas in
-      Expr.Formula.subst Expr.Subst.empty Expr.Subst.empty subst Expr.Subst.empty f
+      Expr.Formula.subst ~t_var_map:subst f
     | _ -> f
 
   let meta_tt (u, v) =

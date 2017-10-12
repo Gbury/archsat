@@ -102,7 +102,7 @@ and term = private {
   t_type   : ty;
   t_status : status;
   mutable t_tags : tag_map;
-  mutable t_hash : hash; (** Do not use this filed, call Term.hash instead *)
+  mutable t_hash : hash; (** Do not use this field, call Term.hash instead *)
 }
 
 (** Types defining terms in the solver. The definition is vary similar to that
@@ -517,6 +517,10 @@ module Formula : sig
 
   include Sig.Full with type t = formula
 
+  type var_subst = (ty id, formula) Subst.t
+  type meta_subst = (ty meta, formula) Subst.t
+  (** The type of substitutions in types. *)
+
   val f_true : formula
   val f_false : formula
   (** Formula for the true and false constants *)
@@ -553,8 +557,12 @@ module Formula : sig
 
   val subst :
     ?fix:bool ->
-    Ty.var_subst -> Ty.meta_subst ->
-    Term.var_subst -> Term.meta_subst ->
+    ?ty_var_map:Ty.var_subst ->
+    ?ty_meta_map:Ty.meta_subst ->
+    ?t_var_map:Term.var_subst ->
+    ?t_meta_map:Term.meta_subst ->
+    ?f_var_map:var_subst ->
+    ?f_meta_map:meta_subst ->
     formula -> formula
   (** Substitution over formulas
       @param fix wther to fixpoint the substitution application *)
@@ -563,7 +571,8 @@ module Formula : sig
   (** Make a partial instanciation of the given formula with the substitutions. *)
 
   val fv : formula -> ttype id list * ty id list
-  (** Return the list of free variables in the given formula. *)
+  val fm : formula -> ttype meta list * ty meta list
+  (** Return the list of free variables or metas in the given formula. *)
 
   val tag : formula -> 'a tag -> 'a -> unit
   (** Insert a local type in the given type. Does not change the semantic

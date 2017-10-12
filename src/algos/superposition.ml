@@ -120,13 +120,8 @@ let (<<) t t' =
 
 (* Mapping composition *)
 
-let compose s s' =
-  Mapping.map
-    (Mapping.apply_ty s')
-    (Mapping.apply_term s') s
-
 let compose_set set rho =
-  C.map (fun s -> compose s rho) set
+  C.map (Mapping.apply rho) set
 
 
 (* Mapping merging *)
