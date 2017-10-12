@@ -72,14 +72,7 @@ module Print = struct
     Expr.Id.tag Expr.Id.base pretty (Print.Prefix "Set")
 
   let t =
-    let name = function
-      | Escape.Any.Dolmen id -> Dolmen.Id.full_name id
-      | Escape.Any.Id id ->
-        begin match Expr.Id.get_tag id pretty with
-          | None -> id.Expr.id_name
-          | Some (Print.Infix s | Print.Prefix s) -> s
-        end
-    in
+    let name = Escape.tagged_name ~tag:pretty in
     let rename = Escape.rename ~sep:'_' in
     let escape = Escape.umap (fun i -> function
         | None -> [ Uchar.of_char '_' ]

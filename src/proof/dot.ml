@@ -9,14 +9,7 @@ let section = Section.make "dot"
 module Print = struct
 
   let t =
-    let name = function
-      | Escape.Any.Dolmen id -> Dolmen.Id.full_name id
-      | Escape.Any.Id id ->
-        begin match Expr.Id.get_tag id Expr.Print.pretty with
-          | None -> id.Expr.id_name
-          | Some Expr.Print.(Infix s | Prefix s) -> s
-        end
-    in
+    let name = Escape.tagged_name ~tag:Expr.Print.pretty in
     let rename = Escape.rename ~sep:'_' in
     let escape = Escape.umap (fun i -> function
         | None -> [ Uchar.of_char '_' ]

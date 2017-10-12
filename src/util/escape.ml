@@ -37,11 +37,15 @@ type status =
   | Renamed (* Identifier has been renamed due to a conflict
                with another escaped or renamed identifier *)
 
+type name =
+  | Exact of string   (** The given name is to be printed exactly as is *)
+  | Normal of string  (** The given name should be escaped/renamed if necessary *)
+
 type t = {
   lang   : string;
-  name   : Any.t -> string; (* function for identifier name *)
-  escape : string -> string; (* escape function, ideally idempotent *)
-  rename : string -> string; (* renaming function, should have no fixpoint *)
+  name   : Any.t -> name;     (* function for identifier name *)
+  escape : string -> string;  (* escape function, ideally idempotent *)
+  rename : string -> string;  (* renaming function, should have no fixpoint *)
   table  : (status * string) H.t;
   names  : (string, Any.t) Hashtbl.t;
 }
@@ -53,6 +57,7 @@ let mk ~lang ~name ~escape ~rename = {
   names = Hashtbl.create 1013;
 }
 
+
 let pp_assign fmt (any, status, name) =
   Format.fprintf fmt "@[<hov>%a@ %s@ %s@]"
     Any.print any
@@ -62,7 +67,10 @@ let pp_assign fmt (any, status, name) =
      | Renamed -> "~~>")
     name
 
-let rec add t any status name =
+(* Adding escapped sequences *)
+(* ************************************************************************ *)
+
+let rec add ?(fragile=false) t any status name =
   match Hashtbl.find t.names name with
   | exception Not_found ->
     add_success t any status name
@@ -70,12 +78,17 @@ let rec add t any status name =
     assert (not (Any.equal any r));
     if status = Same then begin
       match H.find t.table r with
-      | (Same, s) when s = name ->
+      (** Two ids have the same name, we trust the developpers
+          that this is intended *)
+      | (Same, s) ->
+        assert (s = name);
         add_success t any status name
+      (** The escaped id collided with another escaped/renamed id,
+          this is a potentially dangerous situation. *)
       | _ ->
-        add_failure t any status name r
+        add_failure ~fragile t any status name r
     end else
-      add_failure t any status name r
+      add_failure ~fragile t any status name r
 
 and add_success t any status name =
   Util.debug ~section "Adding %a" pp_assign (any, status, name);
@@ -83,9 +96,10 @@ and add_success t any status name =
   let () = Hashtbl.add t.names name any in
   name
 
-and add_failure t any status name r =
+and add_failure ~fragile t any status name r =
   let conflict_st, conflict_name = H.find t.table r in
-  Util.warn ~section "Escaping %a,@ conficted with@ %a"
+  let log = if fragile then Util.error else Util.warn in
+  log ~section "Escaping %a,@ conficted with@ %a"
     pp_assign (any, status, name) pp_assign (r, conflict_st, conflict_name);
   let new_name = t.rename name in
   assert (new_name <> name);
@@ -95,16 +109,36 @@ let escape t any =
   match H.find t.table any with
   | (_, s) -> s
   | exception Not_found ->
-    let name = t.name any in
-    let new_name = t.escape name in
-    let status = if (new_name = name) then Same else Escaped in
-    add t any status new_name
+    let fragile, status, new_name =
+      match t.name any with
+      | Exact name ->
+        true, Same, name
+      | Normal name ->
+        let s = t.escape name in
+        let status = if (s = name) then Same else Escaped in
+        false, status, s
+    in
+    add ~fragile t any status new_name
+
+(* Convenience functions *)
+(* ************************************************************************ *)
 
 let id t fmt id =
   Format.fprintf fmt "%s" (escape t (Any.Id id))
 
 let dolmen t fmt id =
   Format.fprintf fmt "%s" (escape t (Any.Dolmen id))
+
+let tagged_name ?(tag=Expr.Print.pretty) = function
+  | Any.Dolmen id ->
+    Normal (Dolmen.Id.full_name id)
+  | Any.Id id ->
+    begin match Expr.Id.get_tag id tag with
+      | None ->
+        Normal (id.Expr.id_name)
+      | Some (Expr.Print.Infix s | Expr.Print.Prefix s) ->
+        Exact s
+    end
 
 (* Unicode wrapper *)
 (* ************************************************************************ *)

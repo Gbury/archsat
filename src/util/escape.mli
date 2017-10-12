@@ -28,16 +28,30 @@ type t
     with other escaped identifiers. *)
 
 val id : t -> Format.formatter -> _ Expr.id -> unit
-    (** Printer for archsat identifiers. *)
+(** Printer for archsat identifiers. *)
 
 val dolmen : t -> Format.formatter -> Dolmen.Id.t -> unit
 (** Printer for dolmen identifiers. *)
+
+(** {3 Identifier names} *)
+
+type name =
+  | Exact of string   (** The given name is to be printed exactly as is *)
+  | Normal of string  (** The given name should be escaped/renamed if necessary *)
+(** Variant type to specify the name (and status) of how an identifier should be
+    printed. Typically, id name that come from the input problem should be escaped,
+    while names declared inside the source code can ask to be exact (for instance,
+    qualified names using module paths should *not* be escaped, etc...) *)
+
+val tagged_name : ?tag:Expr.Print.pretty Expr.tag -> Any.t -> name
+(** Extract the name of an id using a pretty tag. If the pretty tag exists,
+    the name is considered as exact, else it is normal. *)
 
 (** Custom environments *)
 
 val mk :
   lang:string ->
-  name:(Any.t -> string) ->
+  name:(Any.t -> name) ->
   escape:(string -> string) ->
   rename:(string -> string) -> t
 (** Create an escaper from scratch. The name function is called to determine
