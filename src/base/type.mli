@@ -36,8 +36,8 @@ type res =
 (** The results of parsing an untyped term.  *)
 
 type inferred =
-  | Ty_fun of Expr.ttype Expr.function_descr Expr.id
-  | Term_fun of Expr.ty Expr.function_descr Expr.id
+  | Ty_fun of Expr.Id.TyCstr.t
+  | Term_fun of Expr.Id.Const.t
 (** The type for inferred symbols. *)
 
 type 'a typer = env -> Dolmen.Term.t -> 'a
@@ -81,9 +81,9 @@ val wildcard : (Dolmen.Id.t -> Dolmen.Term.t list -> res) typer
     *)
 
 val ty_apply :
-  (Expr.ttype Expr.function_descr Expr.id -> Expr.ty list -> Expr.ty) typer
+  (Expr.Id.TyCstr.t -> Expr.ty list -> Expr.ty) typer
 val term_apply :
-  (Expr.ty Expr.function_descr Expr.id -> Expr.ty list -> Expr.term list -> Expr.term) typer
+  (Expr.Id.Const.t -> Expr.ty list -> Expr.term list -> Expr.term) typer
 (** Wrappers for making applications, so that it raises the right exceptions. *)
 
 (** {2 Parsing functions} *)
@@ -96,8 +96,8 @@ val parse_term : Expr.term typer
 val parse_formula : Expr.formula typer
 (** Wrappers around {parse_expr} to unwrap an expected result. *)
 
-val parse_app_ty : (Expr.ttype Expr.function_descr Expr.id -> Dolmen.Term.t list -> res) typer
-val parse_app_term : (Expr.ty Expr.function_descr Expr.id -> Dolmen.Term.t list -> res) typer
+val parse_app_ty : (Expr.Id.TyCstr.t -> Dolmen.Term.t list -> res) typer
+val parse_app_term : (Expr.Id.Const.t -> Dolmen.Term.t list -> res) typer
 (** Function used for parsing applications. The first dolmen term given
     is the application term being parsed (used for reporting errors). *)
 
@@ -109,8 +109,8 @@ val parse_app_formula : (Expr.formula -> Dolmen.Term.t list -> res) typer
 
 val new_decl :
   (?attr:Dolmen.Term.t -> Dolmen.Id.t ->
-   [ `Type_decl of Expr.ttype Expr.function_descr Expr.id
-   | `Term_decl of Expr.ty Expr.function_descr Expr.id
+   [ `Type_decl of Expr.Id.TyCstr.t
+   | `Term_decl of Expr.Id.Const.t
    ]) typer
 (** Parse a declaration. *)
 

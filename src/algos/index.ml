@@ -89,7 +89,7 @@ end
 
 module Fingerprint = struct
 
-  type t = Expr.ty Position.res
+  type t = (Expr.ttype, Expr.ty) Position.res
 
   let discr = function
     | Position.Var -> 0

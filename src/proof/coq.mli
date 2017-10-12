@@ -29,8 +29,8 @@ type _ Dispatcher.msg +=
 
 (** {2 Main} *)
 
-val declare_ty : Format.formatter -> Expr.ttype Expr.function_descr Expr.id -> unit
-val declare_term : Format.formatter -> Expr.ty Expr.function_descr Expr.id -> unit
+val declare_ty : Format.formatter -> Expr.Id.TyCstr.t -> unit
+val declare_term : Format.formatter -> Expr.Id.Const.t -> unit
 (** Print the type declarations for constant symbols *)
 
 val print_hyp : Format.formatter -> (Dolmen.Id.t * Expr.formula list) -> unit

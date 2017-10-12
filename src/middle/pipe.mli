@@ -11,8 +11,8 @@ type executed = [
 ]
 
 type type_decls = [
-  | `Type_decl of Expr.ttype Expr.function_descr Expr.id
-  | `Term_decl of Expr.ty Expr.function_descr Expr.id
+  | `Type_decl of Expr.Id.TyCstr.t
+  | `Term_decl of Expr.Id.Const.t
 ]
 (** The type of top-level type declarations. *)
 
@@ -50,8 +50,8 @@ type solved      = [ executed | type_defs | type_decls | assume | result ]
 type +'a stmt = {
   id          : Dolmen.Id.t;
   contents    : 'a;
-  impl_types  : Expr.ttype Expr.function_descr Expr.id list;
-  impl_terms  : Expr.ty Expr.function_descr Expr.id list;
+  impl_types  : Expr.Id.TyCstr.t list;
+  impl_terms  : Expr.Id.Const.t list;
 }
 (** Wrapper around statements. It records implicit type declarations. *)
 

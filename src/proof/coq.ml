@@ -120,18 +120,18 @@ module Print = struct
       Format.fprintf fmt "%s @[<hov>%a@],@ "
         pre CCFormat.(list ~sep:(return "@ ") aux) l
 
-  let signature print fmt f =
+  let signature pp print fmt f =
     match f.fun_args with
     | [] ->
       Format.fprintf fmt "@[<hov 2>%a%a@]"
-        (params "forall" ttype) f.fun_vars print f.fun_ret
+        (params "forall" pp) f.fun_vars print f.fun_ret
     | l ->
       Format.fprintf fmt "@[<hov 2>%a%a ->@ %a@]"
-        (params "forall" ttype) f.fun_vars
+        (params "forall" pp) f.fun_vars
         CCFormat.(list ~sep:(return " ->@ ") print) l print f.fun_ret
 
-  let fun_ty = signature ty
-  let fun_ttype = signature ttype
+  let fun_ty = signature ttype ty
+  let fun_ttype = signature CCFormat.silent ttype
 
   let id_type print fmt v =
     Format.fprintf fmt "@[<hov 2>%a :@ %a@]" id v print v.id_type

@@ -203,7 +203,7 @@ module Arith = struct
     | Val of value
     | Op of op
 
-  type operator = ty -> Expr.ty Expr.function_descr Expr.id
+  type operator = ty -> Expr.Id.Const.t
 
   (* Operations on types *)
   let cmp_types (t: ty) (t': ty) =

@@ -40,9 +40,9 @@ let rec print fmt = function
 (* ************************************************************************ *)
 
 (* What might wait at the end of a path. *)
-type 'a res =
+type ('a, 'b) res =
   | Var
-  | Top of 'a Expr.function_descr Expr.id
+  | Top of ('a, 'b) Expr.function_descr Expr.id
   | Possible
   | Impossible
 

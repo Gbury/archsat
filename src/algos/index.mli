@@ -46,7 +46,7 @@ end
 
 module Fingerprint : sig
 
-  type t = Expr.ty Position.res
+  type t = (Expr.ttype, Expr.ty) Position.res
   (** The type of a fingerprint. *)
 
   val compare : t -> t -> int

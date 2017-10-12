@@ -26,8 +26,8 @@ type type_defs = [
 ]
 
 type type_decls = [
-  | `Type_decl of Expr.ttype Expr.function_descr Expr.id
-  | `Term_decl of Expr.ty Expr.function_descr Expr.id
+  | `Type_decl of Expr.Id.TyCstr.t
+  | `Term_decl of Expr.Id.Const.t
 ]
 
 type assume = [
@@ -54,8 +54,8 @@ type solved      = [ executed | type_defs | type_decls | assume | result ]
 type +'a stmt = {
   id : Dolmen.Id.t;
   contents  : 'a;
-  impl_types : Expr.ttype Expr.function_descr Expr.id list;
-  impl_terms : Expr.ty Expr.function_descr Expr.id list;
+  impl_types : Expr.Id.TyCstr.t list;
+  impl_terms : Expr.Id.Const.t list;
 }
 
 let simple id contents = { id; contents; impl_types = []; impl_terms = []; }

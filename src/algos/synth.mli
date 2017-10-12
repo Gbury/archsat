@@ -12,7 +12,7 @@
 exception Cannot_find
 (** Raised when it was not possible to find synthetize a term. *)
 
-val add_id : Expr.ty Expr.function_descr Expr.id -> unit
+val add_id : Expr.Id.Const.t -> unit
 (** Add the given function symbol to the set of known symbols. *)
 
 val register : Expr.term -> unit

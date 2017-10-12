@@ -41,8 +41,8 @@ type 'ty meta = {
 type ttype = Type
 
 (* The type of functions *)
-type 'ty function_descr = {
-  fun_vars : ttype id list; (* prenex forall *)
+type ('ttype, 'ty) function_descr = {
+  fun_vars : 'ttype id list; (* prenex forall *)
   fun_args : 'ty list;
   fun_ret : 'ty;
 }
@@ -51,7 +51,7 @@ type 'ty function_descr = {
 type ty_descr =
   | TyVar of ttype id (** Bound variables *)
   | TyMeta of ttype meta
-  | TyApp of ttype function_descr id * ty list
+  | TyApp of (unit, ttype) function_descr id * ty list
 
 and ty = {
   ty : ty_descr;
@@ -64,7 +64,7 @@ and ty = {
 type term_descr =
   | Var of ty id
   | Meta of ty meta
-  | App of ty function_descr id * ty list * term list
+  | App of (ttype, ty) function_descr id * ty list * term list
 
 and term = {
   term    : term_descr;
@@ -146,8 +146,8 @@ end
 (* ************************************************************************ *)
 
 exception Type_mismatch of term * ty * ty
-exception Bad_arity of ty function_descr id * ty list * term list
-exception Bad_ty_arity of ttype function_descr id * ty list
+exception Bad_arity of (ttype, ty) function_descr id * ty list * term list
+exception Bad_ty_arity of (unit, ttype) function_descr id * ty list
 
 exception Cannot_assign of term
 exception Cannot_interpret of term
@@ -426,14 +426,14 @@ module Id = struct
     let print = print
   end
   module Const = struct
-    type t = ty function_descr id
+    type t = (ttype, ty) function_descr id
     let hash = hash
     let equal = equal
     let compare = compare
     let print = print
   end
   module TyCstr = struct
-    type t = ttype function_descr id
+    type t = (unit, ttype) function_descr id
     let hash = hash
     let equal = equal
     let compare = compare

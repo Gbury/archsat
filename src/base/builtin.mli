@@ -27,7 +27,7 @@ module Misc : sig
 
   (** {5 Typing} *)
 
-  val cast_cstr : Expr.ty Expr.function_descr Expr.id
+  val cast_cstr : Expr.Id.Const.t
   val cast : Expr.term -> Expr.ty -> Expr.term
   (** Returns a 'casted' expression with the given type. *)
 
@@ -84,9 +84,9 @@ module Arith : sig
 
   (** {5 Expressions for arithmetic types} *)
 
-  val int_cstr : Expr.ttype Expr.function_descr Expr.id
-  val rat_cstr : Expr.ttype Expr.function_descr Expr.id
-  val real_cstr : Expr.ttype Expr.function_descr Expr.id
+  val int_cstr : Expr.Id.TyCstr.t
+  val rat_cstr : Expr.Id.TyCstr.t
+  val real_cstr : Expr.Id.TyCstr.t
 
   val type_int : Expr.ty
   val type_rat : Expr.ty
@@ -94,9 +94,7 @@ module Arith : sig
 
   (** {5 Arithmetic operators} *)
 
-  type operator = ty -> Expr.ty Expr.function_descr Expr.id
-
-  val apply : operator -> Expr.term list -> Expr.term option
+  type operator
 
   val less : operator
   val lesseq : operator
@@ -112,5 +110,7 @@ module Arith : sig
   val is_int : operator
   val is_rat : operator
   val is_real : operator
+
+  val apply : operator -> Expr.term list -> Expr.term option
 
 end

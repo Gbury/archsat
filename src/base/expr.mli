@@ -57,8 +57,8 @@ type ttype = Type
 
 (** The caml type of solver-types. *)
 
-type 'ty function_descr = private {
-  fun_vars : ttype id list; (** prenex forall *)
+type ('ttype, 'ty) function_descr = private {
+  fun_vars : 'ttype id list; (** prenex forall *)
   fun_args : 'ty list;
   fun_ret : 'ty;
 }
@@ -72,7 +72,7 @@ type ty_descr = private
   (** bound variables (i.e should only appear under a quantifier) *)
   | TyMeta of ttype meta
   (** meta-variables *)
-  | TyApp of ttype function_descr id * ty list
+  | TyApp of (unit, ttype) function_descr id * ty list
   (** application of a constant to some arguments *)
 
 and ty = private {
@@ -94,7 +94,7 @@ type term_descr = private
   (** bound variables (i.e should only appear under a quantifier) *)
   | Meta of ty meta
   (** meta-variables *)
-  | App of ty function_descr id * ty list * term list
+  | App of (ttype, ty) function_descr id * ty list * term list
   (** application of a constant to some arguments *)
 
 and term = private {
@@ -167,8 +167,8 @@ val f_order : f_order Tag.t
 exception Type_mismatch of term * ty * ty
 (* Raised when as Type_mismatch(term, actual_type, expected_type) *)
 
-exception Bad_arity of ty function_descr id * ty list * term list
-exception Bad_ty_arity of ttype function_descr id * ty list
+exception Bad_arity of (ttype, ty) function_descr id * ty list * term list
+exception Bad_ty_arity of (unit, ttype) function_descr id * ty list
 (** Raised when trying to build an application with wrong arity *)
 
 exception Cannot_assign of term
@@ -193,16 +193,16 @@ module Print : sig
   val id_ty : Format.formatter -> ty id -> unit
   val id_ttype : Format.formatter -> ttype id -> unit
 
-  val const_ty : Format.formatter -> ty function_descr id -> unit
-  val const_ttype : Format.formatter -> ttype function_descr id -> unit
+  val const_ty : Format.formatter -> (ttype, ty) function_descr id -> unit
+  val const_ttype : Format.formatter -> (unit, ttype) function_descr id -> unit
 
   val meta : Format.formatter -> 'a meta -> unit
 
   val ty : Format.formatter -> ty -> unit
-  val fun_ty : Format.formatter -> ty function_descr -> unit
+  val fun_ty : Format.formatter -> (ttype, ty) function_descr -> unit
 
   val ttype : Format.formatter -> ttype -> unit
-  val fun_ttype : Format.formatter -> ttype function_descr -> unit
+  val fun_ttype : Format.formatter -> (unit, ttype) function_descr -> unit
 
   val term : Format.formatter -> term -> unit
   val formula : Format.formatter -> formula -> unit
@@ -226,8 +226,8 @@ module Id : sig
 
   module Ty : Sig.Full with type t = ty id
   module Ttype : Sig.Full with type t = ttype id
-  module Const : Sig.Full with type t = ty function_descr id
-  module TyCstr : Sig.Full with type t = ttype function_descr id
+  module Const : Sig.Full with type t = (ttype, ty) function_descr id
+  module TyCstr : Sig.Full with type t = (unit, ttype) function_descr id
   (** Concrete instances for functor application. *)
 
   val get_tag : _ id -> 'a tag -> 'a option
@@ -239,8 +239,8 @@ module Id : sig
   val cached : ('a id -> 'b) -> 'a id -> 'b
   (** Cache a computation on ids. *)
 
-  val prop : ttype function_descr id
-  val base : ttype function_descr id
+  val prop : (unit, ttype) function_descr id
+  val base : (unit, ttype) function_descr id
   (** Constants representing the type for propositions and a default type
       for term, respectively. *)
 
@@ -252,18 +252,18 @@ module Id : sig
 
   val ty_fun :
     ?builtin:builtin -> ?tags:tag_map ->
-    string -> int -> ttype function_descr id
+    string -> int -> (unit, ttype) function_descr id
   (** Create a fresh type constructor with given name and arity *)
 
   val term_fun :
     ?builtin:builtin -> ?tags:tag_map ->
-    string -> ttype id list -> ty list -> ty -> ty function_descr id
+    string -> ttype id list -> ty list -> ty -> (ttype, ty) function_descr id
   (** [term_fun name type_vars arg_types return_type] returns a fresh constant symbol,
       possibly polymorphic with respect to the variables in [type_vars] (which may appear in the
       types in [arg_types] and in [return_type]). *)
 
-  val ty_skolem : ttype id -> ttype function_descr id
-  val term_skolem : ty id -> ty function_descr id
+  val ty_skolem : ttype id -> (unit, ttype) function_descr id
+  val term_skolem : ty id -> (ttype, ty) function_descr id
   (** Returns the skolem symbols associated with the given variables. The skolems
       symbols take as arguments the free_variables of their defining formula.
       For simplicity, just apply the skolem to the free_args of the quantified expression. *)
@@ -424,7 +424,7 @@ module Ty : sig
   val of_meta : ?status:status -> ttype meta -> ty
   (** Create a type from a meta-variable *)
 
-  val apply : ?status:status -> ttype function_descr id -> ty list -> ty
+  val apply : ?status:status -> (unit, ttype) function_descr id -> ty list -> ty
   (** Applies a constant to a list of types *)
 
   val subst : ?fix:bool -> var_subst -> meta_subst -> ty -> ty
@@ -465,7 +465,7 @@ module Term : sig
   val of_meta : ?status:status -> ty meta -> term
   (** Create a term from a meta-variable *)
 
-  val apply : ?status:status -> ty function_descr id -> ty list -> term list -> term
+  val apply : ?status:status -> (ttype, ty) function_descr id -> ty list -> term list -> term
   (** Applies a constant function to type arguments, then term arguments *)
 
   val subst :

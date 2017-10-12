@@ -14,25 +14,10 @@ let get_loc =
   let default_loc = Dolmen.ParseLocation.mk "<?>" 0 0 0 0 in
   (fun t -> CCOpt.get_or ~default:default_loc t.Ast.loc)
 
-module E = Map.Make(struct
-    type t = Expr.ttype Expr.id
-    let compare = Expr.Id.compare
-  end)
-module F = Map.Make(struct
-    type t = Expr.ty Expr.id
-    let compare = Expr.Id.compare
-  end)
-
-module R = Backtrack.Hashtbl(struct
-    type t = Expr.ttype Expr.function_descr Expr.id
-    let hash = Expr.Id.hash
-    let equal = Expr.Id.equal
-  end)
-module S = Backtrack.Hashtbl(struct
-    type t = Expr.ty Expr.function_descr Expr.id
-    let hash = Expr.Id.hash
-    let equal = Expr.Id.equal
-  end)
+module E = Map.Make(Expr.Id.Ttype)
+module F = Map.Make(Expr.Id.Ty)
+module R = Backtrack.Hashtbl(Expr.Id.TyCstr)
+module S = Backtrack.Hashtbl(Expr.Id.Const)
 
 (* Fuzzy search maps *)
 (* ************************************************************************ *)
@@ -128,8 +113,8 @@ type res =
   | Tags    : tag list -> res
 
 type inferred =
-  | Ty_fun of Expr.ttype Expr.function_descr Expr.id
-  | Term_fun of Expr.ty Expr.function_descr Expr.id
+  | Ty_fun of Expr.Id.TyCstr.t
+  | Term_fun of Expr.Id.Const.t
 
 (* The local environments used for type-checking. *)
 type env = {

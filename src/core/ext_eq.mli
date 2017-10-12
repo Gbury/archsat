@@ -30,7 +30,7 @@ module Class : sig
   val fold : ('a -> Expr.term -> 'a) -> 'a -> t -> 'a
   (** Fold over the terms in an equivalence class. *)
 
-  val find_top : t -> Expr.ty Expr.function_descr Expr.id -> Expr.term list
+  val find_top : t -> Expr.Id.Const.t -> Expr.term list
   (** Find all terms in an equivalence class that have the given function
       symbol at the top. *)
 
