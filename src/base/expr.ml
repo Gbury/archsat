@@ -1278,7 +1278,7 @@ module Formula = struct
     (List.map (Ty.subst ~fix:false ty_var_map Subst.empty) ty_args,
      List.map (Term.subst ~fix:false ty_var_map Subst.empty t_var_map Subst.empty) t_args)
 
-  let rec partial_inst ty_var_map t_var_map f =
+  let partial_inst ty_var_map t_var_map f =
     match f.formula with
     | Ex (l, args, p) ->
       let l' = List.filter (fun v -> not (Subst.Id.mem v t_var_map)) l in
