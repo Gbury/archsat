@@ -32,7 +32,7 @@ let clear_goals () = goals := []
 (* Proof contextx *)
 (* ************************************************************************ *)
 
-module Ctx = struct
+module Env = struct
 
   exception Added_twice of Expr.formula
   exception Not_introduced of Expr.formula
@@ -41,7 +41,7 @@ module Ctx = struct
     Printexc.register_printer (function
         | Added_twice f ->
           Some (Format.asprintf
-                  "Following formula has been adde twice to context:@ %a"
+                  "Following formula has been added twice to context:@ %a"
                   Expr.Print.formula f)
         | Not_introduced f ->
           Some (Format.asprintf
@@ -51,57 +51,48 @@ module Ctx = struct
       )
 
 
-  module Hf = Hashtbl.Make(Expr.Formula)
+  module M = Map.Make(Expr.Formula)
 
   type wrapper = (Format.formatter -> unit -> unit) ->
     Format.formatter -> (Expr.formula * Expr.formula) -> unit
 
   type t = {
     (** Prefixed formula name map *)
+    count : int;
     prefix : string;
     wrapper : wrapper;
-    mutable count : int;
-    names : (Expr.formula * string) Hf.t;
+    names : (Expr.formula * string) M.t;
   }
 
   let _wrap pp fmt _ = pp fmt ()
 
-  let mk ?(wrapper=_wrap) ~prefix = {
-    prefix; wrapper;
-    count = 0; names = Hf.create 13;
-  }
+  let empty ?(wrapper=_wrap) ~prefix =
+    { prefix; wrapper; count = 0; names = M.empty; }
 
   (* Named formulas with a prefix. *)
   let find t f =
-    try Hf.find t.names f
+    try M.find f t.names
     with Not_found -> raise (Not_introduced f)
 
   let new_name t =
-    let () = t.count <- t.count + 1 in
+    { t with count = t.count + 1 },
     Format.sprintf "%s%d" t.prefix t.count
 
-  let add_aux t f g =
-    match Hf.find t.names f with
+  let intro t f =
+    match M.find f t.names with
     | (f', name) -> raise (Added_twice f')
     | exception Not_found ->
-      let name = g t in
+      let t', name = new_name t in
       let res = (f, name) in
-      Hf.add t.names f res;
-      name
-
-  let add_force t f name =
-    ignore (add_aux t f (fun _ -> name))
+      let t'' = { t' with names = M.add f res t.names } in
+      t'', name
 
   (* Printing *)
   let named t fmt f =
     let (f', name) = find t f in
     t.wrapper CCFormat.(const string name) fmt (f, f')
 
-  let intro t fmt f =
-    Format.fprintf fmt "%s" (add_aux t f new_name)
-
   (* Wrappers *)
-  let add t f = ignore (add_aux t f new_name)
   let name t f = Format.asprintf "%a" (named t) f
 
 end
@@ -129,6 +120,9 @@ end
 module Term = struct
 
   type t =
+    | Ty of Expr.ty
+    | Term of Expr.term
+    | Formula of Expr.formula
     | Fun of Expr.formula Expr.id list * t
     | App of Id.t * t list
 
@@ -139,9 +133,35 @@ end
 
 module Tactic = struct
 
-  type t =
-    | Intro of string list
-    | Apply of Id.t
+  type 'a order =
+    | Leaf of 'a
+    | Node of ('a order) Expr.order
+
+  type step =
+    | Apply of Id.t * Term.t option list
+    (** Application of a term, with possible holes. *)
+    | Destruct of string option * (string * t) order
+    (** Destruct the named formula (or the goal if [None]),
+        and use the corresponding tactics. *)
+  (** The type for tactic steps. *)
+
+  and t = {
+    env : Env.t;
+    goal : Expr.formula;
+    tactics : step list;
+  }
+
+  let intros () t =
+    let rec aux acc env goal =
+      match goal.Expr.formula with
+      | Expr.Imply (p, q) ->
+        let env', name = Env.intro env p in
+        aux (name :: acc) env' q
+      | _ -> List.rev acc, env, goal
+    in
+    let names, env, goal = aux [] t.env t.goal in
+    { env; goal; tactics = Intro names :: t.tactics; }
+
 
 end
 
