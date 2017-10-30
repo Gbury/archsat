@@ -55,6 +55,8 @@ Ext_constraints
 Dot
 Coq
 Proof
+Term
+Tactics
 Unsat_core
 
 ##### Testing Modules #####

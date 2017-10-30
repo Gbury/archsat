@@ -244,6 +244,11 @@ module Id : sig
   (** Constants representing the type for propositions and a default type
       for term, respectively. *)
 
+  val mk_new : ?builtin:builtin -> ?tags:tag_map -> string -> 'a -> 'a id
+  (** Generic function to create new ids. You should not use this function
+      to create ids used in regular terms, but rather for ids used
+      in other term structures (for isntance proof terms). *)
+
   val ttype : ?builtin:builtin -> ?tags:tag_map -> string -> ttype id
   (** Create a fresh type variable with the given name. *)
 

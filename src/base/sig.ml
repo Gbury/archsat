@@ -24,7 +24,7 @@ end
 
 
 
-(** {2 Common signatures for paramtrised modules} *)
+(** {2 Common signatures for parametrised modules} *)
 
 (** Variant of the standard signature for parametric types. *)
 module type PolyStd = sig
@@ -47,4 +47,3 @@ module type PolyFull = sig
   include PolyPrint with type 'a t := 'a t
 end
 
-(** {2 Common signatures for paramtrised modules} *)

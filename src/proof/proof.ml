@@ -1,167 +1,266 @@
 
 let section = Section.make "proof"
 
-(* Global context *)
-(* ************************************************************************ *)
-
-module H = Hashtbl.Make(Dolmen.Id)
-
-(* mutable state *)
-let goals = ref []
-let hyp_table = H.create 1013
-
-(* Wrapper functions *)
-let add_hyp = H.add hyp_table
-
-let find_hyp = H.find hyp_table
-
-let add_goal id g =
-  begin match !goals with
-    | [] -> ()
-    | _ -> Util.warn ~section "%s%s"
-             "Multiple goals are not very well supported,@ "
-             "please consider having a single goal at any time"
-  end;
-  add_hyp id [Expr.Formula.neg g];
-  goals := (id, g) :: !goals
-
-let get_goals () = !goals
-
-let clear_goals () = goals := []
-
-(* Proof contextx *)
+(* Proof environments *)
 (* ************************************************************************ *)
 
 module Env = struct
 
-  exception Added_twice of Expr.formula
-  exception Not_introduced of Expr.formula
+  exception Added_twice of Term.t
+  exception Not_introduced of Term.t
 
   let () =
     Printexc.register_printer (function
         | Added_twice f ->
           Some (Format.asprintf
                   "Following formula has been added twice to context:@ %a"
-                  Expr.Print.formula f)
+                  Term.print f)
         | Not_introduced f ->
           Some (Format.asprintf
                   "Following formula is used in a context where it is not declared:@ %a"
-                  Expr.Print.formula f)
+                  Term.print f)
         | _ -> None
       )
 
-
-  module M = Map.Make(Expr.Formula)
-
-  type wrapper = (Format.formatter -> unit -> unit) ->
-    Format.formatter -> (Expr.formula * Expr.formula) -> unit
+  module Mt = Map.Make(Term)
+  module Ms = Map.Make(String)
 
   type t = {
-    (** Prefixed formula name map *)
-    count : int;
-    prefix : string;
-    wrapper : wrapper;
-    names : (Expr.formula * string) M.t;
+    (** Map between terms and term ids *)
+    names : Term.id Mt.t;
+    (** Options for nive names *)
+    prefix : string;  (** current prefix *)
+    count : int Ms.t; (** use count for each prefix *)
   }
 
-  let _wrap pp fmt _ = pp fmt ()
+  let empty = {
+    names = Mt.empty;
+    prefix = "";
+    count = Ms.empty;
+  }
 
-  let empty ?(wrapper=_wrap) ~prefix =
-    { prefix; wrapper; count = 0; names = M.empty; }
+  let prefix t s =
+    { t with prefix = s }
 
-  (* Named formulas with a prefix. *)
+  let mem t f =
+    Mt.mem f t.names
+
   let find t f =
-    try M.find f t.names
+    try Mt.find f t.names
     with Not_found -> raise (Not_introduced f)
 
-  let new_name t =
-    { t with count = t.count + 1 },
-    Format.sprintf "%s%d" t.prefix t.count
+  let count t s =
+    try Ms.find s t.count with Not_found -> 0
 
   let intro t f =
-    match M.find f t.names with
-    | (f', name) -> raise (Added_twice f')
+    match Mt.find f t.names with
+    | name -> raise (Added_twice f)
     | exception Not_found ->
-      let t', name = new_name t in
-      let res = (f, name) in
-      let t'' = { t' with names = M.add f res t.names } in
-      t'', name
+      let n = count t t.prefix in
+      let name = Format.sprintf "%s%d" t.prefix n in
+      let id = Expr.Id.mk_new name f in
+      { t with
+        names = Mt.add f id t.names;
+        count = Ms.add t.prefix (n + 1) t.count;
+      }
 
-  (* Printing *)
-  let named t fmt f =
-    let (f', name) = find t f in
-    t.wrapper CCFormat.(const string name) fmt (f, f')
+  let print_aux fmt (t, id) =
+    Format.fprintf fmt "%a: @[<hov>%a@]" Expr.Print.id id Term.print t
 
-  (* Wrappers *)
-  let name t f = Format.asprintf "%a" (named t) f
+  let print fmt t =
+    let l = Mt.bindings t.names in
+    let l = List.sort (fun (_, x) (_, y) ->
+        compare x.Expr.id_name y.Expr.id_name) l in
+    CCFormat.(list ~sep:(return "@ ") print_aux) fmt l
 
 end
 
-(* Proof constants *)
+(* Proof printing data *)
 (* ************************************************************************ *)
 
-module Id = struct
+type lang =
+  | Coq     (**)
+(* Proof languages supported. *)
 
-  type ('a, 'b) pi = 'a Expr.id option * 'b
+type pretty =
+  | Branching           (* All branches are equivalent *)
+  | Last_but_not_least  (* Last branch is the 'rest of the proof *)
+(** Pretty pinting information to know better how to print proofs.
+    For instance, 'split's would probably be [Branching], while
+    cut/pose proof, would preferably be [Last_but_not_least]. *)
 
-  type 'a ty =
-    | Ret     : 'a -> 'a ty
-    | Pi_ty   : (Expr.ttype, Expr.ty) pi    * 'a ty -> 'a ty
-    | Pi_term : (Expr.ty, Expr.term) pi     * 'a ty -> 'a ty
-    | Pi_form : (Expr.ty, Expr.formula) pi  * 'a ty -> 'a ty
-
-  type t = Expr.formula ty Expr.id
-
-end
-
-(* Proof terms *)
+(* Proofs *)
 (* ************************************************************************ *)
 
-module Term = struct
+type ctx = {
+  env : Env.t;
+  goal : Term.t;
+}
 
-  type t =
-    | Ty of Expr.ty
-    | Term of Expr.term
-    | Formula of Expr.formula
-    | Fun of Expr.formula Expr.id list * t
-    | App of Id.t * t list
+type 'state step = {
 
-end
+  (* Printing information *)
+  print : lang ->
+    pretty * (Format.formatter -> 'state -> unit);
 
-(* Proof Tactics *)
+  (* Semantics *)
+  compute : ctx -> 'state * ctx array;
+  elaborate : 'state -> Term.t array -> Term.t;
+}
+
+type proof_step =
+  | Any : 'a * 'a step -> proof_step
+
+type t = opt array
+
+and opt =
+  | Open of ctx
+  | Proof of node
+
+and node = {
+  step : proof_step;
+  branches : t;
+}
+
+(* Some aliases *)
+
+type proof = t
+
+type pos = t * int
+
+(* Contexts *)
 (* ************************************************************************ *)
 
-module Tactic = struct
+let env { env; _ } = env
+let goal { goal; _ } = goal
+let mk_ctx env goal = Env.{ env; goal; }
 
-  type 'a order =
-    | Leaf of 'a
-    | Node of ('a order) Expr.order
+let print_ctx fmt ctx =
+  Format.fprintf fmt
+    "@[<hv 2>ctx:@ @[<hv 2>env:@ @[<v>%a@]@] @[<hv 2>goal:@ @[<hov>%a@]@]@]"
+    Env.print ctx.env Term.print ctx.goal
 
-  type step =
-    | Apply of Id.t * Term.t option list
-    (** Application of a term, with possible holes. *)
-    | Destruct of string option * (string * t) order
-    (** Destruct the named formula (or the goal if [None]),
-        and use the corresponding tactics. *)
-  (** The type for tactic steps. *)
+(* Failure *)
+(* ************************************************************************ *)
 
-  and t = {
-    env : Env.t;
-    goal : Expr.formula;
-    tactics : step list;
-  }
+exception Failure of string * ctx
 
-  let intros () t =
-    let rec aux acc env goal =
-      match goal.Expr.formula with
-      | Expr.Imply (p, q) ->
-        let env', name = Env.intro env p in
-        aux (name :: acc) env' q
-      | _ -> List.rev acc, env, goal
-    in
-    let names, env, goal = aux [] t.env t.goal in
-    { env; goal; tactics = Intro names :: t.tactics; }
+let () = Printexc.register_printer (function
+    | Failure (msg, ctx) ->
+      Some (Format.asprintf "@[<hv>In context:@ %a@ %s@]" print_ctx ctx msg)
+    | _ -> None)
+
+(* Steps *)
+(* ************************************************************************ *)
+
+let mk_step ~coq ~compute ~elaborate = {
+  print = (function Coq -> coq);
+  compute; elaborate;
+}
+
+(* Building proofs *)
+(* ************************************************************************ *)
+
+let mk env goal =
+  let res = [| Open { env; goal; } |] in
+  res, (res, 0)
+
+let get_pos (t, i) = t.(i)
+
+let apply_step (t, i) step =
+  match get_pos (t, i) with
+  | Proof _ ->
+    Util.error ~section "Trying to apply reasonning step to an aleardy closed proof";
+    assert false
+  | Open ctx ->
+    let y, a = step.compute ctx in
+    let branches = Array.map (fun ctx -> Open ctx) a in
+    let res = { step = Any (y, step); branches } in
+    let () = t.(i) <- Proof res in
+    y, Array.init (Array.length a) (fun i -> (branches, i))
 
 
-end
+(* Printing proofs *)
+(* ************************************************************************ *)
+
+exception Open_proof
+
+let bullet_list = [ '-'; '+' ]
+let bullet_n = List.length bullet_list
+
+let bullet depth =
+  let k = depth mod bullet_n in
+  let n = depth / bullet_n + 1 in
+  let c = List.nth bullet_list k in
+  String.make n c
+
+let rec print_branching_coq ~depth fmt t =
+  Format.fprintf fmt "%s @[<hov>%a@]"
+    (bullet depth) (print_opt ~depth:(depth + 1) ~lang:Coq) t
+
+and print_bracketed_coq ~depth fmt t =
+  Format.fprintf fmt "{ @[<hov>%a@] }" (print_opt ~depth ~lang:Coq) t
+
+and print_lbnl_coq ~depth fmt t =
+  print_opt ~depth ~lang:Coq fmt t
+
+and print_array_coq ~depth ~pretty fmt a =
+  match a with
+  | [| |] -> ()
+  | [| x |] -> print_opt ~depth ~lang:Coq fmt x
+  | _ ->
+    begin match pretty with
+      | Branching ->
+        Format.fprintf fmt "@[<v>%a@]"
+          CCFormat.(array ~sep:(return "@ ") (print_branching_coq ~depth)) a
+      | Last_but_not_least ->
+        let a' = Array.sub a 0 (Array.length a - 1) in
+        Format.fprintf fmt "@[<v>%a@ @]"
+          CCFormat.(array ~sep:(return "@ ") (print_bracketed_coq ~depth)) a';
+        print_lbnl_coq ~depth fmt a.(Array.length a - 1)
+    end
+
+and print_array ~depth ~lang ~pretty fmt a =
+  match lang with
+  | Coq -> print_array_coq ~depth ~pretty fmt a
+
+and print_opt ~depth ~lang fmt = function
+  | Proof t -> print_node ~depth ~lang fmt t
+  | Open _ -> raise Open_proof
+
+and print_node ~depth ~lang fmt { step = Any (state, step); branches; } =
+  let pretty, pp = step.print lang in
+  Format.fprintf fmt "@[<hov 2>%a@]" pp state;
+  print_array ~depth ~lang ~pretty fmt branches
+
+let print_proof ~lang fmt = function
+  | [| p |] -> print_opt ~lang ~depth:0 fmt p
+  | _ -> assert false
+
+
+(* Proof elaboration *)
+(* ************************************************************************ *)
+
+let rec elaborate_array_aux k a res i =
+  if i >= Array.length a then k res
+  else
+    elaborate_opt (fun x ->
+        res.(i) <- x;
+        elaborate_array_aux k a res (i + 1)) a.(i)
+
+and elaborate_array k a =
+  let res = Array.make (Array.length a) Term._Type in
+  elaborate_array_aux k a res 0
+
+and elaborate_node k { step = Any (state, step); branches; } =
+  elaborate_array (fun args -> k @@ step.elaborate state args) branches
+
+and elaborate_opt k = function
+  | Proof t -> elaborate_node k t
+  | Open _ -> raise Open_proof
+
+let elaborate = function
+  | [| p |] -> elaborate_opt (fun x -> x) p
+  | _ -> assert false
+
 
