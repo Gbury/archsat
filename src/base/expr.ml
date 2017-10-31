@@ -237,7 +237,13 @@ module Print = struct
   let rec term fmt t = match t.term with
     | Var v -> id fmt v
     | Meta m -> meta fmt m
-    | App (f, [], []) -> id fmt f
+    | App (f, [], []) ->
+      begin match Tag.get f.id_tags pretty with
+        | None -> id fmt f
+        | Some Prefix s | Some Infix s ->
+          assert (s <> "");
+          Format.fprintf fmt "%s" s
+      end
     | App (f, tys, args) ->
       begin match Tag.get f.id_tags pretty with
         | None ->
@@ -252,9 +258,12 @@ module Print = struct
                 (list ~sep:"," term) args
           end
         | Some Prefix s ->
+          assert (s <> "");
           Format.fprintf fmt "@[<hov>%s%a@]"
             s (list ~start:"(" ~stop:")" ~sep:"" term) args
         | Some Infix s ->
+          assert (s <> "");
+          assert (List.length args >= 2);
           let s' = " " ^ s in
           Format.fprintf fmt "@[<hov>%a@]"
             (list ~start:"(" ~stop:")" ~sep:s' term) args
@@ -449,6 +458,7 @@ module Id = struct
   (* Constructors *)
   let mk_new ?(builtin=Base) ?(tags=Tag.empty) id_name id_type =
     assert (CCVector.length eval_vec = CCVector.length assign_vec);
+    assert (id_name <> "");
     let index = CCVector.length eval_vec in
     let id_tags = tags in
     CCVector.push eval_vec None;

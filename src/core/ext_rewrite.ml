@@ -16,7 +16,7 @@ let section = Section.make ~parent:Dispatcher.section "rwrt"
 
 let pp_t ~sep pp fmt t =
   if T.is_empty t
-  then Format.fprintf fmt "∅"
+  then Format.fprintf fmt "{nothing}"
   else T.pp ~sep pp fmt t
 
 (* Callbacks on the set of known terms *)
@@ -137,6 +137,10 @@ and match_modulo_aux acc pat c =
 
 let match_modulos l =
   List.fold_left (fun acc (t, s) ->
+      Util.debug ~section "@[<hv 2>mm:@ @[<hov>%a@]@ @[<hv 4>=? [%a]@]@ @[<hv 2>{ %a }@]@]"
+        Expr.Print.term t
+        CCFormat.(list ~sep:(return ";@ ") C.print) s
+        CCFormat.(list ~sep:(return ";@ ") Mapping.print) acc;
       CCList.flat_map (match_modulo_aux acc t) s
     ) [Mapping.empty] l
 
@@ -184,12 +188,13 @@ let trigger_map f = function
 
 let print_trigger pp fmt = function
   | Single x -> pp fmt x
-  | Symmetric (x, y) -> Format.fprintf fmt "%a ~@ %a" pp x pp y
+  | Symmetric (x, y) -> Format.fprintf fmt "%a &&@ %a" pp x pp y
 
 (* Rewrite rules definition *)
 (* ************************************************************************ *)
 
 type 'a rule = {
+  id       : int;
   manual   : bool;
   trigger  : 'a trigger;
   guards   : guard list;
@@ -197,9 +202,12 @@ type 'a rule = {
   formula  : Expr.formula;
 }
 
+let _nb_rules = ref 0
+
 let mk ?(guards=[]) manual trigger result =
   let formula = result in
-  { manual; trigger; guards; result; formula; }
+  let () = incr _nb_rules in
+  { id = !_nb_rules; manual; trigger; guards; result; formula; }
 
 let map_trigger f rule =
   { rule with trigger = f rule.trigger }
@@ -217,12 +225,15 @@ let rec print_guards ?term fmt = function
     Format.fprintf fmt "@[<hov>[%a]@,%a@]"
       (print_guard ?term) g (print_guards ?term) r
 
+let print_rule_id fmt r =
+  Format.fprintf fmt "%s%d" (if r.manual then "~" else "#") r.id
+
 let print_rule
     ?(term=Expr.Print.term)
     ?(formula=Expr.Print.formula) pp
-    fmt { manual; trigger; result; guards; _ } =
-  Format.fprintf fmt "@[<hov 2>%s%a@ %a ↦@ %a@]"
-    (if manual then "(manual)" else "")
+    fmt ({ trigger; result; guards; _ } as r) =
+  Format.fprintf fmt "@[<hov 2>%a%a@ %a ↦@ %a@]"
+    print_rule_id r
     (print_guards ~term) guards
     (print_trigger pp) trigger
     formula result
@@ -378,10 +389,11 @@ let instanciate rule subst =
 
 let match_and_instantiate ({ trigger; _ } as rule) =
   let pp fmt (t, s) =
-    Format.fprintf fmt "{{%a <-@ { %a }@,}}"
+    Format.fprintf fmt "@[<hv>%a@ =? @[<hov>%a@]@]"
       Expr.Print.term t (pp_t ~sep:"," C.print) s
   in
-  Util.debug ~section "Matching rule@ %a" (print_rule pp) rule;
+  Util.debug ~section "@[<hv 2>Matching rule %a:@ %a"
+    print_rule_id rule (print_trigger pp) rule.trigger;
   let l = match trigger with
     | Single (t, s) ->
       [t, T.elements s]
@@ -406,19 +418,23 @@ let rules_to_match s =
 
 (* Callback used when merging equivalence classes *)
 let callback_merge a b t =
+  Util.debug ~section "@[<hv 2>Eq class merge:@ @[<hov>%a@]@ @[<hov>%a@]@]"
+    C.print a C.print b;
   let s = find_all_parents (C.repr t) in
   List.iter match_and_instantiate (rules_to_match s)
 
 (* Callback used on new terms *)
 let callback_term t =
+  Util.debug ~section "New term introduced: @[<hov>%a@]" Expr.Print.term t;
   let s = T.singleton (C.find t) in
   List.iter match_and_instantiate (rules_to_match s)
 
 (* Callback used on new rewrite rules *)
 let callback_rule r =
+  Util.debug ~section "New rule introduced";
   let aux = function
   (** A rewrite rule with a single var as trigger is impossile:
-      wth a left side consisting of a signel variable,
+      wth a left side consisting of a single variable,
       what term on the right side of the rule could possibly be smaller ?
       on the other hand, it might be one part of a bigger trigger (such as (x = y)) *)
     | { Expr.term = Expr.Var _; t_type } -> find_all_indexed t_type
