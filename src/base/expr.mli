@@ -180,14 +180,16 @@ exception Cannot_interpret of term
 module Print : sig
   (** Pretty printing functions *)
 
-  type pretty =
-    | Prefix of string
-    | Infix of string
+  val name : Pretty.name tag
+  (** The name tag is used for the printing of identifiers.
+      When an identifier has an name tag, its value is used instead of the
+      identifier intrinsic name. *)
 
-  val pretty : pretty tag
-  (** The infix tag is used for the printing of identifiers.
-      When an identifier has an infix tag, its value is used as an infix
-      separator for printing applications. *)
+  val pos : Pretty.pos tag
+  (** Positioning for pretty printing. If this tag is set, the printing functions
+      will ignore type arguments (for readability).
+      [Pretty.Infix] uses the identifier as a separator when printing th argument list
+      [Pretty.Prefix] just ignore type arguments. *)
 
   val id : Format.formatter -> 'a id -> unit
   val id_ty : Format.formatter -> ty id -> unit

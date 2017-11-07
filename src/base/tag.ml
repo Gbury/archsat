@@ -19,6 +19,8 @@ type 'a t = {
   inj : 'a CCMixmap.injection;
 }
 
+let equal k k' = k.id = k'.id
+
 let mk_key id = { id; inj = CCMixmap.create_inj (); }
 
 let max_id = ref 0

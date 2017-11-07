@@ -4,22 +4,17 @@
     Wrappers for proof type-defs, definitions, axioms,
     and general global state. *)
 
+val declare_ty : Options.proof_options -> Expr.Id.TyCstr.t -> unit
+(** Declare a type constructor. *)
 
-(** {2 Global Proof contexts} *)
+val declare_term : Options.proof_options -> Expr.Id.Const.t -> unit
+(** Declare a new constant symbol. *)
 
-val add_hyp : Dolmen.Id.t -> Expr.formula list -> unit
-(** Record the given named hypothesis to the global context. *)
+val declare_hyp : Options.proof_options -> Term.id -> unit
+(** Declare a new hyp. *)
 
-val find_hyp : Dolmen.Id.t -> Expr.formula list
-(** Find an hypothesis in the global context. *)
+val declare_goal : Options.proof_options -> Term.id -> Expr.formula -> unit
+(** Declare a goal. *)
 
-val add_goal : Dolmen.Id.t -> Expr.formula -> unit
-(** Add a goal to the context *)
-
-val clear_goals : unit -> unit
-(** Clear the current list of goals. *)
-
-val get_goals : unit -> (Dolmen.Id.t * Expr.formula) list
-(** Get all current goals from the context, together with
-    current context. *)
-
+val output_proof : Options.proof_options -> Solver.proof -> unit
+(** Output the proof on all relevant files according to options. *)

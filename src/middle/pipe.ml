@@ -36,6 +36,11 @@ type assume = [
   | `Clause of Expr.formula list
 ]
 
+type sequent = [
+  | `Left of Term.id
+  | `Right of Term.id * Expr.formula
+]
+
 type solve = [
   | `Solve
 ]
@@ -48,17 +53,15 @@ type result = [
 
 (* Agregate types *)
 type typechecked = [ executed | type_defs | type_decls | assume | solve ]
-type solved      = [ executed | type_defs | type_decls | assume | result ]
+type solved      = [ executed | type_defs | type_decls | sequent | result ]
 
 (* Used for represneting typed statements *)
 type +'a stmt = {
   id : Dolmen.Id.t;
   contents  : 'a;
-  impl_types : Expr.Id.TyCstr.t list;
-  impl_terms : Expr.Id.Const.t list;
 }
 
-let simple id contents = { id; contents; impl_types = []; impl_terms = []; }
+let simple id contents = { id; contents; }
 
 (* Parsing *)
 (* ************************************************************************ *)
@@ -165,15 +168,9 @@ let prove_id = stmt_id "prove"
 (* TODO, unwind backtrak stack on exceptions ? *)
 let type_wrap ?(goal=false) opt =
   let l = CCOpt.get_exn Options.(opt.input.format) in
-  let tys = ref [] in
-  let terms = ref [] in
   let status =
     if goal then Expr.Status.goal
     else Expr.Status.hypothesis
-  in
-  let infer_hook _ = function
-    | Type.Ty_fun c -> tys:= c :: !tys
-    | Type.Term_fun f -> terms := f :: !terms
   in
   let explain = Options.(opt.typing.explain) in
   let expect =
@@ -186,46 +183,41 @@ let type_wrap ?(goal=false) opt =
   in
   let env = Type.empty_env
       ~status ~explain ~expect
-      ~infer_hook (Semantics.type_env l) in
-  let aux id res = {
-    id;
-    impl_types = !tys;
-    impl_terms = !terms;
-    contents = res;
-  } in
-  env, aux
+      (Semantics.type_env l)
+  in
+  env
 
 let typecheck (opt, c) : typechecked stmt =
   match c with
   (** Declarations and definitions *)
   | { S.descr = S.Def (id, t) } ->
     start_section ~section:Type.section Util.info "Definition";
-    let env, aux = type_wrap opt in
+    let env = type_wrap opt in
     let ret = Type.new_def env t ?attr:c.S.attr id in
-    (aux (def_id c) ret :> typechecked stmt)
+    (simple (def_id c) ret :> typechecked stmt)
   | { S.descr = S.Decl (id, t) } ->
     start_section ~section:Type.section Util.info "Declaration typing";
-    let env, aux = type_wrap opt in
+    let env = type_wrap opt in
     let ret = Type.new_decl env t ?attr:c.S.attr id in
-    (aux (decl_id c) ret :> typechecked stmt)
+    (simple (decl_id c) ret :> typechecked stmt)
   (** Hyps and goal statements *)
   | { S.descr = S.Prove } ->
     simple (prove_id c) `Solve
   | { S.descr = S.Clause l } ->
     start_section ~section:Type.section Util.info "Clause typing";
-    let env, aux = type_wrap opt in
+    let env = type_wrap opt in
     let res = List.map (Type.new_formula env) l in
-    (aux (hyp_id c) (`Clause res) :> typechecked stmt)
+    (simple (hyp_id c) (`Clause res) :> typechecked stmt)
   | { S.descr = S.Antecedent t } ->
     start_section ~section:Type.section Util.info "Hypothesis typing";
-    let env, aux = type_wrap opt in
+    let env = type_wrap opt in
     let ret = Type.new_formula env t in
-    (aux (hyp_id c) (`Hyp ret) :> typechecked stmt)
+    (simple (hyp_id c) (`Hyp ret) :> typechecked stmt)
   | { S.descr = S.Consequent t } ->
     start_section ~section:Type.section Util.info "Goal typing";
-    let env, aux = type_wrap ~goal:true opt in
+    let env = type_wrap ~goal:true opt in
     let ret = Type.new_formula env t in
-    (aux (goal_id c) (`Goal ret) :> typechecked stmt)
+    (simple (goal_id c) (`Goal ret) :> typechecked stmt)
   (** We can safely ignore set-logic "dimacs", as it only gives the number of atoms
       and clauses of the dimacs problem, which is of no interest. *)
   | { S.descr = S.Set_logic "dimacs" } ->
@@ -250,23 +242,20 @@ let solve (opt, (c : typechecked stmt)) : solved stmt =
   | ({ contents = `Term_decl _; _ } as res) ->
     res
   | ({ contents = `Clause l; _ } as res) ->
-    if opt.Options.solve then begin
+    if opt.Options.solve then
       start_section ~section:Dispatcher.section Util.info "Assume clause";
-      Solver.assume c.id l
-    end;
-    res
+    let id = Solver.assume ~solve:Options.(opt.solve) c.id l in
+    (simple res.id (`Left id) :> solved stmt)
   | ({ contents = `Hyp f; _ } as res) ->
-    if opt.Options.solve then begin
+    if opt.Options.solve then
       start_section ~section:Dispatcher.section Util.info "Assume hyp";
-      Solver.assume c.id [f]
-    end;
-    res
+    let id = Solver.assume ~solve:Options.(opt.solve) c.id [f] in
+    (simple res.id (`Left id) :> solved stmt)
   | ({ contents = `Goal f; _ } as res) ->
-    if opt.Options.solve then begin
+    if opt.Options.solve then
       start_section ~section:Dispatcher.section Util.info "Assume goal";
-      Solver.assume c.id [Expr.Formula.neg f]
-    end;
-    res
+    let id = Solver.assume ~solve:Options.(opt.solve) c.id [Expr.Formula.neg f] in
+    (simple res.id (`Right (id, f)) :> solved stmt)
   | { contents = `Solve; _ } ->
     let ret =
       if opt.Options.solve then begin
@@ -294,9 +283,8 @@ let print_res (opt, (c : solved stmt)) =
   | { contents = `Term_def _; _ }
   | { contents = `Type_decl _; _ }
   | { contents = `Term_decl _; _ }
-  | { contents = `Hyp _; _ }
-  | { contents = `Goal _; _ }
-  | { contents = `Clause _; _ } ->
+  | { contents = `Left _; _ }
+  | { contents = `Right _; _ } ->
     ()
   | { contents = `Model _; _ } ->
     Util.printf "%a@." Out.print_sat opt
@@ -315,9 +303,8 @@ let export (opt, (c : solved stmt)) =
   | { contents = `Term_def _; _ }
   | { contents = `Type_decl _; _ }
   | { contents = `Term_decl _; _ }
-  | { contents = `Hyp _; _ }
-  | { contents = `Goal _; _ }
-  | { contents = `Clause _; _ }
+  | { contents = `Left _; _ }
+  | { contents = `Right _; _ }
   | { contents = `Unknown; _ } ->
     ()
   | { contents = `Model _; _ }
@@ -327,31 +314,7 @@ let export (opt, (c : solved stmt)) =
 (* Printing proofs *)
 (* ************************************************************************ *)
 
-let declare_ty opt v =
-  if Options.(opt.proof.context) then begin
-    pp_opt Coq.declare_ty Options.(opt.proof.coq) v
-  end
-
-let declare_term opt v =
-  Synth.add_id v;
-  if Options.(opt.proof.context) then begin
-    pp_opt Coq.declare_term Options.(opt.proof.coq) v
-  end
-
-let declare_implicits opt c =
-  if c.impl_types <> [] && c.impl_terms <> [] && not Options.(opt.proof.context) then
-    Util.warn "The following symbols are implictly typed: @[<hov>%a%a%a@]"
-      CCFormat.(list ~sep:(return ",@ ") Expr.Print.const_ttype) c.impl_types
-      CCFormat.(return (if c.impl_types <> [] && c.impl_terms <> [] then ",@ " else "")) ()
-      CCFormat.(list ~sep:(return ",@ ") Expr.Print.const_ty) c.impl_terms
-  else begin
-    List.iter (declare_ty opt) c.impl_types;
-    List.iter (declare_term opt) c.impl_terms;
-    ()
-  end
-
 let print_proof (opt, (c : solved stmt)) =
-  let () = declare_implicits opt c in
   match c with
   (* Not much to do with these... *)
   | { contents = `Executed; _ }
@@ -365,24 +328,11 @@ let print_proof (opt, (c : solved stmt)) =
       Util.warn "Proof check.output activated, but a model was found"
 
   (* Interesting parts *)
-  | { contents = `Type_decl f; _ } -> declare_ty opt f
-  | { contents = `Term_decl f; _ } -> declare_term opt f
-  | { contents = `Clause l ; id; _ } ->
-    Proof.add_hyp id l;
-    if Options.(opt.proof.context) then
-      pp_opt Coq.print_hyp Options.(opt.proof.coq) (id, l);
-    ()
-  | { contents = `Hyp h; id; _ } ->
-    Proof.add_hyp id [h];
-    if Options.(opt.proof.context) then
-      pp_opt Coq.print_hyp Options.(opt.proof.coq) (id, [h]);
-    ()
-  | { contents = `Goal g; id; _ } ->
-    Proof.add_goal id g
+  | { contents = `Type_decl f; _ } -> Prove.declare_ty Options.(opt.proof) f
+  | { contents = `Term_decl f; _ } -> Prove.declare_term Options.(opt.proof) f
+  | { contents = `Left p ; id; _ } -> Prove.declare_hyp Options.(opt.proof) p
+  | { contents = `Right (p, f); id; _ } -> Prove.declare_goal Options.(opt.proof) p f
   | { contents = `Proof p; _ } ->
     Util.info "Proof size: %a" Util.print_size (Util.size p);
-    let () = pp_opt Unsat_core.print Options.(opt.proof.unsat_core) p in
-    let () = pp_opt Dot.print Options.(opt.proof.dot) p in
-    let () = pp_opt Coq.print_proof Options.(opt.proof.coq) p in
-    ()
+    Prove.output_proof Options.(opt.proof) p
 

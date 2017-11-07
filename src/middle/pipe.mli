@@ -29,6 +29,12 @@ type assume = [
 ]
 (** The type of top-level assertion statements *)
 
+type sequent = [
+  | `Left of Term.id
+  | `Right of Term.id * Expr.formula
+]
+(** The type of sequent components (for proof output). *)
+
 type solve = [
   | `Solve
 ]
@@ -44,14 +50,12 @@ type result = [
 type typechecked = [ executed | type_defs | type_decls | assume | solve ]
 (** The type of statements after typechecking *)
 
-type solved      = [ executed | type_defs | type_decls | assume | result ]
+type solved      = [ executed | type_defs | type_decls | sequent | result ]
 (** The type of solved statement *)
 
 type +'a stmt = {
   id          : Dolmen.Id.t;
   contents    : 'a;
-  impl_types  : Expr.Id.TyCstr.t list;
-  impl_terms  : Expr.Id.Const.t list;
 }
 (** Wrapper around statements. It records implicit type declarations. *)
 

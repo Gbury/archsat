@@ -41,8 +41,10 @@ type res =
 
 (** {2 Core solver} *)
 
-val assume : Dolmen.Id.t -> Expr.formula list -> unit
-(** Add some clauses to the current problem. *)
+val assume : solve:bool -> Dolmen.Id.t -> Expr.formula list -> Term.id
+(** Add a clause to the current problem, and return the corresponding proof id.
+    @solve determine wether to really add the clause to the solver, else
+           just the proof id is generated. *)
 
 val solve :
   ?check_model:bool ->
@@ -64,8 +66,8 @@ val add_atom : Expr.formula -> unit
 val export_dimacs : Format.formatter -> unit -> unit
 (** Export the current problem in dimacs format. *)
 
-val hyp_id : Dispatcher.SolverTypes.clause -> Dolmen.Id.t option
-(** Get the id of an hypothesis clause. *)
+val hyp_proof : Dispatcher.SolverTypes.clause -> Term.id option
+(** Get the proof id of an hypothesis clause. *)
 
 (** {2 Dispatcher messages} *)
 

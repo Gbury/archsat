@@ -39,6 +39,27 @@ module Env : sig
 
 end
 
+(** {2 Proof prelude} *)
+
+module Prelude : sig
+
+  include Sig.Full
+  (** Standard signature *)
+
+  val require : ?deps:t list -> unit Expr.id -> t
+  (** Require the given module (as an identifier). *)
+
+  val alias : ?deps:t list -> Term.id -> Term.t -> t
+  (** Make an alias for readability purposes. *)
+
+  val topo : t list -> (t -> unit) -> unit
+  (** [topo l iter] applies iter to every prelude in the
+      reflexive transitive closure of dependencies of [l],
+      such that [iter] is called on all dependencies of a prelude [p]
+      before being called on [p]. *)
+
+end
+
 
 (** {2 Languages & printing} *)
 
@@ -71,7 +92,7 @@ val mk_ctx : Env.t -> Term.t -> ctx
 (** {2 Proofs objects} *)
 
 type proof
-(** The type of proof objects. A proof is create incomplete,
+(** The type of proof objects. A proof is created incomplete,
     and can then be compelted in a mutable way by applying
     reasoning steps to positions. *)
 
@@ -102,7 +123,8 @@ type 'state step
     to a branch that needs to be proven, much like in sequent calculus. *)
 
 val mk_step :
-  coq:(pretty * Format.formatter -> 'state -> unit) ->
+  ?prelude:('state -> Prelude.t list) ->
+  coq:pretty * (Format.formatter -> 'state -> unit) ->
   compute:(ctx -> 'state * ctx array) ->
   elaborate:('state -> Term.t array -> Term.t) ->
   'state step
@@ -118,5 +140,19 @@ val apply_step : pos -> 'a step -> 'a * pos array
     internal state, as well as  an array of positions corresponding to the
     branches to prove. These positions are in the same order as the branches
     computed by the reasoning step. *)
+
+
+(** {2 Proof inspection} *)
+
+type node
+(** The type of internal node of proof trees *)
+
+val root : proof -> node
+(** Returns the root of a proof
+    @raise Open_proof if there is no step applied to the root of the proof. *)
+
+val branches : node -> node array
+(** Returns the branches of a node.
+    @raise Open_proof if there is at least one open branch. *)
 
 

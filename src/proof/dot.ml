@@ -9,7 +9,7 @@ let section = Section.make "dot"
 module Print = struct
 
   let t =
-    let name = Escape.tagged_name ~tag:Expr.Print.pretty in
+    let name = Escape.tagged_name ~tag:Expr.Print.name in
     let rename = Escape.rename ~sep:'_' in
     let escape = Escape.umap (fun i -> function
         | None -> [ Uchar.of_char '_' ]
@@ -42,8 +42,6 @@ module Print = struct
       ) in
     Escape.mk ~lang:"html" ~name ~escape ~rename
 
-  let dolmen fmt id = Escape.dolmen t fmt id
-
   open Expr
 
   let id fmt v =
@@ -60,15 +58,15 @@ module Print = struct
     | TyMeta m -> meta fmt m
     | TyApp (f, []) -> id fmt f
     | TyApp (f, l) ->
-      begin match Tag.get f.id_tags Print.pretty with
+      begin match Tag.get f.id_tags Print.pos with
         | None ->
           Format.fprintf fmt "@[<hov 2>%a(%a)@]"
             id f CCFormat.(list ~sep:(return ",") ty) l
-        | Some Print.Prefix _ ->
+        | Some Pretty.Prefix ->
           assert (List.length l = 1);
           Format.fprintf fmt "@[<hov 2>%a %a@]"
             id f CCFormat.(list ~sep:(return "") ty) l
-        | Some Print.Infix _ ->
+        | Some Pretty.Infix ->
           let sep fmt () = Format.fprintf fmt " %a@ " id f in
           Format.fprintf fmt "@[<hov 2>(%a)@]" (CCFormat.list ~sep ty) l
       end
@@ -88,10 +86,10 @@ module Print = struct
   let fun_ttype = signature ttype
 
   let id_pretty fmt v =
-    match Tag.get v.id_tags Print.pretty with
+    match Tag.get v.id_tags Print.pos with
     | None -> ()
-    | Some Print.Prefix _ -> Format.fprintf fmt "[%a]" id v
-    | Some Print.Infix _ -> Format.fprintf fmt "(%a)" id v
+    | Some Pretty.Prefix -> Format.fprintf fmt "[%a]" id v
+    | Some Pretty.Infix -> Format.fprintf fmt "(%a)" id v
 
   let id_type print fmt v =
     Format.fprintf fmt "@[<hov 2>%a%a :@ %a@]" id v id_pretty v print v.id_type
@@ -104,7 +102,7 @@ module Print = struct
     | Meta m -> meta fmt m
     | App (f, [], []) -> id fmt f
     | App (f, tys, args) ->
-      begin match Tag.get f.id_tags Print.pretty with
+      begin match Tag.get f.id_tags Print.pos with
         | None ->
           begin match tys with
             | [] ->
@@ -116,10 +114,10 @@ module Print = struct
                 (CCFormat.return ";@ ") ()
                 CCFormat.(list ~sep:(return ",@ ") term) args
           end
-        | Some Print.Prefix _ ->
+        | Some Pretty.Prefix ->
           Format.fprintf fmt "@[<hov>%a(%a)@]"
             id f CCFormat.(list ~sep:(return ",@ ") term) args
-        | Some Print.Infix _ ->
+        | Some Pretty.Infix ->
           let sep fmt () = Format.fprintf fmt " %a@ " id f in
           Format.fprintf fmt "(%a)" CCFormat.(list ~sep term) args
       end
@@ -200,9 +198,9 @@ module Arg = struct
     box Print.formula f fmt ()
 
   let hyp_info c =
-    let id = CCOpt.get_exn @@ Solver.hyp_id c in
+    let id = CCOpt.get_exn @@ Solver.hyp_proof c in
     "Hypothesis", Some "YELLOW",
-    [fun fmt () -> Print.dolmen fmt id]
+    [fun fmt () -> Print.id fmt id]
 
   let lemma_info c =
     let lemma =

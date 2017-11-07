@@ -238,6 +238,7 @@ let to_eqs l =
   | [] | [_] -> assert false
   | first :: _ -> aux first [] l
 
+(*
 let rec coq_aux m fmt = function
   | [] -> assert false
   | [x] ->
@@ -258,14 +259,14 @@ let coq_proof = function
           (Proof.Ctx.named ctx) (Expr.Formula.neg res)
           (coq_aux ctx) eqs
       )
-
+*)
 
 (* Handler & Plugin registering *)
 (* ************************************************************************ *)
 
 let handle : type ret. ret D.msg -> ret option = function
   | Dot.Info Eq info -> Some (dot_info info)
-  | Coq.Tactic Eq info -> Some (coq_proof info)
+  (* | Coq.Tactic Eq info -> Some (coq_proof info) *)
   | _ -> None
 
 let register () =

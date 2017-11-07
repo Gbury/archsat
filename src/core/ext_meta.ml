@@ -372,7 +372,7 @@ let dot_info = function
       List.map (CCFormat.const Dot.Print.term) l @
       [ CCFormat.const Dot.Print.formula f ]
     )
-
+(*
 let coq_proof = function
   | Ty (f, l, metas, q) ->
     let m = List.fold_left2 Mapping.Var.bind_ty Mapping.empty l metas in
@@ -380,13 +380,13 @@ let coq_proof = function
   | Term (f, l, metas, q) ->
     let m = List.fold_left2 Mapping.Var.bind_term Mapping.empty l metas in
     Inst.coq_proof (Inst.Formula (f, m, q))
-
+*)
 (* Extension registering *)
 (* ************************************************************************ *)
 
 let handle : type ret. ret Dispatcher.msg -> ret option = function
   | Dot.Info Meta info -> Some (dot_info info)
-  | Coq.Tactic Meta info -> Some (coq_proof info)
+  (* | Coq.Tactic Meta info -> Some (coq_proof info) *)
   | Solver.Found_sat model ->
     (* Create new metas *)
     if !meta_incr then begin

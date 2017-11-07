@@ -50,12 +50,14 @@ type res =
 
 let hyp_table = CCVector.create ()
 
-let add_hyp id =
+let add_hyp id l =
   let n = CCVector.length hyp_table in
-  let () = CCVector.push hyp_table id in
-  n
+  let f = Term.of_formula (Expr.Formula.f_or l) in
+  let p = Expr.Id.mk_new (Dolmen.Id.full_name id) f in
+  let () = CCVector.push hyp_table p in
+  n, p
 
-let hyp_id c =
+let hyp_proof c =
   match c.Dispatcher.SolverTypes.tag with
   | None -> None
   | Some tag -> Some (CCVector.get hyp_table tag)
@@ -177,14 +179,17 @@ let solve ?check_model ?check_proof ?export () =
   Util.exit_prof section;
   res
 
-let assume id l =
+let assume ~solve id l =
   Util.enter_prof section;
-  let tag = add_hyp id in
-  let l' = List.map Dispatcher.pre_process l in
-  Util.info ~section "@[<hov 2>New hypothesis:@ @[<hov>%a@]"
-    CCFormat.((hovbox (list ~sep:(return " ||@ ") Expr.Print.formula))) l';
-  let () = S.assume ~tag [l'] in
-  Util.exit_prof section
+  let tag, id = add_hyp id l in
+  if solve then begin
+    let l' = List.map Dispatcher.pre_process l in
+    Util.info ~section "@[<hov 2>New hypothesis:@ @[<hov>%a@]"
+      CCFormat.((hovbox (list ~sep:(return " ||@ ") Expr.Print.formula))) l';
+    S.assume ~tag [l']
+  end;
+  Util.exit_prof section;
+  id
 
 let add_atom = S.new_atom
 

@@ -1,25 +1,6 @@
 
 let section = Section.make "proof"
 
-(* Pretty printing indications *)
-(* ************************************************************************ *)
-
-module Pretty = struct
-
-  type assoc =
-    | Left
-    | Right
-
-  type t = {
-    infix   : bool;
-    name    : string;
-    assoc   : assoc option;
-  }
-
-  let mk ?assoc ?(infix=false) name = { infix; name; assoc; }
-
-end
-
 (* Proof terms *)
 (* ************************************************************************ *)
 
@@ -135,8 +116,8 @@ let rec _Type = {
   hash = -1;
 }
 
-let _Prop =
-  const @@ Expr.Id.mk_new "Prop" _Type
+let _Prop_id = Expr.Id.mk_new "Prop" _Type
+let _Prop = const _Prop_id
 
 let letin v e body =
   if equal v.Expr.id_type e.ty then
@@ -236,7 +217,7 @@ let pis l body = List.fold_right pi l body
 let lambda v body = bind Lambda v body
 let lambdas l body = List.fold_right lambda l body
 
-let arrow ty ret = bind Arrow (Expr.Id.mk_new "" ty) ret
+let arrow ty ret = bind Arrow (Expr.Id.mk_new "_" ty) ret
 let arrows l ret = List.fold_right arrow l ret
 
 let forall v body = bind Forall v body
@@ -286,23 +267,17 @@ let rec uncurry_assoc_right f l =
       | _ -> l
     end
 
-let uncurry ?tag t =
+let uncurry ?assoc t =
   match uncurry_app t with
   | ({ term = Id f } as f_t), l ->
-    begin match CCOpt.(tag >>= (Expr.Id.get_tag f)) with
-      | None -> `Prefix (f_t, l)
-      | Some p ->
-        let l =
-          match p.Pretty.assoc with
-          | None -> l
-          | Some Pretty.Left -> uncurry_assoc_left f l
-          | Some Pretty.Right -> uncurry_assoc_right f l
-        in
-        if p.Pretty.infix
-        then `Infix (f_t, l)
-        else `Prefix (f_t, l)
-    end
-  | (f_t, l) -> `Prefix (f_t, l)
+    let l = CCOpt.(
+        map_or ~default:l (function
+            | Pretty.Left -> uncurry_assoc_left f l
+            | Pretty.Right -> uncurry_assoc_right f l)
+          (assoc >>= Expr.Id.get_tag f)
+      ) in
+    (f_t, l)
+  | (f_t, l) -> (f_t, l)
 
 (* Binder concatenation *)
 (* ************************************************************************ *)
@@ -366,7 +341,8 @@ and print_arrow fmt t =
   let l, body = flatten_binder Arrow t in
   let l' = List.map (fun v -> v.Expr.id_type) l in
   let sep fmt () = Format.fprintf fmt " ->@ " in
-  Format.fprintf fmt "(@[<hov>%a@])" CCFormat.(list ~sep print) l'
+  Format.fprintf fmt "(@[<hov>%a ->@ %a@])"
+    CCFormat.(list ~sep print) l' print body
 
 and print_var_list fmt (ty, l) =
   assert (l <> []);
@@ -432,8 +408,30 @@ let equiv_term = const equiv_id
 (* Tanslating from Expr to Term *)
 (* ************************************************************************ *)
 
-let tr_tag = Tag.create ()
+module Hty = Hashtbl.Make(Expr.Ty)
+module Hterm = Hashtbl.Make(Expr.Term)
 
+(* Translation caches *)
+let tr_tag = Tag.create ()          (** ids are unique, so storing cache in tags is safe *)
+let ty_cache = Hty.create 4013      (** Types and terms are not unique/hashconsed, *)
+let term_cache = Hterm.create 4013  (** so we need a table instead of tags *)
+let f_tag = Tag.create ()           (** Formula translation need to get into account
+                                        the creation roder (stored in the order tag, which
+                                        is ignored when comparing formulas), so a hashtable
+                                        cannot be used, hence the tag for caching. *)
+
+(** Traps force translation of given types and terms *)
+let trap_ty key v =
+  Util.debug ~section "trap: %a --> %a"
+    Expr.Print.ty key print v;
+  Hty.add ty_cache key v
+
+let trap_term key v =
+  Util.debug ~section "trap: %a --> %a"
+    Expr.Print.term key print v;
+  Hterm.add term_cache key v
+
+(* Id translation *)
 let of_id tr id =
   match Expr.Id.get_tag id tr_tag with
   | Some v -> v
@@ -456,26 +454,30 @@ let of_function_descr tr tr' fd =
     (tr' fd.Expr.fun_ret)
     (List.rev fd.Expr.fun_args)
 
+(* Base cases for translation. *)
 let of_unit _ = assert false
 
 let of_ttype Expr.Type = _Type
 
-let of_ty =
-  CCCache.with_cache_rec
-    (CCCache.lru ~eq:Expr.Ty.equal ~hash:Expr.Ty.hash 4013)
-    (fun of_ty ty -> match ty with
-       | { Expr.ty = Expr.TyVar v } -> const @@ of_id of_ttype v
-       | { Expr.ty = Expr.TyMeta m } -> of_ty Synth.ty
-       | { Expr.ty = Expr.TyApp (f, l) } ->
-         let f' = of_id (of_function_descr of_unit of_ttype) f in
-         let l' = List.map of_ty l in
-         apply (const f') l'
-    )
+(* Type translation *)
+let rec of_ty_aux = function
+  | { Expr.ty = Expr.TyVar v } -> const @@ of_id of_ttype v
+  | { Expr.ty = Expr.TyMeta m } -> of_ty Synth.ty
+  | { Expr.ty = Expr.TyApp (f, l) } ->
+    let f' = of_id (of_function_descr of_unit of_ttype) f in
+    let l' = List.map of_ty l in
+    apply (const f') l'
 
-let rec of_term =
-  CCCache.with_cache_rec
-    (CCCache.lru ~eq:Expr.Term.equal ~hash:Expr.Term.hash 4013)
-    (fun of_term t -> match t with
+and of_ty ty =
+  match Hty.find ty_cache ty with
+  | res -> res
+  | exception Not_found ->
+    let res = of_ty_aux ty in
+    let () = Hty.add ty_cache ty res in
+    res
+
+(* Term translation *)
+let rec of_term_aux = function
        | { Expr.term = Expr.Var v } -> const @@ of_id of_ty v
        | { Expr.term = Expr.Meta m } -> of_term @@ Synth.term Expr.(m.meta_id.id_type)
        | { Expr.term = Expr.App (f, tys, args) } ->
@@ -483,10 +485,16 @@ let rec of_term =
          let tys' = List.map of_ty tys in
          let args' = List.map of_term args in
          apply (apply (const f') tys') args'
-    )
 
-let f_tag = Tag.create ()
+and of_term t =
+  match Hterm.find term_cache t with
+  | res -> res
+  | exception Not_found ->
+    let res = of_term_aux t in
+    let () = Hterm.add term_cache t res in
+    res
 
+(* Formula translation *)
 let rec of_formula f =
   match Expr.Formula.get_tag f f_tag with
   | Some t -> t

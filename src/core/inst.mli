@@ -7,8 +7,10 @@ type lemma_info = Formula of Expr.formula * Mapping.t * Expr.formula
 (** Lemma information for instanciation. Takes a triplet [(f, m, q)], such
     that [q] is the result of instantiating [f] with the bound variables of [m]. *)
 
+(*
 val coq_proof : lemma_info -> Coq.tactic
 (** Return a coq proof from a lemma. *)
+*)
 
 
 (** {2 Extension helpers} *)

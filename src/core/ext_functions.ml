@@ -83,6 +83,7 @@ let dot_info = function
   | Pred (_, t, t') ->
     None, List.map (CCFormat.const Dot.Print.formula) [t; t']
 
+(*
 let coq_proof = function
   | Fun (l, t, t') ->
     Coq.tactic ~prefix:"E" (fun fmt ctx ->
@@ -100,14 +101,14 @@ let coq_proof = function
             Format.fprintf fmt "rewrite %a.@ " (Proof.Ctx.named ctx) eq) l;
         Coq.exact fmt "%a" (Proof.Ctx.named ctx) p'
       )
-
+*)
 
 (* Plugin registering *)
 (* ************************************************************************ *)
 
 let handle : type ret. ret Dispatcher.msg -> ret option = function
   | Dot.Info UF info -> Some (dot_info info)
-  | Coq.Tactic UF info -> Some (coq_proof info)
+  (* | Coq.Tactic UF info -> Some (coq_proof info) *)
   | _ -> None
 
 let register () =

@@ -3,32 +3,6 @@ val section : Section.t
 (** Main section for proofs *)
 
 
-(** {2 Pretty printing info} *)
-
-module Pretty : sig
-  (** Pretty printing information for symbols. Contains
-      language-specific information related to printing,
-      such as default associativity, infix notation, and
-      name to use. *)
-
-  type assoc =
-    | Left  (** symbolis left associative *)
-    | Right (** symbol is right associative *)
-  (** Associativity of symbols *)
-
-  type t = {
-    infix   : bool;
-    name    : string;
-    assoc   : assoc option;
-  }
-  (** Pretty printing information (for a specific language). *)
-
-  val mk : ?assoc:assoc -> ?infix:bool -> string -> t
-  (** Create a pretty ptingin information record. *)
-
-end
-
-
 (** {2 Terms} *)
 
 type binder = private
@@ -88,12 +62,27 @@ val print : Format.formatter -> t -> unit
 (** Print a term (quite verbose). *)
 
 
+(** {2 Term translation} *)
+
+val of_ty : Expr.ty -> t
+val of_term : Expr.term -> t
+val of_formula : Expr.formula -> t
+val of_id : ('a -> t) -> 'a Expr.id -> id
+val of_function_descr : ('a -> t ) -> ('b -> t) -> ('a, 'b) Expr.function_descr -> t
+(** Translating functions *)
+
+val trap_ty : Expr.ty -> t -> unit
+val trap_term : Expr.term -> t -> unit
+(** Force translation for gien types and terms. *)
+
+
 (** {2 Term creation} *)
 
 val _Type : t
 (** The term at the root of everything. *)
 
 val _Prop : t
+val _Prop_id : id
 (** The term for the type of propositions. *)
 
 val const : id -> t
@@ -127,6 +116,41 @@ val exists : id list -> t -> t
 (** Existencial quantification. *)
 
 
+(** {2 Term constants} *)
+
+val true_id : id
+val true_term : t
+(** [true] constant *)
+
+val false_id : id
+val false_term : t
+(** [false] constant *)
+
+val equal_id : id
+val equal_term : t
+(** equality *)
+
+val not_id : id
+val not_term : t
+(** Propositional negation *)
+
+val imply_id : id
+val imply_term : t
+(** Propostional implication *)
+
+val equiv_id : id
+val equiv_term : t
+(** Propositional equivalence *)
+
+val or_id : id
+val or_term : t
+(** Propositional disjunction *)
+
+val and_id : id
+val and_term : t
+(** Propositional conjunction *)
+
+
 (** {2 Term substitution} *)
 
 module Subst : Map.S with type key = id
@@ -141,14 +165,18 @@ val subst : t Subst.t -> t -> t
 val uncurry_app : t -> t * t list
 (** Uncurry the application. *)
 
-val uncurry : ?tag:(Pretty.t Tag.t) -> t ->
-  [ `Infix of t * t list
-  | `Prefix of t * t list ]
+val uncurry : ?assoc:Pretty.assoc Expr.tag -> t -> t * t list
 (** Uncurry a term, using the associtivity information
     in the tag. *)
 
 val uncurry_assoc_left : id -> t list -> t list
 val uncurry_assoc_right : id -> t list -> t list
 (** Uncurry a left (or right) associative symbol in a term. *)
+
+val flatten_binder : binder -> t -> id list * t
+(** Get the list of all consecutive variables bound by the same bidner in a term. *)
+
+val concat_vars : id list -> (t * id list) list
+(** Groups variables by types. *)
 
 

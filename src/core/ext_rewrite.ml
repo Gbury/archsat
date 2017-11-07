@@ -118,8 +118,9 @@ let match_modulo_var v c subst =
     else
       None
 
-let rec match_modulo_app acc (ty_pats, pats) = function
-  | { Expr.term = Expr.App (_, ty_args, args) } ->
+let rec match_modulo_app f acc (ty_pats, pats) = function
+  | { Expr.term = Expr.App (f', ty_args, args) } ->
+    assert (Expr.Id.equal f f');
     let acc' = CCList.filter_map (match_types ty_pats ty_args) acc in
     let l = List.map C.find args in
     List.fold_left2 match_modulo_aux acc' pats l
@@ -133,7 +134,7 @@ and match_modulo_aux acc pat c =
     if C.mem c t then acc else []
   | { Expr.term = Expr.App (f, ty_pats, pats) } ->
     let l = C.find_top c f in
-    CCList.flat_map (match_modulo_app acc (ty_pats, pats)) l
+    CCList.flat_map (match_modulo_app f acc (ty_pats, pats)) l
 
 let match_modulos l =
   List.fold_left (fun acc (t, s) ->

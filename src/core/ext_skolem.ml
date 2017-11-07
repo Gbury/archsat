@@ -226,6 +226,7 @@ let dot_info = function
       [ CCFormat.const Dot.Print.formula f ]
     )
 
+(*
 let pp_coq_fun_ex fmt = function
   | ({ Expr.formula = Expr.ExTy ((x :: _), _, _) } as f)
   | ({ Expr.formula = Expr.Not { Expr.formula = Expr.AllTy ((x :: _), _, _) } } as f) ->
@@ -366,14 +367,14 @@ let coq_proof = function
           Coq.exact fmt "%a %s" (Proof.Ctx.named ctx) (Expr.Formula.neg q) res
         )
   | _ -> assert false
-
+*)
 
 (* Cmdliner options and registering *)
 (* ************************************************************************ *)
 
 let handle : type ret. ret Dispatcher.msg -> ret option = function
   | Dot.Info Sk info -> Some (dot_info info)
-  | Coq.Tactic Sk info -> Some (coq_proof info)
+  (* | Coq.Tactic Sk info -> Some (coq_proof info) *)
   | _ -> None
 
 let opts =

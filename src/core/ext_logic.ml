@@ -157,6 +157,7 @@ let dot_info = function
   | Not_equiv (f, _, _) ->
     Some "LIGHTBLUE", [CCFormat.const Dot.Print.formula f]
 
+(*
 let coq_proof = function
   | True ->
     Coq.tactic ~prefix:"X" (fun fmt ctx ->
@@ -262,13 +263,14 @@ let coq_proof = function
           (Proof.Ctx.named ctx) pq
           (Proof.Ctx.named ctx) qp
       )
+   *)
 
 (* Handle & plugin registering *)
 (* ************************************************************************ *)
 
 let handle : type ret. ret Dispatcher.msg -> ret option = function
   | Dot.Info Logic info -> Some (dot_info info)
-  | Coq.Tactic Logic info -> Some (coq_proof info)
+  (* | Coq.Tactic Logic info -> Some (coq_proof info) *)
   | _ -> None
 
 let register () =

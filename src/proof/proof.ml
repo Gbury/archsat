@@ -75,6 +75,76 @@ module Env = struct
 
 end
 
+(* Proof preludes *)
+(* ************************************************************************ *)
+
+module Prelude = struct
+
+  let section = Section.make ~parent:section "prelude"
+
+  module Aux = struct
+
+    type t =
+      | Require of unit Expr.id
+      | Alias of Term.id * Term.t
+
+    let _discr = function
+      | Require _ -> 0
+      | Alias _ -> 1
+
+    let hash_aux t id =
+      CCHash.(pair int Expr.Id.hash) (_discr t, id)
+
+    let hash t =
+      match t with
+      | Require id -> hash_aux t id
+      | Alias (id, _) -> hash_aux t id
+
+    let compare t t' =
+      match t, t' with
+      | Require v, Require v' -> Expr.Id.compare v v'
+      | Alias (v, e), Alias (v', e') ->
+        let res = Expr.Id.compare v v' in
+        if res = 0 then assert (Term.equal e e');
+        res
+      | _ -> Pervasives.compare (_discr t) (_discr t')
+
+    let equal t t' = compare t t' = 0
+
+    let print fmt = function
+      | Require id ->
+        Format.fprintf fmt "require: %a" Expr.Id.print id
+      | Alias (v, t) ->
+        Format.fprintf fmt "alias: %a ->@ %a" Expr.Print.id v Term.print t
+
+  end
+
+  include Aux
+
+  module S = Set.Make(Aux)
+  module G = Graph.Imperative.Digraph.Concrete(Aux)
+  module T = Graph.Topological.Make_stable(G)
+  module O = Graph.Oper.I(G)
+
+  let dep_graph = G.create ()
+
+  let mk ~deps t =
+    let () = G.add_vertex dep_graph t in
+    let () = List.iter (fun x ->
+        Util.debug ~section "%a ---> %a" print x print t;
+        G.add_edge dep_graph x t) deps in
+    t
+
+  let require ?(deps=[]) s = mk ~deps (Require s)
+  let alias ?(deps=[]) id t = mk ~deps (Alias (id, t))
+
+  let topo l iter =
+    let s = List.fold_left (fun s x -> S.add x s) S.empty l in
+    let _ = O.add_transitive_closure ~reflexive:true dep_graph in
+    T.iter (fun v -> if S.exists (G.mem_edge dep_graph v) s then iter v) dep_graph
+
+end
+
 (* Proof printing data *)
 (* ************************************************************************ *)
 
@@ -104,7 +174,8 @@ type 'state step = {
     pretty * (Format.formatter -> 'state -> unit);
 
   (* Semantics *)
-  compute : ctx -> 'state * ctx array;
+  prelude   : 'state -> Prelude.t list;
+  compute   : ctx -> 'state * ctx array;
   elaborate : 'state -> Term.t array -> Term.t;
 }
 
@@ -153,16 +224,18 @@ let () = Printexc.register_printer (function
 (* Steps *)
 (* ************************************************************************ *)
 
-let mk_step ~coq ~compute ~elaborate = {
+let _prelude _ = []
+
+let mk_step ?(prelude=_prelude) ~coq ~compute ~elaborate = {
   print = (function Coq -> coq);
-  compute; elaborate;
+  prelude; compute; elaborate;
 }
 
 (* Building proofs *)
 (* ************************************************************************ *)
 
-let mk env goal =
-  let res = [| Open { env; goal; } |] in
+let mk ctx =
+  let res = [| Open ctx |] in
   res, (res, 0)
 
 let get_pos (t, i) = t.(i)
@@ -233,10 +306,22 @@ and print_node ~depth ~lang fmt { step = Any (state, step); branches; } =
   Format.fprintf fmt "@[<hov 2>%a@]" pp state;
   print_array ~depth ~lang ~pretty fmt branches
 
-let print_proof ~lang fmt = function
+let print ~lang fmt = function
   | [| p |] -> print_opt ~lang ~depth:0 fmt p
   | _ -> assert false
 
+(* Inspecting proofs *)
+(* ************************************************************************ *)
+
+let extract = function
+  | Proof node -> node
+  | Open _ -> raise Open_proof
+
+let root = function
+  | [| p |] -> extract p
+  | _ -> assert false
+
+let branches node = Array.map extract node.branches
 
 (* Proof elaboration *)
 (* ************************************************************************ *)

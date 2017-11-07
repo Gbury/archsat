@@ -165,26 +165,15 @@ end
 
 module Print = struct
 
-  (* Prefix/infix pretty printing info *)
-  type pretty =
-    | Prefix of string
-    | Infix of string
+  let pos : Pretty.pos tag = Tag.create ()
+  let name : Pretty.name tag = Tag.create ()
 
-  let pretty : pretty tag = Tag.create ()
+  let get_name v =
+    match Tag.get v.id_tags name with
+    | None -> v.id_name
+    | Some s -> s
 
-  let list ?(start="") ?(stop="") ~sep f fmt l =
-    let rec aux ~sep f fmt = function
-      | [] -> ()
-      | [x] -> f fmt x
-      | x :: ((y :: _) as r) ->
-        Format.fprintf fmt "%a%s@ " f x sep;
-        aux ~sep f fmt r
-    in
-    match l with
-    | [] -> ()
-    | _ -> Format.fprintf fmt "%s%a%s" start (aux ~sep f) l stop
-
-  let id fmt v = Format.fprintf fmt "%s" v.id_name
+  let id fmt v = Format.fprintf fmt "%s" (get_name v)
   let meta fmt m = Format.fprintf fmt "m%d_%a" m.meta_index id m.meta_id
   let ttype fmt = function Type -> Format.fprintf fmt "Type"
 
@@ -193,16 +182,17 @@ module Print = struct
     | TyMeta m -> meta fmt m
     | TyApp (f, []) -> id fmt f
     | TyApp (f, l) ->
-      begin match Tag.get f.id_tags pretty with
+      begin match Tag.get f.id_tags pos with
         | None ->
           Format.fprintf fmt "@[<hov 2>%a(%a)@]"
             id f CCFormat.(list ~sep:(return ",@ ") ty) l
-        | Some Prefix s ->
+        | Some Pretty.Prefix ->
           assert (List.length l = 1);
-          Format.fprintf fmt "@[<hov 2>%s %a@]"
-            s CCFormat.(list ~sep:(return "") ty) l
-        | Some Infix s ->
-          let sep fmt () = Format.fprintf fmt "%s@ " s in
+          Format.fprintf fmt "@[<hov 2>%a %a@]"
+            id f CCFormat.(list ~sep:(return "") ty) l
+        | Some Pretty.Infix ->
+          assert (List.length l > 1);
+          let sep fmt () = Format.fprintf fmt "%a@ " id f in
           Format.fprintf fmt "@[<hov 2>%a@]" (CCFormat.list ~sep ty) l
       end
 
@@ -221,10 +211,10 @@ module Print = struct
   let fun_ttype = signature ttype
 
   let id_pretty fmt v =
-    match Tag.get v.id_tags pretty with
+    match Tag.get v.id_tags pos with
     | None -> ()
-    | Some Prefix s -> Format.fprintf fmt "[%s]" s
-    | Some Infix s -> Format.fprintf fmt "(%s)" s
+    | Some Pretty.Infix -> Format.fprintf fmt "(%a)" id v
+    | Some Pretty.Prefix -> Format.fprintf fmt "[%a]" id v
 
   let id_type print fmt v =
     Format.fprintf fmt "@[<hov 2>%a%a :@ %a@]" id v id_pretty v print v.id_type
@@ -237,36 +227,30 @@ module Print = struct
   let rec term fmt t = match t.term with
     | Var v -> id fmt v
     | Meta m -> meta fmt m
-    | App (f, [], []) ->
-      begin match Tag.get f.id_tags pretty with
-        | None -> id fmt f
-        | Some Prefix s | Some Infix s ->
-          assert (s <> "");
-          Format.fprintf fmt "%s" s
-      end
+    | App (f, [], []) -> id fmt f
     | App (f, tys, args) ->
-      begin match Tag.get f.id_tags pretty with
+      begin match Tag.get f.id_tags pos with
         | None ->
-          begin match tys with
-            | [] ->
+          begin match tys, args with
+            | _, [] ->
               Format.fprintf fmt "%a(@[<hov>%a@])"
-                id f (list ~sep:"," term) args
+                id f CCFormat.(list ~sep:(return ",@ ") ty) tys
+            | [], _ ->
+              Format.fprintf fmt "%a(@[<hov>%a@])"
+                id f CCFormat.(list ~sep:(return ",@ ") term) args
             | _ ->
               Format.fprintf fmt "%a(@[<hov>%a%a%a@])" id f
-                (list ~sep:"," ty) tys
-                (CCFormat.return ";@ ") ()
-                (list ~sep:"," term) args
+                CCFormat.(list ~sep:(return ",@ ") ty) tys
+                CCFormat.(return ";@ ") ()
+                CCFormat.(list ~sep:(return ",@ ") term) args
           end
-        | Some Prefix s ->
-          assert (s <> "");
-          Format.fprintf fmt "@[<hov>%s%a@]"
-            s (list ~start:"(" ~stop:")" ~sep:"" term) args
-        | Some Infix s ->
-          assert (s <> "");
+        | Some Pretty.Prefix ->
+          Format.fprintf fmt "@[<hov>%a(%a)@]"
+            id f CCFormat.(list ~sep:(return ",@ ") term) args
+        | Some Pretty.Infix ->
           assert (List.length args >= 2);
-          let s' = " " ^ s in
-          Format.fprintf fmt "@[<hov>%a@]"
-            (list ~start:"(" ~stop:")" ~sep:s' term) args
+          let sep fmt () = Format.fprintf fmt " %a@ " id f in
+          Format.fprintf fmt "(@[<hov>%a@])" CCFormat.(list ~sep term) args
       end
 
   let rec formula_aux fmt f =
@@ -281,20 +265,20 @@ module Print = struct
     | True  -> Format.fprintf fmt "⊤"
     | False -> Format.fprintf fmt "⊥"
     | Not f -> Format.fprintf fmt "@[<hov 2>¬ %a@]" aux f
-    | And l -> Format.fprintf fmt "@[<hv>%a@]" (list ~sep:" ∧" aux) l
-    | Or l  -> Format.fprintf fmt "@[<hv>%a@]" (list ~sep:" ∨" aux) l
+    | And l -> Format.fprintf fmt "@[<hv>%a@]" CCFormat.(list ~sep:(return " ∧@ ") aux) l
+    | Or l  -> Format.fprintf fmt "@[<hv>%a@]" CCFormat.(list ~sep:(return " ∨@ ") aux) l
 
     | Imply (p, q)    -> Format.fprintf fmt "@[<hv>%a ⇒@ %a@]" aux p aux q
     | Equiv (p, q)    -> Format.fprintf fmt "@[<hv>%a ⇔@ %a@]" aux p aux q
 
     | All (l, _, f)   -> Format.fprintf fmt "@[<hv 2>∀ @[<hov>%a@].@ %a@]"
-                           (list ~sep:"," id_ty) l formula_aux f
+                           CCFormat.(list ~sep:(return ",@ ") id_ty) l formula_aux f
     | AllTy (l, _, f) -> Format.fprintf fmt "@[<hv 2>∀ @[<hov>%a@].@ %a@]"
-                           (list ~sep:"," id_ttype) l formula_aux f
+                           CCFormat.(list ~sep:(return ",@ ") id_ttype) l formula_aux f
     | Ex (l, _, f)    -> Format.fprintf fmt "@[<hv 2>∃ @[<hov>%a@].@ %a@]"
-                           (list ~sep:"," id_ty) l formula_aux f
+                           CCFormat.(list ~sep:(return ",@ ") id_ty) l formula_aux f
     | ExTy (l, _, f)  -> Format.fprintf fmt "@[<hv 2>∃ @[<hov>%a@].@ %a@]"
-                           (list ~sep:"," id_ttype) l formula_aux f
+                           CCFormat.(list ~sep:(return ",@ ") id_ttype) l formula_aux f
 
   let formula fmt f = Format.fprintf fmt "⟦@[<hov>%a@]⟧" formula_aux f
 
@@ -477,7 +461,10 @@ module Id = struct
 
   (* Tags *)
   let get_tag id k = Tag.get id.id_tags k
-  let tag id k v = id.id_tags <- Tag.add id.id_tags k v
+
+  let tag id k v =
+    id.id_tags <- Tag.add id.id_tags k v
+
   let cached f =
     let t = Tag.create () in
     (function id ->

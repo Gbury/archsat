@@ -290,7 +290,7 @@ let dot_info = function
       CCFormat.const Dot.Print.mapping t;
       CCFormat.const Dot.Print.formula f;
     ]
-
+(*
 let coq_destruct ctx fmt = function
   | { Expr.formula = Expr.Not ({
       Expr.formula = Expr.Ex(l, _, _)} as q)} ->
@@ -342,13 +342,13 @@ let coq_proof = function
         Coq.exact fmt "%s %a" s (Proof.Ctx.named ctx) (Expr.Formula.neg q)
       )
   | _ -> assert false
-
+*)
 (* Extension registering *)
 (* ************************************************************************ *)
 
 let handle : type ret. ret Dispatcher.msg -> ret option = function
   | Dot.Info Inst info -> Some (dot_info info)
-  | Coq.Tactic Inst info -> Some (coq_proof info)
+  (* | Coq.Tactic Inst info -> Some (coq_proof info) *)
   | Solver.Found_sat _ -> inst_sat ()
   | _ -> None
 

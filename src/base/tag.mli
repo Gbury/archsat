@@ -9,6 +9,9 @@ type map
 type 'a t
 (** A tag containing values of type ['a]. *)
 
+val equal : _ t -> _ t -> bool
+(** Are two tag keys equal ? *)
+
 (** {2 Creating and accessing tags} *)
 
 val empty : map

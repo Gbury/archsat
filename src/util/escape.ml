@@ -129,15 +129,13 @@ let id t fmt id =
 let dolmen t fmt id =
   Format.fprintf fmt "%s" (escape t (Any.Dolmen id))
 
-let tagged_name ?(tag=Expr.Print.pretty) = function
+let tagged_name ?(tag=Expr.Print.name) = function
   | Any.Dolmen id ->
     Normal (Dolmen.Id.full_name id)
   | Any.Id id ->
     begin match Expr.Id.get_tag id tag with
-      | None ->
-        Normal (id.Expr.id_name)
-      | Some (Expr.Print.Infix s | Expr.Print.Prefix s) ->
-        Exact s
+      | Some s -> Exact s
+      | None -> Normal (id.Expr.id_name)
     end
 
 (* Unicode wrapper *)
