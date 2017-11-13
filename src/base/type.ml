@@ -171,7 +171,7 @@ let decl_ty_cstr id c reason =
       Id.print id;
   H.add global_env id (`Ty c);
   R.add ttype_locs c reason;
-  Util.info ~section
+  Util.debug ~section
     "New type constructor : @[<hov>%a@]" Expr.Print.const_ttype c
 
 let decl_term id c reason =
@@ -181,7 +181,7 @@ let decl_term id c reason =
       Id.print id;
   H.add global_env id (`Term c);
   S.add const_locs c reason;
-  Util.info ~section "New constant : @[<hov>%a@]" Expr.Print.const_ty c
+  Util.debug ~section "New constant : @[<hov>%a@]" Expr.Print.const_ty c
 
 (* Symbol definitions *)
 let def_ty id args body =
@@ -190,7 +190,7 @@ let def_ty id args body =
       "Symbol '%a' has already been defined, overwriting previous definition"
       Id.print id;
   H.add global_env id (`Ty_alias (args, body));
-  Util.info ~section "@[<hov 4>New type alias:@ @[<hov>%a(%a)@] =@ %a@]"
+  Util.debug ~section "@[<hov 4>New type alias:@ @[<hov>%a(%a)@] =@ %a@]"
     Id.print id
         (CCFormat.list Expr.Print.id_ttype) args
         Expr.Print.ty body
@@ -201,7 +201,7 @@ let def_term id ty_args args body =
       "Symbol '%a' has already been defined, overwriting previous definition"
       Id.print id;
   H.add global_env id (`Term_alias (ty_args, args, body));
-  Util.info ~section "@[<hov 4>New term alias:@ @[<hov>%a(%a;%a)@] =@ %a@]"
+  Util.debug ~section "@[<hov 4>New term alias:@ @[<hov>%a(%a;%a)@] =@ %a@]"
     Id.print id
         (CCFormat.list Expr.Print.id_ttype) ty_args
         (CCFormat.list Expr.Print.id_ty) args
@@ -246,7 +246,7 @@ let add_type_var env id v loc =
     else
       v
   in
-  Util.info ~section "New binding: @[<hov>%a ->@ %a@]"
+  Util.debug ~section "New binding: @[<hov>%a ->@ %a@]"
     Id.print id Expr.Print.id_ttype v';
   v', { env with
         type_vars = M.add id v' env.type_vars;
@@ -266,7 +266,7 @@ let add_term_var env id v loc =
     else
       v
   in
-  Util.info ~section "New binding: @[<hov>%a ->@ %a@]"
+  Util.debug ~section "New binding: @[<hov>%a ->@ %a@]"
     Id.print id Expr.Print.id_ty v';
   v', { env with
         term_vars = M.add id v' env.term_vars;
@@ -285,11 +285,11 @@ let find_var env name =
 
 (* Add local bound variables to env *)
 let add_let_term env id t =
-  Util.info ~section "New let-binding: @[<hov>%a ->@ %a@]" Id.print id Expr.Print.term t;
+  Util.debug ~section "New let-binding: @[<hov>%a ->@ %a@]" Id.print id Expr.Print.term t;
   { env with term_lets = M.add id t env.term_lets }
 
 let add_let_prop env id t =
-  Util.info ~section "New let-binding: @[<hov>%a ->@ %a@]" Id.print id Expr.Print.formula t;
+  Util.debug ~section "New let-binding: @[<hov>%a ->@ %a@]" Id.print id Expr.Print.formula t;
   { env with prop_lets = M.add id t env.prop_lets }
 
 let find_let env name =
@@ -991,12 +991,12 @@ let rec parse_fun ty_args t_args env = function
 
 let new_decl env t ?attr id =
   Util.enter_prof section;
-  Util.info ~section "Typing declaration:@ @[<hov>%a :@ %a@]"
+  Util.debug ~section "Typing declaration:@ @[<hov>%a :@ %a@]"
     Id.print id Ast.print t;
   let aux acc (Any (tag, v)) = Tag.add acc tag v in
   let tags =
     CCOpt.map (fun a ->
-        Util.info ~section "Typing attribute:@ @[<hov>%a@]" Ast.print a;
+        Util.debug ~section "Typing attribute:@ @[<hov>%a@]" Ast.print a;
         let l = parse_attr_and env a in
         List.fold_left aux Tag.empty l) attr
   in
@@ -1016,7 +1016,7 @@ let new_decl env t ?attr id =
 
 let new_def env t ?attr id =
   Util.enter_prof section;
-  Util.info ~section "Typing definition:@ @[<hov>%a =@ %a@]"
+  Util.debug ~section "Typing definition:@ @[<hov>%a =@ %a@]"
     Id.print id Ast.print t;
   let res =
     match parse_fun [] [] env t with
@@ -1032,7 +1032,7 @@ let new_def env t ?attr id =
 
 let new_formula env t =
   Util.enter_prof section;
-  Util.info ~section "Typing top-level formula:@ %a" Ast.print t;
+  Util.debug ~section "Typing top-level formula:@ %a" Ast.print t;
   let res = parse_formula env t in
   Util.exit_prof section;
   res

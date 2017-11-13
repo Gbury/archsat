@@ -191,12 +191,12 @@ let typecheck (opt, c) : typechecked stmt =
   match c with
   (** Declarations and definitions *)
   | { S.descr = S.Def (id, t) } ->
-    start_section ~section:Type.section Util.info "Definition";
+    start_section ~section:Type.section Util.debug "Definition";
     let env = type_wrap opt in
     let ret = Type.new_def env t ?attr:c.S.attr id in
     (simple (def_id c) ret :> typechecked stmt)
   | { S.descr = S.Decl (id, t) } ->
-    start_section ~section:Type.section Util.info "Declaration typing";
+    start_section ~section:Type.section Util.debug "Declaration typing";
     let env = type_wrap opt in
     let ret = Type.new_decl env t ?attr:c.S.attr id in
     (simple (decl_id c) ret :> typechecked stmt)
@@ -204,17 +204,17 @@ let typecheck (opt, c) : typechecked stmt =
   | { S.descr = S.Prove } ->
     simple (prove_id c) `Solve
   | { S.descr = S.Clause l } ->
-    start_section ~section:Type.section Util.info "Clause typing";
+    start_section ~section:Type.section Util.debug "Clause typing";
     let env = type_wrap opt in
     let res = List.map (Type.new_formula env) l in
     (simple (hyp_id c) (`Clause res) :> typechecked stmt)
   | { S.descr = S.Antecedent t } ->
-    start_section ~section:Type.section Util.info "Hypothesis typing";
+    start_section ~section:Type.section Util.debug "Hypothesis typing";
     let env = type_wrap opt in
     let ret = Type.new_formula env t in
     (simple (hyp_id c) (`Hyp ret) :> typechecked stmt)
   | { S.descr = S.Consequent t } ->
-    start_section ~section:Type.section Util.info "Goal typing";
+    start_section ~section:Type.section Util.debug "Goal typing";
     let env = type_wrap ~goal:true opt in
     let ret = Type.new_formula env t in
     (simple (goal_id c) (`Goal ret) :> typechecked stmt)
