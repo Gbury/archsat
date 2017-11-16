@@ -14,11 +14,6 @@ module M = Hashtbl.Make(Expr.Id.Const)
 
 let section = Section.make ~parent:Dispatcher.section "rwrt"
 
-let pp_t ~sep pp fmt t =
-  if T.is_empty t
-  then Format.fprintf fmt "{nothing}"
-  else T.pp ~sep pp fmt t
-
 (* Callbacks on the set of known terms *)
 (* ************************************************************************ *)
 
@@ -90,13 +85,25 @@ let find_indexed f =
   S.fold (fun t acc -> T.add (C.find t) acc) s T.empty
 
 let find_all_indexed ty =
+  Util.debug ~section "Finding all indexed terms of type:@ %a" Expr.Print.ty ty;
   M.fold (fun f s acc ->
-      if Expr.Ty.equal ty Expr.(f.id_type.fun_ret)
-      then S.fold (fun t acc ->
-          T.add (C.find t) acc
-        ) s acc
-      else acc
-    ) index T.empty
+      Util.debug ~section "Examining term indexed by: %a" Expr.Print.const_ty f;
+      match Match.ty Mapping.empty Expr.(f.id_type.fun_ret) ty with
+      | _ ->
+        S.fold (fun t acc ->
+            if Expr.Ty.equal Expr.(t.t_type) ty
+            then begin
+              Util.debug ~section "Adding:@ %a" Expr.Print.term t;
+              T.add (C.find t) acc
+            end else begin
+              Util.debug ~section "Skipping:@ %a" Expr.Print.term t;
+              acc
+            end
+          ) s acc
+      | exception Match.Impossible_ty _ ->
+        Util.debug ~section "Types incompatible";
+        acc)
+    index T.empty
 
 (* Matching modulo equivalence classes *)
 (* ************************************************************************ *)
@@ -111,7 +118,12 @@ let match_types pats args subst =
 let match_modulo_var v c subst =
   match Mapping.Var.get_term_opt subst v with
   | None ->
-    Some (Mapping.Var.bind_term subst v c)
+    begin try
+        let tmp = Match.ty subst Expr.(v.id_type) Expr.(c.t_type) in
+        Some (Mapping.Var.bind_term tmp v c)
+      with Match.Impossible_ty _ ->
+        None
+    end
   | Some d ->
     if Expr.Term.equal c d then
       Some subst
@@ -138,7 +150,7 @@ and match_modulo_aux acc pat c =
 
 let match_modulos l =
   List.fold_left (fun acc (t, s) ->
-      Util.debug ~section "@[<hv 2>mm:@ @[<hov>%a@]@ @[<hv 4>=? [%a]@]@ @[<hv 2>{ %a }@]@]"
+      Util.debug ~section "@[<hv 2>mm:@ @[<hov>%a@]@ @[<hv 4>=? [%a]@];@ @[<hv 2>{ %a }@]@]"
         Expr.Print.term t
         CCFormat.(list ~sep:(return ";@ ") C.print) s
         CCFormat.(list ~sep:(return ";@ ") Mapping.print) acc;
@@ -181,15 +193,15 @@ let check_guard = function
 
 type 'a trigger =
   | Single of 'a
-  | Symmetric of 'a * 'a
+  | Equal of 'a * 'a
 
 let trigger_map f = function
   | Single x -> Single (f x)
-  | Symmetric (x, y) -> Symmetric (f x, f y)
+  | Equal (x, y) -> Equal (f x, f y)
 
 let print_trigger pp fmt = function
   | Single x -> pp fmt x
-  | Symmetric (x, y) -> Format.fprintf fmt "%a &&@ %a" pp x pp y
+  | Equal (x, y) -> Format.fprintf fmt "%a ==@ %a" pp x pp y
 
 (* Rewrite rules definition *)
 (* ************************************************************************ *)
@@ -239,6 +251,14 @@ let print_rule
     (print_trigger pp) trigger
     formula result
 
+let print_matching_aux fmt (t, s) =
+  Format.fprintf fmt "@[<hov>%a@ =?@[<hv>%a@]@]"
+    Expr.Print.term t CCFormat.(list ~sep:(return ",@ ") C.print) s
+
+let print_matching fmt l =
+  Format.fprintf fmt "@[<hv>%a@]"
+    CCFormat.(list ~sep:(return ";@ ") print_matching_aux) l
+
 (* Plugin state *)
 (* ************************************************************************ *)
 
@@ -285,7 +305,7 @@ let parse_manual_rule = function
     in
     Some (mk true (Single trigger) result)
   | ({ Expr.formula = Expr.Equiv ({ Expr.formula = Expr.Equal (a, b) }, _) } as result) ->
-    Some (mk true (Symmetric (a, b)) result)
+    Some (mk true (Equal (a, b)) result)
   | ({ Expr.formula = Expr.Equiv ({ Expr.formula = Expr.Pred trigger }, _) } as result) ->
     Some (mk true (Single trigger) result)
 
@@ -388,34 +408,28 @@ let instanciate rule subst =
          end
       )
 
-let match_and_instantiate ({ trigger; _ } as rule) =
-  let pp fmt (t, s) =
-    Format.fprintf fmt "@[<hv>%a@ =? @[<hov>%a@]@]"
-      Expr.Print.term t (pp_t ~sep:"," C.print) s
-  in
+let match_and_instantiate (rule, l) =
   Util.debug ~section "@[<hv 2>Matching rule %a:@ %a"
-    print_rule_id rule (print_trigger pp) rule.trigger;
-  let l = match trigger with
-    | Single (t, s) ->
-      [t, T.elements s]
-    | Symmetric ((t, s), (t', s')) ->
-      [t, T.elements s; t', T.elements s']
-  in
+    print_rule_id rule print_matching l;
   let seq = match_modulos l in
   List.iter (fun subst ->
-      Util.debug ~section "match:@ %a" Mapping.print subst;
-      instanciate (map_trigger (trigger_map fst) rule) subst
+      Util.debug ~section "match found:@ %a" Mapping.print subst;
+      instanciate rule subst
     ) seq
 
 (* Rewriter callbacks *)
 (* ************************************************************************ *)
 
 let rules_to_match s =
-  List.map (map_trigger (function
-      | Single term -> Single (term, s)
-      | Symmetric (t, t') ->
-        Symmetric ((t, s), (t', find_all_indexed t'.Expr.t_type))
-    )) !active_rules
+  CCList.flat_map (function
+      | { trigger = Single term; _ } as rule ->
+        [rule, [term, T.elements s]]
+      | { trigger = Equal (t, t'); _ } as rule ->
+        List.map (fun c ->
+            rule, [t, [c];
+                   t', T.elements @@ find_all_indexed @@ C.ty c]
+          ) (T.elements s)
+    ) !active_rules
 
 (* Callback used when merging equivalence classes *)
 let callback_merge a b t =
@@ -426,7 +440,8 @@ let callback_merge a b t =
 
 (* Callback used on new terms *)
 let callback_term t =
-  Util.debug ~section "New term introduced: @[<hov>%a@]" Expr.Print.term t;
+  Util.debug ~section "New term introduced: @[<hv>%a:@ %a@]"
+    Expr.Print.term t Expr.Print.ty Expr.(t.t_type);
   let s = T.singleton (C.find t) in
   List.iter match_and_instantiate (rules_to_match s)
 
@@ -438,17 +453,18 @@ let callback_rule r =
       wth a left side consisting of a single variable,
       what term on the right side of the rule could possibly be smaller ?
       on the other hand, it might be one part of a bigger trigger (such as (x = y)) *)
-    | { Expr.term = Expr.Var _; t_type } -> find_all_indexed t_type
+    | { Expr.term = Expr.Var _; t_type } -> T.elements @@ find_all_indexed t_type
   (** A trigger that consist of a single meta does not contain variable,
       thus has no reason to be a rewrite rule... *)
   | { Expr.term = Expr.Meta _ } -> assert false
   (** Rewrite rules trigger starts with an application, we can work with that. *)
-  | { Expr.term = Expr.App (f, _, _) } -> find_indexed f
+  | { Expr.term = Expr.App (f, _, _) } -> T.elements @@ find_indexed f
   in
-  match_and_instantiate (map_trigger (function
-      | Single t -> Single (t, aux t)
-      | Symmetric (x, y) -> Symmetric ((x, aux x), (y, aux y))
-    ) r)
+  let l = match r.trigger with
+    | Single t -> [t, aux t]
+    | Equal (x, y) -> [x, aux x; y, aux y]
+  in
+  match_and_instantiate (r, l)
 
 (* Rule addition callback *)
 (* ************************************************************************ *)

@@ -2,6 +2,7 @@
 let section = Section.make "core"
 let solver_section = Section.make "sat"
 let plugin_section = Section.make ~parent:section "plugin"
+let slice_section = Section.make ~parent:section "slice"
 
 let dummy_section = Section.make "DUMMY"
 
@@ -254,7 +255,7 @@ let push_stack = Stack.create ()
 let propagate_stack = Stack.create ()
 
 let push clause p  =
-  Util.debug ~section "New clause to push (%s):@ @[<hov>%a@]"
+  Util.debug ~section:slice_section "New clause to push (%s):@ @[<hov>%a@]"
     p.proof_name
         CCFormat.(list ~sep:(return " ||@ ") Expr.Print.formula) clause;
   Stack.push (clause, p) push_stack
@@ -268,7 +269,7 @@ let consequence f l p =
 let do_propagate propagate =
   while not (Stack.is_empty propagate_stack) do
     let (t, reason) = Stack.pop propagate_stack in
-    Util.debug ~section "Propagating:@ @[<hov>%a@]" Expr.Print.formula t;
+    Util.debug ~section:slice_section "Propagating to sat:@ @[<hov>%a@]" Expr.Print.formula t;
     propagate t reason
   done
 
@@ -278,7 +279,7 @@ let clean_propagate () =
 let do_push f =
   while not (Stack.is_empty push_stack) do
     let (a, p) = Stack.pop push_stack in
-    Util.debug ~section "Pushing '%s':@ @[<hov>%a@]"
+    Util.debug ~section:slice_section "Pushing '%s':@ @[<hov>%a@]"
       p.proof_name
           CCFormat.(list ~sep:(return " ||@ ") Expr.Print.formula) a;
     f a p
@@ -516,28 +517,27 @@ module SolverTheory = struct
   let assume s =
     let open Msat.Plugin_intf in
     Util.enter_prof section;
-    Util.debug ~section "New slice of length %d" s.length;
+    Util.debug ~section:slice_section "New slice of length %d" s.length;
     try
       let assume_aux = plugin_assume () in
       for i = s.start to s.start + s.length - 1 do
         match s.get i with
         | Lit f ->
-          Util.debug ~section "(slice) assuming:@ @[<hov>%a@]"
+          Util.debug ~section:slice_section "assuming:@ @[<hov>%a@]"
             Expr.Print.formula f;
           assume_aux f
         | Assign (t, v) ->
-          Util.debug ~section "(slice) assuming: @[<hov>%a ->@ %a@]"
+          Util.debug ~section:slice_section "assuming: @[<hov>%a ->@ %a@]"
             Expr.Print.term t Expr.Print.term v;
           set_assign t v
       done;
       Util.exit_prof section;
-      Util.debug ~section "Propagating %d lits" (Stack.length propagate_stack);
       do_propagate s.propagate;
       do_push s.push;
       Sat
     with Absurd (l, p) ->
       clean_propagate ();
-      Util.debug ~section "Conflict(%s):@ @[<hov>%a@]"
+      Util.debug ~section:slice_section "Conflict(%s):@ @[<hov>%a@]"
           p.proof_name CCFormat.(list ~sep:(return " ||@ ") Expr.Print.formula) l;
       Util.exit_prof section;
       Unsat (l, p)

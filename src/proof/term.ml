@@ -151,7 +151,8 @@ module Subst = Map.Make(struct
 
 let extract_fun_ty t =
   match t.ty with
-  | { term = Binder (Pi, v, ty) } -> v, ty
+  | { term = Binder (Pi, v, ty) }
+  | { term = Binder (Arrow, v, ty) } -> v, ty
   | _ -> raise (Function_expected t)
 
 let rec app t arg =
@@ -433,12 +434,16 @@ let trap_term key v =
 
 (* Id translation *)
 let of_id tr id =
+  Util.debug ~section "translate id: %a" Expr.Print.id id;
   match Expr.Id.get_tag id tr_tag with
-  | Some v -> v
+  | Some v ->
+    Util.debug ~section "cached value: %a" Expr.Print.id v;
+    v
   | None ->
     let ty = tr id.Expr.id_type in
     let v = Expr.Id.mk_new id.Expr.id_name ty in
     let () = Expr.Id.tag id tr_tag v in
+    Util.debug ~section "new cached id: %a" Expr.Print.id v;
     v
 
 let of_function_descr tr tr' fd =
@@ -461,6 +466,9 @@ let of_ttype Expr.Type = _Type
 
 (* Type translation *)
 let rec of_ty_aux = function
+  | ty when Expr.Ty.equal Expr.Ty.prop ty ->
+    (* TODO: emit implicit declaration of $o *)
+    _Prop
   | { Expr.ty = Expr.TyVar v } -> const @@ of_id of_ttype v
   | { Expr.ty = Expr.TyMeta m } -> of_ty Synth.ty
   | { Expr.ty = Expr.TyApp (f, l) } ->
@@ -469,11 +477,15 @@ let rec of_ty_aux = function
     apply (const f') l'
 
 and of_ty ty =
+  Util.debug ~section "translate ty: %a" Expr.Print.ty ty;
   match Hty.find ty_cache ty with
-  | res -> res
+  | res ->
+    Util.debug ~section "cached value: %a" print res;
+    res
   | exception Not_found ->
     let res = of_ty_aux ty in
     let () = Hty.add ty_cache ty res in
+    Util.debug ~section "new cached ty: %a" print res;
     res
 
 (* Term translation *)
@@ -487,20 +499,28 @@ let rec of_term_aux = function
          apply (apply (const f') tys') args'
 
 and of_term t =
+  Util.debug ~section "translate term: %a" Expr.Print.term t;
   match Hterm.find term_cache t with
-  | res -> res
+  | res ->
+    Util.debug ~section "cached result: %a" print res;
+    res
   | exception Not_found ->
     let res = of_term_aux t in
     let () = Hterm.add term_cache t res in
+    Util.debug ~section "new cached term: %a" print res;
     res
 
 (* Formula translation *)
 let rec of_formula f =
+  Util.debug ~section "translate formula: %a" Expr.Print.formula f;
   match Expr.Formula.get_tag f f_tag with
-  | Some t -> t
+  | Some t ->
+    Util.debug ~section "cached result: %a" print t;
+    t
   | None ->
     let t = of_formula_aux f in
     Expr.Formula.tag f f_tag t;
+    Util.debug ~section "new cached formula: %a" print t;
     t
 
 and of_formula_aux f =
@@ -512,7 +532,13 @@ and of_formula_aux f =
   | Expr.Equal (x, y) ->
     let x' = of_term x in
     let y' = of_term y in
-    apply equal_term [x'.ty; x'; y']
+    let ty = x'.ty in
+    let a, b =
+      match CCOpt.get_exn @@ Expr.Formula.get_tag f Expr.t_order with
+      | Expr.Same -> x', y'
+      | Expr.Inverse -> y', x'
+    in
+    apply equal_term [ty; a; b]
 
   | Expr.Not f' ->
     app not_term (of_formula f')

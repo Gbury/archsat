@@ -245,8 +245,12 @@ module Print = struct
                 CCFormat.(list ~sep:(return ",@ ") term) args
           end
         | Some Pretty.Prefix ->
-          Format.fprintf fmt "@[<hov>%a(%a)@]"
-            id f CCFormat.(list ~sep:(return ",@ ") term) args
+          begin match args with
+            | [] -> id fmt f
+            | _ ->
+              Format.fprintf fmt "@[<hov>%a(%a)@]"
+                id f CCFormat.(list ~sep:(return ",@ ") term) args
+          end
         | Some Pretty.Infix ->
           assert (List.length args >= 2);
           let sep fmt () = Format.fprintf fmt " %a@ " id f in
@@ -1306,47 +1310,39 @@ module Formula = struct
   let _empty = Subst.empty
 
   let partial_inst ty_vmap t_vmap f =
+    let rec aux ty_vmap t_vmap f =
+      match f.formula with
+      | Not q -> neg (aux ty_vmap t_vmap q)
+      | Ex (l, args, p) ->
+        let l' = List.filter (fun v -> not (Subst.Id.mem v t_vmap)) l in
+        let q = subst_aux ~fix:false ty_vmap _empty t_vmap _empty _empty _empty p in
+        let args' = free_args_inst ty_vmap t_vmap args in
+        if l' = [] then aux ty_vmap t_vmap q else mk_formula (Ex (l', args', q))
+      | All (l, args, p) ->
+        let l' = List.filter (fun v -> not (Subst.Id.mem v t_vmap)) l in
+        let q = subst_aux ~fix:false ty_vmap _empty t_vmap _empty _empty _empty p in
+        let args' = free_args_inst ty_vmap t_vmap args in
+        if l' = [] then aux ty_vmap t_vmap q else mk_formula (All (l', args', q))
+      | ExTy (l, args, p) ->
+        let l' = List.filter (fun v -> not (Subst.Id.mem v ty_vmap)) l in
+        let q = subst_aux ~fix:false ty_vmap _empty t_vmap _empty _empty _empty p in
+        let args' = free_args_inst ty_vmap t_vmap args in
+        if l' = [] then aux ty_vmap t_vmap q else mk_formula (ExTy (l', args', q))
+      | AllTy (l, args, p) ->
+        let l' = List.filter (fun v -> not (Subst.Id.mem v ty_vmap)) l in
+        let q = subst_aux ~fix:false ty_vmap _empty t_vmap _empty _empty _empty p in
+        let args' = free_args_inst ty_vmap t_vmap args in
+        if l' = [] then aux ty_vmap t_vmap q else mk_formula (AllTy (l', args', q))
+      | _ -> subst_aux ~fix:false ty_vmap _empty t_vmap _empty _empty _empty f
+    in
     match f.formula with
-    | Ex (l, args, p) ->
-      let l' = List.filter (fun v -> not (Subst.Id.mem v t_vmap)) l in
-      let q = subst_aux ~fix:false ty_vmap _empty t_vmap _empty _empty _empty p in
-      let args' = free_args_inst ty_vmap t_vmap args in
-      if l' = [] then q else mk_formula (Ex (l', args', q))
-    | All (l, args, p) ->
-      let l' = List.filter (fun v -> not (Subst.Id.mem v t_vmap)) l in
-      let q = subst_aux ~fix:false ty_vmap _empty t_vmap _empty _empty _empty p in
-      let args' = free_args_inst ty_vmap t_vmap args in
-      if l' = [] then q else mk_formula (All (l', args', q))
-    | ExTy (l, args, p) ->
-      let l' = List.filter (fun v -> not (Subst.Id.mem v ty_vmap)) l in
-      let q = subst_aux ~fix:false ty_vmap _empty t_vmap _empty _empty _empty p in
-      let args' = free_args_inst ty_vmap t_vmap args in
-      if l' = [] then q else mk_formula (ExTy (l', args', q))
-    | AllTy (l, args, p) ->
-      let l' = List.filter (fun v -> not (Subst.Id.mem v ty_vmap)) l in
-      let q = subst_aux ~fix:false ty_vmap _empty t_vmap _empty _empty _empty p in
-      let args' = free_args_inst ty_vmap t_vmap args in
-      if l' = [] then q else mk_formula (AllTy (l', args', q))
-    | Not { formula = Ex (l, args, p) } ->
-      let l' = List.filter (fun v -> not (Subst.Id.mem v t_vmap)) l in
-      let q = subst_aux ~fix:false ty_vmap _empty t_vmap _empty _empty _empty p in
-      let args' = free_args_inst ty_vmap t_vmap args in
-      neg (if l' = [] then q else mk_formula (Ex (l', args', q)))
-    | Not { formula = All (l, args, p) } ->
-      let l' = List.filter (fun v -> not (Subst.Id.mem v t_vmap)) l in
-      let q = subst_aux ~fix:false ty_vmap _empty t_vmap _empty _empty _empty p in
-      let args' = free_args_inst ty_vmap t_vmap args in
-      neg (if l' = [] then q else mk_formula (All (l', args', q)))
-    | Not { formula = ExTy (l, args, p) } ->
-      let l' = List.filter (fun v -> not (Subst.Id.mem v ty_vmap)) l in
-      let q = subst_aux ~fix:false ty_vmap _empty t_vmap _empty _empty _empty p in
-      let args' = free_args_inst ty_vmap t_vmap args in
-      neg (if l' = [] then q else mk_formula (ExTy (l', args', q)))
-    | Not { formula = AllTy (l, args, p) } ->
-      let l' = List.filter (fun v -> not (Subst.Id.mem v ty_vmap)) l in
-      let q = subst_aux ~fix:false ty_vmap _empty t_vmap _empty _empty _empty p in
-      let args' = free_args_inst ty_vmap t_vmap args in
-      neg (if l' = [] then q else mk_formula (AllTy (l', args', q)))
+    | Ex _ | All _
+    | ExTy _ | AllTy _
+    | Not { formula = (
+          Ex _ | All _ |
+          ExTy _ | AllTy _
+        ) } ->
+      aux ty_vmap t_vmap f
     | _ -> raise (Invalid_argument "Expr.partial_inst")
 
 end

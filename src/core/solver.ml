@@ -50,10 +50,17 @@ type res =
 
 let hyp_table = CCVector.create ()
 
+let mk_term s l =
+  let t = match l with
+    | [] -> assert false
+    | [f] -> Term.of_formula f
+    | _ -> Term.of_formula (Expr.Formula.f_or l)
+  in
+  Expr.Id.mk_new s t
+
 let add_hyp id l =
   let n = CCVector.length hyp_table in
-  let f = Term.of_formula (Expr.Formula.f_or l) in
-  let p = Expr.Id.mk_new (Dolmen.Id.full_name id) f in
+  let p = mk_term (Dolmen.Id.full_name id) l in
   let () = CCVector.push hyp_table p in
   n, p
 

@@ -24,6 +24,9 @@ module Class : sig
   val repr : t -> Expr.term
   (** Return the current representant of an equality class. *)
 
+  val ty : t -> Expr.ty
+  (** Returns the type of all elements in an equivalence class. *)
+
   val mem : t -> Expr.term -> bool
   (** Does a term belong to an equialence class. *)
 

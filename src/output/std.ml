@@ -93,13 +93,20 @@ let print_exn opt fmt = function
       "Extension '%s/%s' not found.@ Available extensions are :@\n%a@."
       sect ext (fun fmt -> List.iter (fun s -> Format.fprintf fmt "%s " s)) l
 
-  (** Internal errors. Should not happen *)
+  (** Internal errors. This is BAD, it should *not* happen *)
   | Dispatcher.Bad_assertion msg ->
     Format.fprintf Format.std_formatter "%s@." msg
   | Expr.Type_mismatch (t, ty1, ty2) ->
     Format.fprintf Format.std_formatter
       "Term@ %a@ has type %a@ but an expression of type@ %a@ was expected@."
       Expr.Print.term t Expr.Print.ty ty1 Expr.Print.ty ty2
+  | Term.Function_expected t ->
+    Format.fprintf Format.std_formatter
+      "Proof term@ %a@ was expected to be a function" Term.print t
+  | Term.Type_mismatch (t, ty) ->
+    Format.fprintf Format.std_formatter
+      "Proof term@ %a@ was expected to have type@ %a@ but has type@ %a"
+      Term.print t Term.print ty Term.print Term.(t.ty)
 
   (** Generic catch *)
   | exn ->

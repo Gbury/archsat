@@ -25,7 +25,7 @@ type load = {
 }
 
 let print fmt t =
-  Format.fprintf fmt "<< %a >>" Expr.Term.print (E.repr t)
+  Format.fprintf fmt "< %a >" Expr.Term.print (E.repr t)
 
 let gen = function
   | { Expr.term = Expr.Var _ } ->
@@ -72,6 +72,8 @@ module Class = struct
   let find x = E.get_class st x
 
   let repr t = E.repr t
+
+  let ty t = Expr.((E.repr t).t_type)
 
   let hash c = Expr.Term.hash (repr c)
   let equal c c' = Expr.Term.equal (repr c) (repr c')
