@@ -118,5 +118,8 @@ module Hashtbl(K : Hashtbl.HashedType) = struct
   let fold t f acc = H.fold f t.tbl acc
 
   let iter f t = H.iter f t.tbl
+
+  let snapshot t = H.copy t.tbl
+
 end
 

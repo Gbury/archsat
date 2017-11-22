@@ -27,6 +27,9 @@ type lemma = private {
 
 (** {2 Solver modules} *)
 
+module M : Hashtbl.S with type key = Expr.term
+(** hashtable on terms, used for computing models *)
+
 module SolverExpr : Msat.Expr_intf.S
   with type Term.t = Expr.term
    and type Formula.t = Expr.formula
@@ -145,6 +148,6 @@ val watch : ?formula:Expr.formula -> string -> int -> Expr.term list -> (unit ->
     @param formula attach the watcher to a formula, so that the callback will only be called
       if the given formula is among the current assumption when the watcher triggers (i.e if the formula is true). *)
 
-val model : unit -> (Expr.term * Expr.term) list
+val model : unit -> Expr.term M.t
 (** Returns the full assignment in the current model. *)
 

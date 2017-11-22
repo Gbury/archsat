@@ -322,10 +322,10 @@ let print_proof (opt, (c : solved stmt)) =
   | { contents = `Term_def _; _ } -> ()
   | { contents = `Model _; _ } ->
     if Options.(opt.proof.active) then
-      Util.warn "Proof check.output activated, but no proof was found"
+      Util.warn "Proof check/output activated, but a model was found"
   | { contents = `Unknown; _ } ->
     if Options.(opt.proof.active) then
-      Util.warn "Proof check.output activated, but a model was found"
+      Util.warn "Proof check/output activated, but no proof was found"
 
   (* Interesting parts *)
   | { contents = `Type_decl f; _ } -> Prove.declare_ty Options.(opt.proof) f
@@ -335,4 +335,28 @@ let print_proof (opt, (c : solved stmt)) =
   | { contents = `Proof p; _ } ->
     Util.info "Proof size: %a" Util.print_size (Util.size p);
     Prove.output_proof Options.(opt.proof) p
+
+(* Printing models *)
+(* ************************************************************************ *)
+
+let print_model (opt, (c : solved stmt)) =
+  match c with
+  | { contents = `Executed; _ }
+  | { contents = `Type_def _; _ }
+  | { contents = `Term_def _; _ }
+  | { contents = `Type_decl _; _ }
+  | { contents = `Term_decl _; _ }
+  | { contents = `Left _; _ }
+  | { contents = `Right _ } -> ()
+  | { contents = `Proof _; _ } ->
+    if Options.(opt.model.active) then
+      Util.warn "Model check/output activated, but a proof was found"
+  | { contents = `Unknown; _ } ->
+    if Options.(opt.model.active) then
+      Util.warn "Model check/output activated, but no model was found"
+
+  (* Interesting parts *)
+  | { contents = `Model m; _ } ->
+    Util.info "Model size: %a" Util.print_size (Util.size m);
+    pp_opt Solver.Model.print Options.(opt.model.assign) m
 

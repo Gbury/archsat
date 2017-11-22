@@ -97,6 +97,7 @@ let () =
               @>>> (iter_ ~name:"print_res" Pipe.print_res)
               @>>> (iter_ ~name:"export" Pipe.export)
               @>>> (iter_ ~name:"print_proof" Pipe.print_proof)
+              @>>> (iter_ ~name:"print_model" Pipe.print_model)
               @>>> (apply fst) @>>> _end)
           )
         )

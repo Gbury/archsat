@@ -64,6 +64,7 @@ module Hashtbl(K : Hashtbl.HashedType) : sig
       All actions performed on this table register the corresponding
       undo operations so that backtracking is automatic. *)
 
+
   type key = K.t
   (** The type of keys of the Hashtbl. *)
 
@@ -80,4 +81,12 @@ module Hashtbl(K : Hashtbl.HashedType) : sig
   val iter : (key -> 'a -> unit) -> 'a t -> unit
   val fold : 'a t -> (key -> 'a -> 'b -> 'b) -> 'b -> 'b
   (** Usual operations on the hashtabl. For more information see the Hashtbl module of the stdlib. *)
+
+
+  module H : Hashtbl.S with type key = K.t
+  (** The standard hashtbl module on keys from K. *)
+
+  val snapshot : 'a t -> 'a H.t
+  (** Returns a snapshot of the hashtbl at a given moment. *)
+
 end

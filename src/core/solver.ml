@@ -31,7 +31,7 @@ let export_icnf fmt () =
 (* Type definitions *)
 (* ************************************************************************ *)
 
-type model = (Expr.term * Expr.term) list
+type model = Expr.term Dispatcher.M.t
 (** The type of models for first order problems *)
 
 type view = (Expr.formula -> unit) -> unit
@@ -212,16 +212,15 @@ module Model = struct
 
   type t = model
 
-  let rec print_aux fmt = function
-    | [] -> ()
-    | (u, v) :: r ->
-      Format.fprintf fmt "%a -> %a@\n"
-        Expr.Term.print u Expr.Term.print v;
-      print_aux fmt r
+  let rec print_aux fmt t =
+    let rec aux u v =
+      Format.fprintf fmt "%a -> %a;@ "
+        Expr.Term.print u Expr.Term.print v
+    in
+    Dispatcher.M.iter aux t
 
-  let print fmt l =
-    Format.fprintf fmt "@[<hov 2>Model:@\n%a@]" print_aux l
-
+  let print fmt m =
+    Format.fprintf fmt "@[<hv 2>{@ %a}@]@." print_aux m
 
 end
 

@@ -17,8 +17,10 @@ let stats_group = Stats.bundle [stats_watchers]
 (* ************************************************************************ *)
 
 module H = Hashtbl.Make(Expr.Term)
-module M = Backtrack.Hashtbl(Expr.Term)
+module B = Backtrack.Hashtbl(Expr.Term)
 module F = Backtrack.Hashtbl(Expr.Formula)
+
+module M = B.H
 
 type lemma_info = ..
 
@@ -353,7 +355,7 @@ let get_truth = eval_f
 (* ************************************************************************ *)
 
 (* The current assignment map, term -> value *)
-let eval_map = M.create stack
+let eval_map = B.create stack
 (* Map of terms watched by extensions *)
 let watchers = H.create 4096
 let watch_map = H.create 4096
@@ -368,10 +370,10 @@ let hpop assoc key =
   res
 
 let is_assigned t =
-  try ignore (M.find eval_map t); true with Not_found -> false
+  try ignore (B.find eval_map t); true with Not_found -> false
 
 let get_assign t =
-  try M.find eval_map t with Not_found -> raise (Not_assigned t)
+  try B.find eval_map t with Not_found -> raise (Not_assigned t)
 
 let add_job job t =
   let l = try H.find watch_map t with Not_found -> [] in
@@ -474,23 +476,22 @@ let rec assign_watch t = function
 and set_assign t v =
   Util.enter_prof section;
   try
-    let v' = M.find eval_map t in
+    let v' = B.find eval_map t in
     Util.debug ~section "Assigned:@ @[<hov>%a ->@ %a@]@\nAssigning:@ @[<hov>%a ->@ %a@]"
-          Expr.Print.term t Expr.Print.term v'
-          Expr.Print.term t Expr.Print.term v;
+      Expr.Print.term t Expr.Print.term v'
+      Expr.Print.term t Expr.Print.term v;
     if not (Expr.Term.equal v v') then
       _fail "Incoherent assignments";
     Util.exit_prof section
   with Not_found ->
     Util.debug ~section "Assign:@ @[<hov>%a ->@ %a@]"
       Expr.Print.term t Expr.Print.term v;
-    M.add eval_map t v;
+    B.add eval_map t v;
     let l = try hpop watch_map t with Not_found -> [] in
     Util.debug ~section "Found %d watchers" (List.length l);
     assign_watch t l
 
-let model () =
-  M.fold eval_map (fun t v acc -> (t, v) :: acc) []
+let model () = B.snapshot eval_map
 
 (* Mcsat Plugin functions *)
 (* ************************************************************************ *)

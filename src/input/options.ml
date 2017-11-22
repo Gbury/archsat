@@ -560,7 +560,7 @@ let model_t =
     Arg.(value & flag & info ["m"; "model"] ~docs ~doc)
   in
   let assign =
-    let doc = "TODO" in
+    let doc = "If set, print the model to the desgiend file (or stdout)." in
     Arg.(value & opt out_descr `None & info ["assign"] ~docs ~doc)
   in
   Term.(const model_opts $ active $ assign)

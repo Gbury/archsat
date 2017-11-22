@@ -93,4 +93,6 @@ val export : Options.opts * solved stmt -> unit
 val print_proof : Options.opts * solved stmt -> unit
 (** Print the proof according to the options *)
 
+val print_model : Options.opts * solved stmt -> unit
+(** Print the proof according to the options *)
 
