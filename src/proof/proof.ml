@@ -162,12 +162,12 @@ type pretty =
 (* Proofs *)
 (* ************************************************************************ *)
 
-type ctx = {
+type sequent = {
   env : Env.t;
   goal : Term.t;
 }
 
-type 'state step = {
+type ('input, 'state) step = {
 
   (* Printing information *)
   print : lang ->
@@ -175,50 +175,48 @@ type 'state step = {
 
   (* Semantics *)
   prelude   : 'state -> Prelude.t list;
-  compute   : ctx -> 'state * ctx array;
+  compute   : sequent -> 'input -> 'state * sequent array;
   elaborate : 'state -> Term.t array -> Term.t;
 }
 
 type proof_step =
-  | Any : 'a * 'a step -> proof_step
+  | Any : 'state * (_, 'state) step -> proof_step
 
-type t = opt array
-
-and opt =
-  | Open of ctx
+type opt =
+  | Open of sequent
   | Proof of node
 
 and node = {
   step : proof_step;
-  branches : t;
+  branches : opt array;
 }
 
 (* Some aliases *)
 
-type proof = t
+type proof = opt array
 
-type pos = t * int
+type pos = opt array * int
 
 (* Contexts *)
 (* ************************************************************************ *)
 
 let env { env; _ } = env
 let goal { goal; _ } = goal
-let mk_ctx env goal = Env.{ env; goal; }
+let mk_sequent env goal = Env.{ env; goal; }
 
-let print_ctx fmt ctx =
+let print_sequent fmt sequent =
   Format.fprintf fmt
-    "@[<hv 2>ctx:@ @[<hv 2>env:@ @[<v>%a@]@] @[<hv 2>goal:@ @[<hov>%a@]@]@]"
-    Env.print ctx.env Term.print ctx.goal
+    "@[<hv 2>sequent:@ @[<hv 2>env:@ @[<v>%a@]@] @[<hv 2>goal:@ @[<hov>%a@]@]@]"
+    Env.print sequent.env Term.print sequent.goal
 
 (* Failure *)
 (* ************************************************************************ *)
 
-exception Failure of string * ctx
+exception Failure of string * sequent
 
 let () = Printexc.register_printer (function
-    | Failure (msg, ctx) ->
-      Some (Format.asprintf "@[<hv>In context:@ %a@ %s@]" print_ctx ctx msg)
+    | Failure (msg, sequent) ->
+      Some (Format.asprintf "@[<hv>In context:@ %a@ %s@]" print_sequent sequent msg)
     | _ -> None)
 
 (* Steps *)
@@ -234,20 +232,20 @@ let mk_step ?(prelude=_prelude) ~coq ~compute ~elaborate = {
 (* Building proofs *)
 (* ************************************************************************ *)
 
-let mk ctx =
-  let res = [| Open ctx |] in
+let mk sequent =
+  let res = [| Open sequent |] in
   res, (res, 0)
 
 let get_pos (t, i) = t.(i)
 
-let apply_step (t, i) step =
+let apply_step (t, i) step input =
   match get_pos (t, i) with
   | Proof _ ->
     Util.error ~section "Trying to apply reasonning step to an aleardy closed proof";
     assert false
-  | Open ctx ->
-    let y, a = step.compute ctx in
-    let branches = Array.map (fun ctx -> Open ctx) a in
+  | Open sequent ->
+    let y, a = step.compute sequent input in
+    let branches = Array.map (fun sequent -> Open sequent) a in
     let res = { step = Any (y, step); branches } in
     let () = t.(i) <- Proof res in
     y, Array.init (Array.length a) (fun i -> (branches, i))
@@ -321,7 +319,8 @@ let root = function
   | [| p |] -> extract p
   | _ -> assert false
 
-let branches node = Array.map extract node.branches
+let branches node =
+  Array.map extract node.branches
 
 (* Proof elaboration *)
 (* ************************************************************************ *)

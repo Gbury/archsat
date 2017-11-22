@@ -77,14 +77,14 @@ type pretty =
 
 (** {2 Proof Contexts} *)
 
-type ctx
+type sequent
 (** Proof context, represents a goal to prove given an environment. *)
 
-val env : ctx -> Env.t
-val goal : ctx -> Term.t
+val env : sequent -> Env.t
+val goal : sequent -> Term.t
 (** Accessors for the environment and the goal of a context. *)
 
-val mk_ctx : Env.t -> Term.t -> ctx
+val mk_sequent : Env.t -> Term.t -> sequent
 (** Make a context from environment and goal. *)
 
 
@@ -99,7 +99,7 @@ type proof
 type pos
 (** The type of positions within the proof. *)
 
-val mk : ctx -> proof * pos
+val mk : sequent -> proof * pos
 (** Create an empty proof with the given goal and environent.
     Returns the proof, together with the open position at the root
     of the proof. *)
@@ -114,10 +114,10 @@ val elaborate : proof -> Term.t
 
 (** {2 Proof steps} *)
 
-exception Failure of string * ctx
+exception Failure of string * sequent
 (** Exception designed to be raised by steps that fail. *)
 
-type 'state step
+type ('input, 'state) step
 (** The type of reasonning steps. A reasonning step's goal is to
     take an context, and return a set of contexts, each corresponding
     to a branch that needs to be proven, much like in sequent calculus. *)
@@ -125,9 +125,9 @@ type 'state step
 val mk_step :
   ?prelude:('state -> Prelude.t list) ->
   coq:pretty * (Format.formatter -> 'state -> unit) ->
-  compute:(ctx -> 'state * ctx array) ->
+  compute:(sequent -> 'input -> 'state * sequent array) ->
   elaborate:('state -> Term.t array -> Term.t) ->
-  'state step
+  ('input, 'state) step
 (** Create a reasoning step with internal state type ['state].
     The coq parameter is there for languages-specific printing.
     The compute function goal is to compute the branches
@@ -135,7 +135,7 @@ val mk_step :
     The elaboration function should compute the corresponding proof term.
     *)
 
-val apply_step : pos -> 'a step -> 'a * pos array
+val apply_step : pos -> ('a, 'b) step -> 'a -> 'b * pos array
 (** Apply a reasoning step at a position in the proof. Returns the computed
     internal state, as well as  an array of positions corresponding to the
     branches to prove. These positions are in the same order as the branches
