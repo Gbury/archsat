@@ -289,7 +289,7 @@ let do_push f =
     let (a, p) = Stack.pop push_stack in
     Util.debug ~section:slice_section "Pushing '%s':@ @[<hov>%a@]"
       p.proof_name
-          CCFormat.(list ~sep:(return " ||@ ") Expr.Print.formula) a;
+      CCFormat.(list ~sep:(return " ||@ ") Expr.Print.formula) a;
     f a p
   done
 
@@ -417,8 +417,8 @@ let update_watch x j =
     Util.error ~section
       "Error for job from %s@ looking for %d, called by %a@\nwatched:@ @[<hov>%a@]@\nnot_watched:@ @[<hov>%a@]"
       ext.Plugin.name j.job_n Expr.Print.term x
-          CCFormat.(list ~sep:(return " ||@ ") Expr.Print.term) j.watched
-          CCFormat.(list ~sep:(return " ||@ ") Expr.Print.term) j.not_watched;
+      CCFormat.(list ~sep:(return " ||@ ") Expr.Print.term) j.watched
+      CCFormat.(list ~sep:(return " ||@ ") Expr.Print.term) j.not_watched;
     assert false
 
 let new_job ?formula id k section watched not_watched f =
@@ -461,7 +461,7 @@ let watch ?formula ext_name k args f =
   if not (List.mem tag l) then begin
     Util.debug ~section "New watch from %s, %d among:@ @[<hov>%a@]"
       Plugin.((get tag).name) k
-          CCFormat.(list ~sep:(return " ||@ ") Expr.Print.term) args;
+      CCFormat.(list ~sep:(return " ||@ ") Expr.Print.term) args;
     H.add watchers t' (tag :: l);
     split [] [] k (List.sort_uniq Expr.Term.compare args)
   end
@@ -545,7 +545,7 @@ module SolverTheory = struct
     with Absurd (l, p) ->
       clean_propagate ();
       Util.debug ~section:slice_section "Conflict(%s):@ @[<hov>%a@]"
-          p.proof_name CCFormat.(list ~sep:(return " ||@ ") Expr.Print.formula) l;
+        p.proof_name CCFormat.(list ~sep:(return " ||@ ") Expr.Print.formula) l;
       Util.exit_prof section;
       Unsat (l, p)
 
@@ -569,7 +569,7 @@ module SolverTheory = struct
     with Absurd (l, p) ->
       clean_propagate ();
       Util.debug ~section "Conflict(%s):@ @[<hov>%a@]"
-          p.proof_name CCFormat.(list ~sep:(return " ||@ ") Expr.Print.formula) l;
+        p.proof_name CCFormat.(list ~sep:(return " ||@ ") Expr.Print.formula) l;
       Util.exit_prof section;
       Msat.Plugin_intf.Unsat (l, p)
 
@@ -580,7 +580,7 @@ module SolverTheory = struct
     try
       let res = Expr.Term.assign t in
       Util.debug ~section "%a ->@ @[<hov>%a@]"
-          Expr.Print.term t Expr.Print.term res;
+        Expr.Print.term t Expr.Print.term res;
       Util.exit_prof section;
       res
     with Expr.Cannot_assign _ ->
