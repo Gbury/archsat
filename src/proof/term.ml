@@ -421,7 +421,16 @@ let f_tag = Tag.create ()           (** Formula translation need to get into acc
                                         is ignored when comparing formulas), so a hashtable
                                         cannot be used, hence the tag for caching. *)
 
+(* Callback for inferred identifiers *)
+type callback = id -> unit
+type 'a translator = ?callback:callback -> 'a -> t
+
 (** Traps force translation of given types and terms *)
+let trap_id key v =
+  Util.debug ~section "id translation: %a --> %a"
+    Expr.Print.id key Expr.Print.id v;
+  Expr.Id.tag key tr_tag v
+
 let trap_ty key v =
   Util.debug ~section "trap: %a --> %a"
     Expr.Print.ty key print v;
@@ -433,105 +442,110 @@ let trap_term key v =
   Hterm.add term_cache key v
 
 (* Id translation *)
-let of_id tr id =
+let of_id_aux tr ?callback id =
   Util.debug ~section "translate id: %a" Expr.Print.id id;
   match Expr.Id.get_tag id tr_tag with
   | Some v ->
     Util.debug ~section "cached value: %a" Expr.Print.id v;
     v
   | None ->
-    let ty = tr id.Expr.id_type in
+    let ty = tr ?callback id.Expr.id_type in
     let v = Expr.Id.mk_new id.Expr.id_name ty in
     let () = Expr.Id.tag id tr_tag v in
+    let () = match callback with Some f -> f v | None -> () in
     Util.debug ~section "new cached id: %a" Expr.Print.id v;
     v
 
-let of_function_descr tr tr' fd =
+let of_id tr ?callback id = const (of_id_aux tr ?callback id)
+
+let of_function_descr tr tr' ?callback fd =
   let rec aux_vars body = function
     | [] -> body
-    | v :: r -> aux_vars (pi (of_id tr v) body) r
+    | v :: r -> aux_vars (pi (of_id_aux ?callback tr v) body) r
   and aux_args vars body = function
     | [] -> aux_vars body vars
-    | ty :: r -> aux_args vars (arrow (tr' ty) body) r
+    | ty :: r -> aux_args vars (arrow (tr' ?callback ty) body) r
   in
   aux_args
     (List.rev fd.Expr.fun_vars)
-    (tr' fd.Expr.fun_ret)
+    (tr' ?callback fd.Expr.fun_ret)
     (List.rev fd.Expr.fun_args)
 
 (* Base cases for translation. *)
-let of_unit _ = assert false
+let of_unit ?callback _ = assert false
 
-let of_ttype Expr.Type = _Type
+let of_ttype ?callback Expr.Type = _Type
 
 (* Type translation *)
-let rec of_ty_aux = function
+let rec of_ty_aux ?callback = function
   | ty when Expr.Ty.equal Expr.Ty.prop ty ->
     (* TODO: emit implicit declaration of $o *)
     _Prop
-  | { Expr.ty = Expr.TyVar v } -> const @@ of_id of_ttype v
+  | { Expr.ty = Expr.TyVar v } -> of_id ?callback of_ttype v
   | { Expr.ty = Expr.TyMeta m } -> of_ty Synth.ty
   | { Expr.ty = Expr.TyApp (f, l) } ->
-    let f' = of_id (of_function_descr of_unit of_ttype) f in
+    let f' = of_id ?callback (of_function_descr of_unit of_ttype) f in
     let l' = List.map of_ty l in
-    apply (const f') l'
+    apply f' l'
 
-and of_ty ty =
+and of_ty ?callback ty =
   Util.debug ~section "translate ty: %a" Expr.Print.ty ty;
   match Hty.find ty_cache ty with
   | res ->
     Util.debug ~section "cached value: %a" print res;
     res
   | exception Not_found ->
-    let res = of_ty_aux ty in
+    let res = of_ty_aux ?callback ty in
     let () = Hty.add ty_cache ty res in
     Util.debug ~section "new cached ty: %a" print res;
     res
 
 (* Term translation *)
-let rec of_term_aux = function
-       | { Expr.term = Expr.Var v } -> const @@ of_id of_ty v
-       | { Expr.term = Expr.Meta m } -> of_term @@ Synth.term Expr.(m.meta_id.id_type)
-       | { Expr.term = Expr.App (f, tys, args) } ->
-         let f' = of_id (of_function_descr of_ttype of_ty) f in
-         let tys' = List.map of_ty tys in
-         let args' = List.map of_term args in
-         apply (apply (const f') tys') args'
+let rec of_term_aux ?callback = function
+  | { Expr.term = Expr.Var v } ->
+    of_id ?callback of_ty v
+  | { Expr.term = Expr.Meta m } ->
+    of_term ?callback (Synth.term Expr.(m.meta_id.id_type))
+  | { Expr.term = Expr.App (f, tys, args) } ->
+    let f' = of_id ?callback (of_function_descr of_ttype of_ty) f in
+    let tys' = List.map (of_ty ?callback) tys in
+    let args' = List.map (of_term ?callback) args in
+    apply (apply f' tys') args'
 
-and of_term t =
+and of_term ?callback t =
   Util.debug ~section "translate term: %a" Expr.Print.term t;
   match Hterm.find term_cache t with
   | res ->
     Util.debug ~section "cached result: %a" print res;
     res
   | exception Not_found ->
-    let res = of_term_aux t in
+    let res = of_term_aux ?callback t in
     let () = Hterm.add term_cache t res in
     Util.debug ~section "new cached term: %a" print res;
     res
 
 (* Formula translation *)
-let rec of_formula f =
+let rec of_formula ?callback f =
   Util.debug ~section "translate formula: %a" Expr.Print.formula f;
   match Expr.Formula.get_tag f f_tag with
   | Some t ->
     Util.debug ~section "cached result: %a" print t;
     t
   | None ->
-    let t = of_formula_aux f in
+    let t = of_formula_aux ?callback f in
     Expr.Formula.tag f f_tag t;
     Util.debug ~section "new cached formula: %a" print t;
     t
 
-and of_formula_aux f =
+and of_formula_aux ?callback f =
   match f.Expr.formula with
   | Expr.True -> true_term
   | Expr.False -> false_term
   | Expr.Pred p ->
-    of_term p
+    of_term ?callback p
   | Expr.Equal (x, y) ->
-    let x' = of_term x in
-    let y' = of_term y in
+    let x' = of_term ?callback x in
+    let y' = of_term ?callback y in
     let ty = x'.ty in
     let a, b =
       match CCOpt.get_exn @@ Expr.Formula.get_tag f Expr.t_order with
@@ -541,32 +555,32 @@ and of_formula_aux f =
     apply equal_term [ty; a; b]
 
   | Expr.Not f' ->
-    app not_term (of_formula f')
+    app not_term (of_formula ?callback f')
   | Expr.Imply (p, q) ->
-    apply imply_term [of_formula p; of_formula q]
+    apply imply_term [of_formula ?callback p; of_formula ?callback q]
   | Expr.Equiv (p, q) ->
-    apply equiv_term [of_formula p; of_formula q]
+    apply equiv_term [of_formula ?callback p; of_formula ?callback q]
 
   | Expr.Or _ ->
     let order = CCOpt.get_exn @@ Expr.Formula.get_tag f Expr.f_order in
-    of_tree or_term order
+    of_tree ?callback or_term order
   | Expr.And l ->
     let order = CCOpt.get_exn @@ Expr.Formula.get_tag f Expr.f_order in
-    of_tree and_term order
+    of_tree ?callback and_term order
 
   | Expr.All (l, _, body) ->
-    foralls (List.map (of_id of_ty) l) (of_formula body)
+    foralls (List.map (of_id_aux ?callback of_ty) l) (of_formula ?callback body)
   | Expr.AllTy (l, _, body) ->
-    foralls (List.map (of_id of_ttype) l) (of_formula body)
+    foralls (List.map (of_id_aux ?callback of_ttype) l) (of_formula ?callback body)
 
   | Expr.Ex (l, _, body) ->
-    exists (List.map (of_id of_ty) l) (of_formula body)
+    exists (List.map (of_id_aux ?callback of_ty) l) (of_formula ?callback body)
   | Expr.ExTy (l, _, body) ->
-    exists (List.map (of_id of_ttype) l) (of_formula body)
+    exists (List.map (of_id_aux ?callback of_ttype) l) (of_formula ?callback body)
 
-and of_tree t = function
-  | Expr.F f -> of_formula f
-  | Expr.L l -> apply_left t @@ List.map (of_tree t) l
+and of_tree ?callback t = function
+  | Expr.F f -> of_formula ?callback f
+  | Expr.L l -> apply_left t @@ List.map (of_tree ?callback t) l
 
 
 

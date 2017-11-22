@@ -64,16 +64,23 @@ val print : Format.formatter -> t -> unit
 
 (** {2 Term translation} *)
 
-val of_ty : Expr.ty -> t
-val of_term : Expr.term -> t
-val of_formula : Expr.formula -> t
-val of_id : ('a -> t) -> 'a Expr.id -> id
-val of_function_descr : ('a -> t ) -> ('b -> t) -> ('a, 'b) Expr.function_descr -> t
+type callback = id -> unit
+type 'a translator = ?callback:callback -> 'a -> t
+(** Type for callbacks and translators.
+    Callbacks are called on every identifier inferred during translation. *)
+
+val of_ty : Expr.ty translator
+val of_term : Expr.term translator
+val of_formula : Expr.formula translator
+val of_id : 'a translator -> 'a Expr.id translator
+val of_function_descr :
+  'a translator -> 'b translator -> ('a, 'b) Expr.function_descr translator
 (** Translating functions *)
 
+val trap_id : _ Expr.id -> id -> unit
 val trap_ty : Expr.ty -> t -> unit
 val trap_term : Expr.term -> t -> unit
-(** Force translation for gien types and terms. *)
+(** Force translation for given types and terms. *)
 
 
 (** {2 Term creation} *)
