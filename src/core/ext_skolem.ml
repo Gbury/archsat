@@ -72,8 +72,11 @@ and find_all_deps (tys, ts) l l' =
     List.fold_left find_deps_term (
       List.fold_left find_deps_ty (tys, ts) l) l'
 
+let tau_counter = ref 0
+
 let gen_ty_tau ty_args t_args v =
-  let v' = Expr.(Id.ty_fun ("t_" ^ v.id_name) 0) in
+  let () = incr tau_counter in
+  let v' = Expr.(Id.ty_fun (Format.sprintf "t%d" !tau_counter) 0) in
   let (tys, ts) = find_all_deps (Sty.empty, Sterm.empty) ty_args t_args in
   let res = Expr.Ty.apply v' [] in
   let () = Expr.Ty.tag res deps (tys, ts) in
@@ -87,7 +90,8 @@ let gen_ty_skolem ty_args t_args v =
   res
 
 let gen_term_tau ty_args t_args v =
-  let v' = Expr.(Id.term_fun ("t_" ^ v.id_name) [] [] v.id_type) in
+  let () = incr tau_counter in
+  let v' = Expr.(Id.term_fun (Format.sprintf "t%d" !tau_counter) [] [] v.id_type) in
   let (tys, ts) = find_all_deps (Sty.empty, Sterm.empty) ty_args t_args in
   let res = Expr.Term.apply v' [] [] in
   let () = Expr.Term.tag res deps (tys, ts) in
