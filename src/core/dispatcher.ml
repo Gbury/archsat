@@ -516,7 +516,7 @@ module SolverTheory = struct
   let current_level () = Backtrack.Stack.level stack
 
   let backtrack lvl =
-    Util.debug ~section "Backtracking";
+    Util.debug ~section:slice_section "Backtracking";
     incr last_backtrack;
     Stack.clear propagate_stack;
     Backtrack.Stack.backtrack stack lvl

@@ -516,7 +516,7 @@ let assume f =
       Util.debug ~section "@[<hov 2>Failed to detect rewrite rule with:@ %a@]"
         Expr.Print.formula f;
     | Some r ->
-      Util.info ~section "@[<hov 2>Detected a new rewrite rule:@ %a@]"
+      Util.debug ~section "@[<hov 2>Detected a new rewrite rule:@ %a@]"
         (print_rule Expr.Print.term) r;
       add_rule r
   in
