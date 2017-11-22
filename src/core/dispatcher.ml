@@ -256,11 +256,17 @@ let mk_proof =
 let push_stack = Stack.create ()
 let propagate_stack = Stack.create ()
 
-let push clause p  =
-  Util.debug ~section:slice_section "New clause to push (%s):@ @[<hov>%a@]"
-    p.proof_name
-        CCFormat.(list ~sep:(return " ||@ ") Expr.Print.formula) clause;
-  Stack.push (clause, p) push_stack
+let push clause p =
+  if List.exists (Expr.Formula.equal Expr.Formula.f_true) clause then
+    Util.debug ~section:slice_section "Ignoring trivial new clause (%s):@ @[<hov>%a@]"
+      p.proof_name
+      CCFormat.(list ~sep:(return " ||@ ") Expr.Print.formula) clause
+  else begin
+    Util.debug ~section:slice_section "New clause to push (%s):@ @[<hov>%a@]"
+      p.proof_name
+      CCFormat.(list ~sep:(return " ||@ ") Expr.Print.formula) clause;
+    Stack.push (clause, p) push_stack
+  end
 
 let propagate f l =
   Stack.push (f, Msat.Plugin_intf.Eval l) propagate_stack
