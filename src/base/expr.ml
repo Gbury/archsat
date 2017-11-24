@@ -1274,22 +1274,22 @@ module Formula = struct
     | All (l, (ty, t), p) ->
       let l', t_map = new_binder_subst ty_vmap ty_mmap t_vmap [] l in
       List.iter2 Id.copy_term_skolem l l';
-      let tys = List.map (Ty.subst ty_vmap ty_mmap) ty in
-      let ts = List.map (Term.subst ty_vmap ty_mmap t_vmap t_mmap) t in
+      let tys = List.map (Ty.subst ~fix ty_vmap ty_mmap) ty in
+      let ts = List.map (Term.subst ~fix ty_vmap ty_mmap t_map t_mmap) t in
       mk_formula (All (l', (tys, ts), (subst_aux ~fix ty_vmap ty_mmap t_map t_mmap f_vmap f_mmap p)))
     | Ex (l, (ty, t), p) ->
       let l', t_map = new_binder_subst ty_vmap ty_mmap t_vmap [] l in
       List.iter2 Id.copy_term_skolem l l';
-      let tys = List.map (Ty.subst ty_vmap ty_mmap) ty in
-      let ts = List.map (Term.subst ty_vmap ty_mmap t_vmap t_mmap) t in
+      let tys = List.map (Ty.subst ~fix ty_vmap ty_mmap) ty in
+      let ts = List.map (Term.subst ~fix ty_vmap ty_mmap t_map t_mmap) t in
       mk_formula (Ex (l', (tys, ts), (subst_aux ~fix ty_vmap ty_mmap t_map t_mmap f_vmap f_mmap p)))
     | AllTy (l, (ty, t), p) ->
       assert (t = []);
-      let tys = List.map (Ty.subst ty_vmap ty_mmap) ty in
+      let tys = List.map (Ty.subst ~fix ty_vmap ty_mmap) ty in
       mk_formula (AllTy (l, (tys, t), (subst_aux ~fix ty_vmap ty_mmap t_vmap t_mmap f_vmap f_mmap p)))
     | ExTy (l, (ty, t), p) ->
       assert (t = []);
-      let tys = List.map (Ty.subst ty_vmap ty_mmap) ty in
+      let tys = List.map (Ty.subst ~fix ty_vmap ty_mmap) ty in
       mk_formula (ExTy (l, (tys, t), (subst_aux ~fix ty_vmap ty_mmap t_vmap t_mmap f_vmap f_mmap p)))
 
   let subst ?(fix=true)
