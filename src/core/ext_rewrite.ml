@@ -211,16 +211,14 @@ type 'a rule = {
   manual   : bool;
   trigger  : 'a trigger;
   guards   : guard list;
-  result   : Expr.formula;
   formula  : Expr.formula;
 }
 
 let _nb_rules = ref 0
 
-let mk ?(guards=[]) manual trigger result =
-  let formula = result in
+let mk ?(guards=[]) manual trigger formula =
   let () = incr _nb_rules in
-  { id = !_nb_rules; manual; trigger; guards; result; formula; }
+  { id = !_nb_rules; manual; trigger; guards; formula; }
 
 let map_trigger f rule =
   { rule with trigger = f rule.trigger }
@@ -242,14 +240,12 @@ let print_rule_id fmt r =
   Format.fprintf fmt "%s%d" (if r.manual then "~" else "#") r.id
 
 let print_rule
-    ?(term=Expr.Print.term)
-    ?(formula=Expr.Print.formula) pp
-    fmt ({ trigger; result; guards; _ } as r) =
-  Format.fprintf fmt "@[<hov 2>%a%a@ %a ↦@ %a@]"
+    ?(term=Expr.Print.term) pp
+    fmt ({ trigger; guards; _ } as r) =
+  Format.fprintf fmt "@[<hov 2>%a%a@ %a@]"
     print_rule_id r
     (print_guards ~term) guards
     (print_trigger pp) trigger
-    formula result
 
 let print_matching_aux fmt (t, s) =
   Format.fprintf fmt "@[<hov>%a@ =?@[<hv>%a@]@]"
@@ -296,53 +292,53 @@ let parse_guards = function
 (* Parse manually oriented rules *)
 let parse_manual_rule = function
   (* Standard rewrite rules *)
-  | ({ Expr.formula = Expr.Equal (a, b) } as result) ->
+  | ({ Expr.formula = Expr.Equal (a, b) } as f) ->
     let trigger =
-      match Expr.Formula.get_tag result Expr.t_order with
+      match Expr.Formula.get_tag f Expr.t_order with
       | None -> assert false
       | Some Expr.Same -> a
       | Some Expr.Inverse -> b
     in
-    Some (mk true (Single trigger) result)
-  | ({ Expr.formula = Expr.Equiv ({ Expr.formula = Expr.Equal (a, b) }, _) } as result) ->
-    Some (mk true (Equal (a, b)) result)
-  | ({ Expr.formula = Expr.Equiv ({ Expr.formula = Expr.Pred trigger }, _) } as result) ->
-    Some (mk true (Single trigger) result)
+    Some (mk true (Single trigger) f)
+  | ({ Expr.formula = Expr.Equiv ({ Expr.formula = Expr.Equal (a, b) }, _) } as f) ->
+    Some (mk true (Equal (a, b)) f)
+  | ({ Expr.formula = Expr.Equiv ({ Expr.formula = Expr.Pred trigger }, _) } as f) ->
+    Some (mk true (Single trigger) f)
 
   (* Conditional rewriting *)
   | { Expr.formula = Expr.Imply (
       cond,
       (* Rewrite rule *)
-      (({ Expr.formula = Expr.Equal (trigger, _) } as result)
+      (({ Expr.formula = Expr.Equal (trigger, _) } as f)
       |({ Expr.formula = Expr.Equiv (
-            { Expr.formula = Expr.Pred trigger }, _) } as result)))} ->
-    CCOpt.map (fun guards -> mk ~guards true (Single trigger) result) (parse_guards cond)
+            { Expr.formula = Expr.Pred trigger }, _) } as f)))} ->
+    CCOpt.map (fun guards -> mk ~guards true (Single trigger) f) (parse_guards cond)
 
   (* Polarised rewrite as a conditional rule *)
-  | { Expr.formula = Expr.Imply ({ Expr.formula = Expr.Pred trigger }, result) } ->
-    Some (mk ~guards:[Pred trigger] true (Single trigger) result)
+  | { Expr.formula = Expr.Imply ({ Expr.formula = Expr.Pred trigger }, f) } ->
+    Some (mk ~guards:[Pred trigger] true (Single trigger) f)
 
   (* Not a rewrite rule, :p *)
   | _ -> None
 
 let rec parse_rule_aux = function
   (* Equality&Equivalence as rewriting *)
-  | ({ Expr.formula = Expr.Equal (a, b) } as result)
+  | ({ Expr.formula = Expr.Equal (a, b) } as f)
   | ({ Expr.formula = Expr.Equiv (
          { Expr.formula = Expr.Pred a },
-         { Expr.formula = Expr.Pred b })} as result) ->
+         { Expr.formula = Expr.Pred b })} as f) ->
     begin match Lpo.compare a b with
       | Comparison.Incomparable
       | Comparison.Eq -> None
-      | Comparison.Lt -> Some (mk false (Single b) result)
-      | Comparison.Gt -> Some (mk false (Single a) result)
+      | Comparison.Lt -> Some (mk false (Single b) f)
+      | Comparison.Gt -> Some (mk false (Single a) f)
     end
 
   (* Polarised rewrite rule as conditional rewrite *)
   | { Expr.formula = Expr.Imply ({ Expr.formula = Expr.Pred trigger },
-                                 ({ Expr.formula = Expr.Pred p } as result))} ->
+                                 ({ Expr.formula = Expr.Pred p } as f))} ->
     begin match Lpo.compare trigger p with
-      | Comparison.Gt -> Some (mk false (Single trigger) result)
+      | Comparison.Gt -> Some (mk false (Single trigger) f)
       | Comparison.Lt | Comparison.Eq
       | Comparison.Incomparable ->
         None
@@ -387,12 +383,11 @@ let instanciate rule subst =
   let pp fmt t = Expr.Print.term fmt t in
   Util.debug ~section "@[<hov 2>Instanciate %a@ with@ %a"
     (print_rule pp) rule Mapping.print subst;
-  let res = Mapping.apply_formula subst rule.result in
   match rule.guards with
   | [] ->
     (* Instantiate the rule *)
-    Dispatcher.consequence res [rule.formula]
-      (Dispatcher.mk_proof name "rewrite" (Rewrite (Inst (rule, subst))))
+    let clause, lemma = Inst.soft_subst rule.formula subst in
+    Dispatcher.push clause lemma
   | guards ->
     let l = List.map (map_guard (Mapping.apply_term subst)) guards in
     let watched = CCList.flat_map guard_to_list l in
@@ -402,9 +397,8 @@ let instanciate rule subst =
       (fun () ->
          let l' = List.map (map_guard Dispatcher.get_assign) l in
          if List.for_all check_guard l' then begin
-           Dispatcher.consequence res
-             (rule.formula :: List.map guard_to_formula l)
-             (Dispatcher.mk_proof name "rewrite_cond" (Rewrite (Inst (rule, subst))))
+           let clause, lemma = Inst.soft_subst rule.formula subst in
+           Dispatcher.push clause lemma
          end
       )
 
@@ -502,7 +496,6 @@ let dot_info = function
       CCFormat.const (
         print_rule
           ~term:Dot.Print.term
-          ~formula:Dot.Print.formula
           Dot.Print.term) r;
     ]
 
