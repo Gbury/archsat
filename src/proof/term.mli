@@ -69,10 +69,17 @@ type 'a translator = ?callback:callback -> 'a -> t
 (** Type for callbacks and translators.
     Callbacks are called on every identifier inferred during translation. *)
 
+val of_unit : unit translator
+val of_ttype : Expr.ttype translator
 val of_ty : Expr.ty translator
 val of_term : Expr.term translator
 val of_formula : Expr.formula translator
-val of_id : 'a translator -> 'a Expr.id translator
+(** Translating expressions into terms. *)
+
+val of_id :
+  'a translator -> 'a Expr.id translator
+val of_id_aux :
+  'a translator -> ?callback:callback -> 'a Expr.id -> id
 val of_function_descr :
   'a translator -> 'b translator -> ('a, 'b) Expr.function_descr translator
 (** Translating functions *)

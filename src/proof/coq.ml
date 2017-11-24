@@ -46,8 +46,6 @@ module Print = struct
           end) in
     Escape.mk ~lang:"coq" ~name ~escape ~rename
 
-  let dolmen fmt id = Escape.dolmen t fmt id
-
   let id fmt v = Escape.id t fmt v
 
   let is_equal = Term.equal Term.equal_term
@@ -119,20 +117,14 @@ module Print = struct
 
 end
 
-(*
 (* Printing contexts *)
 (* ************************************************************************ *)
 
-let declare_ty fmt f =
-  Format.fprintf fmt "Parameter %a.@." Print.const_ttype f
+let declare_id fmt id =
+  Format.fprintf fmt "Parameter %a : %a.@."
+    Print.id id Print.term id.Expr.id_type
 
-let declare_term fmt f =
-  Format.fprintf fmt "Parameter %a.@." Print.const_ty f
-
-let print_hyp fmt (id, l) =
-  Format.fprintf fmt "Axiom %a : @[<hov>%a@].@." Print.dolmen id
-    CCFormat.(list ~sep:(return {|@ \/@ |}) Print.formula) l
-
+(*
 (* Coq tactic helpers *)
 (* ************************************************************************ *)
 
