@@ -3,7 +3,7 @@
 *)
 
 (*
-let section = Util.Section.make "expr"
+let section = Section.make "expr"
 *)
 
 (* Type definitions *)
