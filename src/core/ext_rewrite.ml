@@ -231,6 +231,8 @@ let mk ?(guards=[]) manual trigger formula =
   let () = incr _nb_rules in
   { id = !_nb_rules; manual; trigger; guards; formula; }
 
+let hash_rule r = r.id
+
 let add_guards guards rule =
   { rule with guards = guards @ rule.guards }
 
@@ -397,28 +399,34 @@ type Dispatcher.lemma_info += Rewrite of lemma_info
 (* Instantiate rewrite rules *)
 (* ************************************************************************ *)
 
+let insts = CCCache.unbounded 4013
+    ~hash:(CCHash.pair hash_rule Mapping.hash)
+    ~eq:(fun (r, m) (r', m') -> r.id = r'.id && Mapping.equal m m')
+
 let instanciate rule subst =
-  let pp fmt t = Expr.Print.term fmt t in
-  Util.debug ~section "@[<hov 2>Instanciate %a@ with@ %a"
-    (print_rule pp) rule Mapping.print subst;
-  match rule.guards with
-  | [] ->
-    (* Instantiate the rule *)
-    let clause, lemma = Inst.soft_subst rule.formula subst in
-    Dispatcher.push clause lemma
-  | guards ->
-    let l = List.map (map_guard (Mapping.apply_term subst)) guards in
-    let watched = CCList.flat_map guard_to_list l in
-    (* Add a watch to instantiate the rule when the condition is true *)
-    (* TODO: make sure the function is called only once *)
-    Dispatcher.watch ~formula:rule.formula name 1 watched
-      (fun () ->
-         let l' = List.map (map_guard Dispatcher.get_assign) l in
-         if List.for_all check_guard l' then begin
-           let clause, lemma = Inst.soft_subst rule.formula subst in
-           Dispatcher.push clause lemma
-         end
-      )
+  CCCache.with_cache insts (fun (rule, subst) ->
+      let pp fmt t = Expr.Print.term fmt t in
+      Util.debug ~section "@[<hov 2>Instanciate %a@ with@ %a"
+        (print_rule pp) rule Mapping.print subst;
+      match rule.guards with
+      | [] ->
+        (* Instantiate the rule *)
+        let clause, lemma = Inst.soft_subst rule.formula subst in
+        Dispatcher.push clause lemma
+      | guards ->
+        let l = List.map (map_guard (Mapping.apply_term subst)) guards in
+        let watched = CCList.flat_map guard_to_list l in
+        (* Add a watch to instantiate the rule when the condition is true *)
+        (* TODO: make sure the function is called only once *)
+        Dispatcher.watch ~formula:rule.formula name 1 watched
+          (fun () ->
+             let l' = List.map (map_guard Dispatcher.get_assign) l in
+             if List.for_all check_guard l' then begin
+               let clause, lemma = Inst.soft_subst rule.formula subst in
+               Dispatcher.push clause lemma
+             end
+          )
+    ) (rule, subst)
 
 let match_and_instantiate (rule, l) =
   Util.debug ~section "@[<hv 2>Matching rule %a:@ %a"
@@ -461,16 +469,16 @@ let callback_term t =
 let callback_rule r =
   Util.debug ~section "New rule introduced";
   let aux = function
-  (** A rewrite rule with a single var as trigger is impossile:
-      wth a left side consisting of a single variable,
-      what term on the right side of the rule could possibly be smaller ?
-      on the other hand, it might be one part of a bigger trigger (such as (x = y)) *)
+    (** A rewrite rule with a single var as trigger is impossile:
+        wth a left side consisting of a single variable,
+        what term on the right side of the rule could possibly be smaller ?
+        on the other hand, it might be one part of a bigger trigger (such as (x = y)) *)
     | { Expr.term = Expr.Var _; t_type } -> T.elements @@ find_all_indexed t_type
-  (** A trigger that consist of a single meta does not contain variable,
-      thus has no reason to be a rewrite rule... *)
-  | { Expr.term = Expr.Meta _ } -> assert false
-  (** Rewrite rules trigger starts with an application, we can work with that. *)
-  | { Expr.term = Expr.App (f, _, _) } -> T.elements @@ find_indexed f
+    (** A trigger that consist of a single meta does not contain variable,
+        thus has no reason to be a rewrite rule... *)
+    | { Expr.term = Expr.Meta _ } -> assert false
+    (** Rewrite rules trigger starts with an application, we can work with that. *)
+    | { Expr.term = Expr.App (f, _, _) } -> T.elements @@ find_indexed f
   in
   let l = match r.trigger with
     | Single t -> [t, aux t]
