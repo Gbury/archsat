@@ -483,7 +483,7 @@ let opts =
         "Comme-separated list of tags to use to decide wether ignoring some formulas.
          Any formula marked by a tag in this list will be igored.
          Each tag may be %s" (Cmdliner.Arg.doc_alts_enum ~quoted:true tag_list) in
-    Cmdliner.Arg.(value & opt (list tag_conv) [] & info ["meta.ignore"] ~docs ~doc)
+    Cmdliner.Arg.(value & opt (list tag_conv) [Ext_rewrite.tag] & info ["meta.ignore"] ~docs ~doc)
   in
   let set_opts
       ignore_list heur start max inst incr delay
