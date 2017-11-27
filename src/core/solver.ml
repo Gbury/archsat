@@ -212,8 +212,8 @@ module Model = struct
 
   type t = model
 
-  let rec print_aux fmt t =
-    let rec aux u v =
+  let print_aux fmt t =
+    let aux u v =
       Format.fprintf fmt "%a -> %a;@ "
         Expr.Term.print u Expr.Term.print v
     in

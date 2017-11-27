@@ -71,6 +71,7 @@ module Print = struct
           Format.fprintf fmt "@[<hov 2>(%a)@]" (CCFormat.list ~sep ty) l
       end
 
+  (*
   let params fmt = function
     | [] -> ()
     | l -> Format.fprintf fmt "∀ @[<hov>%a@].@ "
@@ -84,6 +85,7 @@ module Print = struct
 
   let fun_ty = signature ty
   let fun_ttype = signature ttype
+  *)
 
   let id_pretty fmt v =
     match Tag.get v.id_tags Print.pos with
