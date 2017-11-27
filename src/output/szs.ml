@@ -20,6 +20,8 @@ let print_unknown fmt opt = print_status opt fmt "Unknown"
 let print_timeout fmt opt = print_status opt fmt "TimeOut"
 let print_spaceout fmt opt = print_status opt fmt "MemoryOut"
 
-let print_exn opt fmt exn =
-  Format.fprintf fmt "%a@." (print_res opt) "Error"
+let print_exn opt fmt = function
+  | Options.Out_of_time -> print_status opt fmt "TimeOut"
+  | Options.Out_of_space -> print_status opt fmt "MemoryOut"
+  | _ -> Format.fprintf fmt "%a@." (print_res opt) "Error"
 

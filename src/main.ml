@@ -82,7 +82,7 @@ let () =
                 | Options.Sigint
                 | Options.Out_of_time
                 | Options.Out_of_space ->
-                  Out.print_exn opt Format.err_formatter exn;
+                  Format.printf "%a@." (Out.print_exn opt) exn;
                   opt
                 | _ ->
                   Util.error "%a" (Out.print_exn opt) exn;
