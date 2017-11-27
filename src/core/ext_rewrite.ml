@@ -164,29 +164,37 @@ let match_modulo = match_modulo_aux [Mapping.empty]
 (* ************************************************************************ *)
 
 type guard =
-  | Pred of Expr.term
+  | Pred_true of Expr.term
+  | Pred_false of Expr.term
   | Eq of Expr.term * Expr.term
 
 let print_guard ?(term=Expr.Print.term) fmt = function
-  | Pred p ->
+  | Pred_true p ->
     Format.fprintf fmt "%a" term p
+  | Pred_false p ->
+    Format.fprintf fmt "~ %a" term p
   | Eq (a, b) ->
     Format.fprintf fmt "%a=%a" term a term b
 
 let map_guard f = function
-  | Pred p -> Pred (f p)
+  | Pred_true p -> Pred_true (f p)
+  | Pred_false p -> Pred_false (f p)
   | Eq (a, b) -> Eq (f a, f b)
 
 let guard_to_list = function
-  | Pred p -> [p]
+  | Pred_true p -> [p]
+  | Pred_false p -> [p]
   | Eq (a, b) -> [a; b]
 
+(*
 let guard_to_formula = function
   | Pred p -> Expr.Formula.pred p
   | Eq (a, b) -> Expr.Formula.eq a b
+*)
 
 let check_guard = function
-  | Pred p -> Expr.Term.equal p Builtin.Misc.p_true
+  | Pred_true p -> Expr.Term.equal p Builtin.Misc.p_true
+  | Pred_false p -> Expr.Term.equal p Builtin.Misc.p_false
   | Eq (a, b) -> Expr.Term.equal a b
 
 (* Rewrite rules triggers *)
@@ -196,9 +204,11 @@ type 'a trigger =
   | Single of 'a
   | Equal of 'a * 'a
 
+(*
 let trigger_map f = function
   | Single x -> Single (f x)
   | Equal (x, y) -> Equal (f x, f y)
+*)
 
 let print_trigger pp fmt = function
   | Single x -> pp fmt x
@@ -221,9 +231,6 @@ let mk ?(guards=[]) manual trigger formula =
   let () = incr _nb_rules in
   { id = !_nb_rules; manual; trigger; guards; formula; }
 
-let map_trigger f rule =
-  { rule with trigger = f rule.trigger }
-
 let add_guards guards rule =
   { rule with guards = guards @ rule.guards }
 
@@ -241,12 +248,14 @@ let print_rule_id fmt r =
   Format.fprintf fmt "%s%d" (if r.manual then "~" else "#") r.id
 
 let print_rule
-    ?(term=Expr.Print.term) pp
-    fmt ({ trigger; guards; _ } as r) =
-  Format.fprintf fmt "@[<hov 2>%a%a@ %a@]"
+    ?(term=Expr.Print.term)
+    ?(formula=Expr.Print.formula)
+    pp fmt ({ trigger; guards; formula = f; _ } as r) =
+  Format.fprintf fmt "@[<hv 2>%a@ %a@ %a@ (%a)@]"
     print_rule_id r
     (print_guards ~term) guards
     (print_trigger pp) trigger
+    formula f
 
 let print_matching_aux fmt (t, s) =
   Format.fprintf fmt "@[<hov>%a@ =?@[<hv>%a@]@]"
@@ -280,7 +289,10 @@ let allow_mixed = ref false
 
 (* Parse an arbitrary formula as a rewrite rule *)
 let parse_guard = function
-  | { Expr.formula = Expr.Pred p } -> Some (Pred p)
+  | { Expr.formula = Expr.Pred p } ->
+    Some (Pred_true p)
+  | { Expr.formula = Expr.Not { Expr.formula = Expr.Pred p } } ->
+    Some (Pred_false p)
   | { Expr.formula = Expr.Equal (a, b) } -> Some (Eq (a, b))
   | _ -> None
 
@@ -317,7 +329,10 @@ let parse_manual_rule = function
 
   (* Polarised rewrite as a conditional rule *)
   | { Expr.formula = Expr.Imply ({ Expr.formula = Expr.Pred trigger }, f) } ->
-    Some (mk ~guards:[Pred trigger] true (Single trigger) f)
+    Some (mk ~guards:[Pred_true trigger] true (Single trigger) f)
+  | { Expr.formula = Expr.Imply (
+      { Expr.formula = Expr.Not { Expr.formula = Expr.Pred trigger } }, f) } ->
+    Some (mk ~guards:[Pred_false trigger] true (Single trigger) f)
 
   (* Not a rewrite rule, :p *)
   | _ -> None
@@ -336,11 +351,12 @@ let rec parse_rule_aux = function
     end
 
   (* Polarised rewrite rule as conditional rewrite *)
-  | { Expr.formula = Expr.Imply ({ Expr.formula = Expr.Pred trigger },
-                                 ({ Expr.formula = Expr.Pred p } as f))} ->
-    begin match Lpo.compare trigger p with
-      | Comparison.Gt -> Some (mk false (Single trigger) f)
-      | Comparison.Lt | Comparison.Eq
+  | { Expr.formula = Expr.Imply ({ Expr.formula = Expr.Pred p },
+                                 ({ Expr.formula = Expr.Pred q } as f))} ->
+    begin match Lpo.compare p q with
+      | Comparison.Gt -> Some (mk ~guards:[Pred_true p] false (Single p) f)
+      | Comparison.Lt -> Some (mk ~guards:[Pred_false q] false (Single q) f)
+      | Comparison.Eq
       | Comparison.Incomparable ->
         None
     end
@@ -367,7 +383,6 @@ let parse_rule = function
             Expr.Print.formula r;
         None
       | Some rule ->
-        Expr.Formula.tag formula tag true;
         Some (set_formula formula rule)
     end
   | _ -> None
@@ -512,6 +527,7 @@ let assume f =
       Util.debug ~section "@[<hov 2>Failed to detect rewrite rule with:@ %a@]"
         Expr.Print.formula f;
     | Some r ->
+      Expr.Formula.tag f tag true;
       Util.debug ~section "@[<hov 2>Detected a new rewrite rule:@ %a@]"
         (print_rule Expr.Print.term) r;
       add_rule r
@@ -547,7 +563,7 @@ let options =
 let register () =
   add_callback callback_term;
   Ext_eq.register_callback name callback_merge;
-  Dispatcher.Plugin.register name ~options
+  Dispatcher.Plugin.register name ~options ~prio:20
     ~descr:"Detects rewrite rules and instantiate them (similarly to triggers)"
     (Dispatcher.mk_ext ~peek ~assume ~section ~handle:{Dispatcher.handle} ())
 
