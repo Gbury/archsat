@@ -34,6 +34,16 @@ let sup_simplifications = ref true
 let rigid_max_depth = ref 1
 let rigid_round_incr = ref 2
 
+(* Ignore tags. Formulas marked with
+   these tags should not be used for meta-generation. *)
+let ignore_tags = ref []
+
+let tag_list = [
+  "rwrt", Ext_rewrite.tag;
+]
+
+let tag_conv = Cmdliner.Arg.enum tag_list
+
 (* New meta delay *)
 let delay i =
   let a, b = !meta_delay in
@@ -182,6 +192,10 @@ let mk_proof_ty f vars metas q =
 let mk_proof_term f vars metas q =
   Dispatcher.mk_proof "meta" "term" (Meta (Term (f, vars, metas, q)))
 
+(* Ignored tags *)
+let ignore f =
+  List.exists (fun t -> Expr.Formula.get_tag f t = Some true) !ignore_tags
+
 (* Meta generation & predicates storing *)
 let do_formula =
   let aux = function
@@ -207,19 +221,21 @@ let do_formula =
       let q = Expr.Formula.subst ~ty_var_map:subst p in
       let q' = Expr.Formula.neg q in
       Dispatcher.push [Expr.Formula.neg f; q'] (mk_proof_ty f l metas q')
-    | _ -> ()
+    | _ -> assert false
   in function
     | ({ Expr.formula = Expr.Not { Expr.formula = Expr.ExTy _ } } as f)
     | ({ Expr.formula = Expr.Not { Expr.formula = Expr.Ex _ } } as f)
     | ({ Expr.formula = Expr.AllTy _ } as f)
     | ({ Expr.formula = Expr.All _ } as f) ->
-      let i = get_nb_metas f in
-      while !i < !meta_start do
-        incr i;
-        Util.debug ~section "start meta (%d/%d) %a"
-          !i !meta_start Expr.Print.formula f;
-        aux f
-      done
+      if not (ignore f) then begin
+        let i = get_nb_metas f in
+        while !i < !meta_start do
+          incr i;
+          Util.debug ~section "start meta (%d/%d) %a"
+            !i !meta_start Expr.Print.formula f;
+          aux f
+        done
+      end
     | _ -> ()
 
 let do_meta_inst = function
@@ -462,7 +478,17 @@ let opts =
     let doc = "Number of round to wait before increasing the depth of rigid unification." in
     Cmdliner.Arg.(value & opt int 3 & info ["meta.rigid.incr"] ~docv:"N" ~docs ~doc)
   in
-  let set_opts heur start max inst incr delay s_coef s_const s_simpl rigid_depth rigid_incr =
+  let ignore_list =
+    let doc = Format.asprintf
+        "Comme-separated list of tags to use to decide wether ignoring some formulas.
+         Any formula marked by a tag in this list will be igored.
+         Each tag may be %s" (Cmdliner.Arg.doc_alts_enum ~quoted:true tag_list) in
+    Cmdliner.Arg.(value & opt (list tag_conv) [] & info ["meta.ignore"] ~docs ~doc)
+  in
+  let set_opts
+      ignore_list heur start max inst incr delay
+      s_coef s_const s_simpl rigid_depth rigid_incr =
+    ignore_tags := ignore_list;
     heuristic_setting := heur;
     meta_start := start;
     meta_max := max;
@@ -475,7 +501,7 @@ let opts =
     rigid_max_depth := rigid_depth;
     rigid_round_incr := rigid_incr
   in
-  Cmdliner.Term.(pure set_opts $ heuristic $ start $ max $ inst $ incr $ delay $
+  Cmdliner.Term.(pure set_opts $ ignore_list $ heuristic $ start $ max $ inst $ incr $ delay $
                  sup_coef $ sup_const $ sup_simpl $ rigid_depth $ rigid_incr)
 
 let register () =

@@ -13,6 +13,7 @@ module H = Hashtbl.Make(Expr.Term)
 module M = Hashtbl.Make(Expr.Id.Const)
 
 let section = Section.make ~parent:Dispatcher.section "rwrt"
+let tag = Tag.create ()
 
 (* Callbacks on the set of known terms *)
 (* ************************************************************************ *)
@@ -369,7 +370,9 @@ let parse_rule = function
             "Following formula couldn't be parsed as a rewrite rule despite tag: %a"
             Expr.Print.formula r;
         None
-      | Some rule -> Some (set_formula formula rule)
+      | Some rule ->
+        Expr.Formula.tag formula tag true;
+        Some (set_formula formula rule)
     end
   | _ -> None
 
