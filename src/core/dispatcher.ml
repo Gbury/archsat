@@ -559,7 +559,7 @@ module SolverTheory = struct
 
   let if_sat s =
     Util.enter_prof section;
-    Util.log ~section "Iteration with complete model";
+    Util.debug ~section "Final SAT check";
     try
       send (If_sat (if_sat_iter s));
       assert (Stack.is_empty propagate_stack);

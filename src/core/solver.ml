@@ -156,7 +156,7 @@ let rec solve_aux
         Dispatcher.send Restarting;
         solve_aux ?export ~check_model ~check_proof ()
       | Assume assumptions ->
-        Util.info ~section "New assumptions:@ @[<hov>%a@]"
+        Util.debug ~section "New assumptions:@ @[<hov>%a@]"
           CCFormat.(list ~sep:(return " &&@ ") Expr.Print.formula) assumptions;
         solve_aux ?export ~check_model ~check_proof ~assumptions ()
     end
@@ -191,7 +191,7 @@ let assume ~solve id l =
   let tag, id = add_hyp id l in
   if solve then begin
     let l' = List.map Dispatcher.pre_process l in
-    Util.info ~section "@[<hov 2>New hypothesis:@ @[<hov>%a@]"
+    Util.debug ~section "@[<hov 2>New hypothesis:@ @[<hov>%a@]"
       CCFormat.((hovbox (list ~sep:(return " ||@ ") Expr.Print.formula))) l';
     S.assume ~tag [l']
   end;
