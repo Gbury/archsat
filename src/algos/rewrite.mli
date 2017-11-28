@@ -24,31 +24,27 @@ module Guard : sig
 
 end
 
-(** {2 Rewrite rule triggers} *)
-
-module Trigger : sig
-
-  type t =
-    | Single of Expr.term
-    | Equal of Expr.term * Expr.term
-
-end
-
 (** {2 Rewrite rules} *)
 
 module Rule : sig
 
-  type result =
-    | Term of Expr.term
-    | Formula of Expr.formula
+  type 'a witness =
+    | Term : Expr.term witness
+    | Formula : Expr.formula witness
 
-  type t = private {
+  type 'a rewrite = {
+    trigger : 'a;
+    result : 'a;
+  }
+
+  type contents = C : 'a witness * 'a rewrite -> contents
+
+  type t = {
     id       : int;
     manual   : bool;
-    trigger  : Trigger.t;
-    result   : result;
-    guards   : Guard.t list;
     formula  : Expr.formula;
+    guards   : Guard.t list;
+    contents : contents;
   }
   (** A rewrite rule *)
 
@@ -66,7 +62,8 @@ module Rule : sig
   val print_id : t CCFormat.printer
   (** Print only the rule id (shorter). *)
 
-  val mk : ?guards:Guard.t list -> bool -> Trigger.t -> result -> t
+  val mk_term : ?guards:Guard.t list -> bool -> Expr.term -> Expr.term -> t
+  val mk_formula : ?guards:Guard.t list -> bool -> Expr.formula -> Expr.formula -> t
   (** [mk ?guards is_manual trigger result] creates a new rewrite rule, with
       the formula field set to the constant [true] formula. *)
 
@@ -85,22 +82,10 @@ end
 
 module Normalize : sig
 
-  type finder =
-    Rule.t list -> Expr.term ->
-    (Rule.t * Expr.term * Position.t) option
-  (** A finder function's goal is to find the next occurence of a rewrit rule
-      to apply when trying to normalize a term. It shoudl return a triplet
-      containing: the rule used, the result of the rule, and the position
-      where to substitutite the given result. *)
+  val normalize_term :
+    Rule.t list -> Rule.t list -> Expr.term -> Expr.term * Rule.t list
 
-  val top_down : finder
-  (** A finder that first looks atthe root of the term, then descends in
-      a top-down fashion. *)
-
-  val normalize :
-    find:finder -> Rule.t list -> Expr.term -> Rule.t list * Expr.term
-  (** Using the given finder function, returns the normalized term, along with the
-      list of all rules that were used to normalize the term. *)
-
+  val normalize_atomic :
+    Rule.t list -> Rule.t list -> Expr.formula -> Expr.formula * Rule.t list
 
 end

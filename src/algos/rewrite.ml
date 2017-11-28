@@ -34,37 +34,28 @@ module Guard = struct
 
 end
 
-(* Rewrite rules triggers *)
-(* ************************************************************************ *)
-
-module Trigger = struct
-
-  type t =
-    | Single of Expr.term
-    | Equal of Expr.term * Expr.term
-
-  let print ?(term=Expr.Print.term) fmt = function
-    | Single x -> term fmt x
-    | Equal (x, y) -> Format.fprintf fmt "%a ==@ %a" term x term y
-
-end
-
 (* Rewrite rules definition *)
 (* ************************************************************************ *)
 
 module Rule = struct
 
-  type result =
-    | Term of Expr.term
-    | Formula of Expr.formula
+  type 'a witness =
+    | Term : Expr.term witness
+    | Formula : Expr.formula witness
+
+  type 'a rewrite = {
+    trigger : 'a;
+    result : 'a;
+  }
+
+  type contents = C : 'a witness * 'a rewrite -> contents
 
   type t = {
     id       : int;
     manual   : bool;
-    trigger  : Trigger.t;
-    result   : result;
-    guards   : Guard.t list;
     formula  : Expr.formula;
+    guards   : Guard.t list;
+    contents : contents;
   }
 
   (* Std functions *)
@@ -74,9 +65,16 @@ module Rule = struct
 
   (* Rule creation *)
   let _nb_rules = ref 0
-  let mk ?(guards=[]) manual trigger result =
+  let mk_aux witness ?(guards=[]) manual trigger result =
     let () = incr _nb_rules in
-    { id = !_nb_rules; manual; trigger; result; guards; formula = Expr.Formula.f_true; }
+    {
+      id = !_nb_rules; manual; guards;
+      formula = Expr.Formula.f_true;
+      contents = C (witness, {trigger; result; });
+    }
+
+  let mk_term = mk_aux Term
+  let mk_formula = mk_aux Formula
 
   (* Some queries/manipulation of rules *)
   let is_manual { manual; } = manual
@@ -97,22 +95,23 @@ module Rule = struct
   let print_id fmt r =
     Format.fprintf fmt "%s%d" (if r.manual then "~" else "#") r.id
 
-  let print_result
+  let print_rewrite pp fmt {trigger; result} =
+    Format.fprintf fmt "@[<hv>%a@ -> %a@]" pp trigger pp result
+
+  let print_contents
       ?(term=Expr.Print.term)
-      ?(formula=Expr.Print.formula)
-      fmt = function
-    | Term t -> term fmt t
-    | Formula f -> formula fmt f
+      ?(formula=Expr.Print.formula)  fmt = function
+    | C (Term, rewrite) -> print_rewrite term fmt rewrite
+    | C (Formula, rewrite) -> print_rewrite formula fmt rewrite
 
   let print
       ?(term=Expr.Print.term)
       ?(formula=Expr.Print.formula)
-      fmt ({ trigger; result; guards; formula = f; _ } as rule) =
-    Format.fprintf fmt "@[<hv 2>%a@ @[<hov 2>%a@ %a@]@ ->%a@ (%a)@]"
+      fmt ({ guards; formula = f; contents; _ } as rule) =
+    Format.fprintf fmt "@[<hv 2>%a@ %a@ %a@ (%a)@]"
       print_id rule
       (print_guards ~term) guards
-      (Trigger.print ~term) trigger
-      (print_result ~term ~formula) result
+      (print_contents ~term ~formula) contents
       formula f
 
 end
@@ -123,50 +122,85 @@ end
 
 module Normalize = struct
 
-  type finder =
-    Rule.t list -> Expr.term ->
-    (Rule.t * Expr.term * Position.t) option
-
-  let rec match_head_aux t rule =
-    match rule with
-    (* Skip conditional rules, as they are quite complex to hande correctly. *)
-    | _ when rule.Rule.guards <> [] ->
-      Util.warn  "conditional rewrite rule";
-      None
-    (** Skip rules matching an equality, because we don't really want
-        to substitute equalities, rather we'd want to use trigger-style
-        rewriting. *)
-    | { Rule.trigger = Trigger.Equal _ ; _ } -> None
-    (** Skip formula result rewrite rules *)
-    | { Rule.result = Rule.Formula _ ; _ } -> None
-    (** Finally, the 'usual' case *)
-    | { Rule.trigger = Trigger.Single pat ;
-        Rule.result = Rule.Term res; _ } ->
-      begin match Match.term Mapping.empty pat t with
-        | m ->
-          Some (rule, Mapping.apply_term ~fix:false m res)
-        | exception Match.Impossible_ty _ -> None
-        | exception Match.Impossible_term _ -> None
+  let match_term_head t rules =
+    let aux t rule =
+      if rule.Rule.guards = [] then
+        match rule.Rule.contents with
+        (* SKip formula rewrite rules *)
+        | Rule.C (Rule.Formula, _) -> None
+        (** Match&instanciate on terms *)
+        | Rule.C (Rule.Term, { Rule.trigger = pat; result = res; }) ->
+          begin match Match.term Mapping.empty pat t with
+            | m ->
+              Some (rule, Mapping.apply_term ~fix:false m res)
+            | exception Match.Impossible_ty _ -> None
+            | exception Match.Impossible_term _ -> None
+          end
+      else begin
+        Util.warn  "conditional rewrite rule";
+        None
       end
+    in
+    CCList.find_map (aux t) rules
 
-  let match_head t rules =
-    CCList.find_map (match_head_aux t) rules
+  let find_term_match rules t =
+    let aux pos t' =
+      let aux (rule, res) = (rule, res, pos) in
+      CCOpt.map aux (match_term_head t' rules)
+    in
+    Position.Term.find_map aux t
 
-  let match_any_aux rules = fun pos t' ->
-    CCOpt.map (fun (rule, res) -> (rule, res, pos)) (match_head t' rules)
-
-  let top_down rules t =
-    Position.Term.find_map (match_any_aux rules) t
-
-  let rec normalize_aux ~find rules acc t =
-    match find rules t with
-    | None -> List.rev acc, t
+  let rec normalize_term rules acc t =
+    match find_term_match rules t with
+    | None -> t, List.rev acc
     | Some (rule, res, pos) ->
       begin match Position.Term.substitute pos ~by:res t with
         | None -> assert false
-        | Some res -> normalize_aux ~find rules (rule :: acc) res
+        | Some res -> normalize_term rules (rule :: acc) res
       end
 
-  let normalize ~find rules t = normalize_aux ~find rules [] t
+  let match_atomic f rules =
+    let aux f rule =
+      if rule.Rule.guards = [] then
+        match rule.Rule.contents with
+        (* SKip formula rewrite rules *)
+        | Rule.C (Rule.Term, _) -> None
+        (** Match&instanciate on terms *)
+        | Rule.C (Rule.Formula, { Rule.trigger = pat; result = res; }) ->
+          begin match Match.atomic Mapping.empty pat f with
+            | m ->
+              Some (rule, Mapping.apply_formula ~fix:false m res)
+            | exception Match.Impossible_ty _ -> None
+            | exception Match.Impossible_term _ -> None
+            | exception Match.Impossible_atomic _ -> None
+          end
+      else begin
+        Util.warn  "conditional rewrite rule";
+        None
+      end
+    in
+    CCList.find_map (aux f) rules
+
+  let rec normalize_atomic rules acc f =
+    match match_atomic f rules with
+    | Some (rule, res) ->
+      normalize_atomic rules (rule :: acc) res
+    | None ->
+      begin match f with
+        | { Expr.formula = Expr.Not p } ->
+          let p', acc = normalize_atomic rules acc p in
+          if p == p' then f, List.rev acc
+          else normalize_atomic rules acc (Expr.Formula.neg p')
+        | { Expr.formula = Expr.Pred t } ->
+          let t', acc = normalize_term rules acc t in
+          if t == t' then f, List.rev acc
+          else normalize_atomic rules acc (Expr.Formula.pred t')
+        | { Expr.formula = Expr.Equal (a, b) } ->
+          let a', acc = normalize_term rules acc a in
+          let b', acc = normalize_term rules acc b in
+          if a == a' && b == b' then f, List.rev acc
+          else normalize_atomic rules acc (Expr.Formula.eq a' b')
+        | _ -> f, List.rev acc
+      end
 
 end

@@ -321,19 +321,20 @@ let peek_at f =
   plugin_peek f;
   check f
 
+let rec pre_process_aux acc f =
+  match plugin_preprocess f with
+  | None ->
+    Util.debug ~section "Pre-processing (idem):@ @[<hov>%a@]"
+      Expr.Print.formula f;
+    f, List.rev acc
+  | Some (f', lemma) ->
+    Util.debug ~section "@[<hov>Pre-processing (changes): %a@ --->%a@]"
+      Expr.Print.formula f Expr.Print.formula f';
+    pre_process_aux (lemma :: acc) f'
+
 let pre_process f =
   Util.enter_prof section;
-  let f' =
-    match plugin_preprocess f with
-    | None ->
-      Util.debug ~section "Pre-processing (idem):@ @[<hov>%a@]"
-        Expr.Print.formula f;
-      f
-    | Some (f', _) ->
-      Util.debug ~section "@[<hov>Pre-processing (changes): %a@ --->%a@]"
-        Expr.Print.formula f Expr.Print.formula f';
-      f'
-  in
+  let f', _ = pre_process_aux [] f in
   Util.exit_prof section;
   f'
 

@@ -17,8 +17,10 @@ let section_trigger = Section.make ~parent:section "trigger"
 let section_subst = Section.make ~parent:section "subst"
 
 let tag = Tag.create ()
+let normalized = Tag.create ()
+let normal_form = Tag.create ()
 
-type lemma_info = Subst of Expr.term * Rewrite.Rule.t list
+type lemma_info = Subst of Expr.formula * Rewrite.Rule.t list
 
 type Dispatcher.lemma_info += Rewrite of lemma_info
 
@@ -44,6 +46,7 @@ let current_mode () =
     Some (if Rewrite.Rule.is_manual r then Manual else Auto)
 
 let allow_mixed = ref false
+let substitution_used = ref false
 
 (* Splitting rewrite rules *)
 (* ************************************************************************ *)
@@ -53,13 +56,9 @@ type rule_type =
   | Substitution
 
 let split r =
-  match r.Rewrite.Rule.trigger with
-  | Rewrite.Trigger.Equal _ -> Trigger
-  | Rewrite.Trigger.Single _ ->
-    begin match r.Rewrite.Rule.result with
-      | Rewrite.Rule.Term _ -> Substitution
-      | Rewrite.Rule.Formula _ -> Trigger
-    end
+  match Rewrite.Rule.(r.guards) with
+  | [] -> Substitution
+  | _ -> Trigger
 
 (* Callbacks on the set of known terms *)
 (* ************************************************************************ *)
@@ -72,13 +71,9 @@ let add_callback, call =
 (* Some printing functions *)
 (* ************************************************************************ *)
 
-let print_matching_aux fmt (t, s) =
+let print_matching fmt (t, s) =
   Format.fprintf fmt "@[<hov>%a@ =?@[<hv>%a@]@]"
-    Expr.Print.term t CCFormat.(list ~sep:(return ",@ ") C.print) s
-
-let print_matching fmt l =
-  Format.fprintf fmt "@[<hv>%a@]"
-    CCFormat.(list ~sep:(return ";@ ") print_matching_aux) l
+    Expr.Print.term t C.print s
 
 (* Registering parent-child relations between terms *)
 (* ************************************************************************ *)
@@ -86,9 +81,6 @@ let print_matching fmt l =
 let checked = Tag.create ()
 let parents = H.create 42
 let index = M.create 42
-
-let index_is_empty () =
-  M.length index = 0
 
 let find_parents t =
   try H.find parents t
@@ -209,15 +201,6 @@ and match_modulo_aux acc pat c =
     let l = C.find_top c f in
     CCList.flat_map (match_modulo_app f acc (ty_pats, pats)) l
 
-let match_modulos l =
-  List.fold_left (fun acc (t, s) ->
-      Util.debug ~section "@[<hv 2>mm:@ @[<hov>%a@]@ @[<hv 4>=? [%a]@];@ @[<hv 2>{ %a }@]@]"
-        Expr.Print.term t
-        CCFormat.(list ~sep:(return ";@ ") C.print) s
-        CCFormat.(list ~sep:(return ";@ ") Mapping.print) acc;
-      CCList.flat_map (match_modulo_aux acc t) s
-    ) [Mapping.empty] l
-
 let match_modulo = match_modulo_aux [Mapping.empty]
 
 (* Detecting Rewrite rules *)
@@ -239,10 +222,6 @@ let parse_guards = function
   | f ->
     CCOpt.map (fun x -> [x]) (parse_guard f)
 
-let parse_result = function
-  | { Expr.formula = Expr.Pred t } -> Rewrite.Rule.Term t
-  | f -> Rewrite.Rule.Formula f
-
 (* Parse manually oriented rules *)
 let rec parse_manual_rule = function
   (* Standard rewrite rules *)
@@ -253,22 +232,32 @@ let rec parse_manual_rule = function
       | Some Expr.Same -> a, b
       | Some Expr.Inverse -> b, a
     in
-    Some Rewrite.(Rule.mk true (Trigger.Single trigger) (Rule.Term result))
-  | { Expr.formula = Expr.Equiv ({ Expr.formula = Expr.Equal (a, b) }, f) } ->
-    Some Rewrite.(Rule.mk true (Trigger.Equal (a, b)) (parse_result f))
-  | { Expr.formula = Expr.Equiv ({ Expr.formula = Expr.Pred trigger }, f) } ->
-    Some (Rewrite.Rule.mk true (Rewrite.Trigger.Single trigger) (parse_result f))
+    Some Rewrite.(Rule.mk_term true trigger result)
+  | { Expr.formula = Expr.Equiv ({ Expr.formula = Expr.Equal _ } as trigger, result) } ->
+    Some Rewrite.(Rule.mk_formula true trigger result)
+  | { Expr.formula = Expr.Equiv ({ Expr.formula = Expr.Pred trigger },
+                                 { Expr.formula = Expr.Pred result } ) } ->
+    Some (Rewrite.Rule.mk_term true trigger result)
+  | { Expr.formula = Expr.Equiv (trigger, result) } ->
+    Some (Rewrite.Rule.mk_formula true trigger result)
 
   (* Polarised rewrite as a conditional rule *)
-  | { Expr.formula = Expr.Imply ({ Expr.formula = Expr.Pred trigger }, f) } ->
-    Some (Rewrite.Rule.mk
-            ~guards:[Rewrite.Guard.Pred_true trigger]
-            true (Rewrite.Trigger.Single trigger) (parse_result f))
+  | { Expr.formula = Expr.Imply ({ Expr.formula = Expr.Pred trigger },
+                                 { Expr.formula = Expr.Pred result } ) } ->
+    Some (Rewrite.Rule.mk_term true trigger result
+            ~guards:[Rewrite.Guard.Pred_true trigger])
+  | { Expr.formula = Expr.Imply ({ Expr.formula = Expr.Pred guard } as trigger, result) } ->
+    Some (Rewrite.Rule.mk_formula true trigger result
+            ~guards:[Rewrite.Guard.Pred_true guard])
   | { Expr.formula = Expr.Imply (
-      { Expr.formula = Expr.Not { Expr.formula = Expr.Pred trigger } }, f) } ->
-    Some (Rewrite.Rule.mk
-            ~guards:[Rewrite.Guard.Pred_false trigger]
-            true (Rewrite.Trigger.Single trigger) (parse_result f))
+      { Expr.formula = Expr.Not { Expr.formula = Expr.Pred trigger } },
+      { Expr.formula = Expr.Pred result } ) } ->
+    Some (Rewrite.Rule.mk_term true trigger result
+            ~guards:[Rewrite.Guard.Pred_false trigger])
+  | { Expr.formula = Expr.Imply (
+      { Expr.formula = Expr.Not ({ Expr.formula = Expr.Pred guard } as trigger) }, result) } ->
+    Some (Rewrite.Rule.mk_formula true trigger result
+            ~guards:[Rewrite.Guard.Pred_false guard])
 
   (* Conditional rewriting *)
   | { Expr.formula = Expr.Imply (cond, r) } ->
@@ -286,27 +275,20 @@ let rec parse_rule_aux = function
     begin match Lpo.compare a b with
       | Comparison.Incomparable
       | Comparison.Eq -> None
-      | Comparison.Lt ->
-        Some (Rewrite.Rule.mk false (Rewrite.Trigger.Single b) (Rewrite.Rule.Term a))
-      | Comparison.Gt ->
-        Some (Rewrite.Rule.mk false (Rewrite.Trigger.Single a) (Rewrite.Rule.Term b))
+      | Comparison.Lt -> Some (Rewrite.Rule.mk_term false b a)
+      | Comparison.Gt -> Some (Rewrite.Rule.mk_term false a b)
     end
 
   (* Polarised rewrite rule as conditional rewrite *)
   | { Expr.formula = Expr.Imply ({ Expr.formula = Expr.Pred p },
                                  { Expr.formula = Expr.Pred q })} ->
     begin match Lpo.compare p q with
-      | Comparison.Gt ->
-        Some (Rewrite.Rule.mk
-                ~guards:[Rewrite.Guard.Pred_true p]
-                false (Rewrite.Trigger.Single p) (Rewrite.Rule.Term q))
-      | Comparison.Lt ->
-        Some (Rewrite.Rule.mk
-                ~guards:[Rewrite.Guard.Pred_false q]
-                false (Rewrite.Trigger.Single q) (Rewrite.Rule.Term p))
       | Comparison.Eq
-      | Comparison.Incomparable ->
-        None
+      | Comparison.Incomparable -> None
+      | Comparison.Gt -> Some (Rewrite.Rule.mk_term false p q
+                                 ~guards:[Rewrite.Guard.Pred_true p])
+      | Comparison.Lt -> Some (Rewrite.Rule.mk_term false q p
+                                 ~guards:[Rewrite.Guard.Pred_false q])
     end
 
   (* Conditional rewriting *)
@@ -369,11 +351,11 @@ let instanciate rule subst =
           )
     ) (rule, subst)
 
-let match_and_instantiate (rule, l) =
+let match_and_instantiate (rule, t, c) =
   Util.debug ~section:section_trigger "@[<hv 2>Matching rule %a:@ %a"
-    Rewrite.Rule.print_id rule print_matching l;
+    Rewrite.Rule.print_id rule print_matching (t, c);
   (** Trigger mode rewriting *)
-  let seq = match_modulos l in
+  let seq = match_modulo t c in
   List.iter (fun subst ->
       Util.debug ~section:section_trigger "match found:@ %a" Mapping.print subst;
       instanciate rule subst
@@ -383,14 +365,16 @@ let match_and_instantiate (rule, l) =
 (* ************************************************************************ *)
 
 let rules_to_match s =
+  let l = T.elements s in
   CCList.flat_map (function
-      | { Rewrite.Rule.trigger = Rewrite.Trigger.Single term; _ } as rule ->
-        [rule, [term, T.elements s]]
-      | { Rewrite.Rule.trigger = Rewrite.Trigger.Equal (t, t'); _ } as rule ->
-        List.map (fun c ->
-            rule, [t, [c];
-                   t', T.elements @@ find_all_indexed @@ C.ty c]
-          ) (T.elements s)
+      | Rewrite.Rule.{ contents = C (Formula, _ ) } as rule ->
+        Util.warn ~section:section_trigger "Formula-matching not supported in trigger rules";
+        Util.info ~section:section_trigger
+          "@[<hv 2>Following rule wasn't used for matching:@ %a@]"
+          (Rewrite.Rule.print ~term:Expr.Print.term ~formula:Expr.Print.formula) rule;
+        ([] : (Rewrite.Rule.t * Expr.term * C.t) list)
+      | Rewrite.Rule.{ contents = C (Term, { trigger; _ }) } as rule ->
+        ((List.map (fun x -> rule, trigger, x) l) : (Rewrite.Rule.t * Expr.term * C.t) list)
     ) !active_trigger_rules
 
 (* Callback used when merging equivalence classes *)
@@ -406,27 +390,7 @@ let callback_term top t =
     Expr.Print.term t Expr.Print.ty Expr.(t.t_type);
   (** Trigger rules *)
   let s = T.singleton (C.find t) in
-  List.iter match_and_instantiate (rules_to_match s);
-  (** Substitution rules *)
-  if top then begin
-    Util.debug ~section:section_subst "Tying to normalize@ %a" Expr.Print.term t;
-    match Rewrite.Normalize.(normalize ~find:top_down !active_subst_rules t) with
-    | [], t' ->
-      assert (Expr.Term.equal t t');
-      () (* nothing to do *)
-    | rules, t' ->
-      assert (not (Expr.Term.equal t t'));
-      assert (Expr.Ty.equal Expr.(t.t_type) Expr.(t'.t_type));
-      Util.info ~section:section_subst "@[<hv 2>Normalized term@ %a@ into@ %a@ using@ @[<hv>%a@]"
-        Expr.Print.term t
-        Expr.Print.term t'
-        CCFormat.(list ~sep:(return "@ ") Rewrite.Rule.print) rules;
-      let cond =
-        List.map (fun r -> Expr.Formula.neg r.Rewrite.Rule.formula) rules
-      in
-      let lemma = Dispatcher.mk_proof name "subst" (Rewrite (Subst (t, rules))) in
-      Dispatcher.push ((Expr.Formula.eq t t') :: cond) lemma
-  end
+  List.iter match_and_instantiate (rules_to_match s)
 
 (* Callback used on new rewrite rules *)
 let callback_rule r kind =
@@ -445,17 +409,40 @@ let callback_rule r kind =
   in
   match kind with
   | Trigger ->
-    let l = match r.Rewrite.Rule.trigger with
-      | Rewrite.Trigger.Single t -> [t, aux t]
-      | Rewrite.Trigger.Equal (x, y) -> [x, aux x; y, aux y]
+    let t = match r.Rewrite.Rule.contents with
+      | Rewrite.Rule.(C (Term, { trigger; _ })) -> (trigger : Expr.term)
+      | _ ->
+        Util.error "Formula-matching rules not authroized as trigger rules";
+        assert false
     in
-    match_and_instantiate (r, l);
+    List.iter (fun c -> match_and_instantiate (r, t, c)) (aux t);
   | Substitution ->
-    if not (index_is_empty ()) then
+    if !substitution_used then
       Util.warn ~section:section_subst "%s,@ %s%s"
         "Adding rewrite rules while using subst mode"
         "this is not a supported use case, since it may change normale forms"
         "of already noramlized terms"
+
+let substitute f =
+  (** Substitution rules *)
+    Util.debug ~section:section_subst "Tying to normalize@ %a" Expr.Print.formula f;
+    match Rewrite.Normalize.(normalize_atomic !active_subst_rules [] f) with
+    | f', [] ->
+      assert (Expr.Formula.equal f f');
+      () (* nothing to do *)
+    | f', rules ->
+      assert (not (Expr.Formula.equal f f'));
+      assert (not (Expr.Formula.get_tag f normal_form = Some true));
+      Expr.Formula.tag f' normal_form true;
+      Util.debug ~section:section_subst "@[<hv 2>Normalized term@ %a@ into@ %a@ using@ @[<hv>%a@]"
+        Expr.Print.formula f
+        Expr.Print.formula f'
+        CCFormat.(list ~sep:(return "@ ") Rewrite.Rule.print) rules;
+      let cond =
+        List.map (fun r -> Expr.Formula.neg r.Rewrite.Rule.formula) rules
+      in
+      let lemma = Dispatcher.mk_proof name "subst" (Rewrite (Subst (f, rules))) in
+      Dispatcher.push ((Expr.Formula.equiv f f') :: cond) lemma
 
 (* Rule addition callback *)
 (* ************************************************************************ *)
@@ -498,9 +485,9 @@ let rec add_rule r =
 (* ************************************************************************ *)
 
 let dot_info = function
-  | Subst (t, l) ->
+  | Subst (f, l) ->
     Some "RED", (
-      CCFormat.const Dot.Print.term t ::
+      CCFormat.const Dot.Print.formula f ::
       List.map (fun r ->
           CCFormat.const (
             Rewrite.Rule.print ~term:Dot.Print.term ~formula:Dot.Print.formula
@@ -522,6 +509,14 @@ let assume f =
       Util.debug ~section "@[<hov 2>Detected a new rewrite rule:@ %a@]"
         (Rewrite.Rule.print ~term:Expr.Print.term ~formula:Expr.Print.formula) r;
       add_rule r
+  in
+  (* Apply substitution rules *)
+  let () =
+    match Expr.Formula.get_tag f normalized with
+    | Some true -> ()
+    | None | Some false ->
+      let () = substitute f in
+      Expr.Formula.tag f normalized true
   in
   ()
 

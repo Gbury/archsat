@@ -25,7 +25,7 @@ let () =
   let opt', g =
     try
       (* Set better margins *)
-      Format.set_margin 100;
+      Format.set_margin 200;
       (* Enable debug mode *)
       if Options.(opt.input.mode = Debug) then
         Util.enable_debug ();
@@ -82,7 +82,11 @@ let () =
                 | Options.Sigint
                 | Options.Out_of_time
                 | Options.Out_of_space ->
-                  Format.printf "%a@." (Out.print_exn opt) exn;
+                  (** Flushing *and* the break at the start of printing
+                      are necessary in case the timeout or other signal interrupted
+                      a logger. *)
+                  Format.pp_flush_formatter Format.std_formatter;
+                  Format.printf "@ %a@." (Out.print_exn opt) exn;
                   opt
                 | _ ->
                   Util.error "%a" (Out.print_exn opt) exn;

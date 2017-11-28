@@ -6,6 +6,7 @@
 
 exception Impossible_ty of Expr.ty * Expr.ty
 exception Impossible_term of Expr.term * Expr.term
+exception Impossible_atomic of Expr.formula * Expr.formula
 
 let rec ty subst pat t =
   match pat, t with
@@ -54,6 +55,32 @@ let rec term subst pat t =
     else
       raise (Impossible_term (pat, t))
   | _ -> raise (Impossible_term (pat, t))
+
+let rec atomic subst pat a =
+  match pat, a with
+  | { Expr.formula = Expr.Pred t },
+    { Expr.formula = Expr.Pred t' } ->
+    term subst t t'
+  | { Expr.formula = Expr.Equal (a, b) },
+    { Expr.formula = Expr.Equal (c, d) } ->
+    begin
+      try term (term subst a c) b d
+      with
+      | Impossible_ty _
+      | Impossible_term _ ->
+        term (term subst a d) b c
+    end
+  | { Expr.formula = Expr.Equiv (a, b) },
+    { Expr.formula = Expr.Equiv (c, d) } ->
+    begin
+      try atomic (atomic subst a c) b d
+      with
+      | Impossible_ty _
+      | Impossible_term _
+      | Impossible_atomic _ ->
+        atomic (atomic subst a d) b c
+    end
+  | _ -> raise (Impossible_atomic (pat, a))
 
 let find ~section pat t =
   Util.enter_prof section;
