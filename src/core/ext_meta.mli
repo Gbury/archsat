@@ -34,6 +34,11 @@ val parse_slice : ((Expr.formula -> unit) -> unit) -> state
 val print : Format.formatter -> state -> unit
 (** Output some debug info on the output *)
 
+val fold_diff : ('a -> Expr.term -> Expr.term -> 'a) -> 'a -> state -> 'a
+(** Fold over all terms that should be different in the state, i.e
+    all pair of terms [(a, b)], such that either [a <> b] is a disequality in
+    the state, or [a] is a true predicate, and [b] a false one. *)
+
 (** {2 Extension Options} *)
 
 (** {3 Meta variable generation} *)

@@ -79,6 +79,8 @@ Index_test
 # Union-find
 Closure_test
 
+# Extension testing
+Meta_test
 
 ##### Misc modules #####
 ########################

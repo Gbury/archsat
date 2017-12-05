@@ -3,6 +3,9 @@
 
 include Misc_test.S with type t := Mapping.t
 
+val pair : (Expr.term * Expr.term) QCheck.arbitrary
+(** Arbitrary for pairs of terms with the same type. *)
+
 (** {2 Tests} *)
 
 val unif_tests : OUnit2.test

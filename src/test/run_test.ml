@@ -191,6 +191,7 @@ let _ =
     Match_test.match_qtests @
     Index_test.correct_qtests @
     Index_test.complete_qtests @
-    Closure_test.closure_qtests
+    Closure_test.closure_qtests @
+    Meta_test.meta_qtests
   )
 
