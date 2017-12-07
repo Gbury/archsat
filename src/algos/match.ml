@@ -80,6 +80,9 @@ let rec atomic subst pat a =
       | Impossible_atomic _ ->
         atomic (atomic subst a d) b c
     end
+  | { Expr.formula = Expr.Not pat' },
+    { Expr.formula = Expr.Not a' } ->
+    atomic subst pat' a'
   | _ -> raise (Impossible_atomic (pat, a))
 
 let find ~section pat t =

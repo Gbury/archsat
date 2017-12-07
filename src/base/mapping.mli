@@ -109,7 +109,7 @@ val apply_formula : ?fix:bool -> t -> Expr.formula -> Expr.formula
 
 val apply : ?fix:bool -> t -> t -> t
 (** [apply t m] returns the same mapping as [m] but where [t] has been applied to
-    all types and terms bound to a variable/meta-vriable in [m]. *)
+    all types and terms bound to a variable/meta-variable in [m]. *)
 
 (** {2 Variable bindings} *)
 
@@ -180,12 +180,17 @@ val formula_meta : t -> Expr.Formula.meta_subst
 (** Extract a substitution from a mapping. *)
 
 
-(** {2 Co-domain} *)
+(** {2 Domain & Co-domain} *)
+
+val domain : t ->
+  (Expr.Id.Ttype.t list * Expr.Id.Ty.t list) *
+  (Expr.Meta.Ttype.t list * Expr.Meta.Ty.t list)
+(** Compute the domain of a mapping, i.e the list of variables and meta-variables bound. *)
 
 val codomain : t ->
   (Expr.Id.Ttype.t list * Expr.Id.Ty.t list) *
   (Expr.Meta.Ttype.t list * Expr.Meta.Ty.t list)
-(** Compute the co-domainof a mapping, i.e the list of free variables
+(** Compute the co-domain of a mapping, i.e the list of free variables
     and meta-variables occuring in the types and terms that var and metas
-    ar eboud to in the substitution. *)
+    are bound to in the substitution. *)
 

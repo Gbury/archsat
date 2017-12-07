@@ -34,6 +34,19 @@ let rec follow_term subst = function
     end
   | t -> t
 
+let rec follow_formula subst = function
+  | { Expr.formula = Expr.Pred { Expr.term = Expr.Var v } } as f ->
+    begin match Mapping.Var.get_formula_opt subst v with
+      | Some f' -> follow_formula subst f'
+      | None -> f
+    end
+  | { Expr.formula = Expr.Pred { Expr.term = Expr.Meta m } } as f ->
+    begin match Mapping.Meta.get_formula_opt subst m with
+      | Some f' -> follow_formula subst f'
+      | None -> f
+    end
+  | f -> f
+
 let rec occurs_ty subst var_l meta_l = function
   | { Expr.ty = Expr.TyVar m' } ->
     CCList.mem ~eq:Expr.Id.equal m' var_l ||
@@ -88,6 +101,7 @@ module Robinson = struct
 
   exception Impossible_ty of Expr.ty * Expr.ty
   exception Impossible_term of Expr.term * Expr.term
+  exception Impossible_atomic of Expr.formula * Expr.formula
 
   let rec ty subst s t =
     let s = follow_ty subst s in
@@ -146,6 +160,29 @@ module Robinson = struct
           f_t_args g_t_args
       else
         raise (Impossible_term (s, t))
+
+  let term_term subst (a, b) (c, d) =
+    try Some (term (term subst a b) c d)
+    with Impossible_ty _
+       | Impossible_term _ -> None
+
+  let rec atomic subst s t =
+    let s = follow_formula subst s in
+    let t = follow_formula subst t in
+    match s, t with
+    | { Expr.formula = Expr.Pred s' },
+      { Expr.formula = Expr.Pred t' } ->
+      [term subst s' t']
+    | { Expr.formula = Expr.Equal (a, b) },
+      { Expr.formula = Expr.Equal (c, d) } ->
+      CCList.filter_map (fun x -> x) [
+        term_term subst (a, c) (d, b);
+        term_term subst (a, d) (b, c);
+      ]
+    | { Expr.formula = Expr.Not s' },
+      { Expr.formula = Expr.Not t' } ->
+      atomic subst s' t'
+    | _ -> raise (Impossible_atomic (s, t))
 
   let unify_ty ~section f s t =
     Util.enter_prof section;

@@ -10,6 +10,33 @@ type Dispatcher.lemma_info += Inst of lemma_info
 
 let index m = Expr.(m.meta_index)
 
+(** Type for inclusion comparison between formulas. *)
+type cmp =
+  | Equal   (* The two formulas are equal *)
+  | Shallow (* Both formulas are only separated by forall quantifiers. *)
+  | Deep    (* arbitrarily deep inclusion *)
+
+(** Sub-formula testing. Is p a subformula of q ? *)
+let rec included ?(status=Equal) p q =
+  if Expr.Formula.equal p q then Some status
+  else match q.Expr.formula with
+    | Expr.Pred _
+    | Expr.Equal _
+    | Expr.True
+    | Expr.False -> None
+    | Expr.Not r -> included ~status:Deep p r
+    | Expr.And l
+    | Expr.Or l ->
+      CCList.find_map (included ~status:Deep p) l
+    | Expr.Imply (r, s)
+    | Expr.Equiv (r, s) ->
+      CCList.find_map (included ~status:Deep p) [r; s]
+    | Expr.Ex (_, _, r)
+    | Expr.ExTy (_, _, r) -> included ~status:Deep p r
+    | Expr.All (_, _, r)
+    | Expr.AllTy (_, _, r) -> included ~status:Shallow p r
+
+
 (* Partial order, representing the inclusion on quantified formulas
  * Uses the free variables to determine inclusion. *)
 let free_args = function

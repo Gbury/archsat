@@ -186,6 +186,18 @@ let merge
     f_meta = S.merge formula_meta t.f_meta t'.f_meta;
   }
 
+(* Mapping domain *)
+(* ************************************************************************ *)
+
+let domain m =
+  fold m (([], []), ([], []))
+    ~ty_var:(fun v _ (vars, metas) -> Expr.Id.merge_fv vars ([v], []), metas)
+    ~ty_meta:(fun m _ (vars, metas) -> vars, Expr.Meta.merge_fm metas ([m], []))
+    ~term_var:(fun v _ (vars, metas) -> Expr.Id.merge_fv vars ([], [v]), metas)
+    ~term_meta:(fun m _ (vars, metas) -> vars, Expr.Meta.merge_fm metas ([], [m]))
+    ~formula_var:(fun v _ (vars, metas) -> Expr.Id.merge_fv vars ([], [v]), metas)
+    ~formula_meta:(fun m _ (vars, metas) -> vars, Expr.Meta.merge_fm metas ([], [m]))
+
 (* Mapping co-domain *)
 (* ************************************************************************ *)
 
