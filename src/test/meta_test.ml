@@ -21,9 +21,11 @@ let state =
                equalities = []; formulas = []; }
   in
   let a = QCheck.(triple
-                   (list (E.Term.make (G.sized @@ E.Term.typed ~config Expr.Ty.prop)))
-                   (list (E.Term.make (G.sized @@ E.Term.typed ~config Expr.Ty.prop)))
-                   (list Unif_test.pair)) in
+                    (list_of_size (G.oneofl [0;1])
+                       (E.Term.make (G.sized @@ E.Term.typed ~config Expr.Ty.prop)))
+                    (list_of_size (G.oneofl [0;1])
+                       (E.Term.make (G.sized @@ E.Term.typed ~config Expr.Ty.prop)))
+                    (list_of_size (G.oneofl [0;1]) Unif_test.pair)) in
   QCheck.map ~rev conv a
 
 (* High-level meta unification *)
@@ -88,22 +90,46 @@ let super_all_simplif_unif =
 (* Actual tests *)
 (* ************************************************************************ *)
 
+let time f =
+  let start = Unix.gettimeofday () in
+  let res = f () in
+  let stop = Unix.gettimeofday () in
+  res, stop -. start
+
+let pp_set fmt s =
+  Format.fprintf fmt "{@[<hv>%a@]}"
+    (fun _ -> S.iter (fun x -> Format.fprintf fmt "@[<hov>%a@]@ " Mapping.print x)) s
+
 let mk_fold name f =
   QCheck.Test.make ~count:1 ~long_factor:1000
     ~name state
     (fun state ->
-       let s = Ext_meta.fold_diff simple S.empty state in
-       let s' = Ext_meta.fold_diff f S.empty state in
-       S.equal s s'
+       let s, t = time (fun () -> Ext_meta.fold_diff simple S.empty state) in
+       let s', t' = time (fun () -> Ext_meta.fold_diff f S.empty state) in
+       let ratio = (0.01 +. t) /. (0.01 +. t') in
+       if ratio < 0.1 || ratio > 10. then
+         QCheck.Test.fail_reportf "Abormal time lag: %f / %f (%f)" t t' ratio;
+       if S.equal s s' then true
+       else begin
+         QCheck.Test.fail_reportf "@[<hv 2>Difference in results:@ ref: %a@ res: %a@]"
+           pp_set s pp_set s'
+       end
     )
 
 let mk_full name f =
   QCheck.Test.make ~count:1 ~long_factor:1000
     ~name state
     (fun state ->
-       let s = Ext_meta.fold_diff simple S.empty state in
-       let s' = f state in
-       S.equal s s'
+       let s, t = time (fun () -> Ext_meta.fold_diff simple S.empty state) in
+       let s', t' = time (fun () -> f state) in
+       let ratio = (0.01 +. t) /. (0.01 +. t') in
+       if ratio < 0.1 || ratio > 10. then
+         QCheck.Test.fail_reportf "Abormal time lag: %f / %f (%f)" t t' ratio;
+       if S.equal s s' then true
+       else begin
+         QCheck.Test.fail_reportf "@[<hv 2>Difference in results:@ ref: %a@ res: %a@]"
+           pp_set s pp_set s'
+       end
     )
 
 

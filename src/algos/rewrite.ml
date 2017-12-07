@@ -204,3 +204,13 @@ module Normalize = struct
       end
 
 end
+
+(* Narrowing by rules (no matching modulo eq) *)
+(* ************************************************************************ *)
+
+
+module Narrow = struct
+
+
+
+end

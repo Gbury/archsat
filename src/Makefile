@@ -27,7 +27,11 @@ lib:
 
 test:
 	$(COMP) $(FLAGS) $(TEST)
-	./$(TEST) --log qcheck.log
+	./$(TEST) -bt --colors --verbose | tee qcheck.log
+
+test-long:
+	$(COMP) $(FLAGS) $(TEST)
+	./$(TEST) -bt --long --colors --verbose | tee qcheck.log
 
 log:
 	cat _build/$(LOG) || true
