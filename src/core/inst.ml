@@ -5,134 +5,150 @@ type lemma_info = Formula of Expr.formula * Mapping.t * Expr.formula
 
 type Dispatcher.lemma_info += Inst of lemma_info
 
+(* Metavariable positions *)
+(* ************************************************************************ *)
+
+module H = Hashtbl.Make(Expr.Formula)
+
+type cluster =
+  | Root of int
+  | Under of int * cluster
+
+let rec root = function
+  | Root i -> i
+  | Under (_, c) -> root c
+
+let rec depth = function
+  | Root _ -> 0
+  | Under (_, c) -> 1 + depth c
+
+let rec dive n = function
+  | c when n <= 0 -> c
+  | Root _ (* n > 0 *) -> assert false
+  | Under (_, c) -> dive (n - 1) c
+
+let cmp c c' =
+  let d = depth c in
+  let d' = depth c' in
+  let a, b, inversed =
+    if d < d' then c, c', false else c', c, true
+  in
+  let diff = abs (d - d') in
+  let c = dive diff b in
+  (* polymorphic comparison intended *)
+  if a = c then
+    if diff = 0
+    then Comparison.Eq
+    else if inversed
+    then Comparison.Gt
+    else Comparison.Lt
+  else Comparison.Incomparable
+
+let _roots = ref 0
+
+let new_root () =
+  incr _roots;
+  Root !_roots
+
+let _cluster = ref 0
+
+let mk_cluster c =
+  incr _cluster;
+  Under (!_cluster, c)
+
+(** Cluster registering *)
+let tbl = H.create 4013
+
+let get_cluster f =
+  try Some (H.find tbl f)
+  with Not_found -> None
+
+let rec set_cluster c f =
+  match f.Expr.formula with
+  | Expr.Pred _
+  | Expr.Equal _
+  | Expr.True | Expr.False -> ()
+  | Expr.Not f' -> set_cluster c f'
+  | Expr.And l
+  | Expr.Or l -> List.iter (set_cluster c) l
+  | Expr.Imply (p, q)
+  | Expr.Equiv (p, q) -> List.iter (set_cluster c) [p; q]
+  | Expr.All (_, _, f')
+  | Expr.AllTy (_, _, f')
+  | Expr.Ex (_, _, f')
+  | Expr.ExTy (_, _, f') -> H.add tbl f c; set_cluster c f'
+
 (* Instanciation helpers *)
 (* ************************************************************************ *)
 
-let index m = Expr.(m.meta_index)
+(* TODO: cache cluster access for meta-variables *)
 
-(** Type for inclusion comparison between formulas. *)
-type cmp =
-  | Equal   (* The two formulas are equal *)
-  | Shallow (* Both formulas are only separated by forall quantifiers. *)
-  | Deep    (* arbitrarily deep inclusion *)
+module M = CCMap.Make(CCInt)
 
-(** Sub-formula testing. Is p a subformula of q ? *)
-let rec included ?(status=Equal) p q =
-  if Expr.Formula.equal p q then Some status
-  else match q.Expr.formula with
-    | Expr.Pred _
-    | Expr.Equal _
-    | Expr.True
-    | Expr.False -> None
-    | Expr.Not r -> included ~status:Deep p r
-    | Expr.And l
-    | Expr.Or l ->
-      CCList.find_map (included ~status:Deep p) l
-    | Expr.Imply (r, s)
-    | Expr.Equiv (r, s) ->
-      CCList.find_map (included ~status:Deep p) [r; s]
-    | Expr.Ex (_, _, r)
-    | Expr.ExTy (_, _, r) -> included ~status:Deep p r
-    | Expr.All (_, _, r)
-    | Expr.AllTy (_, _, r) -> included ~status:Shallow p r
-
-
-(* Partial order, representing the inclusion on quantified formulas
- * Uses the free variables to determine inclusion. *)
-let free_args = function
-  | { Expr.formula = Expr.All (_, args, _) }
-  | { Expr.formula = Expr.Ex (_, args, _) }
-  | { Expr.formula = Expr.Not { Expr.formula = Expr.All (_, args, _) } }
-  | { Expr.formula = Expr.Not { Expr.formula = Expr.Ex (_, args, _) } }
-  | { Expr.formula = Expr.AllTy (_, args, _) }
-  | { Expr.formula = Expr.ExTy (_, args, _) }
-  | { Expr.formula = Expr.Not { Expr.formula = Expr.AllTy (_, args, _) } }
-  | { Expr.formula = Expr.Not { Expr.formula = Expr.ExTy (_, args, _) } } -> args
-  | _ -> assert false
-
-let ty_sub m f =
-  let l, _ = free_args f in
-  List.exists Expr.Ty.(equal (of_meta m)) l
-
-let term_sub m f =
-  let _, l = free_args f in
-  List.exists Expr.Term.(equal (of_meta m)) l
-
-(* Splits an arbitrary unifier (Unif.t) into a list of
- * unifiers such that all formula generating the metas in
- * a unifier are comparable according to compare_quant. *)
-let belong_ty m s =
-  let f = Expr.Meta.ttype_def (index m) in
-  let ty_aux m' _ =
-    let f' = Expr.Meta.ttype_def (index m') in
-    if Expr.Formula.equal f f'
-    then index m = index m'
-    else ty_sub m f' || ty_sub m' f
+(* Given a mapping, split it into mapping
+   for which all metas have the same root cluster *)
+let split m =
+  let aux def bind m e acc =
+    let f = def m.Expr.meta_index in
+    let i = CCOpt.map_or ~default:~-1 root (get_cluster f) in
+    let s = M.get_or ~default:Mapping.empty i acc in
+    M.add i (bind s m e) acc
   in
-  let term_aux m' _ =
-    let f' = Expr.Meta.ty_def (index m') in
-    ty_sub m f' || term_sub m' f
+  let tmp =
+    Mapping.fold m M.empty
+      ~ty_var:(fun _ _ _ -> assert false)
+      ~ty_meta:(aux Expr.Meta.ttype_def Mapping.Meta.bind_ty)
+      ~term_var:(fun _ _ _ -> assert false)
+      ~term_meta:(aux Expr.Meta.ty_def Mapping.Meta.bind_term)
   in
-  Mapping.exists ~ty_meta:ty_aux ~term_meta:term_aux s
+  M.fold (fun _ map acc -> map :: acc) tmp []
 
-let belong_term m s =
-  let f = Expr.Meta.ty_def (index m) in
-  Util.debug ~section "In : @[<hov>%a@]@\nComparing : @[<hov 2>%a :@ %a@]"
-    Mapping.print s Expr.Meta.print m Expr.Formula.print f;
-  let ty_aux m' _ =
-    Util.debug ~section "plop ?!";
-    let f' = Expr.Meta.ttype_def (index m') in
-    term_sub m f' || ty_sub m' f
+(* Find the miniaml cluster in a mapping where all meta definitions
+   are supposed to be comparable (as is the case in theoutput of split). *)
+let min_cluster mapping =
+  let aux def m e acc =
+    let f = def m.Expr.meta_index in
+    match get_cluster f, acc with
+    | Some c, None -> Some c
+    | Some c, Some c' ->
+      begin match cmp c c' with
+        | Comparison.Lt -> Some c
+        | Comparison.Incomparable ->
+          Util.warn ~section "@[<hv 2>Non-comparable clusters in mapping@ %a@]"
+            Mapping.print mapping;
+          acc
+        | _ -> acc
+      end
+    | None, _ ->
+      Util.error ~section "Defining formula for meta %a doesn't have a cluster"
+        Expr.Print.meta m;
+      assert false
   in
-  let term_aux m' _ =
-    let f' = Expr.Meta.ty_def (index m') in
-    Util.debug ~section "   to :@[<hov>@[<hov 2>%a :@ %a@]@]"
-      Expr.Meta.print m' Expr.Formula.print f';
-    if Expr.Formula.equal f f'
-    then index m = index m'
-    else term_sub m f' || term_sub m' f
-  in
-  Mapping.exists ~ty_meta:ty_aux ~term_meta:term_aux s
-
-let split s =
-  let rec aux bind belongs acc m t = function
-    | [] -> bind Mapping.empty m t :: acc
-    | s :: r ->
-      if belongs m s then (
-        Util.debug ~section "%a in %a" Expr.Print.meta m Mapping.print s;
-        (bind s m t) :: (List.rev_append acc r)
-      ) else (
-        Util.debug ~section "%a not in %a" Expr.Print.meta m Mapping.print s;
-        aux bind belongs (s :: acc) m t r
-      )
-  in
-  Mapping.fold
-    ~ty_meta:(aux Mapping.Meta.bind_ty belong_ty [])
-    ~term_meta:(aux Mapping.Meta.bind_term belong_term [])
-    s []
+  Mapping.fold mapping None
+    ~ty_var:(fun _ _ _ -> assert false)
+    ~ty_meta:(aux Expr.Meta.ttype_def)
+    ~term_var:(fun _ _ _ -> assert false)
+    ~term_meta:(aux Expr.Meta.ty_def)
 
 (* Given an arbitrary substitution (Unif.t),
  * Returns a pair (formula * Unif.t) to instanciate
  * the outermost metas in the given unifier. *)
 let partition s =
-  let aux bind m t = function
-    | None -> Some (index m, bind Mapping.empty m t)
-    | Some (min_index, acc) ->
-      let i = index m in
-      if i < min_index then
-        Some (i, bind Mapping.empty m t)
-      else if i = min_index then
-        Some (i, bind acc m t)
-      else
-        Some (min_index, acc)
-  in
-  match Mapping.fold ~ty_meta:(aux Mapping.Meta.bind_ty) s None with
-  | Some (i, u) -> Expr.Meta.ttype_def i, u
-  | None ->
-    begin match Mapping.fold ~term_meta:(aux Mapping.Meta.bind_term) s None with
-      | Some (i, u) -> Expr.Meta.ty_def i, u
+  assert (not @@ Mapping.is_empty s);
+  match min_cluster s with
+  | None -> assert false
+  | Some c ->
+    let aux def m e =
+      let f = def m.Expr.meta_index in
+      match get_cluster f with
       | None -> assert false
-    end
+      | Some c' -> c = c'
+    in
+    Mapping.filter s
+      ~ty_var:(fun _ _ -> assert false)
+      ~ty_meta:(aux Expr.Meta.ttype_def)
+      ~term_var:(fun _ _ -> assert false)
+      ~term_meta:(aux Expr.Meta.ty_def)
 
 let simplify s = snd (partition s)
 

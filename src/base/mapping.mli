@@ -73,7 +73,7 @@ val filter :
   ?formula_var:(Expr.Id.Ty.t -> Expr.formula -> bool) ->
   ?formula_meta:(Expr.Meta.Ty.t -> Expr.formula -> bool) ->
   t -> t
-(** Fold on mappings. *)
+(** Filter on mappings. *)
 
 val exists :
   ?ty_var:(Expr.Id.Ttype.t -> Expr.ty -> bool) ->
