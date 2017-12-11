@@ -59,13 +59,16 @@ module Robinson : sig
 
   exception Impossible_ty of Expr.ty * Expr.ty
   exception Impossible_term of Expr.term * Expr.term
+  exception Impossible_atomic of Expr.formula * Expr.formula
 
   val ty : Mapping.t -> Expr.ty -> Expr.ty -> Mapping.t
   val term : Mapping.t -> Expr.term -> Expr.term -> Mapping.t
+  val atomic : Mapping.t -> Expr.formula -> Expr.formula -> Mapping.t list
   (** Robinson unification with input substitution. Can be used to extend substitutions.
       Fixpoint computation should be applied to substitutions returned by these functions.
       @raise Impossible_ty _
-      @raise Impossible_term _ *)
+      @raise Impossible_term _
+      @raise Impossible_atomic _ *)
 
   val find : section:Section.t -> Expr.term -> Expr.term -> Mapping.t option
   (** Tries and find a unifier. *)

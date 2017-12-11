@@ -211,6 +211,76 @@ end
 
 module Narrow = struct
 
+  let new_tyvar, new_var =
+    let r = ref 0 in
+    (fun _ -> incr r; Expr.Id.ttype (Format.asprintf "r_%d" !r)),
+    (fun v -> incr r; Expr.Id.ty (Format.asprintf "r_%d" !r) v.Expr.id_type)
 
+  let find (type a) (e: a)
+      (witness: a Rule.witness)
+      (rewrite: a Rule.rewrite) =
+    let unify : a -> a -> Mapping.t list =
+      match witness with
+      | Rule.Term -> (fun t t' -> [Unif.Robinson.term Mapping.empty t t'])
+      | Rule.Formula -> Unif.Robinson.atomic Mapping.empty
+    in
+    match unify rewrite.Rule.trigger e with
+    | [] -> assert false
+    | exception Unif.Robinson.Impossible_ty _ -> []
+    | exception Unif.Robinson.Impossible_term _ -> []
+    | exception Unif.Robinson.Impossible_atomic _ -> []
+    | l ->
+      (* Compute the free_variables of the trigger *)
+      let fv_ty, fv_t =
+        match witness, rewrite with
+        | Rule.Term, { Rule.trigger } -> Expr.Term.fv trigger
+        | Rule.Formula, { Rule.trigger } -> Expr.Formula.fv trigger
+      in
+      (* Strip away pure rule instanciations. *)
+      let l' = List.filter (fun m ->
+          let _, (fm_ty, fm_t) = Mapping.domain m in
+          not (fm_ty = [] && fm_t = [])) l in
+      let l'' = List.map Mapping.fixpoint l' in
+      (** Replace variables (all of which should come from the rewrite rule),
+          by fresh one to avoid strange capture things. Additionally, each
+          narrowing instance should use distinct fresh variables. *)
+      let freshen subst =
+        (* chack that evry remaining free var in the subst comes from the trigger*)
+        assert (
+          let ((ty_var, t_var), _) = Mapping.codomain subst in
+          List.for_all (fun v -> List.exists (Expr.Id.equal v) fv_t) t_var &&
+          List.for_all (fun v -> List.exists (Expr.Id.equal v) fv_ty) ty_var
+        );
+        (* create some fresh avriables for the free vars in the trigger *)
+        let m = List.fold_left (fun acc v ->
+            Mapping.Var.bind_term acc v (Expr.Term.of_id (new_var v))
+          ) (List.fold_left (fun acc v ->
+            Mapping.Var.bind_ty acc v (Expr.Ty.of_id (new_tyvar v))
+          ) Mapping.empty fv_ty) fv_t in
+        (* replace old vars by the new variables in the bound terms. No need
+           to bind the new vars since only the metas should be substituted. *)
+        Mapping.apply m subst
+      in
+      List.map freshen l''
+
+  let term_aux t rule =
+    match rule.Rule.contents with
+    | Rule.C (Rule.Formula, _) -> []
+    | Rule.C (Rule.Term, rewrite) ->
+      let l = find t Rule.Term (rewrite: Expr.term Rule.rewrite) in
+      List.map (fun m -> rule, m) l
+
+  let formula_aux f rule =
+    match rule.Rule.contents with
+    | Rule.C (Rule.Term, _) -> []
+    | Rule.C (Rule.Formula, rewrite) ->
+      let l = find f Rule.Formula (rewrite: Expr.formula Rule.rewrite) in
+      List.map (fun m -> rule, m) l
+
+  let term t rules =
+    CCList.flat_map (term_aux t) rules
+
+  let formula f rules =
+    CCList.flat_map (formula_aux f) rules
 
 end

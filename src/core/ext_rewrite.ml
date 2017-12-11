@@ -133,6 +133,9 @@ let find_all_parents t =
   in
   aux (aux_single t T.empty)
 
+let iter_all_terms f =
+  M.iter (fun _ s -> S.iter f s) index
+
 let find_indexed f =
   let s = find_index f in
   S.fold (fun t acc -> T.add (C.find t) acc) s T.empty
@@ -481,6 +484,18 @@ let rec add_rule r =
     active_trigger_rules := [];
     List.iter add_rule l
 
+(* Narrowing *)
+(* ************************************************************************ *)
+
+let do_narrowing () =
+  let ret = ref false in
+  let rules = !active_trigger_rules @ !active_subst_rules in
+  iter_all_terms (fun t ->
+      let l = Rewrite.Narrow.term t rules in
+      ()
+    );
+  !ret
+
 (* Proof info *)
 (* ************************************************************************ *)
 
@@ -532,6 +547,8 @@ let rec peek = function
 
 let handle : type ret. ret Dispatcher.msg -> ret option = function
   | Dot.Info Rewrite info -> Some (dot_info info)
+  | Solver.Found_sat _ ->
+    if do_narrowing () then Some (Solver.Assume []) else Some Solver.Sat_ok
   | _ -> None
 
 let options =
