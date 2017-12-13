@@ -8,14 +8,14 @@ type Dispatcher.lemma_info += Inst of lemma_info
 (* Metavariable positions *)
 (* ************************************************************************ *)
 
-module H = Hashtbl.Make(Expr.Formula)
+module Hf = Hashtbl.Make(Expr.Formula)
 
 type cluster =
-  | Root of int
-  | Under of int * cluster
+  | Root of Expr.formula
+  | Under of Expr.formula * cluster
 
 let rec root = function
-  | Root i -> i
+  | Root f -> f
   | Under (_, c) -> root c
 
 let rec depth = function
@@ -27,6 +27,15 @@ let rec dive n = function
   | Root _ (* n > 0 *) -> assert false
   | Under (_, c) -> dive (n - 1) c
 
+let rec compare c c' =
+  match c, c' with
+  | Root f, Root f' -> Expr.Formula.compare f f'
+  | Under (f, d), Under (f', d') ->
+    CCOrd.Infix.(Expr.Formula.compare f f'
+                 <?> (compare, c, c'))
+  | Root _, Under _ -> -1
+  | Under _, Root _ -> 1
+
 let cmp c c' =
   let d = depth c in
   let d' = depth c' in
@@ -35,8 +44,7 @@ let cmp c c' =
   in
   let diff = abs (d - d') in
   let c = dive diff b in
-  (* polymorphic comparison intended *)
-  if a = c then
+  if compare a c = 0 then
     if diff = 0
     then Comparison.Eq
     else if inversed
@@ -44,23 +52,21 @@ let cmp c c' =
     else Comparison.Lt
   else Comparison.Incomparable
 
-let _roots = ref 0
-
-let new_root () =
-  incr _roots;
-  Root !_roots
-
-let _cluster = ref 0
-
-let mk_cluster c =
-  incr _cluster;
-  Under (!_cluster, c)
+let mk_root f = Root f
+let mk_cluster f c = Under (f, c)
 
 (** Cluster registering *)
-let tbl = H.create 4013
+let tbl = Hf.create 4013
 
 let get_cluster f =
-  try Some (H.find tbl f)
+  let q = match f with
+    | { Expr.formula = Expr.All _ }
+    | { Expr.formula = Expr.AllTy _ } -> f
+    | { Expr.formula = Expr.Not ( {
+        Expr.formula = Expr.(Ex _ | ExTy _) } as f' ) } -> f'
+    | _ -> raise (Invalid_argument "Inst.get_cluster")
+  in
+  try Some (Hf.find tbl q)
   with Not_found -> None
 
 let rec set_cluster c f =
@@ -76,23 +82,33 @@ let rec set_cluster c f =
   | Expr.All (_, _, f')
   | Expr.AllTy (_, _, f')
   | Expr.Ex (_, _, f')
-  | Expr.ExTy (_, _, f') -> H.add tbl f c; set_cluster c f'
+  | Expr.ExTy (_, _, f') -> Hf.add tbl f c; set_cluster c f'
+
+let mark_meta quant f =
+  match get_cluster quant with
+  (* All/NotEx following AllTy/NotExTy should have the same cluster. *)
+  | Some Root r when Expr.Formula.equal quant r -> ()
+  (* General case *)
+  | None -> set_cluster (mk_root f) f
+  | Some c -> set_cluster (mk_cluster f c) f
 
 (* Instanciation helpers *)
 (* ************************************************************************ *)
 
 (* TODO: cache cluster access for meta-variables *)
 
-module M = CCMap.Make(CCInt)
+module N = CCMap.Make(CCInt)
+module M = CCMap.Make(Expr.Formula)
 
 (* Given a mapping, split it into mapping
    for which all metas have the same root cluster *)
 let split m =
   let aux def bind m e acc =
     let f = def m.Expr.meta_index in
-    let i = CCOpt.map_or ~default:~-1 root (get_cluster f) in
-    let s = M.get_or ~default:Mapping.empty i acc in
-    M.add i (bind s m e) acc
+    let r = match get_cluster f with
+      | Some c -> root c | None -> raise (Invalid_argument "Inst.split") in
+    let s = M.get_or ~default:Mapping.empty r acc in
+    M.add r (bind s m e) acc
   in
   let tmp =
     Mapping.fold m M.empty
@@ -101,7 +117,7 @@ let split m =
       ~term_var:(fun _ _ _ -> assert false)
       ~term_meta:(aux Expr.Meta.ty_def Mapping.Meta.bind_term)
   in
-  M.fold (fun _ map acc -> map :: acc) tmp []
+  M.fold (fun _ m acc -> m :: acc) tmp []
 
 (* Find the miniaml cluster in a mapping where all meta definitions
    are supposed to be comparable (as is the case in theoutput of split). *)
@@ -130,11 +146,9 @@ let min_cluster mapping =
     ~term_var:(fun _ _ _ -> assert false)
     ~term_meta:(aux Expr.Meta.ty_def)
 
-(* Given an arbitrary substitution (Unif.t),
- * Returns a pair (formula * Unif.t) to instanciate
- * the outermost metas in the given unifier. *)
-let partition s =
-  assert (not @@ Mapping.is_empty s);
+(** Take a map, and filter out all metas but for the
+    smallest cluster. *)
+let reduce_map s =
   match min_cluster s with
   | None -> assert false
   | Some c ->
@@ -142,7 +156,7 @@ let partition s =
       let f = def m.Expr.meta_index in
       match get_cluster f with
       | None -> assert false
-      | Some c' -> c = c'
+      | Some c' -> compare c c' = 0
     in
     Mapping.filter s
       ~ty_var:(fun _ _ -> assert false)
@@ -150,7 +164,38 @@ let partition s =
       ~term_var:(fun _ _ -> assert false)
       ~term_meta:(aux Expr.Meta.ty_def)
 
-let simplify s = snd (partition s)
+(** Split a single_cluster mapping according to meta indexes *)
+let split_cluster map =
+  let aux meta t acc =
+    let i = (meta.Expr.meta_index : _ Expr.meta_index :> int) in
+    let s = N.get_or ~default:Mapping.empty i acc in
+    N.add i (Mapping.Meta.bind_term s meta t) acc
+  in
+  let tmp = Expr.Subst.fold aux (Mapping.term_meta map) N.empty in
+  List.map snd (N.bindings tmp)
+
+(** Returns the formula defining a mapping (where all metas
+    are assumed to be defined by the same formula or contiguous
+    quantifications (i.e same cluster). *)
+let map_def map =
+  try
+    let m, _ = Expr.Subst.choose (Mapping.ty_meta map) in
+    Expr.Meta.ttype_def m.Expr.meta_index
+  with Not_found ->
+    begin try
+        let m, _ = Expr.Subst.choose (Mapping.term_meta map) in
+        Expr.Meta.ty_def m.Expr.meta_index
+      with Not_found ->
+        raise (Invalid_argument "Inst.map_def")
+    end
+
+(* Given an arbitrary mapping,
+ * returns a list of pairs (formula * mapping) to instanciate
+ * the outermost metas in the given mapping. *)
+let partition m =
+  let l = split m in
+  let l = List.map reduce_map l in
+  CCList.flat_map split_cluster l
 
 (* Produces a proof for the instanciation of the given formulas and unifiers *)
 let mk_proof f q t =
@@ -213,8 +258,8 @@ module Inst = struct
 
   (* Constructor *)
   let mk u score =
-    let formula, s = partition u in
-    let var_subst = to_var (groundify s) in
+    let formula = map_def u in
+    let var_subst = to_var (groundify u) in
     let hash = Hashtbl.hash (Expr.Formula.hash formula, Mapping.hash u) in
     { age = !age; hash; score; formula; var_subst; }
 
@@ -244,6 +289,9 @@ let inst_set = H.create 4096
 let inst_incr = ref 0
 
 let add ?(delay=0) ?(score=0) u =
+  assert (match split_cluster (reduce_map u) with
+      | [s] -> Mapping.equal s u
+      | _ -> false);
   let t = Inst.mk u score in
   if not (H.mem inst_set t) then begin
     H.add inst_set t false;

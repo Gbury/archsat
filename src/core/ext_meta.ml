@@ -304,7 +304,7 @@ let do_inst u =
 
 let insts r u =
   Util.debug "Found inst: @[<hov>%a@]" Mapping.print u;
-  let l = Inst.split (Mapping.fixpoint u) in
+  let l = Inst.partition (Mapping.fixpoint u) in
   let l = List.map do_inst l in
   if List.exists CCFun.id l then begin
     decr r;
