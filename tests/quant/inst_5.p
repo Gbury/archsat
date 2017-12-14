@@ -1,7 +1,7 @@
 % #expect: unsat
 
 fof(ax, axiom, ! [ X ] : ( $true & (
-                ! [ Y ] : ( p(a, Y) )
+                ! [ Y ] : ( q(X) & p(a, Y) )
                 )
               )
             ).

@@ -1,4 +1,6 @@
 
+let section = Section.make "rewrite"
+
 (* Rewrite rules guards *)
 (* ************************************************************************ *)
 
@@ -96,7 +98,7 @@ module Rule = struct
     Format.fprintf fmt "%s%d" (if r.manual then "~" else "#") r.id
 
   let print_rewrite pp fmt {trigger; result} =
-    Format.fprintf fmt "@[<hv>%a@ -> %a@]" pp trigger pp result
+    Format.fprintf fmt "{@[<hv>%a@ -> %a@]}" pp trigger pp result
 
   let print_contents
       ?(term=Expr.Print.term)
@@ -211,6 +213,10 @@ end
 
 module Narrow = struct
 
+  let _true _ _ = true
+  let _false _ _ = false
+  let _nope  _ _ = assert false
+
   let new_tyvar, new_var =
     let r = ref 0 in
     (fun _ -> incr r; Expr.Id.ttype (Format.asprintf "r_%d" !r)),
@@ -230,6 +236,8 @@ module Narrow = struct
     | exception Unif.Robinson.Impossible_term _ -> []
     | exception Unif.Robinson.Impossible_atomic _ -> []
     | l ->
+      Util.debug ~section "@[<hv 2>Found unifiers:@ %a"
+        CCFormat.(list ~sep:(return "@ ") Mapping.print) l;
       (* Compute the free_variables of the trigger *)
       let fv_ty, fv_t =
         match witness, rewrite with
@@ -239,43 +247,60 @@ module Narrow = struct
       (* Strip away pure rule instanciations. *)
       let l' = List.filter (fun m ->
           let _, (fm_ty, fm_t) = Mapping.domain m in
-          not (fm_ty = [] && fm_t = [])) l in
-      let l'' = List.map Mapping.fixpoint l' in
+          let res = not (fm_ty = [] && fm_t = []) in
+          if not res then Util.debug ~section "filtering out %a" Mapping.print m;
+          res
+        ) l in
       (** Replace variables (all of which should come from the rewrite rule),
           by fresh one to avoid strange capture things. Additionally, each
           narrowing instance should use distinct fresh variables. *)
       let freshen subst =
-        (* chack that evry remaining free var in the subst comes from the trigger*)
+        (* check that every remaining free var in the subst comes from the trigger*)
         assert (
           let ((ty_var, t_var), _) = Mapping.codomain subst in
           List.for_all (fun v -> List.exists (Expr.Id.equal v) fv_t) t_var &&
           List.for_all (fun v -> List.exists (Expr.Id.equal v) fv_ty) ty_var
         );
-        (* create some fresh avriables for the free vars in the trigger *)
+        (* create some fresh variables for the free vars in the trigger *)
         let m = List.fold_left (fun acc v ->
             Mapping.Var.bind_term acc v (Expr.Term.of_id (new_var v))
           ) (List.fold_left (fun acc v ->
             Mapping.Var.bind_ty acc v (Expr.Ty.of_id (new_tyvar v))
           ) Mapping.empty fv_ty) fv_t in
+        Util.debug ~section "@[<hv 2>freshening:@ %a@ with %a@]"
+          Mapping.print subst Mapping.print m;
         (* replace old vars by the new variables in the bound terms. No need
            to bind the new vars since only the metas should be substituted. *)
-        Mapping.apply m subst
+        Mapping.filter subst
+          ~ty_var:_true ~term_var:_true
+          ~ty_meta:_false ~term_meta:_false
+          ~formula_var:_nope ~formula_meta:_nope,
+        Mapping.fixpoint @@
+        Mapping.apply m @@
+        Mapping.filter subst
+          ~ty_var:_false ~term_var:_false
+          ~ty_meta:_true ~term_meta:_true
+          ~formula_var:_nope ~formula_meta:_nope
       in
-      List.map freshen l''
+      List.map freshen l'
 
   let term_aux t rule =
     match rule.Rule.contents with
     | Rule.C (Rule.Formula, _) -> []
     | Rule.C (Rule.Term, rewrite) ->
+      Util.debug ~section "@[<hv 2>Narrowing@ %a@ with %a@]"
+       (Rule.print_rewrite Expr.Term.print) rewrite Expr.Term.print t;
       let l = find t Rule.Term (rewrite: Expr.term Rule.rewrite) in
-      List.map (fun m -> rule, m) l
+      List.map (fun (m, m') -> rule, m, m') l
 
   let formula_aux f rule =
     match rule.Rule.contents with
     | Rule.C (Rule.Term, _) -> []
     | Rule.C (Rule.Formula, rewrite) ->
+      Util.debug ~section "@[<hv 2>Narrowing@ %a@ with %a@]"
+       (Rule.print_rewrite Expr.Formula.print) rewrite Expr.Formula.print f;
       let l = find f Rule.Formula (rewrite: Expr.formula Rule.rewrite) in
-      List.map (fun m -> rule, m) l
+      List.map (fun (m, m') -> rule, m, m') l
 
   let term t rules =
     CCList.flat_map (term_aux t) rules

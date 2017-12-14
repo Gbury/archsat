@@ -324,6 +324,8 @@ let apply ?fix t m =
   map (apply_ty ?fix t) (apply_term ?fix t) (apply_formula ?fix t) m
 
 (* Fixpoint on meta substitutions *)
-let fixpoint t = apply ~fix:true t t
+let fixpoint t =
+  Util.debug "Fixpoint: %a" print t;
+  apply ~fix:true t t
 
 

@@ -94,10 +94,10 @@ end
 
 module Narrow : sig
 
-  val term : Expr.term -> Rule.t list -> (Rule.t * Mapping.t) list
-  val formula : Expr.formula -> Rule.t list -> (Rule.t * Mapping.t) list
-  (** Tries and narrow the given term/formula, and returns a list of rules and mapping
-      that allows to unify with the term.
+  val term : Expr.term -> Rule.t list -> (Rule.t * Mapping.t * Mapping.t) list
+  val formula : Expr.formula -> Rule.t list -> (Rule.t * Mapping.t * Mapping.t) list
+  (** Tries and narrow the given term/formula, and returns a list of triples
+      (rule, rule_inst, meta_inst) that allows to unify with the term.
       Instances of simple rewrite rule (which require no meta instanciation), are
       stripped away from the lsit of returned results. Addtionally, each mapping
       may refer to some fresh variables. *)
