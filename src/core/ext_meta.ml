@@ -203,23 +203,27 @@ let do_formula =
       let metas = List.map Expr.Term.of_meta (Expr.Meta.of_all f) in
       let subst = List.fold_left2 Expr.Subst.Id.bind Expr.Subst.empty l metas in
       let q = Expr.Formula.subst ~t_var_map:subst p in
+      let () = Inst.mark_meta f q in
       Dispatcher.push [Expr.Formula.neg f; q] (mk_proof_term f l metas q)
     | { Expr.formula = Expr.Not { Expr.formula = Expr.Ex (l, _, p) } } as f ->
       let metas = List.map Expr.Term.of_meta (Expr.Meta.of_all f) in
       let subst = List.fold_left2 Expr.Subst.Id.bind Expr.Subst.empty l metas in
       let q = Expr.Formula.subst ~t_var_map:subst p in
       let q' = Expr.Formula.neg q in
+      let () = Inst.mark_meta f q' in
       Dispatcher.push [Expr.Formula.neg f; q'] (mk_proof_term f l metas q')
     | { Expr.formula = Expr.AllTy (l, _, p) } as f ->
       let metas = List.map Expr.Ty.of_meta (Expr.Meta.of_all_ty f) in
       let subst = List.fold_left2 Expr.Subst.Id.bind Expr.Subst.empty l metas in
       let q = Expr.Formula.subst ~ty_var_map:subst p in
+      let () = Inst.mark_meta f q in
       Dispatcher.push [Expr.Formula.neg f; q] (mk_proof_ty f l metas q)
     | { Expr.formula = Expr.Not { Expr.formula = Expr.ExTy (l, _, p) } } as f ->
       let metas = List.map Expr.Ty.of_meta (Expr.Meta.of_all_ty f) in
       let subst = List.fold_left2 Expr.Subst.Id.bind Expr.Subst.empty l metas in
       let q = Expr.Formula.subst ~ty_var_map:subst p in
       let q' = Expr.Formula.neg q in
+      let () = Inst.mark_meta f q' in
       Dispatcher.push [Expr.Formula.neg f; q'] (mk_proof_ty f l metas q')
     | _ -> assert false
   in function
@@ -248,7 +252,7 @@ let do_meta_inst = function
       let metas = Expr.Meta.of_all f in
       let u = List.fold_left (fun s m ->
           Mapping.Meta.bind_term s m (Expr.Term.of_meta m)) Mapping.empty metas in
-      if not (Inst.add ~delay:(delay !i) u) then assert false
+      if not (Inst.add ~mark:true ~delay:(delay !i) u) then assert false
     end
   | { Expr.formula = Expr.Not { Expr.formula = Expr.Ex (l, _, p) } } as f ->
     let i = get_nb_metas f in
@@ -259,7 +263,7 @@ let do_meta_inst = function
       let metas = Expr.Meta.of_all f in
       let u = List.fold_left (fun s m ->
           Mapping.Meta.bind_term s m (Expr.Term.of_meta m)) Mapping.empty metas in
-      if not (Inst.add ~delay:(delay !i) u) then assert false
+      if not (Inst.add ~mark:true ~delay:(delay !i) u) then assert false
     end
   | { Expr.formula = Expr.AllTy (l, _, p) } as f ->
     let i = get_nb_metas f in
@@ -270,7 +274,7 @@ let do_meta_inst = function
       let metas = Expr.Meta.of_all_ty f in
       let u = List.fold_left (fun s m ->
           Mapping.Meta.bind_ty s m (Expr.Ty.of_meta m)) Mapping.empty metas in
-      if not (Inst.add ~delay:(delay !i) u) then assert false
+      if not (Inst.add ~mark:true ~delay:(delay !i) u) then assert false
     end
   | { Expr.formula = Expr.Not { Expr.formula = Expr.ExTy (l, _, p) } } as f ->
     let i = get_nb_metas f in
@@ -281,7 +285,7 @@ let do_meta_inst = function
       let metas = Expr.Meta.of_all_ty f in
       let u = List.fold_left (fun s m ->
           Mapping.Meta.bind_ty s m (Expr.Ty.of_meta m)) Mapping.empty metas in
-      if not (Inst.add ~delay:(delay !i) u) then assert false
+      if not (Inst.add ~mark:true ~delay:(delay !i) u) then assert false
     end
   | _ -> assert false
 

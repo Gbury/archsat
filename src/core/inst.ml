@@ -27,6 +27,13 @@ let rec dive n = function
   | Root _ (* n > 0 *) -> assert false
   | Under (_, c) -> dive (n - 1) c
 
+let rec print fmt = function
+  | Root f ->
+    Format.fprintf fmt "%a" Expr.Formula.print f
+  | Under (f, c) ->
+    Format.fprintf fmt "@[<v>%a@ |- %a@]"
+      Expr.Print.formula f print c
+
 let rec compare c c' =
   match c, c' with
   | Root f, Root f' -> Expr.Formula.compare f f'
@@ -64,7 +71,10 @@ let get_cluster f =
     | { Expr.formula = Expr.AllTy _ } -> f
     | { Expr.formula = Expr.Not ( {
         Expr.formula = Expr.(Ex _ | ExTy _) } as f' ) } -> f'
-    | _ -> raise (Invalid_argument "Inst.get_cluster")
+    | _ ->
+      Util.error ~section "@[<hv 2>Getting cluster for:@ %a@]"
+        Expr.Formula.print f;
+      raise (Invalid_argument "Inst.get_cluster")
   in
   try Some (Hf.find tbl q)
   with Not_found -> None
@@ -82,15 +92,48 @@ let rec set_cluster c f =
   | Expr.All (_, _, f')
   | Expr.AllTy (_, _, f')
   | Expr.Ex (_, _, f')
-  | Expr.ExTy (_, _, f') -> Hf.add tbl f c; set_cluster c f'
+  | Expr.ExTy (_, _, f') ->
+    let c' = mk_cluster f c in
+    Util.debug ~section "@[<hv 2>%a <<--@ %a@]"
+      Expr.Print.formula f print c';
+    Hf.add tbl f c'; set_cluster c f'
 
 let mark_meta quant f =
-  match get_cluster quant with
-  (* All/NotEx following AllTy/NotExTy should have the same cluster. *)
-  | Some Root r when Expr.Formula.equal quant r -> ()
-  (* General case *)
-  | None -> set_cluster (mk_root f) f
-  | Some c -> set_cluster (mk_cluster f c) f
+  Util.debug ~section "@[<hv 2>Marking:@ %a@ %a@]"
+    Expr.Print.formula quant Expr.Print.formula f;
+  let current =
+    match get_cluster quant with
+    | None ->
+      let c = mk_root quant in
+      let () = match quant with
+        | ({ Expr.formula = Expr.All (_, _, f') } as q)
+        | ({ Expr.formula = Expr.AllTy (_, _, f') } as q)
+        | { Expr.formula = Expr.Not ({
+                Expr.formula = Expr.Ex (_, _, f') } as q) }
+        | { Expr.formula = Expr.Not ({
+                Expr.formula = Expr.ExTy (_, _, f') } as q) } ->
+          Util.debug ~section "@[<hv 2>%a <<<<@ %a@]"
+            Expr.Print.formula q print c;
+          Hf.add tbl q c
+        | _ -> raise (Invalid_argument "Inst.mark_meta")
+      in
+      c
+    | Some c -> c
+  in
+  let rec aux c = function
+    | ({ Expr.formula = Expr.All (_, _, f') } as q)
+    | ({ Expr.formula = Expr.AllTy (_, _, f') } as q)
+    | { Expr.formula = Expr.Not ({
+            Expr.formula = Expr.Ex (_, _, f') } as q) }
+    | { Expr.formula = Expr.Not ({
+            Expr.formula = Expr.ExTy (_, _, f') } as q) } ->
+      Util.debug ~section "@[<hv 2>%a <<<<@ %a@]"
+        Expr.Print.formula q print c;
+      Hf.add tbl q c;
+      aux c f'
+    | f -> set_cluster c f
+  in
+  aux current f
 
 (* Instanciation helpers *)
 (* ************************************************************************ *)
@@ -106,7 +149,12 @@ let split m =
   let aux def bind m e acc =
     let f = def m.Expr.meta_index in
     let r = match get_cluster f with
-      | Some c -> root c | None -> raise (Invalid_argument "Inst.split") in
+      | Some c -> root c
+      | None ->
+        Util.error ~section "@[<hv 2>Looking for cluster failed on:@ %a@]"
+        Expr.Formula.print f;
+        raise (Invalid_argument "Inst.split")
+    in
     let s = M.get_or ~default:Mapping.empty r acc in
     M.add r (bind s m e) acc
   in
@@ -209,10 +257,11 @@ let to_var s =
     ~term_meta:(fun {Expr.meta_id = v} t acc -> Mapping.Var.bind_term acc v t)
     s Mapping.empty
 
-let soft_subst f t =
+let soft_subst ?(mark=false) f t =
   let ty_subst = Mapping.ty_var t in
   let term_subst = Mapping.term_var t in
   let q = Expr.Formula.partial_inst ty_subst term_subst f in
+  let () = if mark then mark_meta f q in
   [ Expr.Formula.neg f; q], mk_proof f q t
 
 (* Groundify substitutions *)
@@ -248,6 +297,7 @@ module Inst = struct
     age : int;
     hash : int;
     score : int;
+    mark : bool;
     formula : Expr.formula;
     var_subst : Mapping.t;
   }
@@ -257,11 +307,11 @@ module Inst = struct
   let clock () = incr age
 
   (* Constructor *)
-  let mk u score =
+  let mk mark u score =
     let formula = map_def u in
     let var_subst = to_var (groundify u) in
     let hash = Hashtbl.hash (Expr.Formula.hash formula, Mapping.hash u) in
-    { age = !age; hash; score; formula; var_subst; }
+    { age = !age; hash; score; mark; formula; var_subst; }
 
   (* debug printing *)
   let print fmt t =
@@ -288,11 +338,11 @@ let delayed = ref []
 let inst_set = H.create 4096
 let inst_incr = ref 0
 
-let add ?(delay=0) ?(score=0) u =
+let add ?(mark=false) ?(delay=0) ?(score=0) u =
   assert (match split_cluster (reduce_map u) with
       | [s] -> Mapping.equal s u
       | _ -> false);
-  let t = Inst.mk u score in
+  let t = Inst.mk mark u score in
   if not (H.mem inst_set t) then begin
     H.add inst_set t false;
     Util.debug ~section "New inst (%d):@ %a" delay Inst.print t;
@@ -311,7 +361,7 @@ let push acc inst =
   H.replace inst_set inst true;
   let open Inst in
   Util.debug ~section "Pushing inst:@ %a" Inst.print inst;
-  let cl, p = soft_subst inst.formula inst.var_subst in
+  let cl, p = soft_subst ~mark:inst.mark inst.formula inst.var_subst in
   Dispatcher.push cl p;
   acc + 1
 
