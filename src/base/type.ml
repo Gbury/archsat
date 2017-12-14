@@ -444,7 +444,7 @@ let _type_mismatch env t ty ty' ast =
 
 let _cannot_unify env ast ty t =
   let msg = Format.asprintf
-      "A term of type '%a'@ was expected, but could not unify it with@ %a:@ %a"
+      "@[<hv>A term of type '%a' was expected,@ but could not unify it with@ @[<hov 2>%a:@ %a@]@]"
       Expr.Print.ty ty Expr.Print.term t Expr.Print.ty Expr.(t.t_type)
   in
   raise (Typing_error (msg, env, ast))

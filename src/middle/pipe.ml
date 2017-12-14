@@ -242,18 +242,15 @@ let solve (opt, (c : typechecked stmt)) : solved stmt =
   | ({ contents = `Term_decl _; _ } as res) ->
     res
   | ({ contents = `Clause l; _ } as res) ->
-    if opt.Options.solve then
-      start_section ~section:Dispatcher.section Util.debug "Assume clause";
+    start_section ~section:Dispatcher.section Util.debug "Assume clause";
     let id = Solver.assume ~solve:Options.(opt.solve) c.id l in
     (simple res.id (`Left id) :> solved stmt)
   | ({ contents = `Hyp f; _ } as res) ->
-    if opt.Options.solve then
-      start_section ~section:Dispatcher.section Util.debug "Assume hyp";
+    start_section ~section:Dispatcher.section Util.debug "Assume hyp";
     let id = Solver.assume ~solve:Options.(opt.solve) c.id [f] in
     (simple res.id (`Left id) :> solved stmt)
   | ({ contents = `Goal f; _ } as res) ->
-    if opt.Options.solve then
-      start_section ~section:Dispatcher.section Util.info "Assume goal";
+    start_section ~section:Dispatcher.section Util.info "Assume goal";
     let id = Solver.assume ~solve:Options.(opt.solve) c.id [Expr.Formula.neg f] in
     (simple res.id (`Right (id, f)) :> solved stmt)
   | { contents = `Solve; _ } ->
