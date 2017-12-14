@@ -1,4 +1,0 @@
-#!/bin/bash -e
-
-rm -rf log proof.* .proof.* \#proof*
-

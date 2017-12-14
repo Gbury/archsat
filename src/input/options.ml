@@ -44,6 +44,7 @@ type output_options = {
 
 type typing_options = {
   infer   : bool;
+  typing  : bool;
   explain : [ `No | `Yes | `Full ];
 }
 
@@ -144,8 +145,8 @@ let output_opts format export_dimacs export_icnf =
   let icnf = formatter_of_out_descr export_icnf in
   { format; dimacs; icnf; }
 
-let typing_opts infer explain =
-  { infer; explain; }
+let typing_opts infer no_typing explain =
+  { infer; explain; typing = not no_typing; }
 
 let profile_opts enable max_depth sections out =
   let enabled =
@@ -215,7 +216,7 @@ let mk_opts
     input output typing
     proof model
     profile stats
-    type_only
+    no_solve
     plugins addons
     time size
   =
@@ -228,7 +229,7 @@ let mk_opts
     proof;
     model;
 
-    solve = not type_only;
+    solve = not no_solve;
     addons = List.concat addons;
     plugins = List.concat plugins;
 
@@ -318,8 +319,9 @@ let bool_opt s bool = if bool then Printf.sprintf "[%s]" s else ""
 let log_opts opt =
   Util.log "Limits : %s / %a"
     (time_string opt.time_limit) print_size opt.size_limit;
-  Util.log "Options : %s%s%s%s[in: %s][out: %s]"
+  Util.log "Options : %s%s%s%s%s[in: %s][out: %s]"
     (output_mode opt.input.mode)
+    (bool_opt "type" opt.typing.typing)
     (bool_opt "solve" opt.solve)
     (bool_opt "prove" opt.proof.active)
     (bool_opt "profile" opt.profile.enabled)
@@ -610,19 +612,23 @@ let type_t =
         "Force inference of non-declared symbols according to context" in
     Arg.(value & flag & info ["infer"] ~docs ~doc)
   in
+  let typing =
+    let doc = "Do not attempt to type input expressions, only parse them" in
+    Arg.(value & flag & info ["no-type"] ~docs ~doc)
+  in
   let explain =
     let doc = Format.asprintf
         "Explain more precisely typing conflicts, $(docv) may be %s"
         (Arg.doc_alts_enum ~quoted:false explain_list) in
     Arg.(value & opt explain `No & info ["type-explain"] ~docs ~docv:"EXPL" ~doc)
   in
-  Term.(const typing_opts $ infer $ explain)
+  Term.(const typing_opts $ infer $ typing $ explain)
 
 let copts_t () =
   let docs = copts_sect in
   let type_only =
     let doc = "Only parse and type the given problem. Do not attempt to solve." in
-    Arg.(value & flag & info ["type-only"] ~docs ~doc)
+    Arg.(value & flag & info ["no-solve"] ~docs ~doc)
   in
   let plugins =
     let doc = "Activate/deactivate extensions, using their names (see EXTENSIONS section).

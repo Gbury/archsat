@@ -4,11 +4,6 @@
     This module defines utilitiy functions.
 *)
 
-(** {2 Output functions} *)
-
-val printf : ('a, Format.formatter, unit) format -> 'a
-(** Print the given format string on the program output *)
-
 (** {2 Size functions} *)
 
 val size : 'a -> float
@@ -20,6 +15,9 @@ val print_size : Format.formatter -> float -> unit
 
 (** {2 Logging functions} *)
 
+val printf : ('a, Format.formatter, unit) format -> 'a
+(** Print the given format string on the program output *)
+
 val cleanup : unit -> unit
 (** Inform the logger that the current line need cleanup. *)
 
@@ -30,9 +28,7 @@ val disable_time : unit -> unit
 (** Disable time printing in logs (useful to compare logs). *)
 
 type 'a logger =
-  ?section:Section.t ->
-  ('a, Format.formatter, unit, unit) format4 ->
-  'a
+  ?section:Section.t -> ('a, Format.formatter, unit, unit) format4 -> 'a
 (** Th type of a logger. *)
 
 val log     : 'a logger

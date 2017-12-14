@@ -59,13 +59,15 @@ type +'a stmt = {
 }
 (** Wrapper around statements. It records implicit type declarations. *)
 
+
 (** {2 Pipes} *)
 
 val parse : Options.opts -> Options.opts * (Options.opts -> Dolmen.Statement.t option)
 (** Parsing function. Reads the input options and returns a tuple of the new options
     (including the detected input language), togethter with a statement generator. *)
 
-val execute : Options.opts * Dolmen.Statement.t -> Options.opts * Dolmen.Statement.t
+val execute : Options.opts * Dolmen.Statement.t ->
+  [ `Continue of Options.opts * Dolmen.Statement.t | `Done of Options.opts ]
 (** Perform side effects of statement (such as the 'exit' statement. *)
 
 val expand : Options.opts * Dolmen.Statement.t ->
@@ -77,6 +79,9 @@ val expand : Options.opts * Dolmen.Statement.t ->
       statements (with regards to timeouts, etc...), or as a list of independant statements
       (each with its own timeout...).
 *)
+
+val run_typecheck : Options.opts -> bool
+(** Should the typechecker be run ? *)
 
 val typecheck : Options.opts * Dolmen.Statement.t -> typechecked stmt
 (** Typechecks a statement. *)

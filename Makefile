@@ -2,7 +2,7 @@
 BIN=archsat
 MAIN=src/main.native
 
-all: bin
+all: test-bin
 
 doc:
 	cd doc && $(MAKE)
@@ -14,8 +14,15 @@ bin:
 lib:
 	$(MAKE) -C src lib
 
-test:
+test: test-lib test-bin
+
+test-lib: lib
+	@echo "RUN API tests"
 	$(MAKE) -C src test
+
+test-bin: bin
+	@echo "run BIN tests…"
+	@cd tests && $(MAKE) --no-print-directory
 
 install: bin
 	./$(BIN) --help=groff > $(MANDIR)/man1/$(BIN).1
