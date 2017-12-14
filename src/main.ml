@@ -89,16 +89,16 @@ let () =
                   Format.printf "@ %a@." (Out.print_exn opt) exn;
                   opt
                 | _ ->
-                  Util.error "%a" (Out.print_exn opt) exn;
+                  let () = Util.error "%a" (Out.print_exn opt) exn in
                   Options.error opt
               end)
         g opt' (
         (
           (fix (apply ~name:"expand" Pipe.expand) (
               (apply ~name:"execute" Pipe.execute)
-              @>>> (f_map ~name:"typecheck" Pipe.typecheck)
-              @>>> (f_map ~name:"solve" Pipe.solve)
-              @>>> (iter_ ~name:"print_res" Pipe.print_res)
+              @>|> (f_map ~name:"typecheck" ~test:Pipe.run_typecheck Pipe.typecheck)
+              @>|> (f_map ~name:"solve" Pipe.solve)
+              @>|> (iter_ ~name:"print_res" Pipe.print_res)
               @>>> (iter_ ~name:"export" Pipe.export)
               @>>> (iter_ ~name:"print_proof" Pipe.print_proof)
               @>>> (iter_ ~name:"print_model" Pipe.print_model)

@@ -117,7 +117,7 @@ let execute (opt, c) =
   (** Exit the prover, no need to return a statement. *)
   | { S.descr = S.Exit } -> exit 0
   (** TODO: parse and apply option changes *)
-  | _ -> opt, c
+  | _ -> `Continue (opt, c)
 
 (* Expand dolmen statements *)
 (* ************************************************************************ *)
@@ -186,6 +186,8 @@ let type_wrap ?(goal=false) opt =
       (Semantics.type_env l)
   in
   env
+
+let run_typecheck opt = Options.(opt.typing.typing)
 
 let typecheck (opt, c) : typechecked stmt =
   match c with

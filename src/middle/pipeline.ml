@@ -58,6 +58,7 @@ type opt = Options.opts
 
 type 'a gen = 'a Gen.t
 type 'a fix = [ `Ok | `Gen of bool * 'a gen ]
+type ('a, 'b) cont = [ `Continue of 'a | `Done of 'b ]
 
 type ('a, 'b) op = {
   name : string;
@@ -75,6 +76,8 @@ type (_, _) t =
   (** Apply a single function and then proceed with the rest of the pipeline *)
   | Map :
       ('a, 'c) op * ('c, 'b) t -> ('a, 'b) t
+  | Cont :
+      ('a, ('c, 'b) cont) op * ('c, 'b) t -> ('a, 'b) t
   (** Concat two pipeline. Not tail recursive. *)
   | Concat :
       ('a, 'b) t * ('b, 'c) t -> ('a, 'c) t
@@ -86,13 +89,15 @@ type (_, _) t =
 
 let apply ?(name="") f =
   { name; f; }
-let f_map ?(name="") f =
-  { name; f = (fun ((opt, y) as x) -> opt, f x); }
 let iter_ ?(name="") f =
   { name; f = (fun x -> f x; x); }
+let f_map ?(name="") ?(test=(fun _ -> true)) f =
+  { name; f = (fun ((opt, y) as x) ->
+        if test opt then `Continue (opt, f x) else `Done opt); }
 
 let _end = End
 let (@>>>) op t = Map(op, t)
+let (@>|>) op t = Cont(op, t)
 let (@|||) t t' = Concat (t, t')
 
 let fix op t = Fix(op, t)
@@ -104,6 +109,11 @@ let rec eval : type a b. (a, b) t -> a -> b =
     | End -> x
     | Map (op, t) ->
       eval t (op.f x)
+    | Cont (op, t) ->
+      begin match op.f x with
+        | `Continue res -> eval t res
+        | `Done res -> res
+      end
     | Concat (t, t') ->
       let y = eval t x in
       eval t' y
