@@ -13,8 +13,9 @@ module H = Hashtbl.Make(Expr.Term)
 module M = Hashtbl.Make(Expr.Id.Const)
 
 let section = Section.make ~parent:Dispatcher.section "rwrt"
-let section_trigger = Section.make ~parent:section "trigger"
 let section_subst = Section.make ~parent:section "subst"
+let section_narrow = Section.make ~parent:section "narrow"
+let section_trigger = Section.make ~parent:section "trigger"
 
 let tag = Tag.create ()
 let normalized = Tag.create ()
@@ -492,7 +493,14 @@ let do_narrowing () =
   let rules = !active_trigger_rules @ !active_subst_rules in
   iter_all_terms (fun t ->
       let l = Rewrite.Narrow.term t rules in
-      ()
+      let l = List.map (fun (_, _, m) -> m) l in
+      List.iter (fun m ->
+          Util.debug ~section:section_narrow
+            "@[<hv 2>Found a unifier:@ %a@]" Mapping.print m;
+          List.iter (fun m ->
+              ret := !ret || Inst.add m
+            ) (Inst.partition m)
+        ) l
     );
   !ret
 

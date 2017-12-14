@@ -39,7 +39,7 @@ let rec compare c c' =
   | Root f, Root f' -> Expr.Formula.compare f f'
   | Under (f, d), Under (f', d') ->
     CCOrd.Infix.(Expr.Formula.compare f f'
-                 <?> (compare, c, c'))
+                 <?> (compare, d, d'))
   | Root _, Under _ -> -1
   | Under _, Root _ -> 1
 
@@ -243,7 +243,10 @@ let map_def map =
 let partition m =
   let l = split m in
   let l = List.map reduce_map l in
-  CCList.flat_map split_cluster l
+  let res = CCList.flat_map split_cluster l in
+  Util.debug ~section "@[<hv 2>partition@ %a@ into @[<hv>%a@]@]"
+    Mapping.print m CCFormat.(list ~sep:(return "@ ") Mapping.print) res;
+  res
 
 (* Produces a proof for the instanciation of the given formulas and unifiers *)
 let mk_proof f q t =
