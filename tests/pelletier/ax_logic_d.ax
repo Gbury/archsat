@@ -1,2 +1,0 @@
-
-fof(ax_logic_d, axiom, ! [X,Y] : ((t(i(X,Y)) & t(X)) => t(Y))).
