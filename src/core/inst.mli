@@ -3,9 +3,11 @@
 
 (** {2 Proof helpers} *)
 
-type lemma_info = Formula of Expr.formula * Mapping.t * Expr.formula
-(** Lemma information for instanciation. Takes a triplet [(f, m, q)], such
-    that [q] is the result of instantiating [f] with the bound variables of [m]. *)
+type lemma_info = Formula of Expr.formula * Mapping.t * Expr.formula *
+                             Expr.ttype Expr.id list * Expr.ty Expr.id list
+(** Lemma information for instanciation. Takes a triplet [(f, m, q, tys, ts)], such
+    that [q] is the result of instantiating [f] with the bound variables of [m],
+    and then quantifying over the variables in [tys] and [ts]. *)
 
 
 (** {2 Extension helpers} *)

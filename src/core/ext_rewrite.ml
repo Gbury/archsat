@@ -509,7 +509,7 @@ let do_narrowing () =
 
 let dot_info = function
   | Subst (f, l) ->
-    Some "RED", (
+    Some "PURPLE", (
       CCFormat.const Dot.Print.formula f ::
       List.map (fun r ->
           CCFormat.const (

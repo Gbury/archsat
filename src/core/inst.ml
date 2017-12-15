@@ -1,7 +1,9 @@
 
 let section = Section.make ~parent:Dispatcher.section "inst"
 
-type lemma_info = Formula of Expr.formula * Mapping.t * Expr.formula
+type lemma_info =
+  | Formula of Expr.formula * Mapping.t * Expr.formula *
+               Expr.ttype Expr.id list * Expr.ty Expr.id list
 
 type Dispatcher.lemma_info += Inst of lemma_info
 
@@ -249,8 +251,8 @@ let partition m =
   res
 
 (* Produces a proof for the instanciation of the given formulas and unifiers *)
-let mk_proof f q t =
-  Dispatcher.mk_proof "inst" "partial" (Inst (Formula (f, t, q)))
+let mk_proof f q t tys ts =
+  Dispatcher.mk_proof "inst" "partial" (Inst (Formula (f, t, q, tys, ts)))
 
 let to_var s =
   Mapping.fold
@@ -263,9 +265,17 @@ let to_var s =
 let soft_subst ?(mark=false) f t =
   let ty_subst = Mapping.ty_var t in
   let term_subst = Mapping.term_var t in
-  let q = Expr.Formula.partial_inst ty_subst term_subst f in
+  let tys, ts =
+    let l, _ = Mapping.codomain t in
+    let l', _ = Mapping.domain t in
+    Expr.Id.remove_fv l l'
+  in
+  let q =
+    Expr.Formula.allty tys @@ Expr.Formula.all ts @@
+    Expr.Formula.partial_inst ty_subst term_subst f
+  in
   let () = if mark then mark_meta f q in
-  [ Expr.Formula.neg f; q], mk_proof f q t
+  [ Expr.Formula.neg f; q], mk_proof f q t tys ts
 
 (* Groundify substitutions *)
 (* ************************************************************************ *)
@@ -284,11 +294,11 @@ let t_cst =
   (fun ty -> Expr.Term.apply f [ty] [])
 
 let groundify m =
-  let (tys, terms), _ = Mapping.codomain m in
-  let s = List.fold_left (fun s v ->
-      Mapping.Var.bind_term s v (t_cst Expr.(v.id_type))
+  let _, (tys, terms) = Mapping.codomain m in
+  let s = List.fold_left (fun s m ->
+      Mapping.Meta.bind_term s m (t_cst Expr.(m.meta_id.id_type))
     ) (List.fold_left (fun s v ->
-      Mapping.Var.bind_ty s v ty_cst
+      Mapping.Meta.bind_ty s v ty_cst
     ) Mapping.empty tys) terms in
   Mapping.apply s m
 
@@ -429,7 +439,7 @@ let inst_sat () =
 (* ************************************************************************ *)
 
 let dot_info = function
-  | Formula (f, t, _) ->
+  | Formula (f, t, _, _, _) ->
     Some "RED", [
       CCFormat.const Dot.Print.mapping t;
       CCFormat.const Dot.Print.formula f;

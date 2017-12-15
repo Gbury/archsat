@@ -98,7 +98,7 @@ module Rule = struct
     Format.fprintf fmt "%s%d" (if r.manual then "~" else "#") r.id
 
   let print_rewrite pp fmt {trigger; result} =
-    Format.fprintf fmt "{@[<hv>%a@ -> %a@]}" pp trigger pp result
+    Format.fprintf fmt "{@[<hv>%a@ ↦ %a@]}" pp trigger pp result
 
   let print_contents
       ?(term=Expr.Print.term)
@@ -220,7 +220,7 @@ module Narrow = struct
   let new_tyvar, new_var =
     let r = ref 0 in
     (fun _ -> incr r; Expr.Id.ttype (Format.asprintf "r_%d" !r)),
-    (fun v -> incr r; Expr.Id.ty (Format.asprintf "r_%d" !r) v.Expr.id_type)
+    (fun ty -> incr r; Expr.Id.ty (Format.asprintf "r_%d" !r) ty)
 
   let find (type a) (e: a)
       (witness: a Rule.witness)
@@ -263,9 +263,12 @@ module Narrow = struct
         );
         (* create some fresh variables for the free vars in the trigger *)
         let m = List.fold_left (fun acc v ->
-            Mapping.Var.bind_term acc v (Expr.Term.of_id (new_var v))
+            Mapping.Var.bind_term acc v (Expr.Term.of_id (new_var (
+                Mapping.apply_ty acc v.Expr.id_type)))
           ) (List.fold_left (fun acc v ->
-            Mapping.Var.bind_ty acc v (Expr.Ty.of_id (new_tyvar v))
+            if Mapping.Var.mem_ty subst v
+            then Mapping.Var.bind_ty acc v (Mapping.Var.get_ty subst v)
+            else Mapping.Var.bind_ty acc v (Expr.Ty.of_id (new_tyvar v))
           ) Mapping.empty fv_ty) fv_t in
         Util.debug ~section "@[<hv 2>freshening:@ %a@ with %a@]"
           Mapping.print subst Mapping.print m;

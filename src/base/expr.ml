@@ -617,6 +617,10 @@ module Meta = struct
     CCList.sorted_merge_uniq ~cmp:compare ty1 ty2,
     CCList.sorted_merge_uniq ~cmp:compare t1 t2
 
+  let remove_fm (ty1, t1) (ty2, t2) =
+    List.filter (fun v -> not (CCList.mem ~eq:equal v ty2)) ty1,
+    List.filter (fun v -> not (CCList.mem ~eq:equal v t2)) t1
+
   let rec free_ty acc ty = match ty.ty with
     | TyVar _ -> acc
     | TyMeta m -> merge_fm acc ([m], [])
