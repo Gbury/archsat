@@ -338,7 +338,8 @@ let instanciate rule subst =
       match rule.Rewrite.Rule.guards with
       | [] ->
         (* Instantiate the rule *)
-        let clause, lemma = Inst.soft_subst rule.Rewrite.Rule.formula subst in
+        let clause, lemma =
+          Inst.soft_subst ~name:"trigger" rule.Rewrite.Rule.formula subst in
         Dispatcher.push clause lemma
       | guards ->
         let l = List.map (Rewrite.Guard.map (Mapping.apply_term subst)) guards in
@@ -349,7 +350,8 @@ let instanciate rule subst =
           (fun () ->
              let l' = List.map (Rewrite.Guard.map Dispatcher.get_assign) l in
              if List.for_all Rewrite.Guard.check l' then begin
-               let clause, lemma = Inst.soft_subst rule.Rewrite.Rule.formula subst in
+               let clause, lemma =
+                 Inst.soft_subst ~name:"trigger" rule.Rewrite.Rule.formula subst in
                Dispatcher.push clause lemma
              end
           )
@@ -498,7 +500,7 @@ let do_narrowing () =
           Util.debug ~section:section_narrow
             "@[<hv 2>Found a unifier:@ %a@]" Mapping.print m;
           List.iter (fun m ->
-              ret := !ret || Inst.add m
+              ret := !ret || Inst.add ~name:"narrowing" m
             ) (Inst.partition m)
         ) l
     );

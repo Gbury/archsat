@@ -251,8 +251,8 @@ let partition m =
   res
 
 (* Produces a proof for the instanciation of the given formulas and unifiers *)
-let mk_proof f q t tys ts =
-  Dispatcher.mk_proof "inst" "partial" (Inst (Formula (f, t, q, tys, ts)))
+let mk_proof ~name f q t tys ts =
+  Dispatcher.mk_proof "inst" name (Inst (Formula (f, t, q, tys, ts)))
 
 let to_var s =
   Mapping.fold
@@ -262,7 +262,7 @@ let to_var s =
     ~term_meta:(fun {Expr.meta_id = v} t acc -> Mapping.Var.bind_term acc v t)
     s Mapping.empty
 
-let soft_subst ?(mark=false) f t =
+let soft_subst ?(mark=false) ~name f t =
   let ty_subst = Mapping.ty_var t in
   let term_subst = Mapping.term_var t in
   let tys, ts =
@@ -275,7 +275,7 @@ let soft_subst ?(mark=false) f t =
     Expr.Formula.partial_inst ty_subst term_subst f
   in
   let () = if mark then mark_meta f q in
-  [ Expr.Formula.neg f; q], mk_proof f q t tys ts
+  [ Expr.Formula.neg f; q], mk_proof ~name f q t tys ts
 
 (* Groundify substitutions *)
 (* ************************************************************************ *)
@@ -307,10 +307,11 @@ let groundify m =
 
 module Inst = struct
   type t = {
-    age : int;
-    hash : int;
+    age   : int;
+    hash  : int;
     score : int;
-    mark : bool;
+    mark  : bool;
+    name  : string;
     formula : Expr.formula;
     var_subst : Mapping.t;
   }
@@ -320,11 +321,11 @@ module Inst = struct
   let clock () = incr age
 
   (* Constructor *)
-  let mk mark u score =
+  let mk name mark u score =
     let formula = map_def u in
     let var_subst = to_var (groundify u) in
     let hash = Hashtbl.hash (Expr.Formula.hash formula, Mapping.hash u) in
-    { age = !age; hash; score; mark; formula; var_subst; }
+    { age = !age; hash; score; mark; name; formula; var_subst; }
 
   (* debug printing *)
   let print fmt t =
@@ -351,11 +352,11 @@ let delayed = ref []
 let inst_set = H.create 4096
 let inst_incr = ref 0
 
-let add ?(mark=false) ?(delay=0) ?(score=0) u =
+let add ?(name="partial") ?(mark=false) ?(delay=0) ?(score=0) u =
   assert (match split_cluster (reduce_map u) with
       | [s] -> Mapping.equal s u
       | _ -> false);
-  let t = Inst.mk mark u score in
+  let t = Inst.mk name mark u score in
   if not (H.mem inst_set t) then begin
     H.add inst_set t false;
     Util.debug ~section "New inst (%d):@ %a" delay Inst.print t;
@@ -374,7 +375,7 @@ let push acc inst =
   H.replace inst_set inst true;
   let open Inst in
   Util.debug ~section "Pushing inst:@ %a" Inst.print inst;
-  let cl, p = soft_subst ~mark:inst.mark inst.formula inst.var_subst in
+  let cl, p = soft_subst ~name:inst.name ~mark:inst.mark inst.formula inst.var_subst in
   Dispatcher.push cl p;
   acc + 1
 

@@ -252,7 +252,7 @@ let do_meta_inst = function
       let metas = Expr.Meta.of_all f in
       let u = List.fold_left (fun s m ->
           Mapping.Meta.bind_term s m (Expr.Term.of_meta m)) Mapping.empty metas in
-      if not (Inst.add ~mark:true ~delay:(delay !i) u) then assert false
+      if not (Inst.add ~name:"meta_gen" ~mark:true ~delay:(delay !i) u) then assert false
     end
   | { Expr.formula = Expr.Not { Expr.formula = Expr.Ex (l, _, p) } } as f ->
     let i = get_nb_metas f in
@@ -263,7 +263,7 @@ let do_meta_inst = function
       let metas = Expr.Meta.of_all f in
       let u = List.fold_left (fun s m ->
           Mapping.Meta.bind_term s m (Expr.Term.of_meta m)) Mapping.empty metas in
-      if not (Inst.add ~mark:true ~delay:(delay !i) u) then assert false
+      if not (Inst.add ~name:"meta_gen" ~mark:true ~delay:(delay !i) u) then assert false
     end
   | { Expr.formula = Expr.AllTy (l, _, p) } as f ->
     let i = get_nb_metas f in
@@ -274,7 +274,7 @@ let do_meta_inst = function
       let metas = Expr.Meta.of_all_ty f in
       let u = List.fold_left (fun s m ->
           Mapping.Meta.bind_ty s m (Expr.Ty.of_meta m)) Mapping.empty metas in
-      if not (Inst.add ~mark:true ~delay:(delay !i) u) then assert false
+      if not (Inst.add ~name:"meta_gen" ~mark:true ~delay:(delay !i) u) then assert false
     end
   | { Expr.formula = Expr.Not { Expr.formula = Expr.ExTy (l, _, p) } } as f ->
     let i = get_nb_metas f in
@@ -285,7 +285,7 @@ let do_meta_inst = function
       let metas = Expr.Meta.of_all_ty f in
       let u = List.fold_left (fun s m ->
           Mapping.Meta.bind_ty s m (Expr.Ty.of_meta m)) Mapping.empty metas in
-      if not (Inst.add ~mark:true ~delay:(delay !i) u) then assert false
+      if not (Inst.add ~name:"meta_gen" ~mark:true ~delay:(delay !i) u) then assert false
     end
   | _ -> assert false
 
@@ -304,7 +304,7 @@ let sup_limit st =
 
 (* Unification of predicates *)
 let do_inst u =
-  Inst.add ~score:(score u) u
+  Inst.add ~name:"meta_unif" ~score:(score u) u
 
 let insts r u =
   Util.debug "Found inst: @[<hov>%a@]" Mapping.print u;
