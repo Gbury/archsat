@@ -453,6 +453,9 @@ module Id = struct
     CCVector.push assign_vec None;
     { index; id_name; id_type; id_tags; builtin }
 
+  let fresh v =
+    mk_new ~builtin:v.builtin ~tags:v.id_tags v.id_name v.id_type
+
   let ttype ?builtin ?tags name = mk_new ?builtin ?tags name Type
   let ty ?builtin ?tags name ty = mk_new ?builtin ?tags name ty
 
@@ -1175,47 +1178,6 @@ module Formula = struct
       res
     end
 
-  let all l f =
-    if l = [] then f else begin
-      let l, f = match f.formula with
-        | All (l', _, f') -> l @ l', f'
-        | _ -> l, f
-      in
-      let fv = fv (mk_formula (All (l, ([], []), f))) in
-      Id.init_term_skolems l fv;
-      mk_formula (All (l, to_free_args fv, f))
-    end
-
-  let allty l f =
-    if l = [] then f else begin
-      let l, f = match f.formula with
-        | AllTy (l', _, f') -> l @ l', f'
-        | _ -> l, f
-      in
-      let fv = fv (mk_formula (AllTy (l, ([], []), f))) in
-      Id.init_ty_skolems l fv;
-      mk_formula (AllTy (l, to_free_args fv, f))
-    end
-
-  let ex l f =
-    if l = [] then f else
-      let l, f = match f.formula with
-        | Ex (l', _, f') -> l @ l', f'
-        | _ -> l, f
-      in
-      let fv = fv (mk_formula (Ex (l, ([], []), f))) in
-      Id.init_term_skolems l fv;
-      mk_formula (Ex (l, to_free_args fv, f))
-
-  let exty l f =
-    if l = [] then f else
-      let l, f = match f.formula with
-        | AllTy (l', _, f') -> l @ l', f'
-        | _ -> l, f
-      in
-      let fv = fv (mk_formula (ExTy (l, ([], []), f))) in
-      Id.init_ty_skolems l fv;
-      mk_formula (ExTy (l, to_free_args fv, f))
 
   let rec new_binder_subst ty_var_map ty_meta_map subst acc = function
     | [] -> List.rev acc, subst
@@ -1363,5 +1325,53 @@ module Formula = struct
       aux ty_vmap t_vmap f
     | _ -> raise (Invalid_argument "Expr.partial_inst")
 
+  let all l f =
+    if l = [] then f else begin
+      let vars, ft, f = match f.formula with
+        | All (l', ft, f') ->
+          let l'' = List.map Id.fresh l' in
+          let subst =
+            List.fold_left2 Subst.Id.bind Subst.empty
+              l' (List.map Term.of_id l'')
+          in
+          l @ l'', ft, subst f'
+        | _ ->
+          let ft = fv (mk_formula (All (l, ([], []), f))) in
+          l, to_free_args ft, f
+      in
+      Id.init_term_skolems vars ft;
+      mk_formula (All (l, ft, f))
+    end
+
+  let allty l f =
+    if l = [] then f else begin
+      let l, f = match f.formula with
+        | AllTy (l', _, f') -> l @ l', f'
+        | _ -> l, f
+      in
+      let fv = fv (mk_formula (AllTy (l, ([], []), f))) in
+      Id.init_ty_skolems l fv;
+      mk_formula (AllTy (l, to_free_args fv, f))
+    end
+
+  let ex l f =
+    if l = [] then f else
+      let l, f = match f.formula with
+        | Ex (l', _, f') -> l @ l', f'
+        | _ -> l, f
+      in
+      let fv = fv (mk_formula (Ex (l, ([], []), f))) in
+      Id.init_term_skolems l fv;
+      mk_formula (Ex (l, to_free_args fv, f))
+
+  let exty l f =
+    if l = [] then f else
+      let l, f = match f.formula with
+        | AllTy (l', _, f') -> l @ l', f'
+        | _ -> l, f
+      in
+      let fv = fv (mk_formula (ExTy (l, ([], []), f))) in
+      Id.init_ty_skolems l fv;
+      mk_formula (ExTy (l, to_free_args fv, f))
 end
 
