@@ -192,7 +192,7 @@ module Print = struct
             id f CCFormat.(list ~sep:(return "") ty) l
         | Some Pretty.Infix ->
           assert (List.length l > 1);
-          let sep fmt () = Format.fprintf fmt "%a@ " id f in
+          let sep fmt () = Format.fprintf fmt " %a@ " id f in
           Format.fprintf fmt "@[<hov 2>%a@]" (CCFormat.list ~sep ty) l
       end
 
