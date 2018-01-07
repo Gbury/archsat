@@ -145,6 +145,21 @@ let mark_meta quant f =
 module N = CCMap.Make(CCInt)
 module M = CCMap.Make(Expr.Formula)
 
+(* Complete a mapping, i.e. add missing identity bindings
+   for meta-variables in its co-domain. *)
+let complete m =
+  let (var_domain, meta_domain) = Mapping.domain m in
+  let (var_codomain, meta_codomain) = Mapping.codomain m in
+  assert (var_domain = ([], []) && var_codomain = ([], []));
+  let ty_metas, t_metas = Expr.Meta.remove_fm meta_codomain meta_domain in
+  List.fold_left (fun acc m ->
+      assert (not (Mapping.Meta.mem_term acc m));
+      Mapping.Meta.bind_term acc m (Expr.Term.of_meta m)
+    ) (List.fold_left (fun acc m ->
+      assert (not (Mapping.Meta.mem_ty acc m));
+      Mapping.Meta.bind_ty acc m (Expr.Ty.of_meta m)
+    ) m ty_metas) t_metas
+
 (* Given a mapping, split it into mapping
    for which all metas have the same root cluster *)
 let split m =
@@ -323,7 +338,8 @@ module Inst = struct
   (* Constructor *)
   let mk name mark u score =
     let formula = map_def u in
-    let var_subst = to_var (groundify u) in
+    (* let u' = groundify u in *)
+    let var_subst = to_var u in
     let hash = Hashtbl.hash (Expr.Formula.hash formula, Mapping.hash u) in
     { age = !age; hash; score; mark; name; formula; var_subst; }
 

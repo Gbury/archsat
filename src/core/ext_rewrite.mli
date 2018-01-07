@@ -12,6 +12,10 @@ val tag : bool Expr.tag
 (** Formulas that have been understood as rewrite rules are marked using
     this tag set ot true. *)
 
+val normalized : bool Expr.tag
+val normal_form : bool Expr.tag
+(** Tag attached to normal forms/normalized formulas. *)
+
 val register : unit -> unit
 (** Register the extension. *)
 

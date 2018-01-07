@@ -39,15 +39,37 @@ type mode =
   | Auto
   | Manual
 
-let current_mode () =
-  match !active_subst_rules, !active_trigger_rules with
-  | [], [] -> None
-  | r :: _, _
-  | _, r :: _ ->
-    Some (if Rewrite.Rule.is_manual r then Manual else Auto)
+let mode_conv =
+  let parse = function
+    | "auto" -> Ok Auto
+    | "manual" -> Ok Manual
+    | s -> Error (`Msg (Format.sprintf "'%s' is not a recognized mode" s))
+  in
+  let print fmt = function
+    | Auto -> Format.fprintf fmt "auto"
+    | Manual -> Format.fprintf fmt "manual"
+  in
+  Cmdliner.Arg.conv (parse, print)
 
+let forced_mode = ref None
 let allow_mixed = ref false
 let substitution_used = ref false
+
+let current_mode () =
+  match !forced_mode with
+  | (Some _) as res -> res
+  | None ->
+    begin match !active_subst_rules, !active_trigger_rules with
+      | [], [] -> None
+      | r :: _, _
+      | _, r :: _ ->
+        Some (if Rewrite.Rule.is_manual r then Manual else Auto)
+    end
+
+let is_current_mode_forced () =
+  match !forced_mode with
+  | None -> false
+  | Some _ -> true
 
 (* Splitting rewrite rules *)
 (* ************************************************************************ *)
@@ -435,7 +457,7 @@ let substitute f =
     match Rewrite.Normalize.(normalize_atomic !active_subst_rules [] f) with
     | f', [] ->
       assert (Expr.Formula.equal f f');
-      () (* nothing to do *)
+      Expr.Formula.tag f normal_form true; (* already in normal form, nothing to do *)
     | f', rules ->
       assert (not (Expr.Formula.equal f f'));
       assert (not (Expr.Formula.get_tag f normal_form = Some true));
@@ -465,27 +487,39 @@ let rec add_rule r =
       | Substitution -> active_subst_rules := r :: !active_subst_rules
       | Trigger -> active_trigger_rules := r :: !active_trigger_rules
     in
+    Expr.Formula.tag r.Rewrite.Rule.formula tag true;
     callback_rule r kind
   | false, Some Manual, false ->
-    Util.warn ~section "Auto rule detected while in manual mode";
+    (if is_current_mode_forced () then Util.info else Util.warn)
+      ~section "Auto rule detected while in manual mode";
     Util.info ~section "@[<hv>Ignoring rule:@ %a@]"
       (Rewrite.Rule.print ~term:Expr.Print.term ~formula:Expr.Print.formula) r;
     inactive_rules := r :: !inactive_rules
   | false, Some Auto, true ->
-    Util.warn ~section "Detected manual rule while auto rules present";
-    Util.info ~section "@[<hv>Keeping manual rules only:@ @[<v>%a@]@]"
-      CCFormat.(list ~sep:(return "@ ") (
-          Rewrite.Rule.print ~term:Expr.Print.term ~formula:Expr.Print.formula)
-        ) !inactive_rules;
-    Util.info ~section "@[<hv>Discarding auto rules:@ @[<v>%a@]@]"
-      CCFormat.(list ~sep:(return "@ ") (
-          Rewrite.Rule.print ~term:Expr.Print.term ~formula:Expr.Print.formula)
-        ) (!active_subst_rules @ !active_trigger_rules);
-    let l = !inactive_rules in
-    inactive_rules := !active_trigger_rules @ !active_subst_rules;
-    active_subst_rules := [];
-    active_trigger_rules := [];
-    List.iter add_rule l
+    if is_current_mode_forced () then begin
+      Util.warn ~section "@[<hov>%s,@ %s@]"
+        "Manual rule detected while in forced auto mode"
+        "please check that evrything is as should be...";
+    end else begin
+      (* TODO: this is unsound as auto rules were prohibited from generating meta variables *)
+      Util.warn ~section "@[<hov>%s,@ %s,@ %s@]"
+        "Detected manual rule while auto rules present"
+        "removing auto rules and replacing them with manual rules"
+        "consider forcing manual mode using options";
+      Util.info ~section "@[<hv>Keeping manual rules only:@ @[<v>%a@]@]"
+        CCFormat.(list ~sep:(return "@ ") (
+            Rewrite.Rule.print ~term:Expr.Print.term ~formula:Expr.Print.formula)
+          ) !inactive_rules;
+      Util.info ~section "@[<hv>Discarding auto rules:@ @[<v>%a@]@]"
+        CCFormat.(list ~sep:(return "@ ") (
+            Rewrite.Rule.print ~term:Expr.Print.term ~formula:Expr.Print.formula)
+          ) (!active_subst_rules @ !active_trigger_rules);
+      let l = !inactive_rules in
+      inactive_rules := !active_trigger_rules @ !active_subst_rules;
+      active_subst_rules := [];
+      active_trigger_rules := [];
+      List.iter add_rule l
+    end
 
 (* Narrowing *)
 (* ************************************************************************ *)
@@ -530,7 +564,6 @@ let assume f =
       Util.debug ~section "@[<hov 2>Failed to detect rewrite rule with:@ %a@]"
         Expr.Print.formula f;
     | Some r ->
-      Expr.Formula.tag f tag true;
       Util.debug ~section "@[<hov 2>Detected a new rewrite rule:@ %a@]"
         (Rewrite.Rule.print ~term:Expr.Print.term ~formula:Expr.Print.formula) r;
       add_rule r
@@ -563,8 +596,9 @@ let handle : type ret. ret Dispatcher.msg -> ret option = function
 
 let options =
   let docs = Options.ext_sect in
-  let aux b =
-    allow_mixed := b;
+  let aux mixed forced =
+    allow_mixed := mixed;
+    forced_mode := forced;
     ()
   in
   let allow_mixed =
@@ -572,7 +606,14 @@ let options =
                detected rules together with manually specified rules." in
     Cmdliner.Arg.(value & opt bool false & info ["rwrt.mixed"] ~docs ~doc)
   in
-  Cmdliner.Term.(pure aux $ allow_mixed)
+  let forced_mode =
+    let doc = {|Force mode for detecting rewrite rules. Manual rules are
+                annotated formulas (for instance, "rewrite statements in
+                zipperposition format"), while auto rules are formulas detected
+                as potentially oriented rewrite rules using internal heuristics.|} in
+    Cmdliner.Arg.(value & opt (some mode_conv) None & info ["rwrt.mode"] ~docs~doc)
+  in
+  Cmdliner.Term.(pure aux $ allow_mixed $ forced_mode)
 
 let register () =
   add_callback callback_term;

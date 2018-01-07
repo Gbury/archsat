@@ -25,10 +25,12 @@ type state = {
 val empty_st : unit -> state
 (** Returns a fresh empty state *)
 
-val parse_aux : state -> Expr.formula -> unit
+val parse_aux :
+  ?ignore:(Expr.formula -> bool) -> state -> Expr.formula -> unit
 (** Modifies state in place to add the terms in the given formula *)
 
-val parse_slice : ((Expr.formula -> unit) -> unit) -> state
+val parse_slice :
+  ?ignore:(Expr.formula -> bool) -> ((Expr.formula -> unit) -> unit) -> state
 (** Create a slice from the iterator on formulas *)
 
 val print : Format.formatter -> state -> unit

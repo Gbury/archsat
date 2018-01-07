@@ -34,6 +34,8 @@ let sup_simplifications = ref true
 let rigid_max_depth = ref 1
 let rigid_round_incr = ref 2
 
+let ignore_normalized = ref false
+
 (* Ignore tags. Formulas marked with
    these tags should not be used for meta-generation. *)
 let ignore_tags = ref []
@@ -146,7 +148,10 @@ let print fmt st =
         Format.fprintf fmt "|- @[<hov>%a:@ %a@]@\n"
           Expr.Print.formula Expr.Formula.f_false Expr.Print.term p)) st.false_preds
 
-let parse_aux res = function
+let parse_aux ?(ignore=(fun _ -> false)) res = function
+  | f when ignore f ->
+    Util.debug ~section "@[<hv 2>Ignoring formula when parsing state:@ %a@]"
+      Expr.Formula.print f
   | { Expr.formula = Expr.Pred p } as f ->
     res.formulas <- f :: res.formulas;
     res.true_preds <- p :: res.true_preds
@@ -163,9 +168,9 @@ let parse_aux res = function
     res.inequalities <- (a, b) :: res.inequalities
   | _ -> ()
 
-let parse_slice iter =
+let parse_slice ?ignore iter =
   let res = empty_st () in
-  iter (parse_aux res);
+  iter (parse_aux ?ignore res);
   res
 
 (* Meta variables *)
@@ -308,7 +313,7 @@ let do_inst u =
 
 let insts r u =
   Util.debug "Found inst: @[<hov>%a@]" Mapping.print u;
-  let l = Inst.partition (Mapping.fixpoint u) in
+  let l = Inst.partition @@ Mapping.fixpoint u in
   let l = List.map do_inst l in
   if List.exists CCFun.id l then begin
     decr r;
@@ -420,7 +425,11 @@ let handle : type ret. ret Dispatcher.msg -> ret option = function
       | _ ->
         (* Analysing assummed formulas *)
         Util.debug ~section "Parsing input formulas";
-        let st = parse_slice model in
+        let ignore f = !ignore_normalized
+                       && Expr.Formula.get_tag f Ext_rewrite.normalized = Some true
+                       && Expr.Formula.get_tag f Ext_rewrite.normal_form <> Some true
+        in
+        let st = parse_slice ~ignore model in
         Util.debug ~section "%a" print st;
         (* Search for instanciations *)
         Util.debug ~section "Applying unification";
@@ -484,15 +493,20 @@ let opts =
   in
   let ignore_list =
     let doc = Format.asprintf
-        "Comme-separated list of tags to use to decide wether ignoring some formulas.
+        "Comma-separated list of tags to use to decide wether ignoring some formulas.
          Any formula marked by a tag in this list will be igored.
          Each tag may be %s" (Cmdliner.Arg.doc_alts_enum ~quoted:true tag_list) in
     Cmdliner.Arg.(value & opt (list tag_conv) [Ext_rewrite.tag] & info ["meta.ignore"] ~docs ~doc)
   in
+  let ignore_norm =
+    let doc = "Ignore normalized formulas when looking for instanciations" in
+    Cmdliner.Arg.(value & opt bool false & info ["meta.ignore_normalized"] ~docs ~doc)
+  in
   let set_opts
-      ignore_list heur start max inst incr delay
+      ignore_list ignore_norm heur start max inst incr delay
       s_coef s_const s_simpl rigid_depth rigid_incr =
     ignore_tags := ignore_list;
+    ignore_normalized := ignore_norm;
     heuristic_setting := heur;
     meta_start := start;
     meta_max := max;
@@ -505,8 +519,9 @@ let opts =
     rigid_max_depth := rigid_depth;
     rigid_round_incr := rigid_incr
   in
-  Cmdliner.Term.(pure set_opts $ ignore_list $ heuristic $ start $ max $ inst $ incr $ delay $
-                 sup_coef $ sup_const $ sup_simpl $ rigid_depth $ rigid_incr)
+  Cmdliner.Term.(pure set_opts $ ignore_list $ ignore_norm $ heuristic $
+                 start $ max $ inst $ incr $ delay $ sup_coef $
+                 sup_const $ sup_simpl $ rigid_depth $ rigid_incr)
 
 let register () =
   Dispatcher.Plugin.register "meta" ~options:opts
