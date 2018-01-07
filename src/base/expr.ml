@@ -453,9 +453,6 @@ module Id = struct
     CCVector.push assign_vec None;
     { index; id_name; id_type; id_tags; builtin }
 
-  let fresh v =
-    mk_new ~builtin:v.builtin ~tags:v.id_tags v.id_name v.id_type
-
   let ttype ?builtin ?tags name = mk_new ?builtin ?tags name Type
   let ty ?builtin ?tags name ty = mk_new ?builtin ?tags name ty
 
@@ -556,10 +553,12 @@ module Id = struct
   let term_skolem v = Hashtbl.find term_skolems v.index
 
   let init_ty_skolem v n =
+    assert (not (Hashtbl.mem ty_skolems v.index));
     let res = ty_fun (Format.sprintf "sk_%s%d" v.id_name v.index) n in
     Hashtbl.add ty_skolems v.index res
 
   let init_term_skolem v tys args ret =
+    assert (not (Hashtbl.mem ty_skolems v.index));
     let res = term_fun (Format.sprintf "sk_%s%d" v.id_name v.index) tys args ret in
     Hashtbl.add term_skolems v.index res
 
@@ -575,6 +574,14 @@ module Id = struct
   let copy_term_skolem v v' =
     let old = term_skolem v in
     Hashtbl.add term_skolems v'.index old
+
+  let duplicate_ty_skolem v v' =
+    let sk = ty_skolem v in
+    init_ty_skolem v' (List.length sk.id_type.fun_args)
+
+  let duplicate_term_skolem v v' =
+    let sk = term_skolem v in
+    init_term_skolem v' sk.id_type.fun_vars sk.id_type.fun_args v'.id_type
 
 end
 
@@ -1326,52 +1333,47 @@ module Formula = struct
     | _ -> raise (Invalid_argument "Expr.partial_inst")
 
   let all l f =
-    if l = [] then f else begin
-      let vars, ft, f = match f.formula with
-        | All (l', ft, f') ->
-          let l'' = List.map Id.fresh l' in
-          let subst =
-            List.fold_left2 Subst.Id.bind Subst.empty
-              l' (List.map Term.of_id l'')
-          in
-          l @ l'', ft, subst f'
-        | _ ->
-          let ft = fv (mk_formula (All (l, ([], []), f))) in
-          l, to_free_args ft, f
-      in
-      Id.init_term_skolems vars ft;
-      mk_formula (All (l, ft, f))
-    end
+    if l = [] then f else
+      match f.formula with
+      | All (l', ft, f') ->
+        List.iter (Id.duplicate_term_skolem (List.hd l')) l;
+        mk_formula (All (l @ l', ft, f'))
+      | _ ->
+        let fv = fv (mk_formula (All (l, ([], []), f))) in
+        Id.init_term_skolems l fv;
+        mk_formula (All (l, to_free_args fv, f))
 
   let allty l f =
-    if l = [] then f else begin
-      let l, f = match f.formula with
-        | AllTy (l', _, f') -> l @ l', f'
-        | _ -> l, f
-      in
-      let fv = fv (mk_formula (AllTy (l, ([], []), f))) in
-      Id.init_ty_skolems l fv;
-      mk_formula (AllTy (l, to_free_args fv, f))
-    end
+    if l = [] then f else
+      match f.formula with
+      | AllTy (l', ft, f') ->
+        List.iter (Id.duplicate_ty_skolem (List.hd l')) l;
+        mk_formula (AllTy (l @ l', ft, f'))
+      | _ ->
+        let fv = fv (mk_formula (AllTy (l, ([], []), f))) in
+        Id.init_ty_skolems l fv;
+        mk_formula (AllTy (l, to_free_args fv, f))
 
   let ex l f =
     if l = [] then f else
-      let l, f = match f.formula with
-        | Ex (l', _, f') -> l @ l', f'
-        | _ -> l, f
-      in
-      let fv = fv (mk_formula (Ex (l, ([], []), f))) in
-      Id.init_term_skolems l fv;
-      mk_formula (Ex (l, to_free_args fv, f))
+      match f.formula with
+      | Ex (l', ft, f') ->
+        List.iter (Id.duplicate_term_skolem (List.hd l')) l;
+        mk_formula (Ex (l @ l', ft, f'))
+      | _ ->
+        let fv = fv (mk_formula (Ex (l, ([], []), f))) in
+        Id.init_term_skolems l fv;
+        mk_formula (Ex (l, to_free_args fv, f))
 
   let exty l f =
     if l = [] then f else
-      let l, f = match f.formula with
-        | AllTy (l', _, f') -> l @ l', f'
-        | _ -> l, f
-      in
-      let fv = fv (mk_formula (ExTy (l, ([], []), f))) in
-      Id.init_ty_skolems l fv;
-      mk_formula (ExTy (l, to_free_args fv, f))
+      match f.formula with
+      | ExTy (l', ft, f') ->
+        List.iter (Id.duplicate_ty_skolem (List.hd l')) l;
+        mk_formula (ExTy (l @ l', ft, f'))
+      | _ ->
+        let fv = fv (mk_formula (ExTy (l, ([], []), f))) in
+        Id.init_ty_skolems l fv;
+        mk_formula (AllTy (l, to_free_args fv, f))
 end
 
