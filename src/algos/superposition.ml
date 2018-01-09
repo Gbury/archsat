@@ -282,6 +282,7 @@ let mk_cl =
      incr i;
      let weight = compute_weight lit in
      let res = { id = !i; lit; map; reason; weight; } in
+     (* Obsolete, now that there are rewrite rules
      assert (
        let lty,lt = match lit with
          | Empty -> [], []
@@ -296,7 +297,8 @@ let mk_cl =
          ) map in
        if not b then Util.debug "%a" pp res;
        b
-     );
+      );
+      *)
      res
   )
 
@@ -316,26 +318,26 @@ let mk_neq a b map reason =
 (* Clause freshening *)
 (* ************************************************************************ *)
 
+let counter = ref 0
+
 let new_ty_var =
-  let i = ref 0 in
-  (fun () -> incr i; Expr.Id.ttype (Format.sprintf "?%d" !i))
+  (fun () -> incr counter; Expr.Id.ttype (Format.sprintf "?%d" !counter))
 
 let new_var =
-  let i = ref 0 in
-  (fun ty -> incr i; Expr.Id.ty (Format.sprintf "?%d" !i) ty)
+  (fun ty -> incr counter; Expr.Id.ty (Format.sprintf "?%d" !counter) ty)
 
 let fresh a b map =
   assert (Expr.Term.fm a = ([], []));
   assert (Expr.Term.fm b = ([], []));
   let tys, terms = Expr.Id.merge_fv (Expr.Term.fv a) (Expr.Term.fv b) in
-  let vtys = List.map (fun _ -> new_ty_var ()) tys in
-  let vterms = List.map (fun v -> new_var Expr.(v.id_type)) terms in
   let m =
-    List.fold_left2 (fun acc m v ->
-        Mapping.Var.bind_ty acc m (Expr.Ty.of_id v)) (
-      List.fold_left2 (fun acc m v ->
-          Mapping.Var.bind_term acc m (Expr.Term.of_id v))
-        Mapping.empty terms vterms) tys vtys in
+    List.fold_left (fun acc v ->
+        Mapping.Var.bind_term acc v (
+          Expr.Term.of_id @@ new_var (Mapping.apply_ty acc Expr.(v.id_type)))
+      ) (List.fold_left (fun acc v ->
+        Mapping.Var.bind_ty acc v (Expr.Ty.of_id @@ new_ty_var ())
+      ) Mapping.empty tys) terms
+  in
   (Mapping.apply_term m a), (Mapping.apply_term m b), (compose_set map m)
 
 let freshen c =
@@ -564,22 +566,24 @@ let do_supp acc sigma'' active inactive =
   let l = merge_set res1 res2 in
   let apply = Mapping.apply_term sigma'' in
   let v' = apply v in
+  let t' = apply t in
+  let s' = apply s in
+  let u' = apply u in
   let u_res, u_p_opt = Position.Term.apply p u in
   (* Chekc that mgu effectively unifies u_p and s *)
   assert (match u_p_opt with
       | None -> false
       | Some u_p ->
-        Expr.Term.equal (apply s) (apply u_p));
+        Expr.Term.equal s' (apply u_p));
   (* Check the guards of the rule *)
-  if Lpo.compare (apply t) (apply s) = Comparison.Gt ||
-     Lpo.compare v' (apply u) = Comparison.Gt ||
+  if Lpo.compare t' s' = Comparison.Gt ||
+     Lpo.compare v' u' = Comparison.Gt ||
      fst (Position.Term.apply p u) = Position.Var then
     acc
   else begin
     (* Apply substitution *)
-    match Position.Term.substitute inactive.path ~by:t u with
-    | Some tmp ->
-      let u' = apply tmp in
+    match Position.Term.substitute inactive.path ~by:t' u' with
+    | Some u'' ->
       let f = if is_eq inactive.clause then mk_eq else mk_neq in
       let reason =
         if is_eq inactive.clause then
@@ -588,12 +592,12 @@ let do_supp acc sigma'' active inactive =
           SN(active, inactive)
       in
       List.fold_left (fun acc (rho, res) ->
-          let u'', v'', map = fresh
-              (Mapping.apply_term rho u')
+          let u''', v'', map = fresh
+              (Mapping.apply_term rho u'')
               (Mapping.apply_term rho v')
               (C.singleton res)
           in
-          let c = f u'' v'' map reason in
+          let c = f u''' v'' map reason in
           c :: acc) acc l
     | None ->
       (* This should not happen *)
@@ -789,6 +793,10 @@ let add_active_supp p_set clause side s acc =
 (* Given a new clause, find and apply all instances of SN & SP,
    using the two functions defined above. *)
 let supp_lit c p_set acc =
+  (* freshen the clause to ensure it will have distinct variables
+     from any other clause (necessary because of how unificaiton is implemented),
+     inclduing itself (since inferences between two instance of the same clause
+     can yield interesting results) *)
   let c = freshen c in
   match c.lit with
   | Empty -> acc
@@ -1037,17 +1045,14 @@ and discount_loop ~merge p_set =
 (* ************************************************************************ *)
 
 let meta_to_var a b =
-  assert (Expr.Term.fv a = ([], []));
-  assert (Expr.Term.fv b = ([], []));
-  let tys, terms = Expr.Meta.merge_fm (Expr.Term.fm a) (Expr.Term.fm b) in
-  let vtys = List.map (fun _ -> new_ty_var ()) tys in
-  let vterms = List.map (fun m -> new_var Expr.(m.meta_id.id_type)) terms in
+  let mtys, mterms = Expr.Meta.merge_fm (Expr.Term.fm a) (Expr.Term.fm b) in
   let m =
-    List.fold_left2 (fun acc m v ->
-        Mapping.Meta.bind_ty acc m (Expr.Ty.of_id v)) (
-      List.fold_left2 (fun acc m v ->
-          Mapping.Meta.bind_term acc m (Expr.Term.of_id v))
-        Mapping.empty terms vterms) tys vtys in
+    List.fold_left (fun acc m ->
+        Mapping.Meta.bind_term acc m (
+          Expr.Term.of_id @@ new_var (Mapping.apply_ty acc Expr.(m.meta_id.id_type)))
+      ) (List.fold_left (fun acc m ->
+        Mapping.Meta.bind_ty acc m (Expr.Ty.of_id @@ new_ty_var ())
+      ) Mapping.empty mtys) mterms in
   Mapping.apply_term m a, Mapping.apply_term m b, m
 
 let add_eq t a b =
