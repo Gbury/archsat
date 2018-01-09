@@ -93,6 +93,20 @@ module C = struct
     let t_b = Expr.Ty.of_id b in
     Expr.Id.term_fun "pair" [a; b] [t_a; t_b] (mk_pair_type t_a t_b)
 
+  let fst =
+    let a = Expr.Id.ttype "alpha" in
+    let b = Expr.Id.ttype "beta" in
+    let t_a = Expr.Ty.of_id a in
+    let t_b = Expr.Ty.of_id b in
+    Expr.Id.term_fun "fst" [a; b] [mk_pair_type t_a t_b] t_a
+
+  let snd =
+    let a = Expr.Id.ttype "alpha" in
+    let b = Expr.Id.ttype "beta" in
+    let t_a = Expr.Ty.of_id a in
+    let t_b = Expr.Ty.of_id b in
+    Expr.Id.term_fun "snd" [a; b] [mk_pair_type t_a t_b] t_b
+
   let nil =
     let a = Expr.Id.ttype "alpha" in
     let t_a = Expr.Ty.of_id a in

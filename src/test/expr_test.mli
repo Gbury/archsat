@@ -38,7 +38,10 @@ module C : sig
   val f_p : Expr.Id.Const.t
   val g_p : Expr.Id.Const.t
   val h_p : Expr.Id.Const.t
+
   val pair : Expr.Id.Const.t
+  val fst : Expr.Id.Const.t
+  val snd : Expr.Id.Const.t
   val nil : Expr.Id.Const.t
   val cons : Expr.Id.Const.t
   (** Constants used in the generation of terms. *)
