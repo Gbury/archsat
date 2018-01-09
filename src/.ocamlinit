@@ -23,6 +23,10 @@ open Archsat;;
 #install_printer Expr.Print.ty;;
 #install_printer Expr.Print.term;;
 #install_printer Expr.Print.formula;;
+#install_printer Expr.Print.id_ty;;
+#install_printer Expr.Print.id_ttype;;
+#install_printer Expr.Print.const_ty;;
+#install_printer Expr.Print.const_ttype;;
 #install_printer Index.Fingerprint.print;;
 #install_printer Ext_eq.Class.print;;
 
