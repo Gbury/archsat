@@ -387,7 +387,6 @@ module Subst = struct
     let remove m s = Mi.remove (tok m) s
   end
 
-
 end
 
 (* Variables *)

@@ -560,21 +560,27 @@ let do_supp acc sigma'' active inactive =
   let u, v = extract inactive in
   let sigma = active.clause.map in
   let sigma' = inactive.clause.map in
+  let m = List.fold_left Mapping.expand sigma'' [s; t; u; v] in
   (* Merge the substitutions. *)
-  let res1 = compose_set sigma sigma'' in
-  let res2 = compose_set sigma' sigma'' in
+  let res1 = compose_set sigma m in
+  let res2 = compose_set sigma' m in
   let l = merge_set res1 res2 in
-  let apply = Mapping.apply_term sigma'' in
+  Util.debug "@[<v 2>supp:@ %a@ %a == %a@ %a@ %a == %a@ %a@]"
+    pp_pos active
+    Expr.Print.term s Expr.Print.term t
+    pp_pos inactive
+    Expr.Print.term u Expr.Print.term v
+    Mapping.print m;
+  let apply = Mapping.apply_term m in
   let v' = apply v in
   let t' = apply t in
   let s' = apply s in
   let u' = apply u in
   let u_res, u_p_opt = Position.Term.apply p u in
-  (* Chekc that mgu effectively unifies u_p and s *)
+  (* Check that mgu effectively unifies u_p and s *)
   assert (match u_p_opt with
       | None -> false
-      | Some u_p ->
-        Expr.Term.equal s' (apply u_p));
+      | Some u_p -> Expr.Term.equal s' (apply u_p));
   (* Check the guards of the rule *)
   if Lpo.compare t' s' = Comparison.Gt ||
      Lpo.compare v' u' = Comparison.Gt ||
@@ -702,6 +708,13 @@ let do_subsumption rho active inactive =
   let sigma = active.clause.map in
   let s, t = extract active in
   let u, v = extract inactive in
+  let rho = List.fold_left Mapping.expand rho [u; v] in
+  Util.debug "@[<v>subsuption:@ %a@ %a == %a@ %a@ %a == %a@ %a@]"
+    pp_pos active
+    Expr.Print.term s Expr.Print.term t
+    pp_pos inactive
+    Expr.Print.term u Expr.Print.term v
+    Mapping.print rho;
   assert (
     match Position.Term.apply inactive.path u with
     | _, None -> false
@@ -1011,7 +1024,7 @@ and discount_loop ~merge p_set =
       Util.debug ~section:p_set.section "@{<yellow>Adding clause@} : %a" pp c;
       if c.lit = Empty then begin
         Util.debug ~section:p_set.section
-          "Empty clause reached, %d clauses in state" (S.cardinal p_set.clauses);
+          "@{<magenta>Found empty clause reached@}, %d clauses in state" (S.cardinal p_set.clauses);
         (* Call the callback *)
         C.iter p_set.callback c.map;
         (* Continue solving *)

@@ -16,6 +16,9 @@ val normalized : bool Expr.tag
 val normal_form : bool Expr.tag
 (** Tag attached to normal forms/normalized formulas. *)
 
+val get_active : unit -> Rewrite.Rule.t list
+(** Get the current active rewrite rules. *)
+
 val register : unit -> unit
 (** Register the extension. *)
 

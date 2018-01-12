@@ -39,6 +39,18 @@ val fixpoint : t -> t
 val remove_refl : t -> t
 (** Remove from the mappings bindings of a variable/meta to itself. *)
 
+val extend : t -> Expr.Id.Ty.t list -> t
+val expand : t -> Expr.term -> t
+val complete : t -> t
+(** When unifying or building mapping, it might happen that there are
+    type variable bindings that changes the type of a term variable that
+    doesn't appear in the mapping, in which case these variables should be added
+    to the substitution. For instance, it happens that we get a mapping:
+    { alpha -> ty; x (of type alpha) -> y }, with y a variable of type alpha,
+    in which case the mapping should be extended with: y (: alpha) -> y (: ty).
+    This funciton completes a mapping in this way, with regards to a list
+    of variables (kinda like in the way quantified variables are renamed. *)
+
 val map :
   (Expr.ty -> Expr.ty) ->
   (Expr.term -> Expr.term) ->

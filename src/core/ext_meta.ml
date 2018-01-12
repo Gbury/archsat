@@ -27,7 +27,7 @@ let meta_incr = ref false
 let meta_delay = ref (0, 0)
 let meta_max = ref 10
 
-let sup_max_coef = ref 1
+let sup_max_coef = ref (1. /. 100.)
 let sup_max_const = ref 0
 let sup_simplifications = ref true
 
@@ -301,11 +301,9 @@ let meta_assume = do_formula
 (* ************************************************************************ *)
 
 (* superposition limit *)
-(*
 let sup_limit st =
   let n = fold_diff (fun n _ _ -> n + 1) 0 st in
-  n * !sup_max_coef + !sup_max_const
-*)
+  truncate ((float n) *. !sup_max_coef) + !sup_max_const
 
 (* Unification of predicates *)
 let do_inst u =
@@ -321,8 +319,8 @@ let insts r u =
     if !r <= 0 then raise Found_unif
   end
 
-let single_inst () =
-  let r = ref 1 in
+let n_inst n =
+  let r = ref n in
   (fun u -> insts r u)
 
 let cache = Unif.Cache.create ()
@@ -350,16 +348,16 @@ let rec unif_f st = function
   | Simple ->
     Util.enter_prof unif_section;
     fold_diff (fun () -> wrap_unif (Unif.Cache.with_cache cache (
-        Unif.Robinson.unify_term ~section:unif_section (single_inst ())))) () st;
+        Unif.Robinson.unify_term ~section:unif_section (n_inst 1)))) () st;
     Util.exit_prof unif_section
   | ERigid ->
     Util.enter_prof rigid_section;
     fold_diff (fun () -> wrap_unif (
-        Rigid.unify ~max_depth:(rigid_depth ()) st.equalities (single_inst ()))) () st;
+        Rigid.unify ~max_depth:(rigid_depth ()) st.equalities (n_inst 1))) () st;
     Util.exit_prof rigid_section
   | SuperEach ->
     Util.enter_prof sup_section;
-    let t = sup_empty (single_inst ()) in
+    let t = sup_empty (n_inst 1) in
     let t = List.fold_left (fun acc (a, b) -> Superposition.add_eq acc a b) t st.equalities in
     let t = Superposition.solve t in
     fold_diff (fun () a b ->
@@ -369,9 +367,32 @@ let rec unif_f st = function
     Util.exit_prof sup_section
   | SuperAll ->
     Util.enter_prof sup_section;
-    let t = sup_empty (single_inst ()) in
-    let t = List.fold_left (fun acc (a, b) -> Superposition.add_eq acc a b) t st.equalities in
-    let t = fold_diff (fun acc a b -> Superposition.add_neq acc a b) t st in
+    let t = sup_empty (n_inst (sup_limit st)) in
+    (* Rewrite rules *)
+    let t = List.fold_left (fun acc r ->
+        let open Rewrite.Rule in
+        match (r.guards, r.contents) with
+        | [], C (Term, { trigger; result }) ->
+          Superposition.add_eq acc trigger result
+        | [], C (Formula, { trigger = { Expr.formula = Expr.Pred p };
+                          result = { Expr.formula = Expr.Pred p' }; }) ->
+          Superposition.add_eq acc p p'
+        | _ -> acc
+      ) t (Ext_rewrite.get_active ()) in
+    (* Equalities from the current state *)
+    let t = List.fold_left (fun acc (a, b) ->
+        Superposition.add_eq acc a b) t st.equalities in
+    (* Inequalities from the current state *)
+    let t = List.fold_left (fun acc (a, b) ->
+        Superposition.add_neq acc a b) t st.inequalities in
+    (* True predicates *)
+    let t = List.fold_left (fun acc p ->
+        Superposition.add_eq acc p Builtin.Misc.p_true) t st.true_preds in
+    (* False predicates *)
+    let t = List.fold_left (fun acc p ->
+        Superposition.add_eq acc p Builtin.Misc.p_false) t st.false_preds in
+    (* Important: add true <> false *)
+    let t = Superposition.add_neq t Builtin.Misc.p_true Builtin.Misc.p_false in
     begin try
         let _ = Superposition.solve t in ()
       with Found_unif -> ()
@@ -473,11 +494,11 @@ let opts =
   in
   let sup_coef =
     let doc = "Affine coefficient for the superposition limit" in
-    Cmdliner.Arg.(value & opt int 1 & info ["meta.sup.coef"] ~docs ~doc)
+    Cmdliner.Arg.(value & opt float (1. /. 100.) & info ["meta.sup.coef"] ~docs ~doc)
   in
   let sup_const =
     let doc = "Affine constant for the superposition limit" in
-    Cmdliner.Arg.(value & opt int 0 & info ["meta.sup.const"] ~docs ~doc)
+    Cmdliner.Arg.(value & opt int 1 & info ["meta.sup.const"] ~docs ~doc)
   in
   let sup_simpl =
     let doc = "Enable simplifications in superposition" in

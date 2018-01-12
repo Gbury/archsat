@@ -71,6 +71,8 @@ let is_current_mode_forced () =
   | None -> false
   | Some _ -> true
 
+let get_active () = !active_subst_rules @ !active_trigger_rules
+
 (* Splitting rewrite rules *)
 (* ************************************************************************ *)
 

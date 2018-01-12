@@ -8,6 +8,7 @@ module S = Expr.Subst
 (* ************************************************************************ *)
 
 type t = {
+  (* memoized hash *)
   mutable hash : int;
   (* types *)
   ty_var : (E.Id.Ttype.t, E.ty) S.t;
@@ -241,14 +242,14 @@ module Var = struct
     with Not_found -> None
 
   let bind_ty t v ty =
-    { t with ty_var = S.Id.bind t.ty_var v ty }
+    { t with hash = -1; ty_var = S.Id.bind t.ty_var v ty }
 
   let bind_term t v term =
-    { t with t_var = S.Id.bind t.t_var v term }
+    { t with hash = -1; t_var = S.Id.bind t.t_var v term }
 
   let bind_formula t v formula =
     assert Expr.(Ty.equal v.id_type Ty.prop);
-    { t with f_var = S.Id.bind t.f_var v formula }
+    { t with hash = -1; f_var = S.Id.bind t.f_var v formula }
 
 end
 
@@ -279,14 +280,14 @@ module Meta = struct
     with Not_found -> None
 
   let bind_ty t m ty =
-    { t with ty_meta = S.Meta.bind t.ty_meta m ty }
+    { t with hash = -1; ty_meta = S.Meta.bind t.ty_meta m ty }
 
   let bind_term t m term =
-    { t with t_meta = S.Meta.bind t.t_meta m term }
+    { t with hash = -1; t_meta = S.Meta.bind t.t_meta m term }
 
   let bind_formula t m formula =
     assert Expr.(Ty.equal m.meta_id.id_type Ty.prop);
-    { t with f_meta = S.Meta.bind t.f_meta m formula }
+    { t with hash = -1; f_meta = S.Meta.bind t.f_meta m formula }
 
 end
 
@@ -327,5 +328,36 @@ let apply ?fix t m =
 let fixpoint t =
   Util.debug "Fixpoint: %a" print t;
   apply ~fix:true t t
+
+(* Mapping completion *)
+(* ************************************************************************ *)
+
+(* When unifying or building mapping, it might happen that there are
+   type variable bindings that changes the type of a term variable that
+   doesn't appear in the mapping, in which case these variables should be added
+   to the substitution. For instance, it happens that we get a mapping:
+   { alpha -> ty; x (of type alpha) -> y }, with y a variable of type alpha,
+   in which case the mapping should be extended with: y (: alpha) -> y (: ty).
+   This funciton completes a mapping in this way, with regards to a list
+   of variables (kinda like in the way quantified variables are renamed. *)
+let extend m l =
+  let aux acc v =
+    let old_ty = v.Expr.id_type in
+    let new_ty = apply_ty acc old_ty in
+    if Expr.Ty.equal old_ty new_ty || Var.mem_term acc v
+    then acc
+    else Var.bind_term acc v
+        (Expr.Term.of_id @@ Expr.Id.ty v.Expr.id_name new_ty)
+  in
+  List.fold_left aux m l
+
+let expand m t =
+  let _, l = Expr.Term.fv t in
+  extend m l
+
+let complete m =
+  let ((_, l), _) = codomain m in
+  extend m l
+
 
 
