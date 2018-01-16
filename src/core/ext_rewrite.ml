@@ -11,6 +11,7 @@ module S = Set.Make(Expr.Term)
 
 module H = Hashtbl.Make(Expr.Term)
 module M = Hashtbl.Make(Expr.Id.Const)
+module F = CCHashtbl.Make(Expr.Formula)
 
 let section = Section.make ~parent:Dispatcher.section "rwrt"
 let section_subst = Section.make ~parent:section "subst"
@@ -96,9 +97,8 @@ let add_callback, call =
 (* Some printing functions *)
 (* ************************************************************************ *)
 
-let print_matching fmt (t, s) =
-  Format.fprintf fmt "@[<hov>%a@ =?@[<hv>%a@]@]"
-    Expr.Print.term t C.print s
+let print_matching pat expr fmt (t, s) =
+  Format.fprintf fmt "@[<hov>%a@ =?@[<hv>%a@]@]" pat t expr s
 
 (* Registering parent-child relations between terms *)
 (* ************************************************************************ *)
@@ -124,7 +124,7 @@ let add_to_index top f t =
   let s = find_index f in
   M.replace index f (S.add t s)
 
-let rec register top = function
+let rec register_term top = function
   (* If the term has already been treated, nothing to do. *)
   | t when Expr.Term.get_tag t checked = Some () -> ()
   (* Else: *)
@@ -134,7 +134,7 @@ let rec register top = function
     List.iter (add_parent t) l;
     add_to_index top f t;
     Expr.Term.tag t checked ();
-    List.iter (register false) l
+    List.iter (register_term false) l
 
 let find_all_parents t =
   let q = Queue.create () in
@@ -161,11 +161,11 @@ let find_all_parents t =
 let iter_all_terms f =
   M.iter (fun _ s -> S.iter f s) index
 
-let find_indexed f =
+let find_indexed_term f =
   let s = find_index f in
   S.fold (fun t acc -> T.add (C.find t) acc) s T.empty
 
-let find_all_indexed ty =
+let find_all_indexed_term ty =
   Util.debug ~section "Finding all indexed terms of type:@ %a" Expr.Print.ty ty;
   M.fold (fun f s acc ->
       Util.debug ~section "Examining term indexed by: %a" Expr.Print.const_ty f;
@@ -186,28 +186,55 @@ let find_all_indexed ty =
         acc)
     index T.empty
 
+(* Registering current set of formulas *)
+(* ************************************************************************ *)
+
+let pred_tbl = F.create 4013
+let eqs_tbl = F.create 4013
+
+let rec register_formula = function
+  | { Expr.formula = Expr.Pred p } as f ->
+    F.add pred_tbl f ();
+    register_term true p
+  | { Expr.formula = Expr.Equal (a, b) } as f ->
+    F.add eqs_tbl f ();
+    register_term true a;
+    register_term true b
+  | { Expr.formula = Expr.Not f } -> register_formula f
+  | _ -> ()
+
+let find_indexed_eqs () = F.keys eqs_tbl
+let find_indexed_pred () = F.keys pred_tbl
+let find_indexed_negs () =
+  Sequence.map Expr.Formula.neg @@
+  Sequence.append (find_indexed_eqs ()) (find_indexed_pred ())
+
 (* Matching modulo equivalence classes *)
 (* ************************************************************************ *)
 
-let match_types pats args subst =
-  try Some (List.fold_left2 Match.ty subst pats args)
-  with
-  | Match.Impossible_term _ -> assert false
-  | Match.Impossible_ty (a, b) ->
-    None
+type mmatch = {
+  eq_used : bool;       (* is an equality used for the match ? *)
+  subst   : Mapping.t;  (* the mapping to uss *)
+}
 
-let match_modulo_var v c subst =
+let add_used b { subst; eq_used; } = { subst; eq_used = b || eq_used; }
+
+let match_types pats args { eq_used; subst; } =
+  try Some { eq_used; subst = List.fold_left2 Match.ty subst pats args; }
+  with Match.Impossible_ty _ -> None
+
+let match_modulo_var v c ({ eq_used; subst; } as m) =
   match Mapping.Var.get_term_opt subst v with
   | None ->
     begin try
         let tmp = Match.ty subst Expr.(v.id_type) Expr.(c.t_type) in
-        Some (Mapping.Var.bind_term tmp v c)
+        Some { eq_used; subst = Mapping.Var.bind_term tmp v c; }
       with Match.Impossible_ty _ ->
         None
     end
   | Some d ->
     if Expr.Term.equal c d then
-      Some subst
+      Some m
     else
       None
 
@@ -216,20 +243,38 @@ let rec match_modulo_app f acc (ty_pats, pats) = function
     assert (Expr.Id.equal f f');
     let acc' = CCList.filter_map (match_types ty_pats ty_args) acc in
     let l = List.map C.find args in
-    List.fold_left2 match_modulo_aux acc' pats l
+    List.fold_left2 match_modulo_term acc' pats l
   | _ -> assert false
 
-and match_modulo_aux acc pat c =
+and match_modulo_term acc pat c =
   match pat with
   | { Expr.term = Expr.Var v } ->
     CCList.filter_map (match_modulo_var v (C.repr c)) acc
   | { Expr.term = Expr.Meta _ } as t ->
     if C.mem c t then acc else []
   | { Expr.term = Expr.App (f, ty_pats, pats) } ->
+    let r = C.repr c in
     let l = C.find_top c f in
-    CCList.flat_map (match_modulo_app f acc (ty_pats, pats)) l
+    CCList.flat_map (fun t ->
+        List.map (add_used (Expr.Term.equal r t))
+          (match_modulo_app f acc (ty_pats, pats) t)
+      ) l
 
-let match_modulo = match_modulo_aux [Mapping.empty]
+let rec match_modulo_formula acc pat f =
+  match pat, f with
+  | { Expr.formula = Expr.Pred p },
+    { Expr.formula = Expr.Pred p' } ->
+    match_modulo_term acc p (C.find p')
+  | { Expr.formula = Expr.Equal (a, b) },
+    { Expr.formula = Expr.Equal (c, d) } ->
+    match_modulo_term (match_modulo_term acc a (C.find c)) b (C.find d) @
+    match_modulo_term (match_modulo_term acc a (C.find d)) b (C.find c)
+  | { Expr.formula = Expr.Not pat' },
+    { Expr.formula = Expr.Not f' } -> match_modulo_formula acc pat' f'
+  | _ -> []
+
+let match_modulo_t = match_modulo_term [{ eq_used = false; subst = Mapping.empty; }]
+let match_modulo_f = match_modulo_formula [{eq_used = false; subst = Mapping.empty; }]
 
 (* Detecting Rewrite rules *)
 (* ************************************************************************ *)
@@ -381,15 +426,24 @@ let instanciate rule subst =
           )
     ) (rule, subst)
 
-let match_and_instantiate (rule, t, c) =
+let match_and_instantiate ~pat ~expr ~only_eq ~match_fun (rule, t, c) =
   Util.debug ~section:section_trigger "@[<hv 2>Matching rule %a:@ %a"
-    Rewrite.Rule.print_id rule print_matching (t, c);
+    Rewrite.Rule.print_id rule (print_matching pat expr) (t, c);
   (** Trigger mode rewriting *)
-  let seq = match_modulo t c in
-  List.iter (fun subst ->
+  let seq = match_fun t c in
+  List.iter (fun { eq_used; subst; } ->
       Util.debug ~section:section_trigger "match found:@ %a" Mapping.print subst;
-      instanciate rule subst
+      if only_eq && not eq_used then
+        Util.debug ~section "Ignoring match because no eq cas used to match"
+      else
+        instanciate rule subst
     ) seq
+
+let match_and_instantiate_term =
+  match_and_instantiate ~pat:Expr.Print.term ~expr:C.print
+
+let match_and_instantiate_formula =
+  match_and_instantiate ~pat:Expr.Print.formula ~expr:Expr.Print.formula
 
 (* Rewriter callbacks *)
 (* ************************************************************************ *)
@@ -412,7 +466,8 @@ let callback_merge a b t =
   Util.debug ~section "@[<hv 2>Eq class merge:@ @[<hov>%a@]@ @[<hov>%a@]@]"
     C.print a C.print b;
   let s = find_all_parents (C.repr t) in
-  List.iter match_and_instantiate (rules_to_match s)
+  List.iter (match_and_instantiate_term
+               ~only_eq:false ~match_fun:match_modulo_t) (rules_to_match s)
 
 (* Callback used on new terms *)
 let callback_term top t =
@@ -420,38 +475,56 @@ let callback_term top t =
     Expr.Print.term t Expr.Print.ty Expr.(t.t_type);
   (** Trigger rules *)
   let s = T.singleton (C.find t) in
-  List.iter match_and_instantiate (rules_to_match s)
+  List.iter (match_and_instantiate_term
+               ~only_eq:false ~match_fun:match_modulo_t) (rules_to_match s)
+
+(* Find all potential term classes to match against a rewrite rule *)
+let potential_term_matches = function
+  (** A rewrite rule with a single var as trigger is impossile:
+      with a left side consisting of a single variable,
+      what term on the right side of the rule could possibly be smaller ?
+      on the other hand, it might be one part of a bigger trigger (such as (x = y)) *)
+  | { Expr.term = Expr.Var _; t_type } -> T.elements @@ find_all_indexed_term t_type
+  (** A trigger that consist of a single meta does not contain variable,
+      thus has no reason to be a rewrite rule... *)
+  | { Expr.term = Expr.Meta _ } -> assert false
+  (** Rewrite rules trigger starts with an application, we can work with that. *)
+  | { Expr.term = Expr.App (f, _, _) } -> T.elements @@ find_indexed_term f
+
+(* Find all potential formulas to match against a rewrite rule *)
+let potential_formula_matches = function
+  | { Expr.formula = Expr.Pred _ } -> find_indexed_pred ()
+  | { Expr.formula = Expr.Equal _ } -> find_indexed_eqs ()
+  (** Formula triggers should be atomic, hence if it starts with a
+      negation, it should be of the form (Neg Pred) or (Neg Equal) *)
+  | { Expr.formula = Expr.Not ({
+      Expr.formula = (Expr.Pred _ | Expr.Equal _ ) }
+    ) } -> find_indexed_negs ()
+  | _ -> assert false
 
 (* Callback used on new rewrite rules *)
 let callback_rule r kind =
   Util.debug ~section "New rule introduced";
-  let aux = function
-    (** A rewrite rule with a single var as trigger is impossile:
-        wth a left side consisting of a single variable,
-        what term on the right side of the rule could possibly be smaller ?
-        on the other hand, it might be one part of a bigger trigger (such as (x = y)) *)
-    | { Expr.term = Expr.Var _; t_type } -> T.elements @@ find_all_indexed t_type
-    (** A trigger that consist of a single meta does not contain variable,
-        thus has no reason to be a rewrite rule... *)
-    | { Expr.term = Expr.Meta _ } -> assert false
-    (** Rewrite rules trigger starts with an application, we can work with that. *)
-    | { Expr.term = Expr.App (f, _, _) } -> T.elements @@ find_indexed f
-  in
   match kind with
   | Trigger ->
-    let t = match r.Rewrite.Rule.contents with
-      | Rewrite.Rule.(C (Term, { trigger; _ })) -> (trigger : Expr.term)
-      | _ ->
-        Util.error "Formula-matching rules not authroized as trigger rules";
-        assert false
-    in
-    List.iter (fun c -> match_and_instantiate (r, t, c)) (aux t);
+    begin match r.Rewrite.Rule.contents with
+      | Rewrite.Rule.(C (Term, { trigger; _ })) ->
+        List.iter (fun c ->
+            match_and_instantiate_term
+              ~only_eq:false ~match_fun:match_modulo_t (r, trigger, c)
+          ) (potential_term_matches trigger)
+      | Rewrite.Rule.(C (Formula, {trigger; _ })) ->
+        Sequence.iter (fun c ->
+            match_and_instantiate_formula
+              ~only_eq:false ~match_fun:match_modulo_f (r, trigger, c)
+          ) (potential_formula_matches trigger)
+    end
   | Substitution ->
     if !substitution_used then
-      Util.warn ~section:section_subst "%s,@ %s%s"
-        "Adding rewrite rules while using subst mode"
-        "this is not a supported use case, since it may change normale forms"
-        "of already noramlized terms"
+      Util.warn ~section:section_subst "@[<hov>%a@]" CCFormat.text
+        ("Adding a substitution rewrite rule after a term has" ^
+         "already been rewritten. This is not a supported use case," ^
+         "since it may change normal forms of already noramlized terms")
 
 let substitute f =
   (** Substitution rules *)
@@ -581,15 +654,7 @@ let assume f =
   in
   ()
 
-let rec peek = function
-  | { Expr.formula = Expr.Pred p } ->
-    register true p
-  | { Expr.formula = Expr.Equal (a, b) } ->
-    register true a;
-    register true b
-  | { Expr.formula = Expr.Not f } ->
-    peek f
-  | _ -> ()
+let peek = register_formula
 
 let handle : type ret. ret Dispatcher.msg -> ret option = function
   | Dot.Info Rewrite info -> Some (dot_info info)
