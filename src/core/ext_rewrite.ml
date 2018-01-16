@@ -455,24 +455,25 @@ let callback_rule r kind =
 
 let substitute f =
   (** Substitution rules *)
-    Util.debug ~section:section_subst "Tying to normalize@ %a" Expr.Print.formula f;
-    match Rewrite.Normalize.(normalize_atomic !active_subst_rules [] f) with
-    | f', [] ->
-      assert (Expr.Formula.equal f f');
-      Expr.Formula.tag f normal_form true; (* already in normal form, nothing to do *)
-    | f', rules ->
-      assert (not (Expr.Formula.equal f f'));
-      assert (not (Expr.Formula.get_tag f normal_form = Some true));
-      Expr.Formula.tag f' normal_form true;
-      Util.debug ~section:section_subst "@[<hv 2>Normalized term@ %a@ into@ %a@ using@ @[<hv>%a@]"
-        Expr.Print.formula f
-        Expr.Print.formula f'
-        CCFormat.(list ~sep:(return "@ ") Rewrite.Rule.print) rules;
-      let cond =
-        List.map (fun r -> Expr.Formula.neg r.Rewrite.Rule.formula) rules
-      in
-      let lemma = Dispatcher.mk_proof name "subst" (Rewrite (Subst (f, rules))) in
-      Dispatcher.push ((Expr.Formula.equiv f f') :: cond) lemma
+  Util.debug ~section:section_subst "Trying to normalize@ %a" Expr.Print.formula f;
+  match Rewrite.Normalize.(normalize_atomic !active_subst_rules [] f) with
+  | f', [] ->
+    assert (Expr.Formula.equal f f');
+    Expr.Formula.tag f normal_form true; (* already in normal form, nothing to do *)
+  | f', rules ->
+    assert (not (Expr.Formula.equal f f'));
+    assert (not (Expr.Formula.get_tag f normal_form = Some true));
+    substitution_used := true;
+    Expr.Formula.tag f' normal_form true;
+    Util.debug ~section:section_subst "@[<hv 2>Normalized term@ %a@ into@ %a@ using@ @[<hv>%a@]"
+      Expr.Print.formula f
+      Expr.Print.formula f'
+      CCFormat.(list ~sep:(return "@ ") Rewrite.Rule.print) rules;
+    let cond =
+      List.map (fun r -> Expr.Formula.neg r.Rewrite.Rule.formula) rules
+    in
+    let lemma = Dispatcher.mk_proof name "subst" (Rewrite (Subst (f, rules))) in
+    Dispatcher.push ((Expr.Formula.equiv f f') :: cond) lemma
 
 (* Rule addition callback *)
 (* ************************************************************************ *)
