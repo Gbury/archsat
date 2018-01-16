@@ -536,7 +536,7 @@ let do_narrowing () =
           Util.debug ~section:section_narrow
             "@[<hv 2>Found a unifier:@ %a@]" Mapping.print m;
           List.iter (fun m ->
-              ret := !ret || Inst.add ~name:"narrowing" m
+              ret := Inst.add ~name:"narrowing" m || !ret
             ) (Inst.partition m)
         ) l
     );
