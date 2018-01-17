@@ -152,6 +152,7 @@ exception Bad_ty_arity of (unit, ttype) function_descr id * ty list
 exception Cannot_assign of term
 exception Cannot_interpret of term
 
+
 (* Status settings *)
 (* ************************************************************************ *)
 
@@ -287,6 +288,28 @@ module Print = struct
   let formula fmt f = Format.fprintf fmt "⟦@[<hov>%a@]⟧" formula_aux f
 
 end
+
+(* Exception printers *)
+(* ************************************************************************ *)
+
+let () = Printexc.register_printer (function
+    | Type_mismatch (t, actual, expected) ->
+      Some (Format.asprintf
+              "@[<hv>Illegal coersion@ %a :@ %a :>@ %a"
+              Print.term t Print.ty actual Print.ty expected)
+    | Bad_arity (f, tys, args) ->
+      Some (Format.asprintf
+              "@[<hv 2>Bad application@ %a@ @[<hv 2>[ %a ]@]@ @[<hv 2>[ %a ]@]"
+              Print.const_ty f
+              CCFormat.(list ~sep:(return "@ ") Print.ty) tys
+              CCFormat.(list ~sep:(return "@ ") Print.term) args)
+    | Bad_ty_arity (f, tys) ->
+      Some (Format.asprintf
+              "@[<hv 2>Bad application@ %a@ @[<hv 2>[ %a ]@]"
+              Print.const_ttype f
+              CCFormat.(list ~sep:(return "@ ") Print.ty) tys)
+    | _ -> None
+  )
 
 (* Substitutions *)
 (* ************************************************************************ *)
@@ -1184,6 +1207,49 @@ module Formula = struct
       res
     end
 
+  let all l f =
+    if l = [] then f else
+      match f.formula with
+      | All (l', ft, f') ->
+        List.iter (Id.duplicate_term_skolem (List.hd l')) l;
+        mk_formula (All (l @ l', ft, f'))
+      | _ ->
+        let fv = fv (mk_formula (All (l, ([], []), f))) in
+        Id.init_term_skolems l fv;
+        mk_formula (All (l, to_free_args fv, f))
+
+  let allty l f =
+    if l = [] then f else
+      match f.formula with
+      | AllTy (l', ft, f') ->
+        List.iter (Id.duplicate_ty_skolem (List.hd l')) l;
+        mk_formula (AllTy (l @ l', ft, f'))
+      | _ ->
+        let fv = fv (mk_formula (AllTy (l, ([], []), f))) in
+        Id.init_ty_skolems l fv;
+        mk_formula (AllTy (l, to_free_args fv, f))
+
+  let ex l f =
+    if l = [] then f else
+      match f.formula with
+      | Ex (l', ft, f') ->
+        List.iter (Id.duplicate_term_skolem (List.hd l')) l;
+        mk_formula (Ex (l @ l', ft, f'))
+      | _ ->
+        let fv = fv (mk_formula (Ex (l, ([], []), f))) in
+        Id.init_term_skolems l fv;
+        mk_formula (Ex (l, to_free_args fv, f))
+
+  let exty l f =
+    if l = [] then f else
+      match f.formula with
+      | ExTy (l', ft, f') ->
+        List.iter (Id.duplicate_ty_skolem (List.hd l')) l;
+        mk_formula (ExTy (l @ l', ft, f'))
+      | _ ->
+        let fv = fv (mk_formula (ExTy (l, ([], []), f))) in
+        Id.init_ty_skolems l fv;
+        mk_formula (AllTy (l, to_free_args fv, f))
 
   let rec new_binder_subst ty_var_map ty_meta_map subst acc = function
     | [] -> List.rev acc, subst
@@ -1331,48 +1397,5 @@ module Formula = struct
       aux ty_vmap t_vmap f
     | _ -> raise (Invalid_argument "Expr.partial_inst")
 
-  let all l f =
-    if l = [] then f else
-      match f.formula with
-      | All (l', ft, f') ->
-        List.iter (Id.duplicate_term_skolem (List.hd l')) l;
-        mk_formula (All (l @ l', ft, f'))
-      | _ ->
-        let fv = fv (mk_formula (All (l, ([], []), f))) in
-        Id.init_term_skolems l fv;
-        mk_formula (All (l, to_free_args fv, f))
-
-  let allty l f =
-    if l = [] then f else
-      match f.formula with
-      | AllTy (l', ft, f') ->
-        List.iter (Id.duplicate_ty_skolem (List.hd l')) l;
-        mk_formula (AllTy (l @ l', ft, f'))
-      | _ ->
-        let fv = fv (mk_formula (AllTy (l, ([], []), f))) in
-        Id.init_ty_skolems l fv;
-        mk_formula (AllTy (l, to_free_args fv, f))
-
-  let ex l f =
-    if l = [] then f else
-      match f.formula with
-      | Ex (l', ft, f') ->
-        List.iter (Id.duplicate_term_skolem (List.hd l')) l;
-        mk_formula (Ex (l @ l', ft, f'))
-      | _ ->
-        let fv = fv (mk_formula (Ex (l, ([], []), f))) in
-        Id.init_term_skolems l fv;
-        mk_formula (Ex (l, to_free_args fv, f))
-
-  let exty l f =
-    if l = [] then f else
-      match f.formula with
-      | ExTy (l', ft, f') ->
-        List.iter (Id.duplicate_ty_skolem (List.hd l')) l;
-        mk_formula (ExTy (l @ l', ft, f'))
-      | _ ->
-        let fv = fv (mk_formula (ExTy (l, ([], []), f))) in
-        Id.init_ty_skolems l fv;
-        mk_formula (AllTy (l, to_free_args fv, f))
 end
 
