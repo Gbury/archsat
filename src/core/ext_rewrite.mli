@@ -1,11 +1,6 @@
 
 (** Extension for rewriting *)
 
-(** {2 Matching modulo equality} *)
-
-val match_modulo : Expr.term -> Ext_eq.Class.t -> Mapping.t list
-(** Matching modulo the equivalence classes registered in [Ext_eq]. *)
-
 (** {2 Plugin} *)
 
 val tag : bool Expr.tag
