@@ -2,3 +2,73 @@
 
 \section{Implementation and Experimental Results}
 \label{sec:bench}
+
+\subsection{Implementation}
+
+\subsection{Experimental Results}
+
+As a framework for our benchmark, we consider the set theory of the \bmth{}
+method~\cite{B-Book}. This method is supported by some tool sets, such as
+\atelierb{}, which are used in industry to specify and build, by stepwise
+refinements, software that is correct by design. This theory is suitable as it
+can be easily turned into a theory that is compatible with deduction modulo
+theory, i.e. where a large part of axioms can be turned into rewrite rules, and
+for which the rewriting theory proposed previously in Subsec.~\ref{sec:rew}
+should work. Starting from the theory described in Chap.~2 of the
+\bbook{}~\cite{B-Book}, we therefore transform whenever possible the axioms and
+definitions into rewrite rules. The resulting theory has been introduced
+in~\cite{BA15}, and due to lack of space, we only provide, in
+Fig.~\ref{fig:bset}, the three rewriting rules corresponding to the axiomatic
+core of the \bmth{} set theory that we consider.
+
+As can be seen, the proposed theory is typed, using first order logic extended
+to polymorphic types à la ML, through a type system in the spirit
+of~\cite{BP13}. This extension to polymorphic types offers more flexibility, and
+in particular allows us to deal with theories that rely on elaborate type
+systems, like the \bmth{} set theory (see Chap.~2 of the
+\bbook{}~\cite{B-Book}). The complete type system that is used in this
+formalization can be found in~\cite{BA15}. The type constructors,
+i.e. $\mathsf{tup}$ for tuples and $\mathsf{set}$ for sets, and type schemes of
+the considered set constructs are provided in Fig.~\ref{fig:bset} as well, where
+\type{} is the type of types and $\omicron$ the type of formulas, and where type
+arguments are subscript annotations of the constructs.
+
+\begin{figure}[t]
+\small
+\hspace{0.2cm}\underline{Axioms of Set Theory}
+\begin{flushleft}
+$\begin{array}{@{\hspace{0.2cm}}l}
+(x,y)_{\alpha_1,\alpha_2}\in_{\tuple{\alpha_1}{\alpha_2}}s\times_{\alpha_1,\alpha_2}t\rew
+x\in_{\alpha_1}s\land{}y\in_{\alpha_2}t\\
+s\in_{\set{\alpha}}\mathbb{P}_\alpha(t)\rew
+\forall{}x:\alpha.x\in_\alpha{}s\Rightarrow{}x\in_\alpha{}t\\
+s=_{\set{\alpha}}t\rew
+\forall{}x:\alpha.x\in_\alpha{}s\Leftrightarrow{}x\in_\alpha{}t
+\end{array}$
+\end{flushleft}
+\hspace{0.2cm}\underline{Type Constructors}
+\begin{flushleft}
+$\begin{array}{@{\hspace{0.2cm}}l@{\hspace{1.0cm}}l}
+\mathsf{tup}:\Pi\alpha_1,\alpha_2:\type.\type &
+\mathsf{set}:\Pi\alpha:\type.\type
+\end{array}$
+\end{flushleft}
+\hspace{0.2cm}\underline{Type Schemes of the Set Constructs}
+\begin{flushleft}
+$\begin{array}{@{\hspace{0.2cm}}lcl}
+\arg\in\arg & : &
+\Pi\alpha:\type.\alpha\rightarrow\set{\alpha}\rightarrow\omicron\\
+(\arg,\arg) & : &
+\Pi\alpha_1,\alpha_2:\type.\alpha_1\rightarrow\alpha_2\rightarrow
+\tuple{\alpha_1}{\alpha_2}\\
+\arg\times\arg & : &
+\Pi\alpha_1,\alpha_2:\type.\set{\alpha_1}\rightarrow\set{\alpha_2}\rightarrow
+\set{\tuple{\alpha_1}{\alpha_2}}\\
+\mathbb{P}(\arg) & : &
+\Pi\alpha:\type.\set{\alpha}\rightarrow\set{\set{\alpha}}\\
+\arg=\arg & : & \Pi\alpha:\type.\alpha\rightarrow\alpha\rightarrow\omicron\\
+\end{array}$
+\end{flushleft}
+\caption{Rewriting Rules of the Axiomatic Core of the \bmth{} Set Theory}
+\label{fig:bset}
+\end{figure}
