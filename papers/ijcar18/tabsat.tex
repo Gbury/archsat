@@ -223,10 +223,10 @@ $\exists{}x.P(x)\Rightarrow{}P(a)\land{}P(b)$, where $P$ is a predicate symbol
 and $a,b$ two constants. The SAT solver is initiated with the state
 $\emptyset\parallel
 \neg\lfloor\exists{}x.P(x)\Rightarrow{}P(a)\land{}P(b)\rfloor$, and the proof is
-described in Fig.~\ref{fig:exa}, where $X$ is a shortcut for
+described in Fig.~\ref{fig:tab}, where $X$ is a shortcut for
 $X_{\neg\exists{}x.P(x)\Rightarrow{}P(a)\land{}P(b)}$. It should be noted that
 to do this proof in sequent calculus, a right contraction is necessary to
-instantiate the formula twice (with $a$ and $b$). In Fig.~\ref{fig:exa}, it is
+instantiate the formula twice (with $a$ and $b$). In Fig.~\ref{fig:tab}, it is
 done by propagating the literal $\lfloor{}P(X)\rfloor{}$, which can provide as
 many instantiations (by unification) as necessary.
 
@@ -311,6 +311,158 @@ B\lor{}(C\equiv\lfloor{}P(X)\rfloor{}),\\
 \mathrm{unsat}
 \end{array}$
 \end{center}}
-\caption{Example of Proof}
-\label{fig:exa}
+\caption{Example of Proof Using the Tableau Theory}
+\label{fig:tab}
+\end{figure}
+
+\subsection{The Rewriting Theory}
+
+A rewriting theory allows us to introduce a computational behavior to the SAT
+solver. We aim to integrate rewriting in the broadest sense of the term as
+proposed by deduction modulo theory. Deduction modulo theory~\cite{DA03} focuses
+on the computational part of a theory, where axioms are transformed into rewrite
+rules, which induces a congruence over propositions, and where reasoning is
+performed modulo this congruence. In deduction modulo theory, this congruence is
+then induced by a set of rewrite rules over both propositions and terms.
+
+In the following, we borrow some of the notations and definitions
+of~\cite{DA03}. We call $\mathrm{FV}$ the function that returns the set of
+free variables of a term or a formula. A term rewrite rule is a pair of terms
+denoted by $l\rew{}r$, where $\mathrm{FV}(r)\subseteq\mathrm{FV}(l)$. A
+proposition rewrite rule is a pair of propositions denoted by $l\rew{}r$, where
+$l$ is an atomic proposition and $r$ is an arbitrary proposition, and where
+$\mathrm{FV}(r)\subseteq\mathrm{FV}(l)$. A class rewrite system is a pair of
+rewrite systems, denoted by $\mathcal{RE}$, consisting of $\mathcal{R}$, a set
+of proposition rewrite rules, and $\mathcal{E}$, a set of term rewrite rules.
+
+Given a class rewrite system $\mathcal{RE}$, the relations $=_\mathcal{E}$ and
+$=_\mathcal{RE}$ are the congruences generated respectively by the sets
+$\mathcal{E}$ and $\mathcal{R}\cup\mathcal{E}$. In the following, we use the
+standard concepts of subterm and term replacement: given an occurrence $\omega$
+in a proposition $P$, we write $P_{|\omega}$ for the term or proposition at
+$\omega$, and $P[t]_\omega$ for the proposition obtained by replacing
+$P_{|\omega}$ by $t$ in $P$ at $\omega$. Given a class rewrite system
+$\mathcal{RE}$, the proposition $P$ $\mathcal{RE}$-rewrites to $P'$, denoted by
+$P\rew_\mathcal{RE}P'$, if $P=_\mathcal{E}Q$, $Q_{|\omega}=\sigma(l)$, and
+$P'=_\mathcal{E}Q[\sigma(r)]_\omega$, for some rule $l\rew{}r\in\mathcal{R}$,
+some proposition $Q$, some occurrence $\omega$ in $Q$, and some substitution
+$\sigma$.
+
+The relation $=_\mathcal{RE}$ is not decidable in general, but there are some
+cases where this relation is decidable depending on the class rewrite system
+$\mathcal{RE}$ and the rewrite relation $\rew_\mathcal{RE}$. In particular, if
+the rewrite relation $\rew_\mathcal{RE}$ is confluent and (weakly) terminating,
+then the relation $=_\mathcal{RE}$ is decidable.
+
+The rewriting theory is integrated into the SAT solver in a similar way than for
+the tableau theory. When a literal is propagated or decided, we generate a
+clause introducing a new formula that is congruent to the formula in the box of
+the literal. More precisely, given a literal $\lfloor{}P\rfloor$, where $P$ is a
+formula, and a formula $P'$ such that $P=_\mathcal{RE}P'$, we generate the
+following clause:
+
+$$(\bigvee_{(l,r)\in\mathcal{R}}
+\neg\lfloor\forall{}\vec{x}.l\Leftrightarrow{}r\rfloor)\lor
+(\bigvee_{(l,r)\in\mathcal{E}}\neg\lfloor\forall{}\vec{x}.l=r\rfloor)\lor
+\lfloor{}P\Leftrightarrow{}P'\rfloor$$
+
+where $\vec{x}=\mathrm{FV}(l)\cup\mathrm{FV}(r)$.
+
+It should be noted that in usual SMT solvers, rewriting can be emulated by means
+of triggers that are actually the left-hand side members of the class rewrite
+system $\mathcal{RE}$ introduced above. But, in our rewriting theory, we can
+generate the formula where rewritings have been done, while triggers can just
+generate bindings, i.e. instances of the rewrite rules, which are used later to
+relate the initial formula and the rewritten formula. Moreover, in our case, we
+can perform several rewritings at once, while a trigger can only emulate one
+rewriting.
+
+Let us illustrate the use of the rewriting theory by means of an example in set
+theory. Let us prove that
+$(\forall{}s,t.s\subseteq{}t\Leftrightarrow{}\forall{}x.x\in{}s\Rightarrow{}
+x\in{}t)\Rightarrow{}a\subseteq{}a$, where $a$ is a constant. The proof is given
+by Fig.~\ref{fig:rew}, where the rules ``$\mathrm{learn~tab}$'' and
+``$\mathrm{learn~rew}$'' represent the rule ``$\mathrm{learn}$'' using
+respectively the tableau and rewriting theories.
+
+\begin{figure}[t!]
+\parbox{\textwidth}
+{\small
+\begin{center}
+$\begin{array}{lcl}
+\emptyset\parallel
+\neg(A\equiv\lfloor(\forall{}s,t.s\subseteq{}t\Leftrightarrow{}
+\forall{}x.x\in{}s\Rightarrow{}x\in{}t)\Rightarrow{}a\subseteq{}a\rfloor) &
+\longrightarrow & (\mathrm{unit~prop})\\
+
+\neg{}A\parallel{}\neg{}A & \longrightarrow & (\mathrm{learn~tab})\\
+
+\neg{}A\parallel
+\neg{}A,A\lor(B\equiv\lfloor\forall{}s,t.s\subseteq{}t\Leftrightarrow{}
+\forall{}x.x\in{}s\Rightarrow{}x\in{}t\rfloor),\\
+~~~~A\lor\neg(C\equiv\lfloor{}a\subseteq{}a\rfloor) &
+\longrightarrow & (\mathrm{unit~prop})\times{}2\\
+
+\neg{}A,B,\neg{}C\parallel\neg{}A,A\lor{}B,A\lor\neg{}C &
+\longrightarrow & (\mathrm{learn~rew})\\
+
+\neg{}A,B,\neg{}C\parallel\neg{}A,A\lor{}B,A\lor\neg{}C,\\
+~~~~\neg{}B\lor(D\equiv\lfloor{}a\subseteq{}a\Leftrightarrow
+\forall{}x.x\in{}a\Rightarrow{}x\in{}a\rfloor) &
+\longrightarrow & (\mathrm{unit~prop})\\
+
+\neg{}A,B,\neg{}C,D\parallel\neg{}A,A\lor{}B,A\lor\neg{}C,\neg{}B\lor{}D &
+\longrightarrow & (\mathrm{learn~tab})\\
+
+\neg{}A,B,\neg{}C,D\parallel\neg{}A,A\lor{}B,A\lor\neg{}C,\neg{}B\lor{}D,\\
+~~~~\neg{}D\lor(E\equiv\lfloor{}a\subseteq{}a\Rightarrow
+\forall{}.x\in{}a\Rightarrow{}x\in{}a\rfloor),\\
+~~~~\neg{}D\lor(F\equiv\lfloor(\forall{}.x\in{}a\Rightarrow{}x\in{}a)
+\Rightarrow{}a\subseteq{}a\rfloor) & \longrightarrow &
+(\mathrm{unit~prop})\times{}2\\
+
+\neg{}A,B,\neg{}C,D,E,F\parallel\neg{}A,A\lor{}B,A\lor\neg{}C,\neg{}B\lor{}D,
+\neg{}D\lor{}E,\\
+~~~~\neg{}D\lor{}F & \longrightarrow & (\mathrm{learn~tab})\\
+
+\neg{}A,B,\neg{}C,D,E,F\parallel\neg{}A,A\lor{}B,A\lor\neg{}C,\neg{}B\lor{}D,
+\neg{}D\lor{}E\\
+~~~~\neg{}D\lor{}F,
+\neg{}F\lor\neg(G\equiv\lfloor\forall{}.x\in{}a\Rightarrow{}x\in{}a\rfloor)
+\lor{}C & \longrightarrow & (\mathrm{unit~prop})\\
+
+\neg{}A,B,\neg{}C,D,E,F,\neg{}G\parallel\neg{}A,A\lor{}B,A\lor\neg{}C,
+\neg{}B\lor{}D,\neg{}D\lor{}E\\
+~~~~\neg{}D\lor{}F,\neg{}F\lor\neg{}G\lor{}C & \longrightarrow &
+(\mathrm{learn~tab})\\
+
+\neg{}A,B,\neg{}C,D,E,F,\neg{}G\parallel\neg{}A,A\lor{}B,A\lor\neg{}C,
+\neg{}B\lor{}D,\neg{}D\lor{}E\\
+~~~~\neg{}D\lor{}F,\neg{}F\lor\neg{}G\lor{}C,
+G\lor\neg(H\equiv\lfloor\epsilon_x\in{}a\Rightarrow\epsilon_x\in{}a\rfloor) &
+\longrightarrow & (\mathrm{unit~prop})\\
+
+\neg{}A,B,\neg{}C,D,E,F,\neg{}G,\neg{}H\parallel\neg{}A,A\lor{}B,A\lor\neg{}C,
+\neg{}B\lor{}D\\
+~~~~\neg{}D\lor{}E,\neg{}D\lor{}F,\neg{}F\lor\neg{}G\lor{}C,
+G\lor\neg{}H & \longrightarrow & (\mathrm{learn~tab})\\
+
+\neg{}A,B,\neg{}C,D,E,F,\neg{}G,\neg{}H\parallel\neg{}A,A\lor{}B,A\lor\neg{}C,
+\neg{}B\lor{}D\\
+~~~~\neg{}D\lor{}E,\neg{}D\lor{}F,\neg{}F\lor\neg{}G\lor{}C,
+G\lor\neg{}H,H\lor(I\equiv\lfloor\epsilon_x\in{}a\rfloor),\\
+~~~~H\lor\neg{}I & \longrightarrow & (\mathrm{unit~prop})\\
+
+\neg{}A,B,\neg{}C,D,E,F,\neg{}G,\neg{}H,I\parallel\neg{}A,A\lor{}B,A\lor\neg{}C,
+\neg{}B\lor{}D\\
+~~~~\neg{}D\lor{}E,\neg{}D\lor{}F,\neg{}F\lor\neg{}G\lor{}C,
+G\lor\neg{}H,H\lor{}I,H\lor\neg{}I & \longrightarrow & (\mathrm{unsat})\\
+
+\mathrm{unsat}\\\\
+
+\mbox{with }\epsilon_x=\epsilon(x).\neg(x\in{}a\Rightarrow{}x\in{}a)
+\end{array}$
+\end{center}}
+\caption{Example of Proof Using the Rewriting Theory}
+\label{fig:rew}
 \end{figure}
