@@ -40,30 +40,42 @@ In order to manage quantified first order formulas, we use metavariables and
 perform rigid unification modulo equalities, for which we introduce an algorithm
 based on superposition, but where all clauses contain a single atomic formula.
 
+We also propose to improve proof search by introducing rewriting to the SAT
+solver as a regular SMT theory and along the lines of deduction modulo
+theory. Deduction modulo theory~\cite{DA03} focuses on the computational part of
+a theory, where axioms are transformed into rewrite rules, which induces a
+congruence over propositions, and where reasoning is performed modulo this
+congruence. In deduction modulo theory, this congruence is then induced by a set
+of rewrite rules over both propositions and terms.
+
 Our approach provides several advantages compared to usual SMT solving and first
 order proof search methods. First, we benefit from the efficiency of a SAT
 solver core together with a complete method of instantiation (when a
 propositional model is found, we try to find a conflict between two literals by
 unification). Second, it should be noted that our approach requires no change in
-the architecture of the SMT solver. The tableau calculus is seen as a regular
-theory, which can be combined with other theories in particular. Finally, no
-preliminary Skolemization and Conjunctive Normal Form (CNF) transformation is
-required over the initial formula. This transformation is performed lazily by
-applying the tableau rules progressively when a literal is propagated or
-decided. This makes the production of genuine output proofs easier, contrary to
-the approach of SMT solvers, where the Skolemization/CNF translation is realized
-at the beginning and especially externalized with respect to the proof search.
+the architecture of the SMT solver, since the tableau calculus and rewriting are
+seen as regular theories. Finally, no preliminary Skolemization and Conjunctive
+Normal Form (CNF) transformation is required. This transformation is performed
+lazily by applying the tableau rules progressively when a literal is propagated
+or decided.  This makes the production of genuine output proofs easier, contrary
+to the usual approach, where the Skolemization/CNF translation is realized at
+the beginning and externalized with respect to the proof search.
 
-Our proposal combining SAT solving and tableau calculus has been implemented and
-the corresponding tool is called \archsat{}. The implementation relies on the
-\msat{} library, which derives from \altergoz{}, and which is a generic library
-that allows us to easily create automated deduction tools based on SAT solvers.
-
-\todo{Introduce benchmarks and experimental results.}
+Our proposal combining SAT solving with tableau calculus and rewriting has been
+implemented and the corresponding tool is called \archsat{}. This tool is able
+to deal with first order logic extended to polymorphic types à la ML, through a
+type system in the spirit of~\cite{BP13}. To test this tool, we propose a
+benchmark in the framework of the set theory of the \bmth{}
+method~\cite{B-Book}. This theory~\cite{BA15} has been expressed using first
+order logic extended to polymorphic types and turned into a theory that is
+compatible with deduction modulo theory, i.e. where a large part of axioms has
+been turned into rewrite rules. The benchmark itself gathers 319~lemmas coming
+from Chap.~2 of the \bbook{}~\cite{B-Book}.
 
 The paper is organized as follows: in Sec.~\ref{sec:smt}, we recall the classic
-architecture of SMT solvers and we introduce the tableau theory; we then
-describe, in Sec.~\ref{sec:rusuper}, our mechanism of equational reasoning by
-means of rigid unit superposition; finally, in Sec.~\ref{sec:bench}, we present
-some experimental results obtained by running our implementation over the TPTP
-library, and also provide related work in Sec.~\ref{sec:rwork}.
+architecture of SMT solvers and we introduce the tableau and rewriting theories;
+we then describe, in Sec.~\ref{sec:rusuper}, our mechanism of equational
+reasoning by means of rigid unit superposition; finally, in
+Sec.~\ref{sec:bench}, we present some experimental results obtained by running
+our implementation over a benchmark of lemmas in the \bmth{} set theory, and
+also provide related work in Sec.~\ref{sec:rwork}.

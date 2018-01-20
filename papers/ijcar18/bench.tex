@@ -5,6 +5,10 @@
 
 \subsection{Implementation}
 
+%The implementation relies on the
+%\msat{} library, which derives from \altergoz{}, and which is a generic library
+%that allows us to easily create automated deduction tools based on SAT solvers.
+
 \subsection{Experimental Results}
 
 As a framework for our benchmark, we consider the set theory of the \bmth{}
@@ -82,7 +86,7 @@ projects, and are not necessarily standard in set theory.
 
 As tools, we actually consider two versions of \archsat{} in our test: one
 version with rewriting and another one without rewriting (in this case, the
-rules of the rewrite system are considered as usual equations or
+rules of the rewrite system are considered as usual equalities or
 equivalences). We also include other automated theorem provers, able to deal
 with first order logic with polymorphic types natively. In particular, we
 consider \zenm{} (version~0.4.2), a tableau-based prover that is an extension of

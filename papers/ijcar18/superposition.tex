@@ -3,44 +3,30 @@
 \section{Equational Reasoning with Rigid Unit Superposition}
 \label{sec:rusuper}
 
-\EnableBpAbbreviations{}
-
-\newcommand\clauseWithSubst[2]{\ensuremath{#1 ~|~ #2}}
-\newcommand\renameVarsSymb{\ensuremath{\textsf{rename}}}
-\newcommand\renameVars[1]{\ensuremath{\renameVarsSymb}(#1)}
-\newcommand\mapVar[2]{\ensuremath{#2/#1}}
-
-There are many ways of integrating equational reasoning in
-Tableaux methods~\cite{brand1975proving,letz2002integration,backeman2015theorem,degtyarev1996you}.
+There are many ways of integrating equational reasoning in Tableaux
+methods~\cite{brand1975proving,letz2002integration,backeman2015theorem,degtyarev1996you}.
 Because our prover does not rely on clausal forms, but on arbitrary formulas
-with quantifiers occurring deep inside branches,
-we deal with {\em rigid} variables --- variables that can be instantiated
-only once.
-The problem we want to solve, {\em rigid E-unification}, is the following.
-Assume a set of equations $E$, containing rigid variables,
-and a {\em target equation} $e = s \approx t$.
-We want a substitution $\sigma$ such that
-$\bigwedge_{e \in E} e\sigma \vdash_\approx s\sigma \approx t\sigma$;
-such a substitution is a {\em solution} to the rigid E-unification problem.
+with quantifiers occurring deep inside branches, we deal with {\em rigid}
+variables --- variables that can be instantiated only once. The problem we want
+to solve, {\em rigid E-unification}, is the following. Assume a set of equations
+$E$, containing rigid variables, and a {\em target equation} $e = s \approx
+t$. We want a substitution $\sigma$ such that $\bigwedge_{e \in E} e\sigma
+\vdash_\approx s\sigma \approx t\sigma$; such a substitution is a {\em solution}
+to the rigid E-unification problem.
 
-We propose here an approach based on superposition with rigid variables,
-as in previous work by Degtyarev and Voronkov~\cite{degtyarev1996you}
-and earlier work on rigid paramodulation~\cite{plaisted1995special},
-but with significant differences.
-First, to avoid constraint solving, we do not use
-basic superposition nor constraints.
-Second, we introduce a {\em merging} rule that factors together
-intermediate (dis)equations that are alpha-equivalent:
-with multiple instances of some of the quantified formulas ({\em amplification}),
-it becomes important not to duplicate work.
-In this aspect, our calculus is quite close to Labelled
-Unit Superposition~\cite{iprover_eq_labelled_unit_sup} when using sets as labels.
-Third, unlike rigid paramodulation we use a term ordering to orient the
-equations.
+We propose here an approach based on superposition with rigid variables, as in
+previous work by Degtyarev and Voronkov~\cite{degtyarev1996you} and earlier work
+on rigid paramodulation~\cite{plaisted1995special}, but with significant
+differences. First, to avoid constraint solving, we do not use basic
+superposition nor constraints. Second, we introduce a {\em merging} rule that
+factors together intermediate (dis)equations that are alpha-equivalent: with
+multiple instances of some of the quantified formulas ({\em amplification}), it
+becomes important not to duplicate work. In this aspect, our calculus is quite
+close to Labelled Unit Superposition~\cite{iprover_eq_labelled_unit_sup} when
+using sets as labels. Third, unlike rigid paramodulation we use a term ordering
+to orient the equations.
 
 \subsection{Preliminary Definitions}
-%{{{
-
 
 We write $ \clauseWithSubst{ s \approx t }{ \Sigma}$
 (resp. $ \clauseWithSubst{ s \not\approx t }{ \Sigma}$),
@@ -114,10 +100,7 @@ $\Sigma \uparrow \Sigma' \triangleq
 An inference rule only succeeds if the merging of the premises' substitution
 sets is non-empty.
 
-%}}}
-
 \subsection{Inference System}
-%{{{
 
 In Figure~\ref{fig:unit-sup-rules}, we present the  rules for unit superposition
 with rigid variables.
@@ -130,7 +113,6 @@ thus pruning the search space.
 Typically, $\prec$ is one of RPO or KBO.
 
 \begin{description}
-%{{{
   \item[ER] is {\em equality resolution},
     where a disequation $\clauseWithSubst{s \not\approx t}\Sigma$
     is solved by syntactically unifying $s$ and $t$ with $\sigma$,
@@ -168,11 +150,9 @@ Typically, $\prec$ is one of RPO or KBO.
   \item[RP] similarly, rewriting of positive clauses only  works for
     syntactical equality, not matching.
   \item[RN] is the same as RP but for rewriting negative clauses.
-%}}}
 \end{description}
 
 \begin{figure}[htb]
-%{{{
   \begin{center}
 
     % ER
@@ -295,13 +275,9 @@ Typically, $\prec$ is one of RPO or KBO.
   \caption{The set of rules for unit rigid superposition}
   \label{fig:unit-sup-rules}
   \end{center}
-%}}}
 \end{figure}
 
-%}}}
-
 \subsection{Main Loop}
-%{{{
 
 Our objective with rigid E-unification is to attempt to close a branch
 of the tableau prover (i.e., a set of boolean literals set to true).
@@ -318,10 +294,7 @@ Moreover, this technique is amenable to incrementality --- every time a
 (dis)equation is decided by the SAT solver, we could add it to the saturation
 set and perform a (limited) number of steps of the given-clause algorithm.
 
-%}}}
-
 \subsection{Example}
-%{{{
 
 To illustrate the calculus, we detail a refutation of the following set
 of clauses stemming from group theory, where $f$ is the operator, $0$ the
@@ -351,11 +324,8 @@ The merging rule is useful precisely because it condenses these 8 proofs
 into one that yields a set of 8 substitutions.
 
 \begin{figure}[t]
-%{{{ example
 \begin{center}
 \begin{tabular}{clc}
-  \toprule
-
   1 & axiom &
   $\forall x~y~z.~ f(x,f(y,z)) \approx f(f(x,y),z)$
   \\
@@ -500,14 +470,8 @@ into one that yields a set of 8 substitutions.
            \mapVar{X_3}{b}, \mapVar{X_6}{f(c,b)}
       \end{array} \right\}
     }$
-  \\
-
-  \bottomrule
 \end{tabular}
-\caption{Proof of a group theory problem}
+\caption{Proof of a Group Theory Problem}
 \label{fig:unit-sup-proof-example}
 \end{center}
-%}}}
 \end{figure}
-
-%}}}
