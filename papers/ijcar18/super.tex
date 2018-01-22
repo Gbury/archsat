@@ -1,10 +1,10 @@
 % $Id$
 
 \section{Equational Reasoning with Rigid Unit Superposition}
-\label{sec:rusuper}
+\label{sec:super}
 
 There are many ways of integrating equational reasoning in Tableaux
-methods~\cite{brand1975proving,letz2002integration,backeman2015theorem,degtyarev1996you}.
+methods~\cite{DB75,LS02,BR15,DV96}.
 Because our prover does not rely on clausal forms, but on arbitrary formulas
 with quantifiers occurring deep inside branches, we deal with {\em rigid}
 variables --- variables that can be instantiated only once. The problem we want
@@ -15,16 +15,15 @@ t$. We want a substitution $\sigma$ such that $\bigwedge_{e \in E} e\sigma
 to the rigid E-unification problem.
 
 We propose here an approach based on superposition with rigid variables, as in
-previous work by Degtyarev and Voronkov~\cite{degtyarev1996you} and earlier work
-on rigid paramodulation~\cite{plaisted1995special}, but with significant
-differences. First, to avoid constraint solving, we do not use basic
-superposition nor constraints. Second, we introduce a {\em merging} rule that
-factors together intermediate (dis)equations that are alpha-equivalent: with
-multiple instances of some of the quantified formulas ({\em amplification}), it
-becomes important not to duplicate work. In this aspect, our calculus is quite
-close to Labelled Unit Superposition~\cite{iprover_eq_labelled_unit_sup} when
-using sets as labels. Third, unlike rigid paramodulation we use a term ordering
-to orient the equations.
+previous work by Degtyarev and Voronkov~\cite{DV96} and earlier work on rigid
+paramodulation~\cite{DAP00}, but with significant differences. First, to avoid
+constraint solving, we do not use basic superposition nor constraints. Second,
+we introduce a {\em merging} rule that factors together intermediate
+(dis)equations that are alpha-equivalent: with multiple instances of some of the
+quantified formulas ({\em amplification}), it becomes important not to duplicate
+work. In this aspect, our calculus is quite close to Labelled Unit
+Superposition~\cite{KS10} when using sets as labels. Third, unlike rigid
+paramodulation we use a term ordering to orient the equations.
 
 \subsection{Preliminary Definitions}
 
@@ -37,8 +36,8 @@ We define $\renameVars{e}$, where $e$ is a (dis)equation, as follows:
 let $\sigma$ map every (rigid) variable of $e$ to a fresh rigid variable;
 then $\renameVars{e} = \clauseWithSubst{ e\sigma }{ \{ \sigma \} }$.
 For example, $\renameVars{p(X)\approx a}$
-is $\clauseWithSubst{ p(Y)\approx a}{ \{ X\mapsto Y\} }$. % TODO: another example
-\todo{explain the purpose of this transformation further?}
+is $\clauseWithSubst{ p(Y)\approx a}{ \{ X\mapsto Y\} }$.% TODO: another example
+%explain the purpose of this transformation further?
 The E-unification problem $E \vdash s\approx t$ can be solved by
 proving $\clauseWithSubst{\emptyset }{ \Sigma}$
 from $\{ \renameVars{e} \}_{ e \in E }
@@ -104,7 +103,7 @@ sets is non-empty.
 
 In Figure~\ref{fig:unit-sup-rules}, we present the  rules for unit superposition
 with rigid variables.
-We adapt notations and names from Schulz's paper on E~\cite{e_brainiac_prover}.
+We adapt notations and names from Schulz's paper on E~\cite{SS02}.
 A single bar denotes an inference --- we add the result to the saturation set ---
 whereas a double bar is a simplification in which the premises are
 replaced by the conclusion(s).
@@ -140,7 +139,7 @@ Typically, $\prec$ is one of RPO or KBO.
     be compatible with the ground instance of $D$.
   \item[ES] is a restricted form of equality subsumption. The active
     equation $\clauseWithSubst{ s\approx t}\Sigma $ can be used to delete another clause, as
-    in E~\cite{e_brainiac_prover}.
+    in E~\cite{SS02}.
     However, ES only works if $s$ and $t$ are syntactically equal to the
     corresponding subterms in the subsumed clause $C$; otherwise, there is no
     guarantee that further instantiations will not make
@@ -286,7 +285,7 @@ to process, with a label $\Sigma \triangleq \{ \emptyset \}$.
 Then, the given-clause algorithm is applied to try and saturate the set.
 Assuming a fair strategy, this will eventually find a solution
 (i.e. derive $\clauseWithSubst{\emptyset }{\Sigma}$) if there exists one.
-We refer the interested reader to~\cite{e_brainiac_prover} for more details.
+We refer the interested reader to~\cite{SS02} for more details.
 
 Because the whole branch is treated by a single given-clause saturation loop,
 we look for all solutions susceptible to close the branch at the same time.
