@@ -611,7 +611,7 @@ let do_narrowing () =
             "@[<hv 2>Found a unifier:@ %a@]" Mapping.print m;
           List.iter (fun m ->
               ret := Inst.add ~name:"narrowing" m || !ret
-            ) (Inst.partition m)
+            ) (Inst.partition @@ Inst.generalize m)
         ) l
     );
   !ret

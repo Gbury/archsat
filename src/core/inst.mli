@@ -17,9 +17,8 @@ val mark_meta : Expr.formula -> Expr.formula -> unit
     some metas, resulting in the instanciated [f] formula. This is necessary in
     order to to split mappings in {!partition}. *)
 
-val complete : Mapping.t -> Mapping.t
-(** Complete a mapping, i.e. add identity bindings for each meta-variable
-    that appears in the codomain of the mapping. *)
+val generalize : Mapping.t -> Mapping.t
+(** Introduce virtual meta-variables to replace free variables and meta-variables. *)
 
 val partition : Mapping.t -> Mapping.t list
 (** Splits an arbitray unifier into a list. Each unifiers u in the list

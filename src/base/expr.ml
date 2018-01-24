@@ -509,6 +509,10 @@ module Id = struct
   (* Free variables *)
   let null_fv = [], []
 
+  let inter_fv (ty1, t1) (ty2, t2) =
+    CCList.inter ~eq:equal ty1 ty2,
+    CCList.inter ~eq:equal t1 t2
+
   let merge_fv (ty1, t1) (ty2, t2) =
     CCList.sorted_merge_uniq ~cmp:compare ty1 ty2,
     CCList.sorted_merge_uniq ~cmp:compare t1 t2
@@ -644,6 +648,10 @@ module Meta = struct
 
   (* Free meta-variables *)
   let null_fm = [], []
+
+  let inter_fm (ty1, t1) (ty2, t2) =
+    CCList.inter ~eq:equal ty1 ty2,
+    CCList.inter ~eq:equal t1 t2
 
   let merge_fm (ty1, t1) (ty2, t2) =
     CCList.sorted_merge_uniq ~cmp:compare ty1 ty2,

@@ -7,10 +7,11 @@ type lemma_info =
 
 type Dispatcher.lemma_info += Inst of lemma_info
 
+module Hm = Hashtbl.Make(Mapping)
+module Hf = Hashtbl.Make(Expr.Formula)
+
 (* Metavariable positions *)
 (* ************************************************************************ *)
-
-module Hf = Hashtbl.Make(Expr.Formula)
 
 type cluster =
   | Root of Expr.formula
@@ -137,6 +138,67 @@ let mark_meta quant f =
   in
   aux current f
 
+(* Virtual meta-variables *)
+(* ************************************************************************ *)
+
+let v_meta = Tag.create ()
+
+let mk_ty_var =
+  let i = ref 0 in
+  (fun () -> incr i; Expr.Id.ttype (Format.asprintf "vty_%d" !i))
+
+let mk_t_var =
+  let i = ref 0 in
+  (fun ty -> incr i; Expr.Id.ty (Format.asprintf "vt_%d" !i) ty)
+
+let rec gen_metas = function
+  | { Expr.formula = Expr.AllTy (_, _, f') } as f->
+    let l, l' = gen_metas f' in
+    let l'' = Expr.Meta.of_all_ty f in
+    (l'' @ l, l')
+  | { Expr.formula = Expr.All(_, _, f') } as f ->
+    let l, l' = gen_metas f' in
+    let l'' = Expr.Meta.of_all f in
+    (l, l'' @ l')
+  | _ -> [], []
+
+let generalize_aux m =
+  Util.debug ~section "Generalizing@ %a" Mapping.print m;
+  let vdom, mdom = Mapping.domain m in
+  let vcodom, mcodom = Mapping.codomain m in
+  assert (Expr.Id.inter_fv vdom vcodom = ([], []));
+  assert (Expr.Meta.inter_fm mdom mcodom = ([], []));
+  let vtys = List.map (fun _ -> mk_ty_var ()) (fst vcodom) in
+  let mtys = List.map (fun _ -> mk_ty_var ()) (fst mcodom) in
+  let vts = List.map (fun v -> mk_t_var v.Expr.id_type) (snd vcodom) in
+  let mts = List.map (fun m -> mk_t_var Expr.(m.meta_id.id_type)) (snd mcodom) in
+  if vtys = [] && mtys = [] &&
+     vts = [] && mts = [] then
+    m
+  else begin
+    let f = Expr.Formula.allty (vtys @ mtys) @@
+      Expr.Formula.all (vts @ mts) Expr.Formula.f_true in
+    let () = mark_meta f f in
+    let l, l' = gen_metas f in
+    let (vtm_ty, mtm_ty) =
+      CCList.take_drop (List.length vtys) (List.map Expr.Ty.of_meta l) in
+    let (vtm_t, mtm_t) =
+      CCList.take_drop (List.length vts) (List.map Expr.Term.of_meta l') in
+    let s = List.fold_left2 Mapping.Var.bind_ty m (fst vcodom) vtm_ty in
+    let s = List.fold_left2 Mapping.Meta.bind_ty s (fst mcodom) mtm_ty in
+    let s = List.fold_left2 Mapping.Var.bind_term s (snd vcodom) vtm_t in
+    let s = List.fold_left2 Mapping.Meta.bind_term s (snd mcodom) mtm_t in
+    let m' = Mapping.fixpoint s in
+    let () = Expr.Formula.tag f v_meta m' in
+    Util.debug ~section "@[<hv 2>Generalized@ %a@ into@ %a@]"
+      Mapping.print m Mapping.print m';
+    m'
+  end
+
+let generalize =
+  let cache = CCCache.unbounded ~eq:Mapping.equal ~hash:Mapping.hash 4013 in
+  CCCache.with_cache cache generalize_aux
+
 (* Instanciation helpers *)
 (* ************************************************************************ *)
 
@@ -144,21 +206,6 @@ let mark_meta quant f =
 
 module N = CCMap.Make(CCInt)
 module M = CCMap.Make(Expr.Formula)
-
-(* Complete a mapping, i.e. add missing identity bindings
-   for meta-variables in its co-domain. *)
-let complete m =
-  let (var_domain, meta_domain) = Mapping.domain m in
-  let (var_codomain, meta_codomain) = Mapping.codomain m in
-  assert (var_domain = ([], []) && var_codomain = ([], []));
-  let ty_metas, t_metas = Expr.Meta.remove_fm meta_codomain meta_domain in
-  List.fold_left (fun acc m ->
-      assert (not (Mapping.Meta.mem_term acc m));
-      Mapping.Meta.bind_term acc m (Expr.Term.of_meta m)
-    ) (List.fold_left (fun acc m ->
-      assert (not (Mapping.Meta.mem_ty acc m));
-      Mapping.Meta.bind_ty acc m (Expr.Ty.of_meta m)
-    ) m ty_metas) t_metas
 
 (* Given a mapping, split it into mapping
    for which all metas have the same root cluster *)
@@ -169,7 +216,7 @@ let split m =
       | Some c -> root c
       | None ->
         Util.error ~section "@[<hv 2>Looking for cluster failed on:@ %a@]"
-        Expr.Formula.print f;
+          Expr.Formula.print f;
         raise (Invalid_argument "Inst.split")
     in
     let s = M.get_or ~default:Mapping.empty r acc in
@@ -231,39 +278,83 @@ let reduce_map s =
 
 (** Split a single_cluster mapping according to meta indexes *)
 let split_cluster map =
-  let aux meta t acc =
+  let aux default meta t acc =
     let i = (meta.Expr.meta_index : _ Expr.meta_index :> int) in
-    let s = N.get_or ~default:Mapping.empty i acc in
+    let s = N.get_or ~default i acc in
     N.add i (Mapping.Meta.bind_term s meta t) acc
   in
-  let tmp = Expr.Subst.fold aux (Mapping.term_meta map) N.empty in
+  let default = Mapping.keep ~ty_meta:(fun _ _ -> true) map in
+  let tmp =
+    Expr.Subst.fold (aux default)
+      (Mapping.term_meta map) N.empty
+  in
   List.map snd (N.bindings tmp)
+
+let check_single_cluster m quant =
+  let aux def m _ =
+    match get_cluster (def m.Expr.meta_index) with
+    | None -> assert false
+    | Some (Root f)
+    | Some (Under (f, _)) -> Expr.Formula.equal quant f
+  in
+  Mapping.for_all m
+    ~ty_meta:(aux Expr.Meta.ttype_def)
+    ~term_meta:(aux Expr.Meta.ty_def)
 
 (** Returns the formula defining a mapping (where all metas
     are assumed to be defined by the same formula or contiguous
     quantifications (i.e same cluster). *)
 let map_def map =
-  try
-    let m, _ = Expr.Subst.choose (Mapping.ty_meta map) in
-    Expr.Meta.ttype_def m.Expr.meta_index
-  with Not_found ->
-    begin try
-        let m, _ = Expr.Subst.choose (Mapping.term_meta map) in
-        Expr.Meta.ty_def m.Expr.meta_index
-      with Not_found ->
-        raise (Invalid_argument "Inst.map_def")
-    end
+  let res =
+    try
+      let m, _ = Expr.Subst.choose (Mapping.ty_meta map) in
+      Expr.Meta.ttype_def m.Expr.meta_index
+    with Not_found ->
+      begin try
+          let m, _ = Expr.Subst.choose (Mapping.term_meta map) in
+          Expr.Meta.ty_def m.Expr.meta_index
+        with Not_found ->
+          raise (Invalid_argument "Inst.map_def")
+      end
+  in
+  assert (check_single_cluster map res);
+  res
+
+(* Partition caching *)
+let partition_cache = Hm.create 4013
+
+(* Expand a virtual meta cluster *)
+let rec expand m =
+  let f = map_def m in
+  match Expr.Formula.get_tag f v_meta with
+  | None -> [m]
+  | Some s ->
+    Util.debug ~section "@[<hv 2>expanding:@ %a@ with@ %a@]"
+      Mapping.print m Mapping.print s;
+    partition (Mapping.apply m s)
 
 (* Given an arbitrary mapping,
  * returns a list of pairs (formula * mapping) to instanciate
  * the outermost metas in the given mapping. *)
-let partition m =
-  let l = split m in
-  let l = List.map reduce_map l in
-  let res = CCList.flat_map split_cluster l in
-  Util.debug ~section "@[<hv 2>partition@ %a@ into @[<hv>%a@]@]"
-    Mapping.print m CCFormat.(list ~sep:(return "@ ") Mapping.print) res;
-  res
+and partition m =
+  try
+    Hm.find partition_cache m
+  with Not_found ->
+    Util.debug ~section "@[<hv 2>partition@ %a@]" Mapping.print m;
+    let l = split m in
+    Util.debug ~section "@[<hv 2>partition split:@ %a@]"
+      CCFormat.(list ~sep:(return "@ ") Mapping.print) l;
+    let l = List.map reduce_map l in
+    Util.debug ~section "@[<hv 2>partition min split:@ %a@]"
+      CCFormat.(list ~sep:(return "@ ") Mapping.print) l;
+    let l = CCList.flat_map split_cluster l in
+    Util.debug ~section "@[<hv 2>partition reduced split:@ %a@]"
+      CCFormat.(list ~sep:(return "@ ") Mapping.print) l;
+    let l = CCList.flat_map expand l in
+    Util.debug ~section "@[<hv 2>partition result:@ %a@]"
+      CCFormat.(list ~sep:(return "@ ") Mapping.print) l;
+    let () = Hm.add partition_cache m l in
+    l
 
 (* Produces a proof for the instanciation of the given formulas and unifiers *)
 let mk_proof ~name f q t tys ts =
@@ -292,31 +383,6 @@ let soft_subst ?(mark=false) ~name f t =
   let () = if mark then mark_meta f q in
   [ Expr.Formula.neg f; q], mk_proof ~name f q t tys ts
 
-(* Groundify substitutions *)
-(* ************************************************************************ *)
-
-type Expr.builtin +=
-  | Ty_cst
-  | Term_cst
-
-let ty_cst =
-  Expr.Ty.apply (Expr.Id.ty_fun ~builtin:Ty_cst "ty_cst" 0) []
-
-let t_cst =
-  let a = Expr.Id.ttype "a" in
-  let f = Expr.Id.term_fun ~builtin:Term_cst
-      "term_cst" [a] [] (Expr.Ty.of_id a) in
-  (fun ty -> Expr.Term.apply f [ty] [])
-
-let groundify m =
-  let _, (tys, terms) = Mapping.codomain m in
-  let s = List.fold_left (fun s m ->
-      Mapping.Meta.bind_term s m (t_cst Expr.(m.meta_id.id_type))
-    ) (List.fold_left (fun s v ->
-      Mapping.Meta.bind_ty s v ty_cst
-    ) Mapping.empty tys) terms in
-  Mapping.apply s m
-
 (* Heap for prioritizing instanciations *)
 (* ************************************************************************ *)
 
@@ -338,7 +404,6 @@ module Inst = struct
   (* Constructor *)
   let mk name mark u score =
     let formula = map_def u in
-    (* let u' = groundify u in *)
     let var_subst = to_var u in
     let hash = Hashtbl.hash (Expr.Formula.hash formula, Mapping.hash u) in
     { age = !age; hash; score; mark; name; formula; var_subst; }

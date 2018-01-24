@@ -171,6 +171,22 @@ let filter
     f_meta = S.filter formula_meta t.f_meta;
   }
 
+let keep
+    ?(ty_var=_false)
+    ?(ty_meta=_false)
+    ?(term_var=_false)
+    ?(term_meta=_false)
+    ?(formula_var=_false)
+    ?(formula_meta=_false) t =
+  { hash = -1;
+    ty_var = S.filter ty_var t.ty_var;
+    ty_meta = S.filter ty_meta t.ty_meta;
+    t_var = S.filter term_var t.t_var;
+    t_meta = S.filter term_meta t.t_meta;
+    f_var = S.filter formula_var t.f_var;
+    f_meta = S.filter formula_meta t.f_meta;
+  }
+
 let merge
     ?(ty_var=_assert_false3)
     ?(ty_meta=_assert_false3)
@@ -324,11 +340,6 @@ let apply_formula ?fix t formula =
 let apply ?fix t m =
   map (apply_ty ?fix t) (apply_term ?fix t) (apply_formula ?fix t) m
 
-(* Fixpoint on meta substitutions *)
-let fixpoint t =
-  Util.debug "Fixpoint: %a" print t;
-  apply ~fix:true t t
-
 (* Mapping completion *)
 (* ************************************************************************ *)
 
@@ -351,13 +362,40 @@ let extend m l =
   in
   List.fold_left aux m l
 
+let meta_extend m l =
+  let aux acc v =
+    let old_ty = Expr.(v.meta_id.id_type) in
+    let new_ty = apply_ty acc old_ty in
+    if Expr.Ty.equal old_ty new_ty || Meta.mem_term acc v
+    then acc
+    else Meta.bind_term acc v
+        (Expr.Term.of_id @@ Expr.Id.ty "?" new_ty)
+  in
+  List.fold_left aux m l
+
 let expand m t =
   let _, l = Expr.Term.fv t in
   extend m l
 
-let complete m =
-  let ((_, l), _) = codomain m in
-  extend m l
+let meta_expand m t =
+  let _, l = Expr.Term.fm t in
+  meta_extend m l
 
+let complete m =
+  let ((_, l), (_, l')) = codomain m in
+  meta_extend (extend m l) l'
+
+
+(* Fixpoint on meta substitutions *)
+(* ************************************************************************ *)
+
+let fixpoint t =
+  Util.debug "Fixpoint: %a" print t;
+  (* Need to complte the mapping before fixpointing becaus eof cases such as:
+     { a -> ty; x (: a) -> p(a;y) }, in this case, (y: a) should be substituted
+     with a new variable of type ty, else there will be a type error
+     during application *)
+  let t' = complete t in
+  apply ~fix:true t' t'
 
 

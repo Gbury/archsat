@@ -304,6 +304,11 @@ module Id : sig
     ttype id list * ty id list
   (** [remove_fv l l'] remove variables that belong to [l'] from [l]. *)
 
+  val inter_fv :
+    ttype id list * ty id list ->
+    ttype id list * ty id list ->
+    ttype id list * ty id list
+  (** [inter_fv l l'] remove variables that belong to [l'] from [l]. *)
 end
 
 module Meta : sig
@@ -347,6 +352,12 @@ module Meta : sig
     ttype meta list * ty meta list ->
     ttype meta list * ty meta list
   (** [remove_fm l l'] removes from l all meta appearing in [l']. *)
+
+  val inter_fm :
+    ttype meta list * ty meta list ->
+    ttype meta list * ty meta list ->
+    ttype meta list * ty meta list
+  (** [inter_fm l l'] removes from l all meta appearing in [l']. *)
 
 end
 

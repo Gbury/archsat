@@ -311,11 +311,13 @@ let do_inst u =
 
 let insts r u =
   Util.debug "Found inst: @[<hov>%a@]" Mapping.print u;
-  let l = Inst.partition @@ Mapping.fixpoint u in
+  let l = Inst.partition @@ Inst.generalize @@ Mapping.fixpoint u in
   let l = List.map do_inst l in
   if List.exists CCFun.id l then begin
     decr r;
-    Util.debug ~section "Waiting for %d other insts" !r;
+    if !r > 0
+    then Util.debug ~section "Waiting for %d other insts" !r
+    else Util.debug ~section "Found all inst for the given problem";
     if !r <= 0 then raise Found_unif
   end
 
@@ -347,8 +349,12 @@ let rec unif_f st = function
   | No_unif -> assert false
   | Simple ->
     Util.enter_prof unif_section;
-    fold_diff (fun () -> wrap_unif (Unif.Cache.with_cache cache (
-        Unif.Robinson.unify_term ~section:unif_section (n_inst 1)))) () st;
+    fold_diff (fun () a b -> wrap_unif (
+        Util.debug ~section "@[<hv>Unifying:@ %a@ and@ %a@]"
+          Expr.Print.term a Expr.Print.term b;
+        Unif.Cache.with_cache cache (
+          Unif.Robinson.unify_term ~section:unif_section (n_inst 1)
+        )) a b) () st;
     Util.exit_prof unif_section
   | ERigid ->
     Util.enter_prof rigid_section;

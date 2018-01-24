@@ -87,6 +87,16 @@ val filter :
   t -> t
 (** Filter on mappings. *)
 
+val keep :
+  ?ty_var:(Expr.Id.Ttype.t -> Expr.ty -> bool) ->
+  ?ty_meta:(Expr.Meta.Ttype.t -> Expr.ty -> bool) ->
+  ?term_var:(Expr.Id.Ty.t -> Expr.term -> bool) ->
+  ?term_meta:(Expr.Meta.Ty.t -> Expr.term -> bool) ->
+  ?formula_var:(Expr.Id.Ty.t -> Expr.formula -> bool) ->
+  ?formula_meta:(Expr.Meta.Ty.t -> Expr.formula -> bool) ->
+  t -> t
+(** Filter on mappings, by default drop all items. *)
+
 val exists :
   ?ty_var:(Expr.Id.Ttype.t -> Expr.ty -> bool) ->
   ?ty_meta:(Expr.Meta.Ttype.t -> Expr.ty -> bool) ->
