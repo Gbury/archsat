@@ -6,12 +6,32 @@
 In this section, we recall the classic architecture of SMT solvers and we then
 introduce the tableau and rewriting theories.
 
+Compared to genuine tableau automated theorem provers, like \princess{} or
+\zenon{} for example, our approach has the benefit of being versatile since the
+tableau rules are actually integrated as a regular SMT theory. This way, the
+tableau rules can be easily combined with other theories, such as equality logic
+with uninterpreted functions or arithmetic. The way we integrate the tableau
+rules into the SAT solver (mainly by boxing/unboxing first order formulas) is
+close to what is done in the \satallax{} tool~\cite{CEB12}. The difference
+resides in the fact that we are in a pure first order framework, which has
+significant consequences in the management of quantifiers and unification in
+particular (see Sec.~\ref{sec:super}).
+
+Regarding the integration of rewriting, automated theorem provers rely on
+several solutions (superposition rule for first order provers, triggers for SMT
+solvers, etc.). But deduction modulo theory~\cite{DA03} is probably the most
+general approach, where a theory can be partly turned in to a set of rewrite
+rules over both terms and propositions. Several proof search methods have been
+extended to deduction modulo theory, resulting in tools such as
+\iproverm{}~\cite{GB11} and \zenm{}~\cite{Zenon-Modulo}. This paper can be seen
+as a continuation of these previous experiments adapted to the framework of SMT
+solving.
+
 \subsection{SAT Solving Modulo Theories}
 
 In this section, we recall the classic architecture of SMT
-solvers~\cite{barrett2006splitting}.  We introduce $\mathcal{T}$ and
-$\mathcal{F}$ respectively the sets of first order terms and first order
-formulas over the signature
+solvers~\cite{BEA06}. We introduce $\mathcal{T}$ and $\mathcal{F}$ respectively
+the sets of first order terms and first order formulas over the signature
 $\mathcal{S}=(\mathcal{S}_\mathcal{F},\mathcal{S}_\mathcal{P})$, where
 $\mathcal{S}_\mathcal{F}$ is the set of function symbols, and
 $\mathcal{S}_\mathcal{P}$, the set of predicate symbols, such that
@@ -323,7 +343,7 @@ proposed by deduction modulo theory. Deduction modulo theory~\cite{DA03} focuses
 on the computational part of a theory, where axioms are transformed into rewrite
 rules, which induces a congruence over propositions, and where reasoning is
 performed modulo this congruence. In deduction modulo theory, this congruence is
-then induced by a set of rewrite rules over both propositions and terms.
+then induced by a set of rewrite rules over both terms and propositions.
 
 In the following, we borrow some of the notations and definitions
 of~\cite{DA03}. We call $\mathrm{FV}$ the function that returns the set of

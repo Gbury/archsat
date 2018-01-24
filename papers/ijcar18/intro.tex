@@ -46,7 +46,7 @@ theory. Deduction modulo theory~\cite{DA03} focuses on the computational part of
 a theory, where axioms are transformed into rewrite rules, which induces a
 congruence over propositions, and where reasoning is performed modulo this
 congruence. In deduction modulo theory, this congruence is then induced by a set
-of rewrite rules over both propositions and terms.
+of rewrite rules over both terms and propositions.
 
 Our approach provides several advantages compared to usual SMT solving and first
 order proof search methods. First, we benefit from the efficiency of a SAT
@@ -74,8 +74,7 @@ from Chap.~2 of the \bbook{}~\cite{B-Book}.
 
 The paper is organized as follows: in Sec.~\ref{sec:smt}, we recall the classic
 architecture of SMT solvers and we introduce the tableau and rewriting theories;
-we then describe, in Sec.~\ref{sec:rusuper}, our mechanism of equational
-reasoning by means of rigid unit superposition; finally, in
-Sec.~\ref{sec:bench}, we present some experimental results obtained by running
-our implementation over a benchmark of lemmas in the \bmth{} set theory, and
-also provide related work in Sec.~\ref{sec:rwork}.
+we then describe, in Sec.~\ref{sec:super}, our mechanism of equational reasoning
+by means of rigid unit superposition; finally, in Sec.~\ref{sec:bench}, we
+present some experimental results obtained by running our implementation over a
+benchmark of lemmas in the \bmth{} set theory.

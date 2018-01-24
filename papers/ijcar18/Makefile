@@ -8,7 +8,7 @@ PDF=$(TEX:.tex=.pdf)
 all: $(PDF)
 
 check:
-	make -s clean; make -s all &> /dev/null; \
+	@make -s clean; make -s all > /dev/null 2>&1; \
         echo "$(PDFLATEX):"; $(PDFLATEX) $(TEX) | \
         grep "Overfull \\\hbox\|undefined on"; echo "$(BIBTEX):"; \
         $(BIBTEX) $(TEX:.tex=) | grep "Error\|Warning"; exit 0
