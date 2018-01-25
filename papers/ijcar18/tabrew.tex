@@ -411,78 +411,89 @@ respectively the tableau and rewriting theories.
 \begin{center}
 $\begin{array}{lcl}
 \emptyset\parallel
-\neg(A\equiv\lfloor(\forall{}s,t.s\subseteq{}t\Leftrightarrow{}
-\forall{}x.x\in{}s\Rightarrow{}x\in{}t)\Rightarrow{}a\subseteq{}a\rfloor) &
-\longrightarrow & (\mathrm{unit~prop})\\
+\neg{}A & \longrightarrow & (\mathrm{unit~prop})\\
 
-\neg{}A\parallel{}\neg{}A & \longrightarrow & (\mathrm{learn~tab})\\
+\boldsymbol{\neg{}A}\parallel{}\neg{}A & \longrightarrow &
+(\mathrm{learn~tab})\\
 
 \neg{}A\parallel
-\neg{}A,A\lor(B\equiv\lfloor\forall{}s,t.s\subseteq{}t\Leftrightarrow{}
-\forall{}x.x\in{}s\Rightarrow{}x\in{}t\rfloor),\\
-~~~~A\lor\neg(C\equiv\lfloor{}a\subseteq{}a\rfloor) &
-\longrightarrow & (\mathrm{unit~prop})\times{}2\\
-
-\neg{}A,B,\neg{}C\parallel\neg{}A,A\lor{}B,A\lor\neg{}C &
-\longrightarrow & (\mathrm{learn~rew})\\
-
-\neg{}A,B,\neg{}C\parallel\neg{}A,A\lor{}B,A\lor\neg{}C,\\
-~~~~\neg{}B\lor(D\equiv\lfloor{}a\subseteq{}a\Leftrightarrow
-\forall{}x.x\in{}a\Rightarrow{}x\in{}a\rfloor) &
-\longrightarrow & (\mathrm{unit~prop})\\
-
-\neg{}A,B,\neg{}C,D\parallel\neg{}A,A\lor{}B,A\lor\neg{}C,\neg{}B\lor{}D &
-\longrightarrow & (\mathrm{learn~tab})\\
-
-\neg{}A,B,\neg{}C,D\parallel\neg{}A,A\lor{}B,A\lor\neg{}C,\neg{}B\lor{}D,\\
-~~~~\neg{}D\lor(E\equiv\lfloor{}a\subseteq{}a\Rightarrow
-\forall{}.x\in{}a\Rightarrow{}x\in{}a\rfloor),\\
-~~~~\neg{}D\lor(F\equiv\lfloor(\forall{}.x\in{}a\Rightarrow{}x\in{}a)
-\Rightarrow{}a\subseteq{}a\rfloor) & \longrightarrow &
+\neg{}A,\boldsymbol{A\lor{}B},\boldsymbol{A\lor\neg{}C} & \longrightarrow &
 (\mathrm{unit~prop})\times{}2\\
 
-\neg{}A,B,\neg{}C,D,E,F\parallel\neg{}A,A\lor{}B,A\lor\neg{}C,\neg{}B\lor{}D,
-\neg{}D\lor{}E,\\
+\neg{}A,\boldsymbol{B},\boldsymbol{\neg{}C}\parallel
+\neg{}A,A\lor{}B,A\lor\neg{}C & \longrightarrow & (\mathrm{learn~rew})\\
+
+\neg{}A,B,\neg{}C\parallel\neg{}A,A\lor{}B,A\lor\neg{}C,
+\boldsymbol{\neg{}B\lor{}D} & \longrightarrow & (\mathrm{unit~prop})\\
+
+\neg{}A,B,\neg{}C,\boldsymbol{D}\parallel\neg{}A,A\lor{}B,A\lor\neg{}C,
+\neg{}B\lor{}D & \longrightarrow & (\mathrm{learn~tab})\\
+
+\neg{}A,B,\neg{}C,D\parallel\neg{}A,A\lor{}B,A\lor\neg{}C,\neg{}B\lor{}D,
+\boldsymbol{\neg{}D\lor{}E},\boldsymbol{\neg{}D\lor{}F} & \longrightarrow &
+(\mathrm{unit~prop})\times{}2\\
+
+\neg{}A,B,\neg{}C,D,\boldsymbol{E},\boldsymbol{F}\parallel
+\neg{}A,A\lor{}B,A\lor\neg{}C,\neg{}B\lor{}D,\neg{}D\lor{}E,\\
 ~~~~\neg{}D\lor{}F & \longrightarrow & (\mathrm{learn~tab})\\
 
 \neg{}A,B,\neg{}C,D,E,F\parallel\neg{}A,A\lor{}B,A\lor\neg{}C,\neg{}B\lor{}D,
 \neg{}D\lor{}E\\
-~~~~\neg{}D\lor{}F,
-\neg{}F\lor\neg(G\equiv\lfloor\forall{}.x\in{}a\Rightarrow{}x\in{}a\rfloor)
-\lor{}C & \longrightarrow & (\mathrm{unit~prop})\\
+~~~~\neg{}D\lor{}F,\boldsymbol{\neg{}F\lor\neg{}G\lor{}C} & \longrightarrow &
+(\mathrm{unit~prop})\\
 
-\neg{}A,B,\neg{}C,D,E,F,\neg{}G\parallel\neg{}A,A\lor{}B,A\lor\neg{}C,
-\neg{}B\lor{}D,\neg{}D\lor{}E\\
+\neg{}A,B,\neg{}C,D,E,F,\boldsymbol{\neg{}G}\parallel\neg{}A,A\lor{}B,
+A\lor\neg{}C,\neg{}B\lor{}D,\neg{}D\lor{}E\\
 ~~~~\neg{}D\lor{}F,\neg{}F\lor\neg{}G\lor{}C & \longrightarrow &
 (\mathrm{learn~tab})\\
 
 \neg{}A,B,\neg{}C,D,E,F,\neg{}G\parallel\neg{}A,A\lor{}B,A\lor\neg{}C,
 \neg{}B\lor{}D,\neg{}D\lor{}E\\
-~~~~\neg{}D\lor{}F,\neg{}F\lor\neg{}G\lor{}C,
-G\lor\neg(H\equiv\lfloor\epsilon_x\in{}a\Rightarrow\epsilon_x\in{}a\rfloor) &
+~~~~\neg{}D\lor{}F,\neg{}F\lor\neg{}G\lor{}C,\boldsymbol{G\lor\neg{}H} &
 \longrightarrow & (\mathrm{unit~prop})\\
 
-\neg{}A,B,\neg{}C,D,E,F,\neg{}G,\neg{}H\parallel\neg{}A,A\lor{}B,A\lor\neg{}C,
-\neg{}B\lor{}D\\
+\neg{}A,B,\neg{}C,D,E,F,\neg{}G,\boldsymbol{\neg{}H}\parallel\neg{}A,A\lor{}B,
+A\lor\neg{}C,\neg{}B\lor{}D\\
 ~~~~\neg{}D\lor{}E,\neg{}D\lor{}F,\neg{}F\lor\neg{}G\lor{}C,
 G\lor\neg{}H & \longrightarrow & (\mathrm{learn~tab})\\
 
 \neg{}A,B,\neg{}C,D,E,F,\neg{}G,\neg{}H\parallel\neg{}A,A\lor{}B,A\lor\neg{}C,
 \neg{}B\lor{}D\\
 ~~~~\neg{}D\lor{}E,\neg{}D\lor{}F,\neg{}F\lor\neg{}G\lor{}C,
-G\lor\neg{}H,H\lor(I\equiv\lfloor\epsilon_x\in{}a\rfloor),\\
-~~~~H\lor\neg{}I & \longrightarrow & (\mathrm{unit~prop})\\
+G\lor\neg{}H,\boldsymbol{H\lor{}I},\boldsymbol{H\lor\neg{}I} & \longrightarrow &
+(\mathrm{unit~prop})\\
 
-\neg{}A,B,\neg{}C,D,E,F,\neg{}G,\neg{}H,I\parallel\neg{}A,A\lor{}B,A\lor\neg{}C,
-\neg{}B\lor{}D\\
+\neg{}A,B,\neg{}C,D,E,F,\neg{}G,\neg{}H,\boldsymbol{I}\parallel\neg{}A,A\lor{}B,
+A\lor\neg{}C,\neg{}B\lor{}D\\
 ~~~~\neg{}D\lor{}E,\neg{}D\lor{}F,\neg{}F\lor\neg{}G\lor{}C,
 G\lor\neg{}H,H\lor{}I,H\lor\neg{}I & \longrightarrow & (\mathrm{unsat})\\
 
-\mathrm{unsat}\\\\
-
-\mbox{with }\epsilon_x=\epsilon(x).\neg(x\in{}a\Rightarrow{}x\in{}a)
+\mathrm{unsat}
 \end{array}$
-\end{center}}
+\end{center}
+\begin{flushleft}
+$\begin{array}{l}
+\mbox{where:}\\
+\begin{array}{ll}
+\multicolumn{2}{l}{
+~~~~A\equiv\lfloor(\forall{}s,t.s\subseteq{}t\Leftrightarrow{}
+\forall{}x.x\in{}s\Rightarrow{}x\in{}t)\Rightarrow{}a\subseteq{}a\rfloor}\\
+~~~~B\equiv\lfloor\forall{}s,t.s\subseteq{}t\Leftrightarrow{}
+\forall{}x.x\in{}s\Rightarrow{}x\in{}t\rfloor &
+~~~~C\equiv\lfloor{}a\subseteq{}a\rfloor\\
+~~~~D\equiv\lfloor{}a\subseteq{}a\Leftrightarrow
+\forall{}x.x\in{}a\Rightarrow{}x\in{}a\rfloor &
+~~~~E\equiv\lfloor{}a\subseteq{}a\Rightarrow
+\forall{}.x\in{}a\Rightarrow{}x\in{}a\rfloor\\
+~~~~F\equiv\lfloor(\forall{}.x\in{}a\Rightarrow{}x\in{}a)
+\Rightarrow{}a\subseteq{}a\rfloor &
+~~~~G\equiv\lfloor\forall{}.x\in{}a\Rightarrow{}x\in{}a\rfloor\\
+~~~~H\equiv\lfloor\epsilon_x\in{}a\Rightarrow\epsilon_x\in{}a\rfloor &
+~~~~I\equiv\lfloor\epsilon_x\in{}a\rfloor
+\end{array}\\\\
+\mbox{with: }\epsilon_x=\epsilon(x).\neg(x\in{}a\Rightarrow{}x\in{}a)
+\end{array}$
+\end{flushleft}}
 \caption{Example of Proof Using the Rewriting Theory}
 \label{fig:rew}
 \end{figure}
