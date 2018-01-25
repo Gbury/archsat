@@ -254,58 +254,51 @@ many instantiations (by unification) as necessary.
 {\small
 \begin{center}
 $\begin{array}{lcl}
-\emptyset\parallel
-\neg(A\equiv\lfloor\exists{}x.P(x)\Rightarrow{}P(a)\land{}P(b)\rfloor) &
-\longrightarrow & (\mathrm{unit~prop})\\
+\emptyset\parallel\neg{}A & \longrightarrow & (\mathrm{unit~prop})\\
 
-\neg{}A\parallel{}\neg{}A & \longrightarrow & (\mathrm{learn})\\
+\boldsymbol{\neg{}A}\parallel{}\neg{}A & \longrightarrow & (\mathrm{learn})\\
 
-\neg{}A\parallel
-\neg{}A,A\lor\neg(B\equiv\lfloor{}P(X)\Rightarrow{}P(a)\land{}P(b)\rfloor) &
-\longrightarrow & (\mathrm{unit~prop})\\
+\neg{}A\parallel\neg{}A,\boldsymbol{A\lor\neg{}B} & \longrightarrow &
+(\mathrm{unit~prop})\\
 
-\neg{}A,\neg{}B\parallel\neg{}A,A\lor\neg{}B & \longrightarrow &
+\neg{}A,\boldsymbol{\neg{}B}\parallel\neg{}A,A\lor\neg{}B & \longrightarrow &
 (\mathrm{learn})\\
 
-\neg{}A,\neg{}B\parallel\neg{}A,A\lor\neg{}B,
-B\lor{}(C\equiv\lfloor{}P(X)\rfloor{}),\\
-~~~~B\lor\neg(D\equiv\lfloor{}P(a)\land{}P(b)\rfloor{}) &
-\longrightarrow & (\mathrm{unit~prop})\times{}2\\
+\neg{}A,\neg{}B\parallel\neg{}A,A\lor\neg{}B,\boldsymbol{B\lor{}C},
+\boldsymbol{B\lor\neg{}D} & \longrightarrow & (\mathrm{unit~prop})\times{}2\\
 
-\neg{}A,\neg{}B,C,\neg{}D\parallel\neg{}A,A\lor\neg{}B,B\lor{}C,B\lor\neg{}D &
-\longrightarrow & (\mathrm{learn})\\
+\neg{}A,\neg{}B,\boldsymbol{C},\boldsymbol{\neg{}D}\parallel\neg{}A,
+A\lor\neg{}B,B\lor{}C,B\lor\neg{}D & \longrightarrow & (\mathrm{learn})\\
 
 \neg{}A,\neg{}B,C,\neg{}D\parallel\neg{}A,A\lor\neg{}B,B\lor{}C,B\lor\neg{}D,\\
-~~~~D\lor\neg(E\equiv\lfloor{}P(a)\rfloor)\lor
-\neg(F\equiv\lfloor{}P(b)\rfloor) & \longrightarrow & (\mathrm{decide})\\
+~~~~\boldsymbol{D\lor\neg{}E\lor\neg{}F} & \longrightarrow & (\mathrm{decide})\\
 
-\neg{}A,\neg{}B,C,\neg{}D,\neg{}E^d\parallel
+\neg{}A,\neg{}B,C,\neg{}D,\boldsymbol{\neg{}E^d}\parallel
 \neg{}A,A\lor\neg{}B,B\lor{}C, & \longrightarrow &
 (\mathrm{learn})\\
 ~~~~B\lor\neg{}D,D\lor\neg{}E\lor\neg{}F && \{X\mapsto{}a\}=\mathrm{mgu}(C,E)\\
 
 \neg{}A,\neg{}B,C,\neg{}D,\neg{}E^d\parallel
 \neg{}A,A\lor\neg{}B,B\lor{}C,\\
-~~~~B\lor\neg{}D,D\lor\neg{}E\lor\neg{}F,\\
-~~~~A\lor\neg(G\equiv{}\lfloor{}P(a)\Rightarrow{}P(a)\land{}P(b)\rfloor) &
+~~~~B\lor\neg{}D,D\lor\neg{}E\lor\neg{}F,\boldsymbol{A\lor\neg{}G} &
 \longrightarrow & (\mathrm{unit~prop})\\
 
-\neg{}A,\neg{}B,C,\neg{}D,\neg{}E^d,\neg{}G\parallel
+\neg{}A,\neg{}B,C,\neg{}D,\neg{}E^d,\boldsymbol{\neg{}G}\parallel
 \neg{}A,A\lor\neg{}B,B\lor{}C,\\
 ~~~~B\lor\neg{}D,D\lor\neg{}E\lor\neg{}F,A\lor\neg{}G & \longrightarrow &
 (\mathrm{learn})\\
 
 \neg{}A,\neg{}B,C,\neg{}D,\neg{}E^d,\neg{}G\parallel
 \neg{}A,A\lor\neg{}B,B\lor{}C,\\
-~~~~B\lor\neg{}D,D\lor\neg{}E\lor\neg{}F,A\lor\neg{}G,G\lor{}E,G\lor\neg{}D &
-\longrightarrow & (\mathrm{backjump})\\
+~~~~B\lor\neg{}D,D\lor\neg{}E\lor\neg{}F,A\lor\neg{}G,\boldsymbol{G\lor{}E},
+\boldsymbol{G\lor\neg{}D} & \longrightarrow & (\mathrm{backjump})\\
 
-\neg{}A,\neg{}B,C,\neg{}D,E\parallel
+\neg{}A,\neg{}B,C,\neg{}D,\boldsymbol{E}\parallel
 \neg{}A,A\lor\neg{}B,B\lor{}C,\\
 ~~~~B\lor\neg{}D,D\lor\neg{}E\lor\neg{}F,A\lor\neg{}G,G\lor{}E,G\lor\neg{}D &
 \longrightarrow & (\mathrm{unit~prop})\times{}2\\
 
-\neg{}A,\neg{}B,C,\neg{}D,E,\neg{}F,\neg{}G\parallel
+\neg{}A,\neg{}B,C,\neg{}D,E,\boldsymbol{\neg{}F},\boldsymbol{\neg{}G}\parallel
 \neg{}A,A\lor\neg{}B,B\lor{}C, & \longrightarrow & (\mathrm{learn})\\
 ~~~~B\lor\neg{}D,D\lor\neg{}E\lor\neg{}F,A\lor\neg{}G,G\lor{}E,G\lor\neg{}D &&
 \{X\mapsto{}b\}=\mathrm{mgu}(C,F)\\
@@ -313,10 +306,9 @@ B\lor{}(C\equiv\lfloor{}P(X)\rfloor{}),\\
 \neg{}A,\neg{}B,C,\neg{}D,E,\neg{}F,\neg{}G\parallel
 \neg{}A,A\lor\neg{}B,B\lor{}C,\\
 ~~~~B\lor\neg{}D,D\lor\neg{}E\lor\neg{}F,A\lor\neg{}G,G\lor{}E,G\lor\neg{}D\\
-~~~~A\lor\neg(H\equiv{}\lfloor{}P(b)\Rightarrow{}P(a)\land{}P(b)\rfloor) &
-\longrightarrow & (\mathrm{unit~prop})\\
+~~~~\boldsymbol{A\lor\neg{}H} & \longrightarrow & (\mathrm{unit~prop})\\
 
-\neg{}A,\neg{}B,C,\neg{}D,E,\neg{}F,\neg{}G,\neg{}H\parallel
+\neg{}A,\neg{}B,C,\neg{}D,E,\neg{}F,\neg{}G,\boldsymbol{\neg{}H}\parallel
 \neg{}A,A\lor\neg{}B,B\lor{}C,\\
 ~~~~B\lor\neg{}D,D\lor\neg{}E\lor\neg{}F,A\lor\neg{}G,G\lor{}E,G\lor\neg{}D\\
 ~~~~A\lor\neg{}H & \longrightarrow & (\mathrm{learn})\\
@@ -324,12 +316,27 @@ B\lor{}(C\equiv\lfloor{}P(X)\rfloor{}),\\
 \neg{}A,\neg{}B,C,\neg{}D,E,\neg{}F,\neg{}G,\neg{}H\parallel
 \neg{}A,A\lor\neg{}B,B\lor{}C,\\
 ~~~~B\lor\neg{}D,D\lor\neg{}E\lor\neg{}F,A\lor\neg{}G,G\lor{}E,G\lor\neg{}D\\
-~~~~A\lor\neg{}H,H\lor{}F,H\lor{}\neg{}D & \longrightarrow &
-(\mathrm{unsat})\\
+~~~~A\lor\neg{}H,\boldsymbol{H\lor{}F},\boldsymbol{H\lor{}\neg{}D} &
+\longrightarrow & (\mathrm{unsat})\\
 
 \mathrm{unsat}
 \end{array}$
-\end{center}}
+\end{center}
+\begin{flushleft}
+$\begin{array}{l}
+\mbox{where:}\\
+\begin{array}{ll}
+~~~~A\equiv\lfloor\exists{}x.P(x)\Rightarrow{}P(a)\land{}P(b)\rfloor &
+~~~~B\equiv\lfloor{}P(X)\Rightarrow{}P(a)\land{}P(b)\rfloor\\
+~~~~C\equiv\lfloor{}P(X)\rfloor{} &
+~~~~D\equiv\lfloor{}P(a)\land{}P(b)\rfloor{}\\
+~~~~E\equiv\lfloor{}P(a)\rfloor &
+~~~~F\equiv\lfloor{}P(b)\rfloor\\
+~~~~G\equiv{}\lfloor{}P(a)\Rightarrow{}P(a)\land{}P(b)\rfloor &
+~~~~H\equiv{}\lfloor{}P(b)\Rightarrow{}P(a)\land{}P(b)\rfloor
+\end{array}
+\end{array}$
+\end{flushleft}}
 \caption{Example of Proof Using the Tableau Theory}
 \label{fig:tab}
 \end{figure}
