@@ -25,6 +25,7 @@ quantified formulas ({\em amplification}), it becomes important not to duplicate
 work. In this aspect, our calculus is quite close to Labelled Unit
 Superposition~\cite{KS10} when using sets as labels. Third, unlike rigid
 paramodulation we use a term ordering to orient the equations.
+\todo{Mention whether other rigid E-unification modulo rewrite algorithm exists.}
 
 \subsection{Preliminary Definitions}
 
@@ -310,7 +311,7 @@ set and perform a (limited) number of steps of the given-clause algorithm.
 
 To illustrate the calculus, we detail a refutation of the following set
 of clauses stemming from set theory, where pair, fst, and snd are
-the constructor and destructors of tuples, $p$ a predicate
+the constructor and destructors of tuples, $f$ a function
 on tuples, and $X$ a rigid variable.
 
 \[
@@ -353,31 +354,33 @@ and all the work is done by the rigid superposition procedure;
 
   6 & \renameVarsSymb(3) &
   $ \clauseWithSubst
-  { p(a) \not\approx p(\text{pair}(\text{fst}(b), y)) }
+  { f(a) \not\approx f(\text{pair}(\text{fst}(b), y)) }
   { \{ \mapVar{X}y \} } $
   \\
 
   \midrule
 
-  18 & SP(4,8) &
-  $ \clauseWithSubst{
-      f(0,z) \approx f(b (f(c,z)))
-    }{ \{ \mapVar{X_1}b, \mapVar{Y_1}c, \mapVar{Z_1}z \}
-    }$
+  7 & RN(5,6) &
+  $ \clauseWithSubst
+  { f(a) \not\approx f(\text{pair}(\text{fst}(a), y)) }
+  { \{ \mapVar{X}y \} } $
   \\
 
-  25 & ER(24) &
-  $ \clauseWithSubst{
-      \emptyset
-    }{ \left\{
-      \begin{array}{l}
-        \mapVar{X_1}b, \mapVar{Y_1}c, \mapVar{Z_1}b, \mapVar{X_5}b,  \\
-        \mapVar{X_2}{m(b)}, \mapVar{Y_2}{b}, \mapVar{Z_2}{f(c,b)},
-           \mapVar{X_3}{b}, \mapVar{X_6}{f(c,b)}
-      \end{array} \right\}
-    }$
+  8 & SN(4,7) &
+  $ \clauseWithSubst
+  { f(a) \not\approx f(a) }
+  { \{ \mapVar{X}{\text{snd}(a)} \} } $
+  \\
+
+  9 & ER(8) &
+  $ \clauseWithSubst
+  { \emptyset }
+  { \{ \mapVar{X}{\text{snd}(a)} \} } $
+  \\
+
+
 \end{tabular}
-\caption{Proof of a Group Theory Problem}
+\caption{Proof of a Set Theory Problem}
 \label{fig:unit-sup-proof-example}
 \end{center}
 \end{figure}
