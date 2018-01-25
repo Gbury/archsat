@@ -209,10 +209,26 @@ val domain : t ->
   (Expr.Meta.Ttype.t list * Expr.Meta.Ty.t list)
 (** Compute the domain of a mapping, i.e the list of variables and meta-variables bound. *)
 
+val ty_domain : t -> Expr.Id.Ttype.t list * Expr.Meta.Ttype.t list
+(** Return the free variales and meta-variables in the type bindings. *)
+
+val term_domain : t -> Expr.Id.Ty.t list * Expr.Meta.Ty.t list
+(** Return the free term variables and meta-variables of the
+    term and formula bindings *)
+
 val codomain : t ->
   (Expr.Id.Ttype.t list * Expr.Id.Ty.t list) *
   (Expr.Meta.Ttype.t list * Expr.Meta.Ty.t list)
 (** Compute the co-domain of a mapping, i.e the list of free variables
     and meta-variables occuring in the types and terms that var and metas
     are bound to in the substitution. *)
+
+val ty_codomain : t -> Expr.Id.Ttype.t list * Expr.Meta.Ttype.t list
+(** Return the free variales and meta-variables in the type bindings. *)
+
+val term_codomain : t -> Expr.Id.Ty.t list * Expr.Meta.Ty.t list
+(** Return the free term variables and meta-variables of the
+    term and formula bindings *)
+
+
 

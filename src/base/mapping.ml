@@ -215,6 +215,26 @@ let domain m =
     ~formula_var:(fun v _ (vars, metas) -> Expr.Id.merge_fv vars ([], [v]), metas)
     ~formula_meta:(fun m _ (vars, metas) -> vars, Expr.Meta.merge_fm metas ([], [m]))
 
+let ty_domain m =
+  let (v, _), (m, _) =
+    fold m (([], []), ([], []))
+      ~ty_var:(fun v _ (vars, metas) -> Expr.Id.merge_fv vars ([v], []), metas)
+      ~ty_meta:(fun m _ (vars, metas) -> vars, Expr.Meta.merge_fm metas ([m], []))
+  in
+  v, m
+
+let term_domain m =
+  let (_, v), (_, m) =
+    fold m (([], []), ([], []))
+      ~ty_var:(fun v _ (vars, metas) -> Expr.Id.merge_fv vars ([v], []), metas)
+      ~ty_meta:(fun m _ (vars, metas) -> vars, Expr.Meta.merge_fm metas ([m], []))
+      ~term_var:(fun v _ (vars, metas) -> Expr.Id.merge_fv vars ([], [v]), metas)
+      ~term_meta:(fun m _ (vars, metas) -> vars, Expr.Meta.merge_fm metas ([], [m]))
+      ~formula_var:(fun v _ (vars, metas) -> Expr.Id.merge_fv vars ([], [v]), metas)
+      ~formula_meta:(fun m _ (vars, metas) -> vars, Expr.Meta.merge_fm metas ([], [m]))
+  in
+  v, m
+
 (* Mapping co-domain *)
 (* ************************************************************************ *)
 
@@ -230,6 +250,26 @@ let codomain m =
     ~term_var:aux_term ~term_meta:aux_term
     ~formula_var:aux_formula ~formula_meta:aux_formula
     m (([], []), ([], []))
+
+let ty_codomain m =
+  let aux_ty _ ty (v,m) = Expr.Id.merge_fv v (Expr.Ty.fv ty),
+                          Expr.Meta.merge_fm m (Expr.Ty.fm ty) in
+  let (v, _), (m, _) =
+    fold m (([], []), ([], [])) ~ty_var:aux_ty ~ty_meta:aux_ty
+  in
+  v, m
+
+let term_codomain m =
+  let aux_term _ term (v,m) = Expr.Id.merge_fv v (Expr.Term.fv term),
+                              Expr.Meta.merge_fm m (Expr.Term.fm term) in
+  let aux_formula _ f (v, m) = Expr.Id.merge_fv v (Expr.Formula.fv f),
+                               Expr.Meta.merge_fm m (Expr.Formula.fm f) in
+  let (_, v), (_, m) =
+    fold m (([], []), ([], []))
+      ~term_var:aux_term ~term_meta:aux_term
+      ~formula_var:aux_formula ~formula_meta:aux_formula
+  in
+  v, m
 
 (* Variable bindings *)
 (* ************************************************************************ *)
@@ -369,7 +409,7 @@ let meta_extend m l =
     if Expr.Ty.equal old_ty new_ty || Meta.mem_term acc v
     then acc
     else Meta.bind_term acc v
-        (Expr.Term.of_id @@ Expr.Id.ty "?" new_ty)
+        (Expr.Term.of_id @@ Expr.Id.ty Expr.(v.meta_id.id_name) new_ty)
   in
   List.fold_left aux m l
 

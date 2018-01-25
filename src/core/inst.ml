@@ -152,43 +152,73 @@ let mk_t_var =
   (fun ty -> incr i; Expr.Id.ty (Format.asprintf "vt_%d" !i) ty)
 
 let rec gen_metas = function
-  | { Expr.formula = Expr.AllTy (_, _, f') } as f->
-    let l, l' = gen_metas f' in
-    let l'' = Expr.Meta.of_all_ty f in
-    (l'' @ l, l')
-  | { Expr.formula = Expr.All(_, _, f') } as f ->
-    let l, l' = gen_metas f' in
-    let l'' = Expr.Meta.of_all f in
-    (l, l'' @ l')
+  | { Expr.formula = Expr.AllTy (vars, _, p) } as f->
+    let metas = Expr.Meta.of_all_ty f in
+    let tys = List.map Expr.Ty.of_meta metas in
+    let m = List.fold_left2 Mapping.Var.bind_ty Mapping.empty vars tys in
+    let q = Mapping.apply_formula m p in
+    let () = mark_meta f q in
+    let l, l' = gen_metas q in
+    (metas @ l, l')
+  | { Expr.formula = Expr.All(vars, _, p) } as f ->
+    let metas = Expr.Meta.of_all f in
+    let terms = List.map Expr.Term.of_meta metas in
+    let m = List.fold_left2 Mapping.Var.bind_term Mapping.empty vars terms in
+    let q = Mapping.apply_formula m p in
+    let () = mark_meta f q in
+    let l, l' = gen_metas q in
+    (l, metas @ l')
   | _ -> [], []
 
 let generalize_aux m =
   Util.debug ~section "Generalizing@ %a" Mapping.print m;
   let vdom, mdom = Mapping.domain m in
-  let vcodom, mcodom = Mapping.codomain m in
-  assert (Expr.Id.inter_fv vdom vcodom = ([], []));
-  assert (Expr.Meta.inter_fm mdom mcodom = ([], []));
-  let vtys = List.map (fun _ -> mk_ty_var ()) (fst vcodom) in
-  let mtys = List.map (fun _ -> mk_ty_var ()) (fst mcodom) in
-  let vts = List.map (fun v -> mk_t_var v.Expr.id_type) (snd vcodom) in
-  let mts = List.map (fun m -> mk_t_var Expr.(m.meta_id.id_type)) (snd mcodom) in
+  let vtycodom, mtycodom = Mapping.ty_codomain m in
+  let vtcodom, mtcodom = Mapping.term_codomain m in
+  assert (Expr.Id.inter_fv vdom (vtycodom,vtcodom) = ([], []));
+  assert (Expr.Meta.inter_fm mdom (mtycodom, mtcodom) = ([], []));
+  let vtys = List.map (fun _ -> mk_ty_var ()) vtycodom in
+  let mtys = List.map (fun _ -> mk_ty_var ()) mtycodom in
+  let ty_s = List.fold_left2 Mapping.Var.bind_ty Mapping.empty
+      vtycodom (List.map Expr.Ty.of_id vtys) in
+  let ty_s = List.fold_left2 Mapping.Meta.bind_ty ty_s
+      mtycodom (List.map Expr.Ty.of_id mtys) in
+  let vts = List.map (fun v -> mk_t_var (Mapping.apply_ty ty_s v.Expr.id_type)) vtcodom in
+  let mts = List.map (fun m -> mk_t_var (Mapping.apply_ty ty_s Expr.(m.meta_id.id_type))) mtcodom in
   if vtys = [] && mtys = [] &&
      vts = [] && mts = [] then
     m
   else begin
-    let f = Expr.Formula.allty (vtys @ mtys) @@
-      Expr.Formula.all (vts @ mts) Expr.Formula.f_true in
-    let () = mark_meta f f in
+    let ty_vars = vtys @ mtys in
+    let term_vars = vts @ mts in
+    let f = Expr.Formula.allty ty_vars @@
+      Expr.Formula.all term_vars Expr.Formula.f_true in
     let l, l' = gen_metas f in
     let (vtm_ty, mtm_ty) =
       CCList.take_drop (List.length vtys) (List.map Expr.Ty.of_meta l) in
     let (vtm_t, mtm_t) =
       CCList.take_drop (List.length vts) (List.map Expr.Term.of_meta l') in
-    let s = List.fold_left2 Mapping.Var.bind_ty m (fst vcodom) vtm_ty in
-    let s = List.fold_left2 Mapping.Meta.bind_ty s (fst mcodom) mtm_ty in
-    let s = List.fold_left2 Mapping.Var.bind_term s (snd vcodom) vtm_t in
-    let s = List.fold_left2 Mapping.Meta.bind_term s (snd mcodom) mtm_t in
-    let m' = Mapping.fixpoint s in
+    Util.debug ~section "@[<hv 2>vtm_ty:@ [ %a ]@ [ %a ]@]"
+      CCFormat.(hovbox (list ~sep:(return ";@ ") Expr.Id.print)) vtycodom
+      CCFormat.(hovbox (list ~sep:(return ";@ ") Expr.Ty.print)) vtm_ty;
+    Util.debug ~section "@[<hv 2>mtm_ty:@ [ %a ]@ [ %a ]@]"
+      CCFormat.(hovbox (list ~sep:(return ";@ ") Expr.Meta.print)) mtycodom
+      CCFormat.(hovbox (list ~sep:(return ";@ ") Expr.Ty.print)) mtm_ty;
+    Util.debug ~section "@[<hv 2>vtm_t:@ [ %a ]@ [ %a ]@]"
+      CCFormat.(hovbox (list ~sep:(return ";@ ") Expr.Id.print)) vtcodom
+      CCFormat.(hovbox (list ~sep:(return ";@ ") Expr.Term.print)) vtm_t;
+    Util.debug ~section "@[<hv 2>mtm_t:@ [ %a ]@ [ %a ]@]"
+      CCFormat.(hovbox (list ~sep:(return ";@ ") Expr.Meta.print)) mtcodom
+      CCFormat.(hovbox (list ~sep:(return ";@ ") Expr.Term.print)) mtm_t;
+    let m = List.fold_left2 Mapping.Var.bind_ty m vtycodom vtm_ty in
+    let m = List.fold_left2 Mapping.Var.bind_term m vtcodom vtm_t in
+    let m = List.fold_left2 Mapping.Meta.bind_ty m mtycodom mtm_ty in
+    let m = List.fold_left2 Mapping.Meta.bind_term m mtcodom mtm_t in
+    let m' = Mapping.apply ~fix:true m m in
+    let m' = Mapping.filter m'
+        ~ty_var:(fun _ _ -> false) ~term_var:(fun _ _ -> false)
+        ~ty_meta:(fun _ _ -> true) ~term_meta:(fun _ _ -> true)
+    in
     let () = Expr.Formula.tag f v_meta m' in
     Util.debug ~section "@[<hv 2>Generalized@ %a@ into@ %a@]"
       Mapping.print m Mapping.print m';
@@ -222,6 +252,7 @@ let split m =
     let s = M.get_or ~default:Mapping.empty r acc in
     M.add r (bind s m e) acc
   in
+  Util.debug ~section "split: %a" Mapping.print m;
   let tmp =
     Mapping.fold m M.empty
       ~ty_var:(fun _ _ _ -> assert false)
@@ -290,16 +321,29 @@ let split_cluster map =
   in
   List.map snd (N.bindings tmp)
 
-let check_single_cluster m quant =
-  let aux def m _ =
+let check_single_cluster m =
+  let aux pp def m _ acc =
     match get_cluster (def m.Expr.meta_index) with
     | None -> assert false
     | Some (Root f)
-    | Some (Under (f, _)) -> Expr.Formula.equal quant f
+    | Some (Under (f, _)) ->
+      begin match acc with
+        | None -> Some f
+        | Some quant ->
+          if Expr.Formula.equal quant f then acc
+          else begin
+            Util.warn ~section "@[<hv 2>Not a single cluster:@ %a@ %a@ %a@]"
+              pp m Expr.Formula.print f Expr.Formula.print quant;
+            raise Exit
+          end
+      end
   in
-  Mapping.for_all m
-    ~ty_meta:(aux Expr.Meta.ttype_def)
-    ~term_meta:(aux Expr.Meta.ty_def)
+  try
+    let _ = Mapping.fold m
+        ~ty_meta:(aux Expr.Print.meta Expr.Meta.ttype_def)
+        ~term_meta:(aux Expr.Print.meta Expr.Meta.ty_def) in
+    true
+  with Exit -> false
 
 (** Returns the formula defining a mapping (where all metas
     are assumed to be defined by the same formula or contiguous
@@ -317,7 +361,7 @@ let map_def map =
           raise (Invalid_argument "Inst.map_def")
       end
   in
-  assert (check_single_cluster map res);
+  assert (check_single_cluster map);
   res
 
 (* Partition caching *)
