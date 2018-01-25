@@ -174,7 +174,7 @@ module Print = struct
     | None -> v.id_name
     | Some s -> s
 
-  let id fmt v = Format.fprintf fmt "%s" (get_name v)
+  let id fmt v = Format.fprintf fmt "%s#%d" (get_name v) v.index
   let meta fmt m = Format.fprintf fmt "m%d_%a" m.meta_index id m.meta_id
   let ttype fmt = function Type -> Format.fprintf fmt "Type"
 
@@ -1372,7 +1372,12 @@ module Formula = struct
         begin match List.filter (fun v -> not (Subst.Id.mem v t_vmap)) l with
           | [] -> aux ty_vmap t_vmap p
           | l' ->
+            Util.debug "requantifying over [%a]"
+              CCFormat.(list ~sep:(return ";@ ") Print.id) l';
             let l'', t_map = new_binder_subst ty_vmap _empty t_vmap [] l' in
+            Util.debug "new binder: [%a] %a %a"
+              CCFormat.(list ~sep:(return ";@ ") Print.id) l''
+              (Subst.print Print.id Print.term) t_map Print.formula p;
             let q = subst_aux ~fix:false ty_vmap _empty t_map _empty _empty _empty p in
             let args' = free_args_inst ty_vmap t_map args in
             mk_formula (All (l'', args', q))

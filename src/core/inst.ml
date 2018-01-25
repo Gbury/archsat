@@ -210,11 +210,11 @@ let generalize_aux m =
     Util.debug ~section "@[<hv 2>mtm_t:@ [ %a ]@ [ %a ]@]"
       CCFormat.(hovbox (list ~sep:(return ";@ ") Expr.Meta.print)) mtcodom
       CCFormat.(hovbox (list ~sep:(return ";@ ") Expr.Term.print)) mtm_t;
-    let m = List.fold_left2 Mapping.Var.bind_ty m vtycodom vtm_ty in
-    let m = List.fold_left2 Mapping.Var.bind_term m vtcodom vtm_t in
-    let m = List.fold_left2 Mapping.Meta.bind_ty m mtycodom mtm_ty in
-    let m = List.fold_left2 Mapping.Meta.bind_term m mtcodom mtm_t in
-    let m' = Mapping.apply ~fix:true m m in
+    let m' = List.fold_left2 Mapping.Var.bind_ty m vtycodom vtm_ty in
+    let m' = List.fold_left2 Mapping.Var.bind_term m' vtcodom vtm_t in
+    let m' = List.fold_left2 Mapping.Meta.bind_ty m' mtycodom mtm_ty in
+    let m' = List.fold_left2 Mapping.Meta.bind_term m' mtcodom mtm_t in
+    let m' = Mapping.apply ~fix:true m' m' in
     let m' = Mapping.filter m'
         ~ty_var:(fun _ _ -> false) ~term_var:(fun _ _ -> false)
         ~ty_meta:(fun _ _ -> true) ~term_meta:(fun _ _ -> true)
@@ -420,6 +420,9 @@ let soft_subst ?(mark=false) ~name f t =
     let l', _ = Mapping.domain t in
     Expr.Id.remove_fv l l'
   in
+  Util.debug ~section "@[<hv 2>soft_subst:@ %a;@ %a"
+    CCFormat.(list ~sep:(return ",@ ") Expr.Print.id) tys
+    CCFormat.(list ~sep:(return ",@ ") Expr.Print.id) ts;
   let q =
     Expr.Formula.allty tys @@ Expr.Formula.all ts @@
     Expr.Formula.partial_inst ty_subst term_subst f
