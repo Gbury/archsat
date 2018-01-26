@@ -6,14 +6,15 @@
 \subsection{Implementation}
 
 The algorithms described here are implemented in the
-\archsat{}\todo{Link ?} automated theorem prover. It relies on the
+\archsat{}\todo{TODO: Link ?} automated theorem prover. It relies on the
 \msat{}\cite{mSAT} library, derived from \altergoz{}, and which is a
 generic library for creating automated deduction tools based on SAT
 solvers. The SAT core in \msat{} is implemented using CDCL rather
 than the DPLL strategy described in section\label{sec:smt} but it
-doesn't have any impact on the rewriting or first-order reasoning
+does not have any impact on the rewriting or first-order reasoning
 presented in this paper. \archsat{} (as well as \msat{}) is written
-in OCaml.
+in OCaml. \archsat{} natively supports polymorphic terms and types
+as described in \cite{BP13}.
 
 \subsection{Experimental Results}
 
