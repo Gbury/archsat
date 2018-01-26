@@ -5,12 +5,15 @@
 
 \subsection{Implementation}
 
-%The implementation relies on the
-%\msat{} library, which derives from \altergoz{}, and which is a generic library
-%that allows us to easily create automated deduction tools based on SAT solvers.
-
-% DPLL presented but CDCL used in the implementation
-% multiplie insts at the same time
+The algorithms described here are implemented in the
+\archsat{}\todo{Link ?} automated theorem prover. It relies on the
+\msat{}\cite{mSAT} library, derived from \altergoz{}, and which is a
+generic library for creating automated deduction tools based on SAT
+solvers. The SAT core in \msat{} is implemented using CDCL rather
+than the DPLL strategy described in section\label{sec:smt} but it
+doesn't have any impact on the rewriting or first-order reasoning
+presented in this paper. \archsat{} (as well as \msat{}) is written
+in OCaml.
 
 \subsection{Experimental Results}
 
