@@ -108,36 +108,26 @@ let rec specialize env = function
     mk_and env [specialize env' (Expr.Formula.imply p q);
                 specialize env'' (Expr.Formula.imply q p)]
   (* Quantifications *)
-  | { Expr.formula = Expr.All (l, args, p) } ->
+  | { Expr.formula = Expr.All ((tys, ts), args, p) } ->
     let env' =
-      if env.truth then
-        add_term_vars env l
-      else
-        add_term_sk env l args
+      if env.truth then begin
+        let tmp = add_ty_vars env tys in
+        add_term_vars tmp ts
+      end else begin
+        let tmp = add_ty_sk env tys args in
+        add_term_sk tmp ts args
+      end
     in
     specialize env' p
-  | { Expr.formula = Expr.AllTy (l, args, p) } ->
+  | { Expr.formula = Expr.Ex ((tys, ts), args, p) } ->
     let env' =
-      if env.truth then
-        add_ty_vars env l
-      else
-        add_ty_sk env l args
-    in
-    specialize env' p
-  | { Expr.formula = Expr.Ex (l, args, p) } ->
-    let env' =
-      if env.truth then
-        add_term_sk env l args
-      else
-        add_term_vars env l
-    in
-    specialize env' p
-  | { Expr.formula = Expr.ExTy (l, args, p) } ->
-    let env' =
-      if env.truth then
-        add_ty_sk env l args
-      else
-        add_ty_vars env l
+      if not env.truth then begin
+        let tmp = add_ty_vars env tys in
+        add_term_vars tmp ts
+      end else begin
+        let tmp = add_ty_sk env tys args in
+        add_term_sk tmp ts args
+      end
     in
     specialize env' p
 
@@ -156,7 +146,7 @@ let rec generalize = function
                Format.fprintf fmt "|- %a" Expr.Print.id_ttype v)) ty_vars
            CCFormat.(list ~sep:(return "") (fun fmt v ->
                Format.fprintf fmt "|- %a" Expr.Print.id_ty v)) t_vars;
-    Expr.Formula.allty ty_vars (Expr.Formula.all t_vars f)
+    Expr.Formula.all (ty_vars, t_vars) f
 
 let prenex = function f -> generalize (specialize empty_env f)
 

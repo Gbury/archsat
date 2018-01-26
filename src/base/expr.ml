@@ -34,6 +34,7 @@ type 'ty id = {
 (* Metavariables, basically, wrapped variables *)
 type 'ty meta = {
   meta_id : 'ty id;
+  meta_type : 'ty;
   meta_index : 'ty meta_index;
 }
 
@@ -75,6 +76,7 @@ and term = {
 }
 
 type free_args = ty list * term list
+type bound_vars = ttype id list * ty id list
 
 type formula_descr =
   (* Atoms *)
@@ -91,10 +93,8 @@ type formula_descr =
   | Equiv of formula * formula
 
   (* Quantifiers *) (** All variables must have different names *)
-  | All of ty id list * free_args * formula
-  | AllTy of ttype id list * free_args * formula
-  | Ex of ty id list * free_args * formula
-  | ExTy of ttype id list * free_args * formula
+  | Ex of bound_vars * free_args * formula
+  | All of bound_vars * free_args * formula
 
 and formula = {
   formula : formula_descr;
@@ -276,14 +276,26 @@ module Print = struct
     | Imply (p, q)    -> Format.fprintf fmt "@[<hv>%a ⇒@ %a@]" aux p aux q
     | Equiv (p, q)    -> Format.fprintf fmt "@[<hv>%a ⇔@ %a@]" aux p aux q
 
-    | All (l, _, f)   -> Format.fprintf fmt "@[<hv 2>∀ @[<hov>%a@].@ %a@]"
-                           CCFormat.(list ~sep:(return ",@ ") id_ty) l formula_aux f
-    | AllTy (l, _, f) -> Format.fprintf fmt "@[<hv 2>∀ @[<hov>%a@].@ %a@]"
-                           CCFormat.(list ~sep:(return ",@ ") id_ttype) l formula_aux f
-    | Ex (l, _, f)    -> Format.fprintf fmt "@[<hv 2>∃ @[<hov>%a@].@ %a@]"
-                           CCFormat.(list ~sep:(return ",@ ") id_ty) l formula_aux f
-    | ExTy (l, _, f)  -> Format.fprintf fmt "@[<hv 2>∃ @[<hov>%a@].@ %a@]"
-                           CCFormat.(list ~sep:(return ",@ ") id_ttype) l formula_aux f
+    | All ((l, []), _, f) ->
+      Format.fprintf fmt "@[<hv 2>∀ @[<hov>%a@].@ %a@]"
+        CCFormat.(list ~sep:(return ",@ ") id_ttype) l formula_aux f
+    | All (([], l), _, f) ->
+      Format.fprintf fmt "@[<hv 2>∀ @[<hov>%a@].@ %a@]"
+        CCFormat.(list ~sep:(return ",@ ") id_ty) l formula_aux f
+    | All ((tys,ts), _, f) ->
+      Format.fprintf fmt "@[<hv 2>∀ @[<hov>%a,@ %a@].@ %a@]"
+        CCFormat.(list ~sep:(return ",@ ") id_ttype) tys
+        CCFormat.(list ~sep:(return ",@ ") id_ty) ts formula_aux f
+    | Ex ((l, []), _, f) ->
+      Format.fprintf fmt "@[<hv 2>∃ @[<hov>%a@].@ %a@]"
+        CCFormat.(list ~sep:(return ",@ ") id_ttype) l formula_aux f
+    | Ex (([], l), _, f) ->
+      Format.fprintf fmt "@[<hv 2>∃ @[<hov>%a@].@ %a@]"
+        CCFormat.(list ~sep:(return ",@ ") id_ty) l formula_aux f
+    | Ex ((tys,ts), _, f) ->
+      Format.fprintf fmt "@[<hv 2>∃ @[<hov>%a,@ %a@].@ %a@]"
+        CCFormat.(list ~sep:(return ",@ ") id_ttype) tys
+        CCFormat.(list ~sep:(return ",@ ") id_ty) ts formula_aux f
 
   let formula fmt f = Format.fprintf fmt "⟦@[<hov>%a@]⟧" formula_aux f
 
@@ -462,8 +474,8 @@ module Id = struct
   (* Internal state *)
   let eval_vec = CCVector.create ()
   let assign_vec = CCVector.create ()
-  let ty_skolems = Hashtbl.create 17
-  let term_skolems = Hashtbl.create 1007
+  let ty_skolems : (index, (unit, ttype) function_descr id) Hashtbl.t = Hashtbl.create 17
+  let term_skolems : (index, (ttype, ty) function_descr id) Hashtbl.t = Hashtbl.create 1007
 
   (* Constructors *)
   let mk_new ?(builtin=Base) ?(tags=Tag.empty) id_name id_type =
@@ -601,13 +613,21 @@ module Id = struct
     let old = term_skolem v in
     Hashtbl.add term_skolems v'.index old
 
-  let duplicate_ty_skolem v v' =
-    let sk = ty_skolem v in
-    init_ty_skolem v' (List.length sk.id_type.fun_args)
+  let duplicate_ty_skolems l l' =
+    match l with
+    | [] -> raise (Invalid_argument "duplicate_ty_skolems")
+    | v :: _ ->
+      let sk = ty_skolem v in
+      List.iter (fun v' ->
+          init_ty_skolem v' (List.length sk.id_type.fun_args)) l'
 
-  let duplicate_term_skolem v v' =
-    let sk = term_skolem v in
-    init_term_skolem v' sk.id_type.fun_vars sk.id_type.fun_args v'.id_type
+  let duplicate_term_skolems l l' =
+    match l with
+    | [] -> raise (Invalid_argument "duplicate_term_skolems")
+    | v :: _ ->
+      let sk = term_skolem v in
+      List.iter (fun v' ->
+          init_term_skolem v' sk.id_type.fun_vars sk.id_type.fun_args v'.id_type) l'
 
 end
 
@@ -618,12 +638,11 @@ module Meta = struct
   type 'a t = 'a meta
 
   (* Hash & Comparisons *)
-  let hash m = CCHash.int m.meta_id.index
+  let hash m = CCHash.(combine2 (int m.meta_id.index) (int m.meta_index))
 
   let compare m1 m2 =
-    match compare m1.meta_index m2.meta_index with
-    | 0 -> Id.compare m1.meta_id m2.meta_id
-    | x -> x
+    CCOrd.(compare m1.meta_index m2.meta_index
+           <?> (Id.compare, m1.meta_id, m2.meta_id))
 
   let equal m1 m2 = compare m1 m2 = 0
 
@@ -683,64 +702,44 @@ module Meta = struct
     | Imply (p, q)
     | Equiv (p, q) ->
       free_formula (free_formula acc p) q
-    | All (_, _, f)
-    | AllTy (_, _, f)
     | Ex (_, _, f)
-    | ExTy (_, _, f) ->
+    | All (_, _, f) -> (* metas cannot be bound *)
       free_formula acc f
-
-  (* Metas refer to an index which stores the defining formula for the variable *)
-  type meta_def =
-    | Term of formula * ty meta list
-    | Ty of formula * ttype meta list
 
   let meta_index = CCVector.create ()
 
   (* Metas *)
-  let mk_meta v i = {
+  let mk i ty v = {
     meta_id = v;
+    meta_type = ty;
     meta_index = i;
   }
 
-  let ty_def i =
+  let def i =
     match CCVector.get meta_index i with
-    | Term (f, _) -> f
-    | Ty _ -> invalid_arg "ty_def"
+    | Some (f, _, _) -> f
+    | None -> assert false
 
-  let ttype_def i =
+  let of_index i =
     match CCVector.get meta_index i with
-    | Ty (f, _) -> f
-    | Term _ -> invalid_arg "ttype_def"
+    | Some (_, l, l') -> l, l'
+    | None -> assert false
 
-  let of_ttype_index i =
-    match CCVector.get meta_index i with
-    | Ty (_, l) -> l
-    | Term _ -> invalid_arg "of_ttype_index"
-
-  let of_ty_index i =
-    match CCVector.get meta_index i with
-    | Term (_, l) -> l
-    | Ty _ -> invalid_arg "of_ty_index"
-
-  let mk_metas l f =
+  let new_index () =
     let i = CCVector.size meta_index in
-    let metas = List.map (fun v -> mk_meta v i) l in
-    CCVector.push meta_index (Term (f, metas));
-    metas
+    CCVector.push meta_index None;
+    i
 
-  let mk_ty_metas l f =
-    let i = CCVector.size meta_index in
-    let metas = List.map (fun v -> mk_meta v i) l in
-    CCVector.push meta_index (Ty (f, metas));
-    metas
-
-  let of_all_ty f = match f.formula with
-    | Not { formula = ExTy(l, _, _) } | AllTy (l, _, _) -> mk_ty_metas l f
-    | _ -> invalid_arg "new_ty_metas"
-
-  let of_all f = match f.formula with
-    | Not { formula = Ex(l, _, _) } | All (l, _, _) -> mk_metas l f
-    | _ -> invalid_arg "new_term_metas"
+  let push f tys ts =
+    let i = match tys, ts with
+      | m :: _, _ -> m.meta_index
+      | [], m :: _ -> m.meta_index
+      | [], [] -> assert false
+    in
+    assert (List.for_all (fun m -> m.meta_index = i) tys);
+    assert (List.for_all (fun m -> m.meta_index = i) ts);
+    assert (CCVector.get meta_index i = None);
+    CCVector.set meta_index i (Some (f, tys, ts))
 
   (* Meta-variable occurs in a term *)
   let rec occurs_in_term meta t = match t.term with
@@ -920,7 +919,7 @@ module Term = struct
     mk_term ?status (Var v) v.id_type
 
   let of_meta ?status m =
-    mk_term ?status (Meta m) m.meta_id.id_type
+    mk_term ?status (Meta m) m.meta_type
 
   let apply ?status f ty_args t_args =
     mk_term ?status (App (f, ty_args, t_args)) (Ty.instantiate f ty_args t_args)
@@ -981,7 +980,11 @@ module Term = struct
   let fv = Id.free_term Id.null_fv
   let fm = Meta.free_term Meta.null_fm
 
-  (* Evaluation & Assignment *)
+  (* Evaluation & Assignment
+     TODO: ids and metas should have no evaluators ?
+     (leafs should always be assigned).
+     TODO: assign based on the type rather than based on the parituclar id
+     *)
   let eval ?(strict=false) t =
     try
       match t.term with
@@ -1019,10 +1022,8 @@ module Formula = struct
   let h_or    = 17
   let h_imply = 19
   let h_equiv = 23
-  let h_all   = 29
-  let h_allty = 31
-  let h_ex    = 37
-  let h_exty  = 41
+  let h_ex    = 29
+  let h_all   = 31
 
   let rec hash_aux f = match f.formula with
     | Pred t ->
@@ -1043,14 +1044,10 @@ module Formula = struct
       CCHash.combine3 h_imply (hash f1) (hash f2)
     | Equiv (f1, f2) ->
       CCHash.combine3 h_equiv (hash f1) (hash f2)
-    | All (l, _, f) ->
-      CCHash.combine3 h_all (CCHash.list Id.hash l) (hash f)
-    | AllTy (l, _, f) ->
-      CCHash.combine3 h_allty (CCHash.list Id.hash l) (hash f)
-    | Ex (l, _, f) ->
-      CCHash.combine3 h_ex (CCHash.list Id.hash l) (hash f)
-    | ExTy (l, _, f) ->
-      CCHash.combine3 h_exty (CCHash.list Id.hash l) (hash f)
+    | Ex ((tys, ts), _, f) ->
+      CCHash.combine4 h_ex (CCHash.list Id.hash tys) (CCHash.list Id.hash ts) (hash f)
+    | All ((tys, ts), _, f) ->
+      CCHash.combine4 h_all (CCHash.list Id.hash tys) (CCHash.list Id.hash ts) (hash f)
 
   and hash f =
     if f.f_hash = -1 then f.f_hash <- hash_aux f;
@@ -1066,10 +1063,8 @@ module Formula = struct
     | Or _ -> 7
     | Imply _ -> 8
     | Equiv _ -> 9
-    | All _ -> 10
-    | AllTy _ -> 11
-    | Ex _ -> 12
-    | ExTy _ -> 13
+    | Ex _ -> 10
+    | All _ -> 11
 
   let rec compare f g =
     let hf = hash f and hg = hash g in
@@ -1085,13 +1080,10 @@ module Formula = struct
       | Imply (h1, i1), Imply (h2, i2)
       | Equiv (h1, i1), Equiv (h2, i2) ->
         CCOrd.pair compare compare (h1, i1) (h2, i2)
-      | Ex (l1, _, h1), Ex (l2, _, h2)
-      | All (l1, _, h1), All (l2, _, h2) ->
-        CCOrd.Infix.(CCOrd.list Id.compare l1 l2
-                     <?> (compare, h1, h2))
-      | ExTy (l1, _, h1), ExTy (l2, _, h2)
-      | AllTy (l1, _, h1), AllTy (l2, _, h2) ->
-        CCOrd.Infix.(CCOrd.list Id.compare l1 l2
+      | Ex ((tys1, ts1), _, h1), Ex ((tys2, ts2), _, h2)
+      | All ((tys1, ts1), _, h1), All ((tys2, ts2), _, h2) ->
+        CCOrd.Infix.(CCOrd.list Id.compare tys1 tys2
+                     <?> (CCOrd.list Id.compare, ts1, ts2)
                      <?> (compare, h1, h2))
       | _, _ -> Pervasives.compare (discr f) (discr g)
 
@@ -1116,12 +1108,10 @@ module Formula = struct
       List.fold_left Id.merge_fv Id.null_fv l'
     | Imply (p, q) | Equiv (p, q) ->
       Id.merge_fv (fv p) (fv q)
-    | AllTy (l, _, p) | ExTy (l, _, p) ->
-      Id.remove_fv (fv p) (l, [])
-    | All (l, _, p) | Ex (l, _, p) ->
+    | All ((tys, ts), _, p) | Ex ((tys, ts), _, p) ->
       let v = List.fold_left (fun acc x ->
-          Id.merge_fv acc (Ty.fv x.id_type)) (fv p) l in
-      Id.remove_fv v ([], l)
+          Id.merge_fv acc (Ty.fv x.id_type)) (fv p) ts in
+      Id.remove_fv v (tys, ts)
 
   and fv f = match f.f_vars with
     | Some res -> res
@@ -1215,49 +1205,31 @@ module Formula = struct
       res
     end
 
-  let all l f =
-    if l = [] then f else
+  let all (tys, ts) f =
+    if tys = [] && ts = [] then f else
       match f.formula with
-      | All (l', ft, f') ->
-        List.iter (Id.duplicate_term_skolem (List.hd l')) l;
-        mk_formula (All (l @ l', ft, f'))
+      | All ((l, l'), ft, f') ->
+        Id.duplicate_ty_skolems l tys;
+        Id.duplicate_term_skolems l' ts;
+        mk_formula (All ((tys @ l, ts @ l'), ft, f'))
       | _ ->
-        let fv = fv (mk_formula (All (l, ([], []), f))) in
-        Id.init_term_skolems l fv;
-        mk_formula (All (l, to_free_args fv, f))
+        let fv = fv (mk_formula (All ((tys, ts), ([], []), f))) in
+        Id.init_ty_skolems tys fv;
+        Id.init_term_skolems ts fv;
+        mk_formula (All ((tys, ts), to_free_args fv, f))
 
-  let allty l f =
-    if l = [] then f else
+  let ex (tys, ts) f =
+    if tys = [] && ts = [] then f else
       match f.formula with
-      | AllTy (l', ft, f') ->
-        List.iter (Id.duplicate_ty_skolem (List.hd l')) l;
-        mk_formula (AllTy (l @ l', ft, f'))
+      | Ex ((l, l'), ft, f') ->
+        Id.duplicate_ty_skolems l tys;
+        Id.duplicate_term_skolems l' ts;
+        mk_formula (Ex ((tys @ l, ts @ l'), ft, f'))
       | _ ->
-        let fv = fv (mk_formula (AllTy (l, ([], []), f))) in
-        Id.init_ty_skolems l fv;
-        mk_formula (AllTy (l, to_free_args fv, f))
-
-  let ex l f =
-    if l = [] then f else
-      match f.formula with
-      | Ex (l', ft, f') ->
-        List.iter (Id.duplicate_term_skolem (List.hd l')) l;
-        mk_formula (Ex (l @ l', ft, f'))
-      | _ ->
-        let fv = fv (mk_formula (Ex (l, ([], []), f))) in
-        Id.init_term_skolems l fv;
-        mk_formula (Ex (l, to_free_args fv, f))
-
-  let exty l f =
-    if l = [] then f else
-      match f.formula with
-      | ExTy (l', ft, f') ->
-        List.iter (Id.duplicate_ty_skolem (List.hd l')) l;
-        mk_formula (ExTy (l @ l', ft, f'))
-      | _ ->
-        let fv = fv (mk_formula (ExTy (l, ([], []), f))) in
-        Id.init_ty_skolems l fv;
-        mk_formula (AllTy (l, to_free_args fv, f))
+        let fv = Id.remove_fv (fv f) (tys, ts) in
+        Id.init_ty_skolems tys fv;
+        Id.init_term_skolems ts fv;
+        mk_formula (Ex ((tys, ts), to_free_args fv, f))
 
   let rec new_binder_subst ty_var_map ty_meta_map subst acc = function
     | [] -> List.rev acc, subst
@@ -1317,26 +1289,22 @@ module Formula = struct
       let new_q = subst_aux ~fix ty_vmap ty_mmap t_vmap t_mmap f_vmap f_mmap q in
       if p == new_p && q == new_q then f
       else equiv new_p new_q
-    | All (l, (ty, t), p) ->
-      let l', t_map = new_binder_subst ty_vmap ty_mmap t_vmap [] l in
-      List.iter2 Id.copy_term_skolem l l';
-      let tys = List.map (Ty.subst ~fix ty_vmap ty_mmap) ty in
-      let ts = List.map (Term.subst ~fix ty_vmap ty_mmap t_map t_mmap) t in
-      mk_formula (All (l', (tys, ts), (subst_aux ~fix ty_vmap ty_mmap t_map t_mmap f_vmap f_mmap p)))
-    | Ex (l, (ty, t), p) ->
-      let l', t_map = new_binder_subst ty_vmap ty_mmap t_vmap [] l in
-      List.iter2 Id.copy_term_skolem l l';
-      let tys = List.map (Ty.subst ~fix ty_vmap ty_mmap) ty in
-      let ts = List.map (Term.subst ~fix ty_vmap ty_mmap t_map t_mmap) t in
-      mk_formula (Ex (l', (tys, ts), (subst_aux ~fix ty_vmap ty_mmap t_map t_mmap f_vmap f_mmap p)))
-    | AllTy (l, (ty, t), p) ->
-      assert (t = []);
-      let tys = List.map (Ty.subst ~fix ty_vmap ty_mmap) ty in
-      mk_formula (AllTy (l, (tys, t), (subst_aux ~fix ty_vmap ty_mmap t_vmap t_mmap f_vmap f_mmap p)))
-    | ExTy (l, (ty, t), p) ->
-      assert (t = []);
-      let tys = List.map (Ty.subst ~fix ty_vmap ty_mmap) ty in
-      mk_formula (ExTy (l, (tys, t), (subst_aux ~fix ty_vmap ty_mmap t_vmap t_mmap f_vmap f_mmap p)))
+    | All ((tys, ts), (ty_args, t_args), p) ->
+      (* term variables in ts may have their types changed by the subst *)
+      let l', t_map = new_binder_subst ty_vmap ty_mmap t_vmap [] ts in
+      List.iter2 Id.copy_term_skolem ts l';
+      let new_ty_args = List.map (Ty.subst ~fix ty_vmap ty_mmap) ty_args in
+      let new_t_args = List.map (Term.subst ~fix ty_vmap ty_mmap t_map t_mmap) t_args in
+      mk_formula (All ((tys, l'), (new_ty_args, new_t_args),
+                       (subst_aux ~fix ty_vmap ty_mmap t_map t_mmap f_vmap f_mmap p)))
+    | Ex ((tys, ts), (ty_args, t_args), p) ->
+      (* term variables in ts may have their types changed by the subst *)
+      let l', t_map = new_binder_subst ty_vmap ty_mmap t_vmap [] ts in
+      List.iter2 Id.copy_term_skolem ts l';
+      let new_ty_args = List.map (Ty.subst ~fix ty_vmap ty_mmap) ty_args in
+      let new_t_args = List.map (Term.subst ~fix ty_vmap ty_mmap t_map t_mmap) t_args in
+      mk_formula (Ex ((tys, l'), (new_ty_args, new_t_args),
+                       (subst_aux ~fix ty_vmap ty_mmap t_map t_mmap f_vmap f_mmap p)))
 
   let subst ?(fix=true)
       ?(ty_var_map=Subst.empty) ?(ty_meta_map=Subst.empty)
@@ -1355,60 +1323,44 @@ module Formula = struct
 
   let _empty = Subst.empty
 
-  let partial_inst ty_vmap t_vmap f =
-    let rec aux ty_vmap t_vmap f =
-      match f.formula with
-      | Not q -> neg (aux ty_vmap t_vmap q)
-      | Ex (l, args, p) ->
-        begin match List.filter (fun v -> not (Subst.Id.mem v t_vmap)) l with
-          | [] -> aux ty_vmap t_vmap p
-          | l' ->
-            let l'', t_map = new_binder_subst ty_vmap _empty t_vmap [] l' in
-            let q = subst_aux ~fix:false ty_vmap _empty t_map _empty _empty _empty p in
-            let args' = free_args_inst ty_vmap t_map args in
-            mk_formula (Ex (l'', args', q))
-        end
-      | All (l, args, p) ->
-        begin match List.filter (fun v -> not (Subst.Id.mem v t_vmap)) l with
-          | [] -> aux ty_vmap t_vmap p
-          | l' ->
-            Util.debug "requantifying over [%a]"
-              CCFormat.(list ~sep:(return ";@ ") Print.id) l';
-            let l'', t_map = new_binder_subst ty_vmap _empty t_vmap [] l' in
-            Util.debug "new binder: [%a] %a %a"
-              CCFormat.(list ~sep:(return ";@ ") Print.id) l''
-              (Subst.print Print.id Print.term) t_map Print.formula p;
-            let q = subst_aux ~fix:false ty_vmap _empty t_map _empty _empty _empty p in
-            let args' = free_args_inst ty_vmap t_map args in
-            mk_formula (All (l'', args', q))
-        end
-      | ExTy (l, args, p) ->
-        begin match List.filter (fun v -> not (Subst.Id.mem v ty_vmap)) l with
-          | [] -> aux ty_vmap t_vmap p
-          | l' ->
-            let q = subst_aux ~fix:false ty_vmap _empty t_vmap _empty _empty _empty p in
-            let args' = free_args_inst ty_vmap t_vmap args in
-            mk_formula (ExTy (l', args', q))
-        end
-      | AllTy (l, args, p) ->
-        begin match List.filter (fun v -> not (Subst.Id.mem v ty_vmap)) l with
-          | [] -> aux ty_vmap t_vmap p
-          | l' ->
-            let q = subst_aux ~fix:false ty_vmap _empty t_vmap _empty _empty _empty p in
-            let args' = free_args_inst ty_vmap t_vmap args in
-            mk_formula (AllTy (l', args', q))
-        end
-      | _ -> subst_aux ~fix:false ty_vmap _empty t_vmap _empty _empty _empty f
-    in
+  let rec partial_inst ty_vmap t_vmap f =
     match f.formula with
-    | Ex _ | All _
-    | ExTy _ | AllTy _
-    | Not { formula = (
-          Ex _ | All _ |
-          ExTy _ | AllTy _
-        ) } ->
-      aux ty_vmap t_vmap f
+    | Not ({ formula = ( Ex _ | All _) } as q) -> neg (partial_inst ty_vmap t_vmap q)
+    | Ex ((tys, ts), args, p) ->
+      let new_tys = List.filter (fun v -> not (Subst.Id.mem v ty_vmap)) tys in
+      let rem_ts = List.filter (fun v -> not (Subst.Id.mem v t_vmap)) ts in
+      let new_ts, t_map = new_binder_subst ty_vmap _empty t_vmap [] rem_ts in
+      let q = subst_aux ~fix:false ty_vmap _empty t_map _empty _empty _empty p in
+      let new_args = free_args_inst ty_vmap t_map args in
+      if new_tys = [] && new_ts = [] then q
+      else mk_formula (Ex((new_tys, new_ts), new_args, q))
+    | All ((tys, ts), args, p) ->
+      let new_tys = List.filter (fun v -> not (Subst.Id.mem v ty_vmap)) tys in
+      let rem_ts = List.filter (fun v -> not (Subst.Id.mem v t_vmap)) ts in
+      let new_ts, t_map = new_binder_subst ty_vmap _empty t_vmap [] rem_ts in
+      let q = subst_aux ~fix:false ty_vmap _empty t_map _empty _empty _empty p in
+      let new_args = free_args_inst ty_vmap t_map args in
+      if new_tys = [] && new_ts = [] then q
+      else mk_formula (All((new_tys, new_ts), new_args, q))
     | _ -> raise (Invalid_argument "Expr.partial_inst")
+
+  let gen_metas f =
+    let tys, ts =
+      match f.formula with
+      | All ((tys, ts), _, _) -> tys, ts
+      | Not { formula = Ex ((tys, ts), _, _) } -> tys, ts
+      | _ -> raise (Invalid_argument "Expr.gen_metas")
+    in
+    let i = Meta.new_index () in
+    let ty_metas = List.map (Meta.mk i Type) tys in
+    let meta_tys = List.map Ty.of_meta ty_metas in
+    let subst = List.fold_left2 Subst.Id.bind _empty tys meta_tys in
+    let t_metas = List.map (fun v ->
+        let old_ty = v.id_type in
+        let new_ty = Ty.subst subst _empty old_ty in
+        Meta.mk i new_ty v) ts in
+    let () = Meta.push f ty_metas t_metas in
+    ty_metas, t_metas
 
 end
 

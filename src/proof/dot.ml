@@ -144,14 +144,26 @@ module Print = struct
     | Imply (p, q)    -> Format.fprintf fmt "@[<hov>%a@ ⇒@ %a@]" aux p aux q
     | Equiv (p, q)    -> Format.fprintf fmt "@[<hov>%a@ ⇔@ %a@]" aux p aux q
 
-    | All (l, _, f)   -> Format.fprintf fmt "@[<hov 2>∀ @[<hov>%a@].@ %a@]"
-                           CCFormat.(list ~sep:(return ",@ ") id_ty) l formula_aux f
-    | AllTy (l, _, f) -> Format.fprintf fmt "@[<hov 2>∀ @[<hov>%a@].@ %a@]"
-                           CCFormat.(list ~sep:(return ",@ ") id_ttype) l formula_aux f
-    | Ex (l, _, f)    -> Format.fprintf fmt "@[<hov 2>∃ @[<hov>%a@].@ %a@]"
-                           CCFormat.(list ~sep:(return ",@ ") id_ty) l formula_aux f
-    | ExTy (l, _, f)  -> Format.fprintf fmt "@[<hov 2>∃ @[<hov>%a@].@ %a@]"
-                           CCFormat.(list ~sep:(return ",@ ") id_ttype) l formula_aux f
+    | All ((l, []), _, f) ->
+      Format.fprintf fmt "@[<hv 2>∀ @[<hov>%a@].@ %a@]"
+        CCFormat.(list ~sep:(return ",@ ") id_ttype) l formula_aux f
+    | All (([], l), _, f) ->
+      Format.fprintf fmt "@[<hv 2>∀ @[<hov>%a@].@ %a@]"
+        CCFormat.(list ~sep:(return ",@ ") id_ty) l formula_aux f
+    | All ((tys,ts), _, f) ->
+      Format.fprintf fmt "@[<hv 2>∀ @[<hov>%a,@ %a@].@ %a@]"
+        CCFormat.(list ~sep:(return ",@ ") id_ttype) tys
+        CCFormat.(list ~sep:(return ",@ ") id_ty) ts formula_aux f
+    | Ex ((l, []), _, f) ->
+      Format.fprintf fmt "@[<hv 2>∃ @[<hov>%a@].@ %a@]"
+        CCFormat.(list ~sep:(return ",@ ") id_ttype) l formula_aux f
+    | Ex (([], l), _, f) ->
+      Format.fprintf fmt "@[<hv 2>∃ @[<hov>%a@].@ %a@]"
+        CCFormat.(list ~sep:(return ",@ ") id_ty) l formula_aux f
+    | Ex ((tys,ts), _, f) ->
+      Format.fprintf fmt "@[<hv 2>∃ @[<hov>%a,@ %a@].@ %a@]"
+        CCFormat.(list ~sep:(return ",@ ") id_ttype) tys
+        CCFormat.(list ~sep:(return ",@ ") id_ty) ts formula_aux f
 
   let formula fmt f = Format.fprintf fmt "⟦@[<hov>%a@]⟧" formula_aux f
 

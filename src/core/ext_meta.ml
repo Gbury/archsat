@@ -4,8 +4,10 @@ module H = Hashtbl.Make(Expr.Formula)
 exception Found_unif
 
 type lemma_info =
-  | Ty of Expr.formula * Expr.ttype Expr.id list * Expr.ty list * Expr.formula
-  | Term of Expr.formula * Expr.ty Expr.id list * Expr.term list * Expr.formula
+  | Inst of Expr.formula *
+            Expr.ttype Expr.id list * Expr.ty list *
+            Expr.ty Expr.id list * Expr.term list *
+            Expr.formula
 
 type Dispatcher.lemma_info += Meta of lemma_info
 
@@ -191,11 +193,9 @@ let iter f = H.iter (fun e _ -> f e) metas
 let number () = (H.stats metas).Hashtbl.num_bindings
 
 (* Proofs *)
-let mk_proof_ty f vars metas q =
-  Dispatcher.mk_proof "meta" "ty" (Meta (Ty (f, vars, metas, q)))
-
-let mk_proof_term f vars metas q =
-  Dispatcher.mk_proof "meta" "term" (Meta (Term (f, vars, metas, q)))
+let mk_proof f ty_vars ty_list t_vars t_list q =
+  Dispatcher.mk_proof "meta" "ty" (Meta (
+      Inst (f, ty_vars, ty_list, t_vars, t_list, q)))
 
 (* Ignored tags *)
 let ignore f =
@@ -204,37 +204,27 @@ let ignore f =
 (* Meta generation & predicates storing *)
 let do_formula =
   let aux = function
-    | { Expr.formula = Expr.All (l, _, p) } as f ->
-      let metas = List.map Expr.Term.of_meta (Expr.Meta.of_all f) in
-      let subst = List.fold_left2 Expr.Subst.Id.bind Expr.Subst.empty l metas in
-      let q = Expr.Formula.subst ~t_var_map:subst p in
+    | { Expr.formula = Expr.All ((tys, ts), _, p) } as f ->
+      let l, l' = Expr.Formula.gen_metas f in
+      let ty_metas = List.map Expr.Ty.of_meta l in
+      let t_metas = List.map Expr.Term.of_meta l' in
+      let m = List.fold_left2 Mapping.Var.bind_ty Mapping.empty tys ty_metas in
+      let m = List.fold_left2 Mapping.Var.bind_term m ts t_metas in
+      let q = Mapping.apply_formula m p in
       let () = Inst.mark_meta f q in
-      Dispatcher.push [Expr.Formula.neg f; q] (mk_proof_term f l metas q)
-    | { Expr.formula = Expr.Not { Expr.formula = Expr.Ex (l, _, p) } } as f ->
-      let metas = List.map Expr.Term.of_meta (Expr.Meta.of_all f) in
-      let subst = List.fold_left2 Expr.Subst.Id.bind Expr.Subst.empty l metas in
-      let q = Expr.Formula.subst ~t_var_map:subst p in
-      let q' = Expr.Formula.neg q in
-      let () = Inst.mark_meta f q' in
-      Dispatcher.push [Expr.Formula.neg f; q'] (mk_proof_term f l metas q')
-    | { Expr.formula = Expr.AllTy (l, _, p) } as f ->
-      let metas = List.map Expr.Ty.of_meta (Expr.Meta.of_all_ty f) in
-      let subst = List.fold_left2 Expr.Subst.Id.bind Expr.Subst.empty l metas in
-      let q = Expr.Formula.subst ~ty_var_map:subst p in
+      Dispatcher.push [Expr.Formula.neg f; q] (mk_proof f tys ty_metas ts t_metas q)
+    | { Expr.formula = Expr.Not { Expr.formula = Expr.Ex ((tys, ts), _, p) } } as f ->
+      let l, l' = Expr.Formula.gen_metas f in
+      let ty_metas = List.map Expr.Ty.of_meta l in
+      let t_metas = List.map Expr.Term.of_meta l' in
+      let m = List.fold_left2 Mapping.Var.bind_ty Mapping.empty tys ty_metas in
+      let m = List.fold_left2 Mapping.Var.bind_term m ts t_metas in
+      let q = Expr.Formula.neg @@ Mapping.apply_formula m p in
       let () = Inst.mark_meta f q in
-      Dispatcher.push [Expr.Formula.neg f; q] (mk_proof_ty f l metas q)
-    | { Expr.formula = Expr.Not { Expr.formula = Expr.ExTy (l, _, p) } } as f ->
-      let metas = List.map Expr.Ty.of_meta (Expr.Meta.of_all_ty f) in
-      let subst = List.fold_left2 Expr.Subst.Id.bind Expr.Subst.empty l metas in
-      let q = Expr.Formula.subst ~ty_var_map:subst p in
-      let q' = Expr.Formula.neg q in
-      let () = Inst.mark_meta f q' in
-      Dispatcher.push [Expr.Formula.neg f; q'] (mk_proof_ty f l metas q')
+      Dispatcher.push [Expr.Formula.neg f; q] (mk_proof f tys ty_metas ts t_metas q)
     | _ -> assert false
   in function
-    | ({ Expr.formula = Expr.Not { Expr.formula = Expr.ExTy _ } } as f)
     | ({ Expr.formula = Expr.Not { Expr.formula = Expr.Ex _ } } as f)
-    | ({ Expr.formula = Expr.AllTy _ } as f)
     | ({ Expr.formula = Expr.All _ } as f) ->
       if not (ignore f) then begin
         let i = get_nb_metas f in
@@ -248,49 +238,19 @@ let do_formula =
     | _ -> ()
 
 let do_meta_inst = function
-  | { Expr.formula = Expr.All (l, _, p) } as f ->
+  | ({ Expr.formula = Expr.All ((tys, ts), _, _) } as f)
+  | ({ Expr.formula = Expr.Not { Expr.formula = Expr.Ex ((tys, ts), _, _) } } as f) ->
     let i = get_nb_metas f in
     if !i < !meta_max then begin
       incr i;
       Util.debug ~section "new_meta (%d/%d) : %a"
         !i !meta_max Expr.Print.formula f;
-      let metas = Expr.Meta.of_all f in
-      let u = List.fold_left (fun s m ->
-          Mapping.Meta.bind_term s m (Expr.Term.of_meta m)) Mapping.empty metas in
-      if not (Inst.add ~name:"meta_gen" ~mark:true ~delay:(delay !i) u) then assert false
-    end
-  | { Expr.formula = Expr.Not { Expr.formula = Expr.Ex (l, _, p) } } as f ->
-    let i = get_nb_metas f in
-    if !i < !meta_max then begin
-      incr i;
-      Util.debug ~section "new_meta (%d/%d) : %a"
-        !i !meta_max Expr.Print.formula f;
-      let metas = Expr.Meta.of_all f in
-      let u = List.fold_left (fun s m ->
-          Mapping.Meta.bind_term s m (Expr.Term.of_meta m)) Mapping.empty metas in
-      if not (Inst.add ~name:"meta_gen" ~mark:true ~delay:(delay !i) u) then assert false
-    end
-  | { Expr.formula = Expr.AllTy (l, _, p) } as f ->
-    let i = get_nb_metas f in
-    if !i < !meta_max then begin
-      incr i;
-      Util.debug ~section "new_meta (%d/%d) : %a"
-        !i !meta_max Expr.Print.formula f;
-      let metas = Expr.Meta.of_all_ty f in
-      let u = List.fold_left (fun s m ->
-          Mapping.Meta.bind_ty s m (Expr.Ty.of_meta m)) Mapping.empty metas in
-      if not (Inst.add ~name:"meta_gen" ~mark:true ~delay:(delay !i) u) then assert false
-    end
-  | { Expr.formula = Expr.Not { Expr.formula = Expr.ExTy (l, _, p) } } as f ->
-    let i = get_nb_metas f in
-    if !i < !meta_max then begin
-      incr i;
-      Util.debug ~section "new_meta (%d/%d) : %a"
-        !i !meta_max Expr.Print.formula f;
-      let metas = Expr.Meta.of_all_ty f in
-      let u = List.fold_left (fun s m ->
-          Mapping.Meta.bind_ty s m (Expr.Ty.of_meta m)) Mapping.empty metas in
-      if not (Inst.add ~name:"meta_gen" ~mark:true ~delay:(delay !i) u) then assert false
+      let l, l' = Expr.Formula.gen_metas f in
+      let ty_metas = List.map Expr.Ty.of_meta l in
+      let t_metas = List.map Expr.Term.of_meta l' in
+      let m = List.fold_left2 Mapping.Var.bind_ty Mapping.empty tys ty_metas in
+      let m = List.fold_left2 Mapping.Var.bind_term m ts t_metas in
+      if not (Inst.add ~name:"meta_gen" ~mark:true ~delay:(delay !i) m) then assert false
     end
   | _ -> assert false
 
@@ -414,16 +374,13 @@ let rec unif_f st = function
 (* ************************************************************************ *)
 
 let dot_info = function
-  | Ty (f, _, l, _) ->
+  | Inst (f, _, l, _, l', _) ->
     Some "PURPLE", (
       List.map (CCFormat.const Dot.Print.ty) l @
+      List.map (CCFormat.const Dot.Print.term) l' @
       [ CCFormat.const Dot.Print.formula f ]
     )
-  | Term (f, _, l, _) ->
-    Some "PURPLE", (
-      List.map (CCFormat.const Dot.Print.term) l @
-      [ CCFormat.const Dot.Print.formula f ]
-    )
+
 (*
 let coq_proof = function
   | Ty (f, l, metas, q) ->

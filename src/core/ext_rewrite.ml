@@ -374,9 +374,7 @@ let rec parse_rule_aux = function
 
 let parse_rule = function
   (* TODO: check that some variables are actually used in the rule ? *)
-  | ({ Expr.formula = Expr.All (_, _, r) } as formula)
-  | ({ Expr.formula = Expr.AllTy (_, _, {
-         Expr.formula = Expr.All (_, _, r) })} as formula) ->
+  | ({ Expr.formula = Expr.All (_, _, r) } as formula) ->
     let manual = CCOpt.is_some (Expr.Formula.get_tag formula Builtin.Tag.rwrt) in
     let parse = if manual then parse_manual_rule else parse_rule_aux in
     begin match parse r with

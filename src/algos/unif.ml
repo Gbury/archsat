@@ -261,8 +261,8 @@ module Cache = struct
           m1 (Expr.Term.of_meta m2)
       ) m2 (Expr.Term.of_meta m1)
 
-  let meta_def m = Expr.Meta.ty_def m.Expr.meta_index
-  let meta_ty_def m = Expr.Meta.ttype_def m.Expr.meta_index
+  let meta_def m = Expr.Meta.def m.Expr.meta_index
+  let meta_ty_def m = Expr.Meta.def m.Expr.meta_index
 
   (* Finding meta-stable involutions *)
   let rec meta_match_ty subst s t =

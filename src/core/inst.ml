@@ -70,10 +70,9 @@ let tbl = Hf.create 4013
 
 let get_cluster f =
   let q = match f with
-    | { Expr.formula = Expr.All _ }
-    | { Expr.formula = Expr.AllTy _ } -> f
+    | { Expr.formula = Expr.All _ } -> f
     | { Expr.formula = Expr.Not ( {
-        Expr.formula = Expr.(Ex _ | ExTy _) } as f' ) } -> f'
+        Expr.formula = Expr.Ex _ } as f' ) } -> f'
     | _ ->
       Util.error ~section "@[<hv 2>Getting cluster for:@ %a@]"
         Expr.Formula.print f;
@@ -92,10 +91,8 @@ let rec set_cluster c f =
   | Expr.Or l -> List.iter (set_cluster c) l
   | Expr.Imply (p, q)
   | Expr.Equiv (p, q) -> List.iter (set_cluster c) [p; q]
-  | Expr.All (_, _, f')
-  | Expr.AllTy (_, _, f')
   | Expr.Ex (_, _, f')
-  | Expr.ExTy (_, _, f') ->
+  | Expr.All (_, _, f') ->
     let c' = mk_cluster f c in
     Util.debug ~section "@[<hv 2>%a <<--@ %a@]"
       Expr.Print.formula f print c';
@@ -104,39 +101,22 @@ let rec set_cluster c f =
 let mark_meta quant f =
   Util.debug ~section "@[<hv 2>Marking:@ %a@ %a@]"
     Expr.Print.formula quant Expr.Print.formula f;
-  let current =
-    match get_cluster quant with
-    | None ->
-      let c = mk_root quant in
-      let () = match quant with
-        | ({ Expr.formula = Expr.All (_, _, f') } as q)
-        | ({ Expr.formula = Expr.AllTy (_, _, f') } as q)
-        | { Expr.formula = Expr.Not ({
-                Expr.formula = Expr.Ex (_, _, f') } as q) }
-        | { Expr.formula = Expr.Not ({
-                Expr.formula = Expr.ExTy (_, _, f') } as q) } ->
-          Util.debug ~section "@[<hv 2>%a <<<<@ %a@]"
-            Expr.Print.formula q print c;
-          Hf.add tbl q c
-        | _ -> raise (Invalid_argument "Inst.mark_meta")
-      in
-      c
-    | Some c -> c
-  in
-  let rec aux c = function
-    | ({ Expr.formula = Expr.All (_, _, f') } as q)
-    | ({ Expr.formula = Expr.AllTy (_, _, f') } as q)
-    | { Expr.formula = Expr.Not ({
-            Expr.formula = Expr.Ex (_, _, f') } as q) }
-    | { Expr.formula = Expr.Not ({
-            Expr.formula = Expr.ExTy (_, _, f') } as q) } ->
-      Util.debug ~section "@[<hv 2>%a <<<<@ %a@]"
-        Expr.Print.formula q print c;
-      Hf.add tbl q c;
-      aux c f'
-    | f -> set_cluster c f
-  in
-  aux current f
+  match quant with
+  | ({ Expr.formula = Expr.All (_, _, f') } as q)
+  | { Expr.formula = Expr.Not ( {
+          Expr.formula = Expr.Ex (_, _, f') } as q) } ->
+    let current =
+      match get_cluster quant with
+      | Some c -> c
+      | None ->
+        let c = mk_root quant in
+        Util.debug ~section "@[<hv 2>%a <<<<@ %a@]"
+          Expr.Print.formula q print c;
+        Hf.add tbl q c;
+        c
+    in
+    set_cluster current f'
+  | _ -> raise (Invalid_argument "Inst.mark_meta")
 
 (* Virtual meta-variables *)
 (* ************************************************************************ *)
@@ -150,25 +130,6 @@ let mk_ty_var =
 let mk_t_var =
   let i = ref 0 in
   (fun ty -> incr i; Expr.Id.ty (Format.asprintf "vt_%d" !i) ty)
-
-let rec gen_metas = function
-  | { Expr.formula = Expr.AllTy (vars, _, p) } as f->
-    let metas = Expr.Meta.of_all_ty f in
-    let tys = List.map Expr.Ty.of_meta metas in
-    let m = List.fold_left2 Mapping.Var.bind_ty Mapping.empty vars tys in
-    let q = Mapping.apply_formula m p in
-    let () = mark_meta f q in
-    let l, l' = gen_metas q in
-    (metas @ l, l')
-  | { Expr.formula = Expr.All(vars, _, p) } as f ->
-    let metas = Expr.Meta.of_all f in
-    let terms = List.map Expr.Term.of_meta metas in
-    let m = List.fold_left2 Mapping.Var.bind_term Mapping.empty vars terms in
-    let q = Mapping.apply_formula m p in
-    let () = mark_meta f q in
-    let l, l' = gen_metas q in
-    (l, metas @ l')
-  | _ -> [], []
 
 let generalize_aux m =
   Util.debug ~section "Generalizing@ %a" Mapping.print m;
@@ -191,9 +152,10 @@ let generalize_aux m =
   else begin
     let ty_vars = vtys @ mtys in
     let term_vars = vts @ mts in
-    let f = Expr.Formula.allty ty_vars @@
-      Expr.Formula.all term_vars Expr.Formula.f_true in
-    let l, l' = gen_metas f in
+    let f = Expr.Formula.all (ty_vars, term_vars) Expr.Formula.f_true in
+    let l, l' = Expr.Formula.gen_metas f in
+    (* is this necessary ?
+       let () = mark_meta f Expr.Formula.f_true in *)
     let (vtm_ty, mtm_ty) =
       CCList.take_drop (List.length vtys) (List.map Expr.Ty.of_meta l) in
     let (vtm_t, mtm_t) =
@@ -256,9 +218,9 @@ let split m =
   let tmp =
     Mapping.fold m M.empty
       ~ty_var:(fun _ _ _ -> assert false)
-      ~ty_meta:(aux Expr.Meta.ttype_def Mapping.Meta.bind_ty)
+      ~ty_meta:(aux Expr.Meta.def Mapping.Meta.bind_ty)
       ~term_var:(fun _ _ _ -> assert false)
-      ~term_meta:(aux Expr.Meta.ty_def Mapping.Meta.bind_term)
+      ~term_meta:(aux Expr.Meta.def Mapping.Meta.bind_term)
   in
   M.fold (fun _ m acc -> m :: acc) tmp []
 
@@ -285,9 +247,9 @@ let min_cluster mapping =
   in
   Mapping.fold mapping None
     ~ty_var:(fun _ _ _ -> assert false)
-    ~ty_meta:(aux Expr.Meta.ttype_def)
+    ~ty_meta:(aux Expr.Meta.def)
     ~term_var:(fun _ _ _ -> assert false)
-    ~term_meta:(aux Expr.Meta.ty_def)
+    ~term_meta:(aux Expr.Meta.def)
 
 (** Take a map, and filter out all metas but for the
     smallest cluster. *)
@@ -303,9 +265,9 @@ let reduce_map s =
     in
     Mapping.filter s
       ~ty_var:(fun _ _ -> assert false)
-      ~ty_meta:(aux Expr.Meta.ttype_def)
+      ~ty_meta:(aux Expr.Meta.def)
       ~term_var:(fun _ _ -> assert false)
-      ~term_meta:(aux Expr.Meta.ty_def)
+      ~term_meta:(aux Expr.Meta.def)
 
 (** Split a single_cluster mapping according to meta indexes *)
 let split_cluster map =
@@ -340,8 +302,8 @@ let check_single_cluster m =
   in
   try
     let _ = Mapping.fold m
-        ~ty_meta:(aux Expr.Print.meta Expr.Meta.ttype_def)
-        ~term_meta:(aux Expr.Print.meta Expr.Meta.ty_def) in
+        ~ty_meta:(aux Expr.Print.meta Expr.Meta.def)
+        ~term_meta:(aux Expr.Print.meta Expr.Meta.def) in
     true
   with Exit -> false
 
@@ -352,11 +314,11 @@ let map_def map =
   let res =
     try
       let m, _ = Expr.Subst.choose (Mapping.ty_meta map) in
-      Expr.Meta.ttype_def m.Expr.meta_index
+      Expr.Meta.def m.Expr.meta_index
     with Not_found ->
       begin try
           let m, _ = Expr.Subst.choose (Mapping.term_meta map) in
-          Expr.Meta.ty_def m.Expr.meta_index
+          Expr.Meta.def m.Expr.meta_index
         with Not_found ->
           raise (Invalid_argument "Inst.map_def")
       end
@@ -424,7 +386,7 @@ let soft_subst ?(mark=false) ~name f t =
     CCFormat.(list ~sep:(return ",@ ") Expr.Print.id) tys
     CCFormat.(list ~sep:(return ",@ ") Expr.Print.id) ts;
   let q =
-    Expr.Formula.allty tys @@ Expr.Formula.all ts @@
+    Expr.Formula.all (tys, ts) @@
     Expr.Formula.partial_inst ty_subst term_subst f
   in
   let () = if mark then mark_meta f q in

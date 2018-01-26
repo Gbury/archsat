@@ -568,15 +568,12 @@ and of_formula_aux ?callback f =
     let order = CCOpt.get_exn @@ Expr.Formula.get_tag f Expr.f_order in
     of_tree ?callback and_term order
 
-  | Expr.All (l, _, body) ->
-    foralls (List.map (of_id_aux ?callback of_ty) l) (of_formula ?callback body)
-  | Expr.AllTy (l, _, body) ->
-    foralls (List.map (of_id_aux ?callback of_ttype) l) (of_formula ?callback body)
-
-  | Expr.Ex (l, _, body) ->
-    exists (List.map (of_id_aux ?callback of_ty) l) (of_formula ?callback body)
-  | Expr.ExTy (l, _, body) ->
-    exists (List.map (of_id_aux ?callback of_ttype) l) (of_formula ?callback body)
+  | Expr.All ((tys, ts), _, body) ->
+    foralls (List.map (of_id_aux ?callback of_ttype) tys) @@
+    foralls (List.map (of_id_aux ?callback of_ty) ts) (of_formula ?callback body)
+  | Expr.Ex ((tys, ts), _, body) ->
+    exists (List.map (of_id_aux ?callback of_ttype) tys) @@
+    exists (List.map (of_id_aux ?callback of_ty) ts) (of_formula ?callback body)
 
 and of_tree ?callback t = function
   | Expr.F f -> of_formula ?callback f

@@ -16,8 +16,7 @@ let kind_list = [
 ]
 
 type lemma_info =
-  | Ty of Expr.formula * Expr.ty list * Expr.formula
-  | Term of Expr.formula * Expr.term list * Expr.formula
+  | Inst of Expr.formula * Expr.ty list * Expr.term list * Expr.formula
 
 type Dispatcher.lemma_info += Sk of lemma_info
 
@@ -119,36 +118,36 @@ let mark f = H.add seen f 0
 
 (* instanciate the first var *)
 let ty_inst_first ty = function
-  | ({ Expr.formula = Expr.ExTy ((x :: _), _, _) } as f)
-  | ({ Expr.formula = Expr.Not { Expr.formula = Expr.AllTy ((x :: _), _, _) } } as f) ->
+  | ({ Expr.formula = Expr.Ex ((x :: _, _), _, _) } as f)
+  | ({ Expr.formula = Expr.Not {
+         Expr.formula = Expr.All ((x :: _, _), _, _) } } as f) ->
     Expr.Formula.partial_inst
       (Expr.Subst.Id.bind Expr.Subst.empty x ty)
       Expr.Subst.empty f
   | _ -> assert false
 
 let term_inst_first term = function
-  | ({ Expr.formula = Expr.Ex ((x :: _), _, _) } as f)
-  | ({ Expr.formula = Expr.Not { Expr.formula = Expr.All ((x :: _), _, _) } } as f) ->
+  | ({ Expr.formula = Expr.Ex (([], x :: _), _, _) } as f)
+  | ({ Expr.formula = Expr.Not {
+         Expr.formula = Expr.All (([], x :: _), _, _) } } as f) ->
     Expr.Formula.partial_inst Expr.Subst.empty
       (Expr.Subst.Id.bind Expr.Subst.empty x term) f
   | _ -> assert false
 
 (* Proof generation *)
-let mk_proof_ty f q _ taus =
-  let _ = List.fold_left (fun f' ty ->
+let mk_proof f q types terms =
+  let f' = List.fold_left (fun f' ty ->
       let () = Expr.Ty.tag ty def f' in
-      ty_inst_first ty f') f taus
+      ty_inst_first ty f') f types
   in
-  Dispatcher.mk_proof "skolem" "skolem-ty" (Sk (Ty (f, taus, q)))
-
-let mk_proof_term f q _ taus =
-  let _ = List.fold_left (fun f' term ->
+  let q' = List.fold_left (fun f' term ->
       Util.debug ~section "tagging: %a -> %a"
         Expr.Print.term term Expr.Print.formula f';
       let () = Expr.Term.tag term def f' in
-      term_inst_first term f') f taus
+      term_inst_first term f') f' terms
   in
-  Dispatcher.mk_proof "skolem" "skolem-term" (Sk (Term (f, taus, q)))
+  assert (Expr.Formula.equal q q');
+  Dispatcher.mk_proof "skolem" "inst" (Sk (Inst (f, types, terms, q)))
 
 let get_ty_taus ty_args t_args l =
   assert (t_args = []);
@@ -164,54 +163,33 @@ let get_term_taus ty_args t_args l = match !inst with
 (* ************************************************************************ *)
 
 let tau = function
-  | { Expr.formula = Expr.Ex (l, (ty_args, t_args), p) } as f ->
+  | { Expr.formula = Expr.Ex ((l, l'), (ty_args, t_args), p) } as f ->
     if not (has_been_seen f) then begin
       mark f;
       Util.debug ~section "@[<hov 2>New formula:@ %a@\nwith free variables:@ %a,@ %a"
         Expr.Print.formula f
             (CCFormat.list Expr.Print.ty) ty_args
             (CCFormat.list Expr.Print.term) t_args;
-      let taus = get_term_taus ty_args t_args l in
-      let subst = List.fold_left2 Expr.Subst.Id.bind Expr.Subst.empty l taus in
-      let q = Expr.Formula.subst ~t_var_map:subst p in
-      Dispatcher.push [Expr.Formula.neg f; q] (mk_proof_term f q l taus)
+      let types = get_ty_taus ty_args t_args l in
+      let terms = get_term_taus ty_args t_args l' in
+      let m = List.fold_left2 Mapping.Var.bind_ty Mapping.empty l types in
+      let m = List.fold_left2 Mapping.Var.bind_term m l' terms in
+      let q = Mapping.apply_formula m p in
+      Dispatcher.push [Expr.Formula.neg f; q] (mk_proof f q types terms)
     end
-  | { Expr.formula = Expr.Not { Expr.formula = Expr.All (l, (ty_args, t_args), p) } } as f ->
+  | { Expr.formula = Expr.Not { Expr.formula = Expr.All ((l, l'), (ty_args, t_args), p) } } as f ->
     if not (has_been_seen f) then begin
       mark f;
       Util.debug ~section "@[<hov 2>New formula:@ %a@\nwith free variables:@ %a,@ %a"
         Expr.Print.formula f
             (CCFormat.list Expr.Print.ty) ty_args
             (CCFormat.list Expr.Print.term) t_args;
-      let taus = get_term_taus ty_args t_args l in
-      let subst = List.fold_left2 Expr.Subst.Id.bind Expr.Subst.empty l taus in
-      let q = Expr.Formula.subst ~t_var_map:subst p in
-      Dispatcher.push [Expr.Formula.neg f; Expr.Formula.neg q] (mk_proof_term f (Expr.Formula.neg q) l taus)
-    end
-  | { Expr.formula = Expr.ExTy (l, (ty_args, t_args), p) } as f ->
-    if not (has_been_seen f) then begin
-      mark f;
-      Util.debug ~section "@[<hov 2>New formula:@ %a@\nwith free variables:@ %a,@ %a"
-        Expr.Print.formula f
-            (CCFormat.list Expr.Print.ty) ty_args
-            (CCFormat.list Expr.Print.term) t_args;
-      let taus = get_ty_taus ty_args t_args l in
-      let subst = List.fold_left2 Expr.Subst.Id.bind Expr.Subst.empty l taus in
-      let q = Expr.Formula.subst ~ty_var_map:subst p in
-      Dispatcher.push [Expr.Formula.neg f; q] (mk_proof_ty f q l taus)
-    end
-  | { Expr.formula = Expr.Not { Expr.formula = Expr.AllTy (l, (ty_args, t_args), p) } } as f ->
-    assert (t_args = []);
-    if not (has_been_seen f) then begin
-      mark f;
-      Util.debug ~section "@[<hov 2>New formula:@ %a@\nwith free variables:@ %a,@ %a"
-        Expr.Print.formula f
-            (CCFormat.list Expr.Print.ty) ty_args
-            (CCFormat.list Expr.Print.term) t_args;
-      let taus = get_ty_taus ty_args t_args l in
-      let subst = List.fold_left2 Expr.Subst.Id.bind Expr.Subst.empty l taus in
-      let q = Expr.Formula.subst ~ty_var_map:subst p in
-      Dispatcher.push [Expr.Formula.neg f; Expr.Formula.neg q] (mk_proof_ty f (Expr.Formula.neg q) l taus)
+      let types = get_ty_taus ty_args t_args l in
+      let terms = get_term_taus ty_args t_args l' in
+      let m = List.fold_left2 Mapping.Var.bind_ty Mapping.empty l types in
+      let m = List.fold_left2 Mapping.Var.bind_term m l' terms in
+      let q = Expr.Formula.neg @@ Mapping.apply_formula m p in
+      Dispatcher.push [Expr.Formula.neg f; q] (mk_proof f q types terms)
     end
   | _ -> ()
 
@@ -219,14 +197,10 @@ let tau = function
 (* ************************************************************************ *)
 
 let dot_info = function
-  | Ty (f, l, _) ->
+  | Inst (f, l, l', _) ->
     Some "LIGHTBLUE", (
       List.map (CCFormat.const Dot.Print.ty) l @
-      [ CCFormat.const Dot.Print.formula f ]
-    )
-  | Term (f, l, _) ->
-    Some "LIGHTBLUE", (
-      List.map (CCFormat.const Dot.Print.term) l @
+      List.map (CCFormat.const Dot.Print.term) l' @
       [ CCFormat.const Dot.Print.formula f ]
     )
 

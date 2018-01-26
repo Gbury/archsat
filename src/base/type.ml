@@ -356,7 +356,7 @@ let rec explain ~full env fmt t =
         let reason = F.find v env.term_locs in
         Format.fprintf fmt "%a was %a\n" Expr.Print.id_ty v pp_reason reason
       | { Expr.term = Expr.Meta m } ->
-        let f = Expr.Meta.ty_def Expr.(m.meta_index) in
+        let f = Expr.Meta.def Expr.(m.meta_index) in
         Format.fprintf fmt "%a was defined by %a\n"
           Expr.Print.meta m Expr.Print.formula f
       | { Expr.term = Expr.App (f, _, l) } ->
@@ -451,6 +451,16 @@ let _cannot_unify env ast ty t =
 
 let _cannot_infer_quant_var env t =
   raise (Typing_error ("Cannot infer the type of a quantified variable", env, t))
+
+let _unused_type v env =
+  Util.warn "%a:@\nQuantified variables unused: %a"
+    Dolmen.ParseLocation.fmt (get_reason_loc (E.find v env.type_locs))
+    Expr.Print.id v
+
+let _unused_term v env =
+  Util.warn "%a:@\nQuantified variables unused: %a"
+    Dolmen.ParseLocation.fmt (get_reason_loc (F.find v env.term_locs))
+    Expr.Print.id v
 
 (* Wrappers for expression building *)
 (* ************************************************************************ *)
@@ -551,25 +561,16 @@ let make_pred env ast_term p =
   with Expr.Type_mismatch (t, ty, ty') ->
     _type_mismatch env t ty ty' ast_term
 
-let mk_quant_ty env mk vars body =
+let mk_quant env mk (ty_vars, t_vars) body =
   (* Check that all quantified variables are actually used *)
   let fv_ty, fv_t = Expr.Formula.fv body in
-  let unused = List.filter (fun v -> not @@ CCList.mem ~eq:Expr.Id.equal v fv_ty) vars in
   List.iter (fun v ->
-      Util.warn "%a:@\nQuantified variables unused: %a"
-        Dolmen.ParseLocation.fmt (get_reason_loc (E.find v env.type_locs))
-        Expr.Print.id v) unused;
-  mk vars body
-
-let mk_quant_term env mk vars body =
-  (* Check that all quantified variables are actually used *)
-  let fv_ty, fv_t = Expr.Formula.fv body in
-  let unused = List.filter (fun v -> not @@ CCList.mem ~eq:Expr.Id.equal v fv_t) vars in
+      if not @@ CCList.mem ~eq:Expr.Id.equal v fv_ty then _unused_type v env
+    ) ty_vars;
   List.iter (fun v ->
-      Util.warn "%a:@\nQuantified variables unused: %a"
-        Dolmen.ParseLocation.fmt (get_reason_loc (F.find v env.term_locs))
-        Expr.Print.id v) unused;
-  mk vars body
+      if not @@ CCList.mem ~eq:Expr.Id.equal v fv_t then _unused_term v env
+    ) t_vars;
+  mk (ty_vars, t_vars) body
 
 let promote env ast t =
   match t with
@@ -680,17 +681,15 @@ let rec parse_expr (env : env) t =
       let ttype_vars, ty_vars, env' =
         parse_quant_vars (expect env (Typed Expr.Ty.base)) vars in
       Formula (
-        mk_quant_ty env' Expr.Formula.allty ttype_vars
-          (mk_quant_term env' Expr.Formula.all ty_vars
-             (parse_formula env' f)))
+        mk_quant env' Expr.Formula.all
+          (ttype_vars, ty_vars) (parse_formula env' f))
 
     | { Ast.term = Ast.Binder (Ast.Ex, vars, f) } ->
       let ttype_vars, ty_vars, env' =
         parse_quant_vars (expect env (Typed Expr.Ty.base)) vars in
       Formula (
-        mk_quant_ty env' Expr.Formula.exty ttype_vars
-          (mk_quant_term env' Expr.Formula.ex ty_vars
-             (parse_formula env' f)))
+        mk_quant env' Expr.Formula.ex
+          (ttype_vars, ty_vars) (parse_formula env' f))
 
     (* (Dis)Equality *)
     | { Ast.term = Ast.App ({Ast.term = Ast.Builtin Ast.Eq}, l) } as t ->
@@ -698,12 +697,12 @@ let rec parse_expr (env : env) t =
         | [a; b] ->
           begin match promote env t @@ parse_expr env a,
                       promote env t @@ parse_expr env b with
-            | Term t1, Term t2 ->
-              Formula (make_eq env t t1 t2)
-            | Formula f1, Formula f2 ->
-              Formula (Expr.Formula.equiv f1 f2)
-            | _ ->
-              _expected env "either two terms or two formulas" t None
+          | Term t1, Term t2 ->
+            Formula (make_eq env t t1 t2)
+          | Formula f1, Formula f2 ->
+            Formula (Expr.Formula.equiv f1 f2)
+          | _ ->
+            _expected env "either two terms or two formulas" t None
           end
         | _ -> _bad_op_arity env "=" 2 t
       end

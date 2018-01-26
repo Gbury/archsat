@@ -44,6 +44,7 @@ type 'ty id = private {
 
 type 'ty meta = private {
   meta_id : 'ty id;
+  meta_type : 'ty;
   meta_index : 'ty meta_index;
 }
 
@@ -130,10 +131,8 @@ type formula_descr = private
   | Equiv of formula * formula
 
   (** Quantifiers *)
-  | All of ty id list * free_args * formula
-  | AllTy of ttype id list * free_args * formula
-  | Ex of ty id list * free_args * formula
-  | ExTy of ttype id list * free_args * formula
+  | Ex of (ttype id list * ty id list) * free_args * formula
+  | All of (ttype id list * ty id list) * free_args * formula
 
 and formula = private {
   formula : formula_descr;
@@ -320,22 +319,10 @@ module Meta : sig
   module Ttype : Sig.Full with type t = ttype meta
   (** Convenience modules *)
 
-  val of_all_ty : formula -> ttype meta list
-  (** Given a formula [f] which is either a universal quantification over types,
-      or the negation of an existencial quantification over types,
-      returns a list of meta-variables associated with [f]. *)
-
-  val of_all : formula -> ty meta list
-  (** Given a formula [f] which is either a universal quantification over terms,
-      or the negation of an existencial quantification over terms,
-      returns a list of meta-variables associated with [f]. *)
-
-  val ty_def : ty meta_index -> formula
-  val ttype_def : ttype meta_index -> formula
+  val def : _ meta_index -> formula
   (** Returns the formula associated with a given meta index. *)
 
-  val of_ty_index : ty meta_index -> ty meta list
-  val of_ttype_index : ttype meta_index -> ttype meta list
+  val of_index : _ meta_index -> ttype meta list * ty meta list
   (** Returns the list of all metas sharing the given index. *)
 
   val occurs_in_term : ty meta -> term -> bool
@@ -577,12 +564,10 @@ module Formula : sig
   val equiv : formula -> formula -> formula
   (** [equi p q] returns a formula representing [p] equivalent to [q] *)
 
-  val all : ty id list -> formula -> formula
-  val allty : ttype id list -> formula -> formula
+  val all : ttype id list * ty id list -> formula -> formula
   (** Universally quantify the given formula over the given variables *)
 
-  val ex : ty id list -> formula -> formula
-  val exty : ttype id list -> formula -> formula
+  val ex : ttype id list * ty id list -> formula -> formula
   (** Existentially quantify the given formula over the given variables *)
 
   val subst :
@@ -599,6 +584,11 @@ module Formula : sig
 
   val partial_inst : Ty.var_subst -> Term.var_subst -> formula -> formula
   (** Make a partial instanciation of the given formula with the substitutions. *)
+
+  val gen_metas : formula -> ttype meta list * ty meta list
+  (** Given a formula [f] which is either a universal quantification over terms,
+      or the negation of an existencial quantification over terms,
+      returns a list of meta-variables associated with [f]. *)
 
   val fv : formula -> ttype id list * ty id list
   val fm : formula -> ttype meta list * ty meta list
