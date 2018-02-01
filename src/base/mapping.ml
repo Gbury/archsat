@@ -421,9 +421,11 @@ let meta_expand m t =
   let _, l = Expr.Term.fm t in
   meta_extend m l
 
-let complete m =
-  let ((_, l), (_, l')) = codomain m in
+let stretch m m' =
+  let ((_, l), (_, l')) = codomain m' in
   meta_extend (extend m l) l'
+
+let complete m = stretch m m
 
 
 (* Fixpoint on meta substitutions *)

@@ -153,11 +153,12 @@ let merge s s' =
         assert (eq x' y');
         Some x'
     in
+    let rho' = Mapping.stretch (Mapping.stretch rho s) s' in
     let aux_ty _ opt opt' =
-      aux ~eq:Expr.Ty.equal ~f:(Mapping.apply_ty rho) (opt, opt') in
+      aux ~eq:Expr.Ty.equal ~f:(Mapping.apply_ty rho') (opt, opt') in
     let aux_term _ opt opt' =
-      aux ~eq:Expr.Term.equal ~f:(Mapping.apply_term rho) (opt, opt') in
-    Some (rho, Mapping.merge
+      aux ~eq:Expr.Term.equal ~f:(Mapping.apply_term rho') (opt, opt') in
+    Some (rho', Mapping.merge
             ~ty_var:aux_ty ~ty_meta:aux_ty
             ~term_var:aux_term ~term_meta:aux_term
             s s')
@@ -338,6 +339,10 @@ let fresh a b map =
         Mapping.Var.bind_ty acc v (Expr.Ty.of_id @@ new_ty_var ())
       ) Mapping.empty tys) terms
   in
+  let m = C.fold (CCFun.flip Mapping.stretch) map
+      (Mapping.expand (Mapping.expand m a) b) in
+  Util.debug "@[<hv 2>fresh:@ %a@ %a"
+    Mapping.print m pp_map map;
   (Mapping.apply_term m a), (Mapping.apply_term m b), (compose_set map m)
 
 let freshen c =
@@ -540,7 +545,9 @@ let do_resolution ~section acc clause =
   | Neq (s, t) ->
     let sigma = clause.map in
     begin match Unif.Robinson.term Mapping.empty s t with
-      | mgu -> mk_empty (compose_set sigma mgu) clause :: acc
+      | mgu ->
+        let mgu = C.fold (CCFun.flip Mapping.stretch) sigma mgu in
+        mk_empty (compose_set sigma mgu) clause :: acc
       | exception Unif.Robinson.Impossible_ty _ -> acc
       | exception Unif.Robinson.Impossible_term _ -> acc
     end
@@ -752,6 +759,7 @@ let do_merging p active inactive rho =
       then MP (active, inactive)
       else MN (active, inactive)
     in
+    let rho = C.fold (CCFun.flip Mapping.stretch) sigma' rho in
     let c = C.union sigma (compose_set sigma' rho) in
     Util.debug ~section:p.section "@{<Red>Removing@}: %a" pp active.clause;
     Some (rm_clause active.clause p, f s t c reason)
