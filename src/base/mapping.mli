@@ -41,6 +41,7 @@ val remove_refl : t -> t
 
 val extend : t -> Expr.Id.Ty.t list -> t
 val expand : t -> Expr.term -> t
+val stretch : t -> t -> t
 val complete : t -> t
 (** When unifying or building mapping, it might happen that there are
     type variable bindings that changes the type of a term variable that

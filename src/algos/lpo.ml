@@ -92,7 +92,13 @@ and alpha ~prec ss t = match ss with
      | Comparison.Eq | Comparison.Gt -> Comparison.Gt
      | Comparison.Incomparable | Comparison.Lt -> alpha ~prec ss' t)
 
-let compare_terms ~prec x y = rpo6 ~prec x y
+let compare_terms ~prec (x, y) = rpo6 ~prec x y
 
-let compare = compare_terms ~prec:Expr.Id.compare
+let cache =
+  CCCache.unbounded 4013
+    ~hash:(fun (t, t') -> CCHash.combine2 (Expr.Term.hash t) (Expr.Term.hash t'))
+    ~eq:(fun (t1, t2) (t1',t2') -> Expr.Term.equal t1 t1' && Expr.Term.equal t2 t2')
+
+let compare x y =
+  CCCache.with_cache cache (compare_terms ~prec:Expr.Id.compare) (x, y)
 

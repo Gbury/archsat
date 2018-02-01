@@ -337,6 +337,7 @@ let rec unif_f st = function
         | _ -> acc
       ) t (Ext_rewrite.get_active ()) in
     let t = Superposition.solve t in
+    Util.debug ~section "Saturation complete.";
     fold_diff (fun () a b ->
         try let _ = Superposition.solve (Superposition.add_neq t a b) in ()
         with Found_unif -> ()
