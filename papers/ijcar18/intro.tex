@@ -32,14 +32,14 @@ by provers based on more traditional first order proof search methods (tableaux,
 resolution, etc.).
 
 In this paper, we propose to overcome this problem of completeness for first
-logic in SMT solving by combining a SAT solver core with tableau calculus. The
-tableau calculus is introduced as a regular theory of SMT solving, and the rules
-are used to unfold propositional content into clauses while atomic formulas are
-handled using satisfiability decision procedures as usually done in SMT solvers.
-In order to manage quantified first order formulas, we use metavariables and
-perform rigid unification modulo equalities and modulo rewriting, for which we
-introduce an algorithm based on superposition, but where all clauses contain a
-single atomic formula.
+order logic in SMT solving by combining a SAT solver core with tableau
+calculus. The tableau calculus is introduced as a regular theory of SMT solving,
+and the rules are used to unfold propositional content into clauses while atomic
+formulas are handled using satisfiability decision procedures as in
+SMT solvers. To deal with quantified first order formulas, we use
+metavariables and perform rigid unification modulo equalities and rewriting, for
+which we introduce an algorithm based on superposition, but where all clauses
+contain a single atomic formula.
 
 We also propose to improve proof search by introducing rewriting to the SAT
 solver as a regular SMT theory and along the lines of deduction modulo

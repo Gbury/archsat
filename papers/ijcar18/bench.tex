@@ -5,16 +5,17 @@
 
 \subsection{Implementation}
 
-The algorithms described here are implemented in the
-\archsat{}\todo{TODO: Link ?} automated theorem prover. It relies on the
-\msat{}\cite{mSAT} library, derived from \altergoz{}, and which is a
-generic library for creating automated deduction tools based on SAT
-solvers. The SAT core in \msat{} is implemented using CDCL rather
-than the DPLL strategy described in section\label{sec:smt} but it
-does not have any impact on the rewriting or first-order reasoning
-presented in this paper. \archsat{} (as well as \msat{}) is written
-in OCaml. \archsat{} natively supports polymorphic terms and types
-as described in \cite{BP13}.
+The algorithms described here are implemented in the \archsat{} automated
+theorem prover\footnote{Available at:
+\url{https://gforge.inria.fr/projects/archsat}.}. It relies on the
+\msat{}~\cite{GB17} library, derived from \altergoz{}, and which is a generic
+library for building automated deduction tools based on SAT solvers. The SAT
+core in \msat{} is implemented using CDCL rather than the DPLL strategy
+described in Sec.~\ref{sec:smt}, but our approach is actually agnostic with
+respect to the SAT solver core and it therefore does not have any impact on the
+first order reasoning or rewriting presented previously. \archsat{} (as well as
+\msat{}) is written in \ocaml{}. \archsat{} natively supports polymorphic types
+as described in~\cite{BP13}.
 
 \subsection{Experimental Results}
 
@@ -105,8 +106,9 @@ have been obtained even for the best state-of-the-art provers (we have
 considered \e{} and \cvc{} in particular), which tends to show that polymorphism
 encoding adds a lot of noise in proof search and is not effective in practice.
 
-The experiment was run on an \intel{}~3.50~GHz computer, with a timeout of 3~s
-and a memory limit of 1~GiB. The results are summarized in Tab.~\ref{tab:bench}.
+The experiment was run on an \intel{}~3.50~GHz computer, with a timeout of 90~s
+(beyond this timeout, results do not change) and a memory limit of 1~GiB. The
+results are summarized in Tab.~\ref{tab:bench}.
 
 \setlength{\tabcolsep}{3pt}
 \renewcommand{\arraystretch}{1.2}
@@ -134,12 +136,12 @@ and a memory limit of 1~GiB. The results are summarized in Tab.~\ref{tab:bench}.
 \begin{tabular}{c}
 \altergo
 \end{tabular}\tabularnewline
-\hline{}
+\hline
 \begin{tabular}{l}
 Proofs
 \end{tabular} &
 \begin{tabular}{c}
-260
+272
 \end{tabular} &
 \begin{tabular}{c}
 -
@@ -150,53 +152,37 @@ Proofs
 \begin{tabular}{c}
 232
 \end{tabular}\tabularnewline
-\hline{}
+\hline
 \begin{tabular}{l}
 Rate
 \end{tabular} &
 \begin{tabular}{c}
-81.5\%
+85.3\%
 \end{tabular} &
 \begin{tabular}{c}
 -
 \end{tabular} &
 \begin{tabular}{c}
-43.2\%
+43.3\%
 \end{tabular} &
 \begin{tabular}{c}
 72.7\%
 \end{tabular}\tabularnewline
-\hline{}
+\hline
 \begin{tabular}{l}
 Time \small{(s)}
 \end{tabular} &
 \begin{tabular}{c}
-16.61
+268.69
 \end{tabular} &
 \begin{tabular}{c}
 -
 \end{tabular} &
 \begin{tabular}{c}
-2.74
+2.86
 \end{tabular} &
 \begin{tabular}{c}
-8.31
-\end{tabular}\tabularnewline
-\hline{}
-\begin{tabular}{l}
-Unique
-\end{tabular} &
-\begin{tabular}{c}
-0
-\end{tabular} &
-\begin{tabular}{c}
-0
-\end{tabular} &
-\begin{tabular}{c}
-0
-\end{tabular} &
-\begin{tabular}{c}
-0
+8.42
 \end{tabular}\tabularnewline
 \hline
 \end{tabularx}
