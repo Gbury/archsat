@@ -94,28 +94,28 @@ let rec set_cluster c f =
   | Expr.Ex (_, _, f')
   | Expr.All (_, _, f') ->
     let c' = mk_cluster f c in
-    Util.debug ~section "@[<hv 2>%a <<--@ %a@]"
+    Util.debug ~section "@[<hv 2>%a@ <<--@ %a@]"
       Expr.Print.formula f print c';
     Hf.add tbl f c'; set_cluster c f'
 
 let mark_meta quant f =
-  Util.debug ~section "@[<hv 2>Marking:@ %a@ %a@]"
+  Util.debug ~section "@[<hv 2>Marking:@ %a@ with@ %a@]"
     Expr.Print.formula quant Expr.Print.formula f;
   match quant with
-  | ({ Expr.formula = Expr.All (_, _, f') } as q)
+  | ({ Expr.formula = Expr.All (_, _, _) } as q)
   | { Expr.formula = Expr.Not ( {
-          Expr.formula = Expr.Ex (_, _, f') } as q) } ->
+          Expr.formula = Expr.Ex (_, _, _) } as q) } ->
     let current =
       match get_cluster quant with
       | Some c -> c
       | None ->
         let c = mk_root quant in
-        Util.debug ~section "@[<hv 2>%a <<<<@ %a@]"
+        Util.debug ~section "@[<hv 2>%a@ <<<<@ %a@]"
           Expr.Print.formula q print c;
         Hf.add tbl q c;
         c
     in
-    set_cluster current f'
+    set_cluster current f
   | _ -> raise (Invalid_argument "Inst.mark_meta")
 
 (* Virtual meta-variables *)
@@ -131,21 +131,41 @@ let mk_t_var =
   let i = ref 0 in
   (fun ty -> incr i; Expr.Id.ty (Format.asprintf "vt_%d" !i) ty)
 
+let indexes l l' =
+  let aux m = m.Expr.meta_index in
+  CCList.sort_uniq (List.map aux l @ List.map aux l')
+
+let meta_of_indexes l =
+  CCFun.(l
+         |> CCList.map Expr.Meta.of_index
+         |> CCList.split
+         |> CCPair.map CCList.flatten CCList.flatten)
+
 let generalize_aux m =
   Util.debug ~section "Generalizing@ %a" Mapping.print m;
-  let vdom, mdom = Mapping.domain m in
+  let vdom, ((mtydom, mtdom) as mdom) = Mapping.domain m in
   let vtycodom, mtycodom = Mapping.ty_codomain m in
   let vtcodom, mtcodom = Mapping.term_codomain m in
   assert (Expr.Id.inter_fv vdom (vtycodom,vtcodom) = ([], []));
   assert (Expr.Meta.inter_fm mdom (mtycodom, mtcodom) = ([], []));
+  let ty_l, t_l = meta_of_indexes @@ indexes (mtydom @ mtycodom) (mtdom @ mtcodom) in
+  let mtycodom = CCList.filter (fun m -> not @@ CCList.mem ~eq:Expr.Meta.equal m mtydom) ty_l in
+  let mtcodom = CCList.filter (fun m -> not @@ CCList.mem ~eq:Expr.Meta.equal m mtdom) t_l in
+  Util.debug ~section "@[<hv 2>mtycodom: %a@]"
+    CCFormat.(hvbox (list ~sep:(return ";@ ") Expr.Meta.print)) mtycodom;
+  Util.debug ~section "@[<hv 2>mtcodom: %a@]"
+    CCFormat.(hvbox (list ~sep:(return ";@ ") Expr.Meta.print)) mtcodom;
+  assert (Expr.Id.inter_fv vdom (vtycodom,vtcodom) = ([], []));
+  assert (Expr.Meta.inter_fm mdom (mtycodom, mtcodom) = ([], []));
   let vtys = List.map (fun _ -> mk_ty_var ()) vtycodom in
   let mtys = List.map (fun _ -> mk_ty_var ()) mtycodom in
-  let ty_s = List.fold_left2 Mapping.Var.bind_ty Mapping.empty
+  let ty_s = List.fold_left2 Mapping.Var.bind_ty m
       vtycodom (List.map Expr.Ty.of_id vtys) in
   let ty_s = List.fold_left2 Mapping.Meta.bind_ty ty_s
       mtycodom (List.map Expr.Ty.of_id mtys) in
+  Util.debug ~section "@[<hv 2>ty_s:@ %a@]" Mapping.print ty_s;
   let vts = List.map (fun v -> mk_t_var (Mapping.apply_ty ty_s v.Expr.id_type)) vtcodom in
-  let mts = List.map (fun m -> mk_t_var (Mapping.apply_ty ty_s Expr.(m.meta_id.id_type))) mtcodom in
+  let mts = List.map (fun m -> mk_t_var (Mapping.apply_ty ty_s Expr.(m.meta_type))) mtcodom in
   if vtys = [] && mtys = [] &&
      vts = [] && mts = [] then
     m
@@ -153,6 +173,7 @@ let generalize_aux m =
     let ty_vars = vtys @ mtys in
     let term_vars = vts @ mts in
     let f = Expr.Formula.all (ty_vars, term_vars) Expr.Formula.f_true in
+    let () = mark_meta f Expr.Formula.f_true in
     let l, l' = Expr.Formula.gen_metas f in
     (* is this necessary ?
        let () = mark_meta f Expr.Formula.f_true in *)
@@ -211,10 +232,10 @@ let split m =
           Expr.Formula.print f;
         raise (Invalid_argument "Inst.split")
     in
+    Util.debug ~section "split | %a : %a" Expr.Meta.print m Expr.Print.formula r;
     let s = M.get_or ~default:Mapping.empty r acc in
     M.add r (bind s m e) acc
   in
-  Util.debug ~section "split: %a" Mapping.print m;
   let tmp =
     Mapping.fold m M.empty
       ~ty_var:(fun _ _ _ -> assert false)
@@ -272,7 +293,7 @@ let reduce_map s =
 (** Split a single_cluster mapping according to meta indexes *)
 let split_cluster map =
   let aux default meta t acc =
-    let i = (meta.Expr.meta_index : _ Expr.meta_index :> int) in
+    let i = (meta.Expr.meta_index : Expr.meta_index :> int) in
     let s = N.get_or ~default i acc in
     N.add i (Mapping.Meta.bind_term s meta t) acc
   in

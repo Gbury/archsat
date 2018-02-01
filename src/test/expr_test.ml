@@ -200,8 +200,8 @@ module Meta = struct
     with Not_found ->
       let a = Array.init num (fun i ->
           let v = Expr.Id.ty (Format.sprintf "m%d" i) ty in
-          match Expr.(Meta.of_all (Formula.(all [v] f_true))) with
-          | [ m ] -> m
+          match Expr.(Formula.gen_metas (Formula.(all ([], [v]) f_true))) with
+          | [], [ m ] -> m
           | _ -> assert false
         ) in
       H.add table ty a;
@@ -359,12 +359,9 @@ module Formula = struct
       | { Expr.formula = Expr.Imply (p, q) }
       | { Expr.formula = Expr.Equiv (p, q) } ->
         aux (aux (acc + 1) p) q
-      | { Expr.formula = Expr.Ex (l, _, p) }
-      | { Expr.formula = Expr.All (l, _, p) } ->
-        aux (acc + List.length l) p
-      | { Expr.formula = Expr.ExTy (l, _, p) }
-      | { Expr.formula = Expr.AllTy (l, _, p) } ->
-        aux (acc + List.length l) p
+      | { Expr.formula = Expr.Ex ((l, l'), _, p) }
+      | { Expr.formula = Expr.All ((l, l'), _, p) } ->
+        aux (acc + List.length l + List.length l') p
     in
     aux 0
 
@@ -391,30 +388,22 @@ module Formula = struct
     | { Expr.formula = Expr.Equiv (p, q) } ->
       I.(pair (shrink p) (shrink q)
          >|= fun (x, y) -> Expr.Formula.equiv x y)
-    | { Expr.formula = Expr.Ex (l, _, p) } ->
+    | { Expr.formula = Expr.Ex ((l, l'), _, p) } ->
       I.(shrink p >|= fun q ->
-         let _, vars = Expr.Formula.fv q in
-         let l' = List.filter (fun x ->
-             List.exists (Expr.Id.equal x) vars) l in
-         Expr.Formula.ex l' q)
-    | { Expr.formula = Expr.All (l, _, p) } ->
+         let ty_vars, vars = Expr.Formula.fv q in
+         let new_l = List.filter (fun x ->
+             List.exists (Expr.Id.equal x) ty_vars) l in
+         let new_l' = List.filter (fun x ->
+             List.exists (Expr.Id.equal x) vars) l' in
+         Expr.Formula.ex (new_l, new_l') q)
+    | { Expr.formula = Expr.All ((l, l'), _, p) } ->
       I.(shrink p >|= fun q ->
-         let _, vars = Expr.Formula.fv q in
-         let l' = List.filter (fun x ->
-             List.exists (Expr.Id.equal x) vars) l in
-         Expr.Formula.all l' q)
-    | { Expr.formula = Expr.ExTy (l, _, p) } ->
-      I.(shrink p >|= fun q ->
-         let vars, _ = Expr.Formula.fv q in
-         let l' = List.filter (fun x ->
-             List.exists (Expr.Id.equal x) vars) l in
-         Expr.Formula.exty l' q)
-    | { Expr.formula = Expr.AllTy (l, _, p) } ->
-      I.(shrink p >|= fun q ->
-         let vars, _ = Expr.Formula.fv q in
-         let l' = List.filter (fun x ->
-             List.exists (Expr.Id.equal x) vars) l in
-         Expr.Formula.allty l' q)
+         let ty_vars, vars = Expr.Formula.fv q in
+         let new_l = List.filter (fun x ->
+             List.exists (Expr.Id.equal x) ty_vars) l in
+         let new_l' = List.filter (fun x ->
+             List.exists (Expr.Id.equal x) vars) l' in
+         Expr.Formula.all (new_l, new_l') q)
 
   type config = {
     term  : Term.config;
@@ -459,24 +448,16 @@ module Formula = struct
       )
 
   let all f =
-    let _, vars = Expr.Formula.fv f in
-    G.(Misc_test.sublist vars >|= fun l ->
-       Expr.Formula.all l f)
+    let ty_vars, vars = Expr.Formula.fv f in
+    G.(Misc_test.sublist ty_vars >>= fun l ->
+       Misc_test.sublist vars >|= fun l' ->
+       Expr.Formula.all (l, l') f)
 
   let ex f =
-    let _, vars = Expr.Formula.fv f in
-    G.(Misc_test.sublist vars >|= fun l ->
-       Expr.Formula.ex l f)
-
-  let allty f =
-    let vars, _ = Expr.Formula.fv f in
-    G.(Misc_test.sublist vars >|= fun l ->
-       Expr.Formula.allty l f)
-
-  let exty f =
-    let vars, _ = Expr.Formula.fv f in
-    G.(Misc_test.sublist vars >|= fun l ->
-       Expr.Formula.exty l f)
+    let ty_vars, vars = Expr.Formula.fv f in
+    G.(Misc_test.sublist ty_vars >>= fun l ->
+       Misc_test.sublist vars >|= fun l' ->
+       Expr.Formula.ex (l, l') f)
 
   let guided ~config =
     G.fix (fun self n ->
@@ -491,8 +472,6 @@ module Formula = struct
             config.pred,  pred ~config n;
             config.ex,    G.(self (n-1) >>= ex);
             config.all,   G.(self (n-1) >>= all);
-            config.exty,  G.(self (n-1) >>= exty);
-            config.allty, G.(self (n-1) >>= allty);
             config.neg,   G.(return Expr.Formula.neg <*> self (n-1));
             config.conj,  G.(Misc_test.split_int (n-1) >>= fun (a, b) ->
                              self a >>= fun p -> self b >>= fun q ->
@@ -510,7 +489,7 @@ module Formula = struct
   let closed ~config size =
     G.(guided ~config size >|= (fun f ->
         let tys, vars = Expr.Formula.fv f in
-        Expr.Formula.allty tys (Expr.Formula.all vars f)))
+        Expr.Formula.all (tys, vars) f))
 
   let sized = closed ~config:default
 
@@ -522,12 +501,14 @@ module Formula = struct
 
   let meta f =
     let tys, l = Expr.Formula.fv f in
-    assert (tys = []);
-    match Expr.Formula.all l f with
-    | { Expr.formula = Expr.All (vars, _, _) } as q_f ->
-      let metas = List.map Expr.Term.of_meta (Expr.Meta.of_all q_f) in
-      let subst = List.fold_left2 Expr.Subst.Id.bind Expr.Subst.empty vars metas in
-      Expr.Formula.subst ~t_var_map:subst f
+    match Expr.Formula.all (tys, l) f with
+    | { Expr.formula = Expr.All ((ty_vars, vars), _, _) } as q_f ->
+      let l, l' = Expr.Formula.gen_metas q_f in
+      let ty_metas = List.map Expr.Ty.of_meta l in
+      let metas = List.map Expr.Term.of_meta l' in
+      let m = List.fold_left2 Mapping.Var.bind_ty Mapping.empty ty_vars ty_metas in
+      let m = List.fold_left2 Mapping.Var.bind_term m vars metas in
+      Mapping.apply_formula m f
     | _ -> f
 
   let meta_tt (u, v) =

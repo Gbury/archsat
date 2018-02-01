@@ -81,13 +81,13 @@ let pp_sep s =
   CCFormat.return (if S.is_empty s then "" else ";@ ")
 
 let print fmt m =
-  Format.fprintf fmt "@[<hov 1>{%a%a%a%a%a%a%a%a%a%a%a}@]"
-    (S.print E.Print.id E.Print.ty) m.ty_var (pp_sep m.ty_var) ()
-    (S.print E.Print.meta E.Print.ty) m.ty_meta (pp_sep m.ty_meta) ()
-    (S.print E.Print.id E.Print.term) m.t_var (pp_sep m.t_var) ()
-    (S.print E.Print.meta E.Print.term) m.t_meta (pp_sep m.t_meta) ()
-    (S.print E.Print.id E.Print.formula) m.f_var (pp_sep m.t_var) ()
-    (S.print E.Print.meta E.Print.formula) m.f_meta
+  Format.fprintf fmt "@[<hv 1>{%a%a%a%a%a%a%a%a%a%a%a}@]"
+    (S.print E.Print.id_ttype E.Print.ty) m.ty_var (pp_sep m.ty_var) ()
+    (S.print E.Print.meta_ttype E.Print.ty) m.ty_meta (pp_sep m.ty_meta) ()
+    (S.print E.Print.id_ty E.Print.term) m.t_var (pp_sep m.t_var) ()
+    (S.print E.Print.meta_ty E.Print.term) m.t_meta (pp_sep m.t_meta) ()
+    (S.print E.Print.id_ty E.Print.formula) m.f_var (pp_sep m.t_var) ()
+    (S.print E.Print.meta_ty E.Print.formula) m.f_meta
 
 
 (* Whole mapping functions *)
@@ -331,7 +331,7 @@ module Meta = struct
     with Not_found -> None
 
   let get_formula_opt t m =
-    assert Expr.(Ty.equal m.meta_id.id_type Ty.prop);
+    assert Expr.(Ty.equal m.meta_type Ty.prop);
     try Some (get_formula t m)
     with Not_found -> None
 
@@ -342,7 +342,7 @@ module Meta = struct
     { t with hash = -1; t_meta = S.Meta.bind t.t_meta m term }
 
   let bind_formula t m formula =
-    assert Expr.(Ty.equal m.meta_id.id_type Ty.prop);
+    assert Expr.(Ty.equal m.meta_type Ty.prop);
     { t with hash = -1; f_meta = S.Meta.bind t.f_meta m formula }
 
 end
@@ -404,7 +404,7 @@ let extend m l =
 
 let meta_extend m l =
   let aux acc v =
-    let old_ty = Expr.(v.meta_id.id_type) in
+    let old_ty = Expr.(v.meta_type) in
     let new_ty = apply_ty acc old_ty in
     if Expr.Ty.equal old_ty new_ty || Meta.mem_term acc v
     then acc

@@ -325,6 +325,17 @@ let rec unif_f st = function
     Util.enter_prof sup_section;
     let t = sup_empty (n_inst 1) in
     let t = List.fold_left (fun acc (a, b) -> Superposition.add_eq acc a b) t st.equalities in
+    (* Rewrite rules *)
+    let t = List.fold_left (fun acc r ->
+        let open Rewrite.Rule in
+        match (r.guards, r.contents) with
+        | [], C (Term, { trigger; result }) ->
+          Superposition.add_eq acc trigger result
+        | [], C (Formula, { trigger = { Expr.formula = Expr.Pred p };
+                          result = { Expr.formula = Expr.Pred p' }; }) ->
+          Superposition.add_eq acc p p'
+        | _ -> acc
+      ) t (Ext_rewrite.get_active ()) in
     let t = Superposition.solve t in
     fold_diff (fun () a b ->
         try let _ = Superposition.solve (Superposition.add_neq t a b) in ()
@@ -368,7 +379,7 @@ let rec unif_f st = function
     if st.equalities = [] then
       unif_f st Simple
     else
-      unif_f st SuperAll
+      unif_f st SuperEach
 
 (* Proof management *)
 (* ************************************************************************ *)

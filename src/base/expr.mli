@@ -14,7 +14,7 @@ type hash
 type index = private int
 type status = private int
 type tag_map = Tag.map
-type 'a meta_index = private int
+type meta_index = private int
 
 (** Private aliases to provide access. You should not have any need
     to use these, instead use the functions provided by this module. *)
@@ -45,7 +45,7 @@ type 'ty id = private {
 type 'ty meta = private {
   meta_id : 'ty id;
   meta_type : 'ty;
-  meta_index : 'ty meta_index;
+  meta_index : meta_index;
 }
 
 (** A meta-variable is a wrapped variable. They are used as "free variables"
@@ -198,6 +198,8 @@ module Print : sig
   val const_ttype : Format.formatter -> (unit, ttype) function_descr id -> unit
 
   val meta : Format.formatter -> 'a meta -> unit
+  val meta_ty : Format.formatter -> ty meta -> unit
+  val meta_ttype : Format.formatter -> ttype meta -> unit
 
   val ty : Format.formatter -> ty -> unit
   val fun_ty : Format.formatter -> (ttype, ty) function_descr -> unit
@@ -319,10 +321,10 @@ module Meta : sig
   module Ttype : Sig.Full with type t = ttype meta
   (** Convenience modules *)
 
-  val def : _ meta_index -> formula
+  val def : meta_index -> formula
   (** Returns the formula associated with a given meta index. *)
 
-  val of_index : _ meta_index -> ttype meta list * ty meta list
+  val of_index : meta_index -> ttype meta list * ty meta list
   (** Returns the list of all metas sharing the given index. *)
 
   val occurs_in_term : ty meta -> term -> bool

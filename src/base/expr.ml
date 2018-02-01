@@ -16,7 +16,7 @@ type status = int
 type tag_map = Tag.map
 
 type 'a tag = 'a Tag.t
-type 'a meta_index = int
+type meta_index = int
 
 (* Extensible variant type for builtin operations *)
 type builtin = ..
@@ -35,7 +35,7 @@ type 'ty id = {
 type 'ty meta = {
   meta_id : 'ty id;
   meta_type : 'ty;
-  meta_index : 'ty meta_index;
+  meta_index : meta_index;
 }
 
 (* Type for first order types *)
@@ -174,8 +174,12 @@ module Print = struct
     | None -> v.id_name
     | Some s -> s
 
-  let id fmt v = Format.fprintf fmt "%s#%d" (get_name v) v.index
-  let meta fmt m = Format.fprintf fmt "m%d_%a" m.meta_index id m.meta_id
+  let id fmt v =
+    match Tag.get v.id_tags name with
+    | Some s -> Format.fprintf fmt "%s" s
+    | None -> Format.fprintf fmt "%s@{<Black>/%d@}" v.id_name v.index
+
+  let meta fmt m = Format.fprintf fmt "m_%a@{<Black>#%d@}" id m.meta_id m.meta_index
   let ttype fmt = function Type -> Format.fprintf fmt "Type"
 
   let rec ty fmt t = match t.ty with
@@ -220,8 +224,13 @@ module Print = struct
   let id_type print fmt v =
     Format.fprintf fmt "@[<hov 2>%a%a :@ %a@]" id v id_pretty v print v.id_type
 
+  let meta_type print fmt m =
+    Format.fprintf fmt "@[<hov 2>%a :@ %a@]" meta m print m.meta_type
+
   let id_ty = id_type ty
   let id_ttype = id_type ttype
+  let meta_ty = meta_type ty
+  let meta_ttype = meta_type ttype
   let const_ty = id_type fun_ty
   let const_ttype = id_type fun_ttype
 
@@ -388,9 +397,9 @@ module Subst = struct
 
   let print print_key print_value fmt map =
     let aux fmt (key, value) =
-      Format.fprintf fmt "@[<hov>%a ↦@ %a@]" print_key key print_value value
+      Format.fprintf fmt "@[<hov 2>%a ↦@ %a@]" print_key key print_value value
     in
-    Format.fprintf fmt "@[<hov>%a@]"
+    Format.fprintf fmt "@[<hv>%a@]"
       CCFormat.(seq ~sep:(return ";@ ") aux) (Mi.values map)
 
   (* Specific substitutions signature *)
@@ -601,13 +610,16 @@ module Id = struct
     Hashtbl.add term_skolems v.index res
 
   let init_ty_skolems l (ty_vars, t_vars) =
-    assert (t_vars = []); (* Else we would have dependent types *)
     let n = List.length ty_vars in
     List.iter (fun v -> init_ty_skolem v n) l
 
   let init_term_skolems l (ty_vars, t_vars) =
     let args_types = List.map (fun v -> v.id_type) t_vars in
     List.iter (fun v -> init_term_skolem v ty_vars args_types v.id_type) l
+
+  let init_skolems (ty_vars, t_vars) (ty_args, t_args) =
+    init_ty_skolems ty_vars (ty_args, t_args);
+    init_term_skolems t_vars (ty_args @ ty_vars, t_args)
 
   let copy_term_skolem v v' =
     let old = term_skolem v in
@@ -1209,13 +1221,13 @@ module Formula = struct
     if tys = [] && ts = [] then f else
       match f.formula with
       | All ((l, l'), ft, f') ->
+        assert (tys = []); (* Adding type variable will break typing of skolems... *)
         Id.duplicate_ty_skolems l tys;
         Id.duplicate_term_skolems l' ts;
         mk_formula (All ((tys @ l, ts @ l'), ft, f'))
       | _ ->
-        let fv = fv (mk_formula (All ((tys, ts), ([], []), f))) in
-        Id.init_ty_skolems tys fv;
-        Id.init_term_skolems ts fv;
+        let fv = Id.remove_fv (fv f) (tys, ts) in
+        Id.init_skolems (tys, ts) fv;
         mk_formula (All ((tys, ts), to_free_args fv, f))
 
   let ex (tys, ts) f =
@@ -1227,8 +1239,7 @@ module Formula = struct
         mk_formula (Ex ((tys @ l, ts @ l'), ft, f'))
       | _ ->
         let fv = Id.remove_fv (fv f) (tys, ts) in
-        Id.init_ty_skolems tys fv;
-        Id.init_term_skolems ts fv;
+        Id.init_skolems (tys, ts) fv;
         mk_formula (Ex ((tys, ts), to_free_args fv, f))
 
   let rec new_binder_subst ty_var_map ty_meta_map subst acc = function

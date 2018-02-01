@@ -1062,7 +1062,7 @@ let meta_to_var a b =
   let m =
     List.fold_left (fun acc m ->
         Mapping.Meta.bind_term acc m (
-          Expr.Term.of_id @@ new_var (Mapping.apply_ty acc Expr.(m.meta_id.id_type)))
+          Expr.Term.of_id @@ new_var (Mapping.apply_ty acc Expr.(m.meta_type)))
       ) (List.fold_left (fun acc m ->
         Mapping.Meta.bind_ty acc m (Expr.Ty.of_id @@ new_ty_var ())
       ) Mapping.empty mtys) mterms in

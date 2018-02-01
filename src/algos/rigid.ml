@@ -303,7 +303,7 @@ and add_eq_set l s t =
 
 and add_subst sf m t =
   try
-    let u = Unif.Robinson.ty sf.solved Expr.(m.meta_id.id_type) Expr.(t.t_type) in
+    let u = Unif.Robinson.ty sf.solved Expr.(m.meta_type) Expr.(t.t_type) in
     List.fold_left (fun acc (s, t) -> add_gt_set acc t s)
       (sf_singleton {solved = Mapping.Meta.bind_term u m t; constraints = []}) sf.constraints
   with Unif.Robinson.Impossible_ty (ty, ty') ->

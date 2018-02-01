@@ -49,7 +49,7 @@ module Print = struct
 
   let meta fmt m =
     Format.fprintf fmt "m%d_%a"
-      ((m.meta_index) : _ meta_index :> int) id m.meta_id
+      ((m.meta_index) : meta_index :> int) id m.meta_id
 
   let ttype fmt = function Type -> Format.fprintf fmt "Type"
 
