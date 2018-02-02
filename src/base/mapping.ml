@@ -82,12 +82,12 @@ let pp_sep s =
 
 let print fmt m =
   Format.fprintf fmt "@[<hv 1>{%a%a%a%a%a%a%a%a%a%a%a}@]"
-    (S.print E.Print.id_ttype E.Print.ty) m.ty_var (pp_sep m.ty_var) ()
-    (S.print E.Print.meta_ttype E.Print.ty) m.ty_meta (pp_sep m.ty_meta) ()
-    (S.print E.Print.id_ty E.Print.term) m.t_var (pp_sep m.t_var) ()
-    (S.print E.Print.meta_ty E.Print.term) m.t_meta (pp_sep m.t_meta) ()
-    (S.print E.Print.id_ty E.Print.formula) m.f_var (pp_sep m.t_var) ()
-    (S.print E.Print.meta_ty E.Print.formula) m.f_meta
+    (S.print E.Print.id E.Print.ty) m.ty_var (pp_sep m.ty_var) ()
+    (S.print E.Print.meta E.Print.ty) m.ty_meta (pp_sep m.ty_meta) ()
+    (S.print E.Print.id E.Print.term) m.t_var (pp_sep m.t_var) ()
+    (S.print E.Print.meta E.Print.term) m.t_meta (pp_sep m.t_meta) ()
+    (S.print E.Print.id E.Print.formula) m.f_var (pp_sep m.t_var) ()
+    (S.print E.Print.meta E.Print.formula) m.f_meta
 
 
 (* Whole mapping functions *)

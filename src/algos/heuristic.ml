@@ -27,19 +27,39 @@ let rec term_size = function
     1 + List.fold_left (fun acc ty -> max acc (term_size ty)) 0 args
   | _ -> 0
 
+(* Does the type/term include goal-oriented subterms ? *)
+(* ************************************************************************ *)
+
+let rec has_goal_subty = function
+  | ty when ty.Expr.ty_status = Expr.Status.goal ->
+    Util.warn "goal subty found !";
+    true
+  | { Expr.ty = Expr.TyApp (_, l); _ } ->
+    List.exists has_goal_subty l
+  | _ -> false
+
+let rec has_goal_subterm = function
+  | t when t.Expr.t_status = Expr.Status.goal ->
+    Util.warn "goal subterm found !";
+    true
+  | { Expr.term = Expr.App (_, _, l); _ } ->
+    List.exists has_goal_subterm l
+  | _ -> false
 
 (* Goal directed heuristic *)
 (* ************************************************************************ *)
 
 let goal_score_ty ty =
+  let goal = if has_goal_subty ty then 1 else 0 in
   goal_size_mult * ty_size ty
   + goal_meta_mult * nb_metas_in_ty ty
-  + goal_goal_mult * Expr.((ty.ty_status :> int))
+  + goal_goal_mult * goal
 
 let goal_score_term t =
+  let goal = if has_goal_subterm t then 1 else 0 in
   goal_size_mult * term_size t
   + goal_meta_mult * nb_metas_in_term t
-  + goal_goal_mult * Expr.((t.t_status :> int))
+  + goal_goal_mult * goal
 
 let goal_directed u =
   let aux_t _ t (h, k) = (h + goal_score_term t, k + 1) in

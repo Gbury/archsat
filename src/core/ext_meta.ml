@@ -14,11 +14,12 @@ type Dispatcher.lemma_info += Meta of lemma_info
 (* Logging sections *)
 (* ************************************************************************ *)
 
-let section = Section.make ~parent:Dispatcher.section "meta"
+let parent = Section.make ~parent:Dispatcher.section "meta"
+let section = Section.make ~parent "slice"
 
-let sup_section = Section.make ~parent:section "sup"
-let unif_section = Section.make ~parent:section "unif"
-let rigid_section = Section.make ~parent:section "rigid"
+let sup_section = Section.make ~parent "sup"
+let unif_section = Section.make ~parent "unif"
+let rigid_section = Section.make ~parent "rigid"
 
 (* Extension parameters *)
 (* ************************************************************************ *)
@@ -33,8 +34,8 @@ let sup_max_coef = ref (1. /. 100.)
 let sup_max_const = ref 0
 let sup_simplifications = ref true
 
-let rigid_max_depth = ref 1
-let rigid_round_incr = ref 2
+let rigid_max_depth = ref 5
+let rigid_round_incr = ref 1.
 
 let ignore_normalized = ref false
 
@@ -69,7 +70,10 @@ let heur_conv = Cmdliner.Arg.enum heur_list
 
 let score u = match !heuristic_setting with
   | No_heuristic -> 0
-  | Goal_directed -> Heuristic.goal_directed u
+  | Goal_directed ->
+    let n = Heuristic.goal_directed u in
+    if n <> 0 then Util.warn ~section "Interesting inst with score %d" n;
+    n
 
 (* Unification options *)
 type unif =
@@ -95,7 +99,8 @@ let unif_conv = Cmdliner.Arg.enum unif_list
 
 (* Unification parameters *)
 let rigid_depth () =
-  !rigid_max_depth + (Ext_stats.current_round () / !rigid_round_incr)
+  max 1 (!rigid_max_depth + (int_of_float (
+      (float @@ Ext_stats.current_round ()) *. !rigid_round_incr)))
 
 (* Assumed formula parsing *)
 (* ************************************************************************ *)
@@ -116,19 +121,12 @@ let empty_st () = {
   formulas = [];
 }
 
-let top = function
-  | { Expr.term = Expr.App (f, _, _) } -> Some f
-  | _ -> None
-
 (* Folding over terms to unify *)
 let fold_diff f start st =
   let acc = List.fold_left (fun acc (a, b) -> f acc a b) start st.inequalities in
   List.fold_left (fun acc' p ->
       List.fold_left (fun acc'' notp  ->
-          if CCOpt.equal Expr.Id.equal (top p) (top notp) then
-            f acc'' p notp
-          else
-            acc''
+          f acc'' p notp
         ) acc' st.false_preds
     ) acc st.true_preds
 
@@ -269,6 +267,12 @@ let sup_limit st =
 let do_inst u =
   Inst.add ~name:"meta_unif" ~score:(score u) u
 
+let first_inst u =
+  Util.debug "Found inst: @[<hov>%a@]" Mapping.print u;
+  let l = Inst.partition @@ Inst.generalize @@ Mapping.fixpoint u in
+  let _ = List.map do_inst l in
+  raise Found_unif
+
 let insts r u =
   Util.debug "Found inst: @[<hov>%a@]" Mapping.print u;
   let l = Inst.partition @@ Inst.generalize @@ Mapping.fixpoint u in
@@ -303,7 +307,9 @@ let sup_rules () =
 
 let sup_empty f =
   let rules = sup_rules () in
-  Superposition.empty ~rules sup_section f
+  let max_depth = rigid_depth () in
+  Util.log ~section "New empty superposition state (max_depth: %d)" max_depth;
+  Superposition.empty ~max_depth ~rules sup_section f
 
 let rec unif_f st = function
   | No_unif -> assert false
@@ -323,7 +329,7 @@ let rec unif_f st = function
     Util.exit_prof rigid_section
   | SuperEach ->
     Util.enter_prof sup_section;
-    let t = sup_empty (n_inst 1) in
+    let t = sup_empty first_inst in
     let t = List.fold_left (fun acc (a, b) -> Superposition.add_eq acc a b) t st.equalities in
     (* Rewrite rules *)
     let t = List.fold_left (fun acc r ->
@@ -336,10 +342,17 @@ let rec unif_f st = function
           Superposition.add_eq acc p p'
         | _ -> acc
       ) t (Ext_rewrite.get_active ()) in
+    Util.debug ~section "Saturating equalities.";
     let t = Superposition.solve t in
     Util.debug ~section "Saturation complete.";
+    let n = fold_diff (fun acc _ _ -> acc + 1) 0 st in
+    Util.info ~section "Folding over %d pair of terms" n;
     fold_diff (fun () a b ->
-        try let _ = Superposition.solve (Superposition.add_neq t a b) in ()
+        Util.debug ~section "@[<hv 2>unifying@ %a@ and@ %a@]"
+          Expr.Print.term a Expr.Print.term b;
+        try
+          let _ = Superposition.solve (Superposition.add_neq t a b) in
+          ()
         with Found_unif -> ()
       ) () st;
     Util.exit_prof sup_section
@@ -464,7 +477,7 @@ let opts =
   let heuristic =
     let doc = Format.asprintf
         "Select heuristic to use when assigning scores to possible unifiers/instanciations.
-       $(docv) may be %s" (Cmdliner.Arg.doc_alts_enum ~quoted:true heur_list) in
+         $(docv) may be %s" (Cmdliner.Arg.doc_alts_enum ~quoted:true heur_list) in
     Cmdliner.Arg.(value & opt heur_conv No_heuristic & info ["meta.heur"] ~docv:"HEUR" ~docs ~doc)
   in
   let sup_coef =
@@ -481,11 +494,11 @@ let opts =
   in
   let rigid_depth =
     let doc = "Base to compute maximum depth when doing rigid unification." in
-    Cmdliner.Arg.(value & opt int 2 & info ["meta.rigid.depth"] ~docv:"N" ~docs ~doc)
+    Cmdliner.Arg.(value & opt int 5 & info ["meta.rigid.depth"] ~docv:"N" ~docs ~doc)
   in
   let rigid_incr =
-    let doc = "Number of round to wait before increasing the depth of rigid unification." in
-    Cmdliner.Arg.(value & opt int 3 & info ["meta.rigid.incr"] ~docv:"N" ~docs ~doc)
+    let doc = "Increment to the depth of rigid unification at each round." in
+    Cmdliner.Arg.(value & opt float 1. & info ["meta.rigid.incr"] ~docv:"N" ~docs ~doc)
   in
   let ignore_list =
     let doc = Format.asprintf

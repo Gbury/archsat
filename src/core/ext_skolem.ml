@@ -73,33 +73,33 @@ and find_all_deps (tys, ts) l l' =
 
 let tau_counter = ref 0
 
-let gen_ty_tau ty_args t_args v =
+let gen_ty_tau ~status ty_args t_args v =
   let () = incr tau_counter in
   let v' = Expr.(Id.ty_fun (Format.sprintf "t%d" !tau_counter) 0) in
   let (tys, ts) = find_all_deps (Sty.empty, Sterm.empty) ty_args t_args in
-  let res = Expr.Ty.apply v' [] in
+  let res = Expr.Ty.apply ~status v' [] in
   let () = Expr.Ty.tag res deps (tys, ts) in
   res
 
-let gen_ty_skolem ty_args t_args v =
+let gen_ty_skolem ~status ty_args t_args v =
   let v' = Expr.Id.ty_skolem v in
   let (tys, ts) = find_all_deps (Sty.empty, Sterm.empty) ty_args t_args in
-  let res = Expr.Ty.apply v' ty_args in
+  let res = Expr.Ty.apply ~status v' ty_args in
   let () = Expr.Ty.tag res deps (tys, ts) in
   res
 
-let gen_term_tau ty_args t_args v =
+let gen_term_tau ~status ty_args t_args v =
   let () = incr tau_counter in
   let v' = Expr.(Id.term_fun (Format.sprintf "t%d" !tau_counter) [] [] v.id_type) in
   let (tys, ts) = find_all_deps (Sty.empty, Sterm.empty) ty_args t_args in
-  let res = Expr.Term.apply v' [] [] in
+  let res = Expr.Term.apply ~status v' [] [] in
   let () = Expr.Term.tag res deps (tys, ts) in
   res
 
-let gen_term_skolem ty_args types t_args v =
+let gen_term_skolem ~status ty_args types t_args v =
   let v' = Expr.Id.term_skolem v in
   let (tys, ts) = find_all_deps (Sty.empty, Sterm.empty) ty_args t_args in
-  let res = Expr.Term.apply v' (ty_args @ types) t_args in
+  let res = Expr.Term.apply ~status v' (ty_args @ types) t_args in
   let () = Expr.Term.tag res deps (tys, ts) in
   res
 
@@ -153,14 +153,14 @@ let mk_proof f q types terms =
   *)
   Dispatcher.mk_proof "skolem" "inst" (Sk (Inst (f, types, terms, q)))
 
-let get_ty_taus ty_args t_args l =
+let get_ty_taus ~status ty_args t_args l =
   match !inst with
-  | Tau -> List.map (gen_ty_tau ty_args t_args) l
-  | Skolem -> List.map (gen_ty_skolem ty_args t_args) l
+  | Tau -> List.map (gen_ty_tau ~status ty_args t_args) l
+  | Skolem -> List.map (gen_ty_skolem ~status ty_args t_args) l
 
-let get_term_taus ty_args types t_args l = match !inst with
-  | Tau -> List.map (gen_term_tau ty_args t_args) l
-  | Skolem -> List.map (gen_term_skolem ty_args types t_args) l
+let get_term_taus ~status ty_args types t_args l = match !inst with
+  | Tau -> List.map (gen_term_tau ~status ty_args t_args) l
+  | Skolem -> List.map (gen_term_skolem ~status ty_args types t_args) l
 
 (* Helpers *)
 (* ************************************************************************ *)
@@ -169,12 +169,12 @@ let tau = function
   | { Expr.formula = Expr.Ex ((l, l'), (ty_args, t_args), p) } as f ->
     if not (has_been_seen f) then begin
       mark f;
-      Util.debug ~section "@[<hov 2>New formula:@ %a@\nwith free variables:@ %a,@ %a"
-        Expr.Print.formula f
+      Util.debug ~section "@[<hov 2>New formula (%a):@ %a@\nwith free variables:@ %a,@ %a"
+        Expr.Status.print f.Expr.f_status Expr.Print.formula f
             (CCFormat.list Expr.Print.ty) ty_args
             (CCFormat.list Expr.Print.term) t_args;
-      let types = get_ty_taus ty_args t_args l in
-      let terms = get_term_taus ty_args types t_args l' in
+      let types = get_ty_taus ~status:f.Expr.f_status ty_args t_args l in
+      let terms = get_term_taus ~status:f.Expr.f_status ty_args types t_args l' in
       let m = List.fold_left2 Mapping.Var.bind_ty Mapping.empty l types in
       let m = List.fold_left2 Mapping.Var.bind_term m l' terms in
       let q = Mapping.apply_formula m p in
@@ -183,12 +183,12 @@ let tau = function
   | { Expr.formula = Expr.Not { Expr.formula = Expr.All ((l, l'), (ty_args, t_args), p) } } as f ->
     if not (has_been_seen f) then begin
       mark f;
-      Util.debug ~section "@[<hov 2>New formula:@ %a@\nwith free variables:@ %a,@ %a"
-        Expr.Print.formula f
+      Util.debug ~section "@[<hov 2>New formula (%a):@ %a@\nwith free variables:@ %a,@ %a"
+        Expr.Status.print f.Expr.f_status Expr.Print.formula f
             (CCFormat.list Expr.Print.ty) ty_args
             (CCFormat.list Expr.Print.term) t_args;
-      let types = get_ty_taus ty_args t_args l in
-      let terms = get_term_taus ty_args types t_args l' in
+      let types = get_ty_taus ~status:f.Expr.f_status ty_args t_args l in
+      let terms = get_term_taus ~status:f.Expr.f_status ty_args types t_args l' in
       let m = List.fold_left2 Mapping.Var.bind_ty Mapping.empty l types in
       let m = List.fold_left2 Mapping.Var.bind_term m l' terms in
       let q = Expr.Formula.neg @@ Mapping.apply_formula m p in

@@ -28,7 +28,7 @@ val mk_rules :
 type t
 (** Persistent type for supperposisiton. *)
 
-val empty : ?rules:rules -> Section.t -> (Mapping.t -> unit) -> t
+val empty : ?max_depth:int -> ?rules:rules -> Section.t -> (Mapping.t -> unit) -> t
 (** Create an empty supperposisiton state. The function provided will
     be called on all unifiers found during solving.
     @param rules Specify what rules to use during saturation.

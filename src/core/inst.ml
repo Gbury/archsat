@@ -470,7 +470,7 @@ let add ?(name="partial") ?(mark=false) ?(delay=0) ?(score=0) u =
   let t = Inst.mk name mark u score in
   if not (H.mem inst_set t) then begin
     H.add inst_set t false;
-    Util.debug ~section "New inst (%d):@ %a" delay Inst.print t;
+    Util.debug ~section "New inst /%d (%d):@ %a" score delay Inst.print t;
     if delay <= 0 then
       heap := Q.add !heap t
     else

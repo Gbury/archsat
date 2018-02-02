@@ -12,7 +12,7 @@ let section = Section.make "expr"
 (* Private aliases *)
 type hash = int
 type index = int
-type status = int
+type status = Hyp | Goal
 type tag_map = Tag.map
 
 type 'a tag = 'a Tag.t
@@ -98,6 +98,7 @@ type formula_descr =
 
 and formula = {
   formula : formula_descr;
+  f_status : status;
   mutable f_tags : tag_map;
   mutable f_hash  : hash; (* lazy hash *)
   mutable f_vars : (ttype id list * ty id list) option;
@@ -136,9 +137,9 @@ module Order = struct
     | L l, L l' -> List.for_all2 (for_all2 p) l l'
     | _ -> false
 
-  let rec build mk = function
+  let rec build ?status mk = function
     | F x -> x
-    | L l -> mk (List.map (build mk) l)
+    | L l -> mk ?status (List.map (build ?status mk) l)
 
 end
 
@@ -157,8 +158,16 @@ exception Cannot_interpret of term
 (* ************************************************************************ *)
 
 module Status = struct
-  let goal = 1
-  let hypothesis = 0
+
+  type t = status
+
+  let goal = Goal
+  let hypothesis = Hyp
+
+  let print fmt = function
+    | Hyp -> Format.fprintf fmt "hyp"
+    | Goal -> Format.fprintf fmt "goal"
+
 end
 
 (* Printing functions *)
@@ -306,7 +315,8 @@ module Print = struct
         CCFormat.(list ~sep:(return ",@ ") id_ttype) tys
         CCFormat.(list ~sep:(return ",@ ") id_ty) ts formula_aux f
 
-  let formula fmt f = Format.fprintf fmt "⟦@[<hov>%a@]⟧" formula_aux f
+  let formula fmt f =
+    Format.fprintf fmt "(%a)⟦@[<hov>%a@]⟧" Status.print f.f_status formula_aux f
 
 end
 
@@ -1137,33 +1147,38 @@ module Formula = struct
   let to_free_args (tys, ts) = List.map Ty.of_id tys, List.map Term.of_id ts
 
   (* Constructors *)
-  let mk_formula f = {
+  let mk_formula ?(status=Status.hypothesis) f = {
     formula = f;
+    f_status = status;
     f_hash = -1;
     f_tags = Tag.empty;
     f_vars = None;
   }
 
-  let pred t =
+  let pred ?status t =
     if not (Ty.equal Ty.prop t.t_type) then
       raise (Type_mismatch (t, t.t_type, Ty.prop))
     else
-      mk_formula (Pred t)
+      mk_formula ?status (Pred t)
 
   let f_true = mk_formula True
   let f_false = mk_formula False
 
-  let neg f = match f.formula with
+  let neg ?status f = match f.formula with
     | True -> f_false
     | False -> f_true
-    | Not f' -> f'
-    | _ -> mk_formula (Not f)
+    | Not f' ->
+      let f_status = CCOpt.get_or ~default:f.f_status status in
+      { f' with f_status; }
+    | _ ->
+      let status = CCOpt.get_or ~default:f.f_status status in
+      mk_formula ~status (Not f)
 
   let check s = function
     | [_] -> Util.warn "Trying to make a %s with only one element" s;
     | _ -> ()
 
-  let f_and l =
+  let f_and ?status l =
     check "conjunction" l;
     let rec aux (o, acc) = function
       | [] -> o, acc
@@ -1176,11 +1191,11 @@ module Formula = struct
     match aux ([], []) l with
     | _, [] -> f_false
     | o, l' ->
-      let res = mk_formula (And (List.rev l')) in
+      let res = mk_formula ?status (And (List.rev l')) in
       let () = tag res f_order (L (List.rev o)) in
       res
 
-  let f_or l =
+  let f_or ?status l =
     check "disjunction" l;
     let rec aux (o, acc) = function
       | [] -> o, acc
@@ -1193,15 +1208,15 @@ module Formula = struct
     match aux ([], []) l with
     | _, [] -> f_true
     | o, l' ->
-      let res = mk_formula (Or (List.rev l')) in
+      let res = mk_formula ?status (Or (List.rev l')) in
       let () = tag res f_order (L (List.rev o)) in
       res
 
-  let imply p q = mk_formula (Imply (p, q))
+  let imply ?status p q = mk_formula ?status (Imply (p, q))
 
-  let equiv p q = mk_formula (Equiv (p, q))
+  let equiv ?status p q = mk_formula ?status (Equiv (p, q))
 
-  let eq a b =
+  let eq ?status a b =
     if not (Ty.equal a.t_type b.t_type) then
       raise (Type_mismatch (b, b.t_type, a.t_type))
     else if (Ty.equal Ty.prop a.t_type) then
@@ -1209,38 +1224,38 @@ module Formula = struct
     else begin
       let order, res =
         if Term.compare a b < 0 then
-          Same, mk_formula (Equal (a, b))
+          Same, mk_formula ?status (Equal (a, b))
         else
-          Inverse, mk_formula (Equal (b, a))
+          Inverse, mk_formula ?status (Equal (b, a))
       in
       let () = tag res t_order order in
       res
     end
 
-  let all (tys, ts) f =
+  let all ?status (tys, ts) f =
     if tys = [] && ts = [] then f else
       match f.formula with
       | All ((l, l'), ft, f') ->
         assert (tys = []); (* Adding type variable will break typing of skolems... *)
         Id.duplicate_ty_skolems l tys;
         Id.duplicate_term_skolems l' ts;
-        mk_formula (All ((tys @ l, ts @ l'), ft, f'))
+        mk_formula ?status (All ((tys @ l, ts @ l'), ft, f'))
       | _ ->
         let fv = Id.remove_fv (fv f) (tys, ts) in
         Id.init_skolems (tys, ts) fv;
-        mk_formula (All ((tys, ts), to_free_args fv, f))
+        mk_formula ?status (All ((tys, ts), to_free_args fv, f))
 
-  let ex (tys, ts) f =
+  let ex ?status (tys, ts) f =
     if tys = [] && ts = [] then f else
       match f.formula with
       | Ex ((l, l'), ft, f') ->
         Id.duplicate_ty_skolems l tys;
         Id.duplicate_term_skolems l' ts;
-        mk_formula (Ex ((tys @ l, ts @ l'), ft, f'))
+        mk_formula ?status (Ex ((tys @ l, ts @ l'), ft, f'))
       | _ ->
         let fv = Id.remove_fv (fv f) (tys, ts) in
         Id.init_skolems (tys, ts) fv;
-        mk_formula (Ex ((tys, ts), to_free_args fv, f))
+        mk_formula ?status (Ex ((tys, ts), to_free_args fv, f))
 
   let rec new_binder_subst ty_var_map ty_meta_map subst acc = function
     | [] -> List.rev acc, subst
@@ -1268,54 +1283,56 @@ module Formula = struct
       let new_a = Term.subst ~fix ty_vmap ty_mmap t_vmap t_mmap a in
       let new_b = Term.subst ~fix ty_vmap ty_mmap t_vmap t_mmap b in
       if a == new_a && b == new_b then f
-      else eq new_a new_b
+      else eq ~status:f.f_status new_a new_b
     | Pred { term = Var v; } when Subst.Id.mem v f_vmap ->
       subst_aux ~fix ty_vmap ty_mmap t_vmap t_mmap f_vmap f_mmap (Subst.Id.get v f_vmap)
     | Pred { term = Meta m; } when Subst.Meta.mem m f_mmap ->
       subst_aux ~fix ty_vmap ty_mmap t_vmap t_mmap f_vmap f_mmap (Subst.Meta.get m f_mmap)
     | Pred t ->
       let new_t = Term.subst ~fix ty_vmap ty_mmap t_vmap t_mmap t in
-      if t == new_t then f else pred new_t
+      if t == new_t then f else pred ~status:f.f_status new_t
     | Not p ->
       let new_p = subst_aux ~fix ty_vmap ty_mmap t_vmap t_mmap f_vmap f_mmap p in
       if p == new_p then f
-      else neg new_p
+      else neg ~status:f.f_status new_p
     | And _ ->
       let o = CCOpt.get_exn @@ get_tag f f_order in
       let o'= Order.map (subst_aux ~fix ty_vmap ty_mmap t_vmap t_mmap f_vmap f_mmap) o in
       if Order.for_all2 (==) o o' then f
-      else Order.build f_and o'
+      else Order.build ~status:f.f_status f_and o'
     | Or l ->
       let o = CCOpt.get_exn @@ get_tag f f_order in
       let o'= Order.map (subst_aux ~fix ty_vmap ty_mmap t_vmap t_mmap f_vmap f_mmap) o in
       if Order.for_all2 (==) o o' then f
-      else Order.build f_or o'
+      else Order.build ~status:f.f_status f_or o'
     | Imply (p, q) ->
       let new_p = subst_aux ~fix ty_vmap ty_mmap t_vmap t_mmap f_vmap f_mmap p in
       let new_q = subst_aux ~fix ty_vmap ty_mmap t_vmap t_mmap f_vmap f_mmap q in
       if p == new_p && q == new_q then f
-      else imply new_p new_q
+      else imply ~status:f.f_status new_p new_q
     | Equiv (p, q) ->
       let new_p = subst_aux ~fix ty_vmap ty_mmap t_vmap t_mmap f_vmap f_mmap p in
       let new_q = subst_aux ~fix ty_vmap ty_mmap t_vmap t_mmap f_vmap f_mmap q in
       if p == new_p && q == new_q then f
-      else equiv new_p new_q
+      else equiv ~status:f.f_status new_p new_q
     | All ((tys, ts), (ty_args, t_args), p) ->
       (* term variables in ts may have their types changed by the subst *)
       let l', t_map = new_binder_subst ty_vmap ty_mmap t_vmap [] ts in
       List.iter2 Id.copy_term_skolem ts l';
       let new_ty_args = List.map (Ty.subst ~fix ty_vmap ty_mmap) ty_args in
       let new_t_args = List.map (Term.subst ~fix ty_vmap ty_mmap t_map t_mmap) t_args in
-      mk_formula (All ((tys, l'), (new_ty_args, new_t_args),
-                       (subst_aux ~fix ty_vmap ty_mmap t_map t_mmap f_vmap f_mmap p)))
+      mk_formula ~status:f.f_status (
+        All ((tys, l'), (new_ty_args, new_t_args),
+             (subst_aux ~fix ty_vmap ty_mmap t_map t_mmap f_vmap f_mmap p)))
     | Ex ((tys, ts), (ty_args, t_args), p) ->
       (* term variables in ts may have their types changed by the subst *)
       let l', t_map = new_binder_subst ty_vmap ty_mmap t_vmap [] ts in
       List.iter2 Id.copy_term_skolem ts l';
       let new_ty_args = List.map (Ty.subst ~fix ty_vmap ty_mmap) ty_args in
       let new_t_args = List.map (Term.subst ~fix ty_vmap ty_mmap t_map t_mmap) t_args in
-      mk_formula (Ex ((tys, l'), (new_ty_args, new_t_args),
-                       (subst_aux ~fix ty_vmap ty_mmap t_map t_mmap f_vmap f_mmap p)))
+      mk_formula ~status:f.f_status (
+        Ex ((tys, l'), (new_ty_args, new_t_args),
+            (subst_aux ~fix ty_vmap ty_mmap t_map t_mmap f_vmap f_mmap p)))
 
   let subst ?(fix=true)
       ?(ty_var_map=Subst.empty) ?(ty_meta_map=Subst.empty)
@@ -1344,7 +1361,7 @@ module Formula = struct
       let q = subst_aux ~fix:false ty_vmap _empty t_map _empty _empty _empty p in
       let new_args = free_args_inst ty_vmap t_map args in
       if new_tys = [] && new_ts = [] then q
-      else mk_formula (Ex((new_tys, new_ts), new_args, q))
+      else mk_formula ~status:f.f_status (Ex((new_tys, new_ts), new_args, q))
     | All ((tys, ts), args, p) ->
       let new_tys = List.filter (fun v -> not (Subst.Id.mem v ty_vmap)) tys in
       let rem_ts = List.filter (fun v -> not (Subst.Id.mem v t_vmap)) ts in
@@ -1352,7 +1369,7 @@ module Formula = struct
       let q = subst_aux ~fix:false ty_vmap _empty t_map _empty _empty _empty p in
       let new_args = free_args_inst ty_vmap t_map args in
       if new_tys = [] && new_ts = [] then q
-      else mk_formula (All((new_tys, new_ts), new_args, q))
+      else mk_formula ~status:f.f_status (All((new_tys, new_ts), new_args, q))
     | _ -> raise (Invalid_argument "Expr.partial_inst")
 
   let gen_metas f =

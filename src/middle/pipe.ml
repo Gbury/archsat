@@ -253,7 +253,8 @@ let solve (opt, (c : typechecked stmt)) : solved stmt =
     (simple res.id (`Left id) :> solved stmt)
   | ({ contents = `Goal f; _ } as res) ->
     start_section ~section:Dispatcher.section Util.info "Assume goal";
-    let id = Solver.assume ~solve:Options.(opt.solve) c.id [Expr.Formula.neg f] in
+    let id = Solver.assume ~solve:Options.(opt.solve) c.id
+        [Expr.Formula.neg ~status:Expr.Status.goal f] in
     (simple res.id (`Right (id, f)) :> solved stmt)
   | { contents = `Solve; _ } ->
     let ret =

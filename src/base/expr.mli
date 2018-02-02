@@ -11,8 +11,8 @@
     in archsat. *)
 
 type hash
+type status
 type index = private int
-type status = private int
 type tag_map = Tag.map
 type meta_index = private int
 
@@ -136,6 +136,7 @@ type formula_descr = private
 
 and formula = private {
   formula : formula_descr;
+  f_status : status;
   mutable f_tags : tag_map;
   mutable f_hash : hash; (** Use Formula.hash instead *)
   mutable f_vars : (ttype id list * ty id list) option;
@@ -214,8 +215,13 @@ end
 (** {2 Status} *)
 
 module Status : sig
-  val goal : status
-  val hypothesis : status
+
+  type t = status
+
+  val print : Format.formatter -> t -> unit
+
+  val goal : t
+  val hypothesis : t
   (** Standard status for goals (theorem/lemmas to prove), and hypothesis (assumptions) repectly.
       Unless otherwise specified, types and terms have hypothesis status. *)
 end
@@ -544,32 +550,32 @@ module Formula : sig
   val f_false : formula
   (** Formula for the true and false constants *)
 
-  val eq : term -> term -> formula
+  val eq : ?status:status -> term -> term -> formula
   (** Create an equality over two terms. The two given terms
       must have the same type [t], which must be different from {!Ty.prop} *)
 
-  val pred : term -> formula
+  val pred : ?status:status -> term -> formula
   (** Create a formula from a term. The given term must have type {!Ty.prop} *)
 
-  val neg : formula -> formula
+  val neg : ?status:status -> formula -> formula
   (** Returns the negation of the given formula *)
 
-  val f_and : formula list -> formula
+  val f_and : ?status:status -> formula list -> formula
   (** Returns the conjunction of the given formulas *)
 
-  val f_or : formula list -> formula
+  val f_or : ?status:status -> formula list -> formula
   (** Returns the disjunction of the given formulas *)
 
-  val imply : formula -> formula -> formula
+  val imply : ?status:status -> formula -> formula -> formula
   (** [imply p q] returns a formula representing [p] implies [q]. *)
 
-  val equiv : formula -> formula -> formula
+  val equiv : ?status:status -> formula -> formula -> formula
   (** [equi p q] returns a formula representing [p] equivalent to [q] *)
 
-  val all : ttype id list * ty id list -> formula -> formula
+  val all : ?status:status -> ttype id list * ty id list -> formula -> formula
   (** Universally quantify the given formula over the given variables *)
 
-  val ex : ttype id list * ty id list -> formula -> formula
+  val ex : ?status:status -> ttype id list * ty id list -> formula -> formula
   (** Existentially quantify the given formula over the given variables *)
 
   val subst :

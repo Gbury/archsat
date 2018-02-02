@@ -315,7 +315,8 @@ let print_map print fmt map =
   M.iter aux map
 
 let pp_env fmt env =
-  Format.fprintf fmt "@[<hov 2>(%a) %a%a%a%a@]"
+  Format.fprintf fmt "@[<hov 2>%a(%a) %a%a%a%a@]"
+    Expr.Status.print env.status
     print_expect env.expect
     (print_map Expr.Print.id_ttype) env.type_vars
     (print_map Expr.Print.id_ty) env.term_vars
@@ -551,13 +552,13 @@ let term_subst env ast_term id ty_args t_args f_ty_args f_t_args body =
 
 let make_eq env ast_term a b =
   try
-    Expr.Formula.eq a b
+    Expr.Formula.eq ~status:env.status a b
   with Expr.Type_mismatch (t, ty, ty') ->
     _type_mismatch env t ty ty' ast_term
 
 let make_pred env ast_term p =
   try
-    Expr.Formula.pred p
+    Expr.Formula.pred ~status:env.status p
   with Expr.Type_mismatch (t, ty, ty') ->
     _type_mismatch env t ty ty' ast_term
 
@@ -637,17 +638,18 @@ let rec parse_expr (env : env) t =
       Formula Expr.Formula.f_false
 
     | { Ast.term = Ast.App ({Ast.term = Ast.Builtin Ast.And}, l) } ->
-      Formula (Expr.Formula.f_and (List.map (parse_formula env) l))
+      Formula (Expr.Formula.f_and ~status:env.status (List.map (parse_formula env) l))
 
     | { Ast.term = Ast.App ({Ast.term = Ast.Builtin Ast.Or}, l) } ->
-      Formula (Expr.Formula.f_or (List.map (parse_formula env) l))
+      Formula (Expr.Formula.f_or ~status:env.status (List.map (parse_formula env) l))
 
     | { Ast.term = Ast.App ({Ast.term = Ast.Builtin Ast.Xor}, l) } as t ->
       begin match l with
         | [p; q] ->
           let f = parse_formula env p in
           let g = parse_formula env q in
-          Formula (Expr.Formula.neg (Expr.Formula.equiv f g))
+          Formula (Expr.Formula.neg ~status:env.status
+                     (Expr.Formula.equiv ~status:env.status f g))
         | _ -> _bad_op_arity env "xor" 2 t
       end
 
@@ -656,7 +658,7 @@ let rec parse_expr (env : env) t =
         | [p; q] ->
           let f = parse_formula env p in
           let g = parse_formula env q in
-          Formula (Expr.Formula.imply f g)
+          Formula (Expr.Formula.imply ~status:env.status f g)
         | _ -> _bad_op_arity env "=>" 2 t
       end
 
@@ -665,14 +667,14 @@ let rec parse_expr (env : env) t =
         | [p; q] ->
           let f = parse_formula env p in
           let g = parse_formula env q in
-          Formula (Expr.Formula.equiv f g)
+          Formula (Expr.Formula.equiv ~status:env.status f g)
         | _ -> _bad_op_arity env "<=>" 2 t
       end
 
     | { Ast.term = Ast.App ({Ast.term = Ast.Builtin Ast.Not}, l) } as t ->
       begin match l with
         | [p] ->
-          Formula (Expr.Formula.neg (parse_formula env p))
+          Formula (Expr.Formula.neg ~status:env.status (parse_formula env p))
         | _ -> _bad_op_arity env "not" 1 t
       end
 
@@ -681,14 +683,14 @@ let rec parse_expr (env : env) t =
       let ttype_vars, ty_vars, env' =
         parse_quant_vars (expect env (Typed Expr.Ty.base)) vars in
       Formula (
-        mk_quant env' Expr.Formula.all
+        mk_quant env' (Expr.Formula.all ~status:env.status)
           (ttype_vars, ty_vars) (parse_formula env' f))
 
     | { Ast.term = Ast.Binder (Ast.Ex, vars, f) } ->
       let ttype_vars, ty_vars, env' =
         parse_quant_vars (expect env (Typed Expr.Ty.base)) vars in
       Formula (
-        mk_quant env' Expr.Formula.ex
+        mk_quant env' (Expr.Formula.ex ~status:env.status)
           (ttype_vars, ty_vars) (parse_formula env' f))
 
     (* (Dis)Equality *)
@@ -700,7 +702,7 @@ let rec parse_expr (env : env) t =
           | Term t1, Term t2 ->
             Formula (make_eq env t t1 t2)
           | Formula f1, Formula f2 ->
-            Formula (Expr.Formula.equiv f1 f2)
+            Formula (Expr.Formula.equiv ~status:env.status f1 f2)
           | _ ->
             _expected env "either two terms or two formulas" t None
           end
@@ -710,10 +712,11 @@ let rec parse_expr (env : env) t =
     | { Ast.term = Ast.App ({Ast.term = Ast.Builtin Ast.Distinct}, args) } as t ->
       let l' = List.map (parse_term env) args in
       let l'' = CCList.diagonal l' in
-      let l''' = List.map (fun (a, b) -> Expr.Formula.neg (make_eq env t a b)) l'' in
+      let l''' = List.map (fun (a, b) ->
+          Expr.Formula.neg ~status:env.status (make_eq env t a b)) l'' in
       let f = match l''' with
         | [f] -> f
-        | _ -> Expr.Formula.f_and l'''
+        | _ -> Expr.Formula.f_and ~status:env.status l'''
       in
       Formula f
 

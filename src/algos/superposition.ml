@@ -38,6 +38,7 @@ and clause = {
   reason : reason;          (* Reason of the clause *)
   weight : int;             (* weight of the clause (clauses with lesser
                                weight are selected first) *)
+  depth  : int;             (* Depth of the inference chain that leads to this clause. *)
 }
 
 and pointer = {
@@ -242,8 +243,8 @@ let pp_map fmt map =
   C.iter (fun m -> Format.fprintf fmt "@,[%a]" Mapping.print m) map
 
 let pp fmt (c:clause) =
-  Format.fprintf fmt "@[<hov 2>%a@,[%a]@,[%a]%a@]"
-    pp_id c pp_reason c pp_lit c pp_map c.map
+  Format.fprintf fmt "@[<hov 2>%a[%d]@,@,[%a]@,[%a]%a@]"
+    pp_id c c.depth pp_reason c pp_lit c pp_map c.map
 
 let pp_hyps fmt c =
   match c.reason with
@@ -270,6 +271,17 @@ let compute_weight = function
   (* Disequalities have smaller weight because we are more interested
      in them (better chance to apply rule ER, and get a solution) *)
 
+let compute_depth = function
+  | Hyp -> 0
+  | ER c | Fresh c -> c.depth
+  | ES (c, c')
+  | SN (c, c')
+  | SP (c, c')
+  | RN (c, c')
+  | RP (c, c')
+  | MN (c, c')
+  | MP (c, c') -> max c.clause.depth c'.clause.depth
+
 let leq_cl c c' =
   c.weight <= c'.weight || (
     c.weight = c'.weight &&
@@ -282,7 +294,8 @@ let mk_cl =
   (fun lit map reason ->
      incr i;
      let weight = compute_weight lit in
-     let res = { id = !i; lit; map; reason; weight; } in
+     let depth = compute_depth reason + 1 in
+     let res = { id = !i; lit; map; reason; weight; depth; } in
      (* Obsolete, now that there are rewrite rules
      assert (
        let lty,lt = match lit with
@@ -406,6 +419,7 @@ module Q = struct
 
 end
 *)
+
 module S = Set.Make(struct type t = clause let compare = compare end)
 module I = Index.Make(struct type t = pointer let compare = compare_pointer end)
 
@@ -437,6 +451,7 @@ type t = {
   root_pos_index : I.t;
   root_neg_index : I.t;
   inactive_index : I.t;
+  max_depth : int;
   section : Section.t;
   callback : (Mapping.t -> unit);
 }
@@ -452,11 +467,11 @@ let all_rules = {
   mp = true;
 }
 
-let empty ?(rules=all_rules) section callback = {
+let empty ?(max_depth=0) ?(rules=all_rules) section callback = {
   queue = Q.empty;
   clauses = S.empty;
   generated = S.empty;
-  section; callback; rules;
+  section; callback; rules; max_depth;
   root_pos_index = I.empty (Section.make ~parent:section "pos_index");
   root_neg_index = I.empty (Section.make ~parent:section "neg_index");
   inactive_index = I.empty (Section.make ~parent:section "all_index");
@@ -568,6 +583,8 @@ let do_supp acc sigma'' active inactive =
   let sigma = active.clause.map in
   let sigma' = inactive.clause.map in
   let m = List.fold_left Mapping.expand sigma'' [s; t; u; v] in
+  let m = C.fold (CCFun.flip Mapping.stretch) sigma m in
+  let m = C.fold (CCFun.flip Mapping.stretch) sigma' m in
   (* Merge the substitutions. *)
   let res1 = compose_set sigma m in
   let res2 = compose_set sigma' m in
@@ -944,7 +961,9 @@ let trivial c p =
   match c.lit with
   | Eq (a, b) when Expr.Term.equal a b -> true  (* TD1 *)
   | _ when C.is_empty c.map -> true             (* TD2 *)
-  | _ -> S.mem c p.clauses                      (* Simple redundancy criterion *)
+  | _ ->
+    (c.depth > p.max_depth && p.max_depth > 0)  (* max depth criterion *)
+    || S.mem c p.clauses                        (* Simple redundancy criterion *)
 
 (* Fixpoint for simplification rules *)
 let rec fix f p clause =
@@ -960,7 +979,7 @@ let (|>>) f g = fun p x ->
   | None -> g p x
   | (Some _) as res -> res
 
-(* Applies: ES, RP, RN *)
+(* Applies: ES, RP, RN, MP, MN *)
 let simplify c p =
   let aux = equality_subsumption |>>
             merge |>> rewrite_lit in
@@ -1009,7 +1028,10 @@ let rec generate_new ~merge p_set c =
   if merge && not p_set.rules.mn && not p_set.rules.mp then l
   else begin
     let rules = mk_rules ~default:false ~mn:p_set.rules.mn ~mp:p_set.rules.mp () in
-    let tmp = empty ~rules (Section.make ~parent:p_set.section "tmp") (fun _ -> ()) in
+    let tmp = empty
+        ~max_depth:p_set.max_depth ~rules
+        (Section.make ~parent:p_set.section "tmp") (fun _ -> ())
+    in
     let p = List.fold_right enqueue l tmp in
     let p' = discount_loop ~merge:false p in
     assert (Q.is_empty p'.queue);
