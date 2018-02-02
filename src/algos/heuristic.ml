@@ -32,7 +32,6 @@ let rec term_size = function
 
 let rec has_goal_subty = function
   | ty when ty.Expr.ty_status = Expr.Status.goal ->
-    Util.warn "goal subty found !";
     true
   | { Expr.ty = Expr.TyApp (_, l); _ } ->
     List.exists has_goal_subty l
@@ -40,7 +39,6 @@ let rec has_goal_subty = function
 
 let rec has_goal_subterm = function
   | t when t.Expr.t_status = Expr.Status.goal ->
-    Util.warn "goal subterm found !";
     true
   | { Expr.term = Expr.App (_, _, l); _ } ->
     List.exists has_goal_subterm l

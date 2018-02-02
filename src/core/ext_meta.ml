@@ -70,10 +70,7 @@ let heur_conv = Cmdliner.Arg.enum heur_list
 
 let score u = match !heuristic_setting with
   | No_heuristic -> 0
-  | Goal_directed ->
-    let n = Heuristic.goal_directed u in
-    if n <> 0 then Util.warn ~section "Interesting inst with score %d" n;
-    n
+  | Goal_directed -> Heuristic.goal_directed u
 
 (* Unification options *)
 type unif =
@@ -456,7 +453,7 @@ let opts =
     let doc = Format.asprintf
         "Select unification method to use in order to find instanciations
        $(docv) may be %s." (Cmdliner.Arg.doc_alts_enum ~quoted:false unif_list) in
-    Cmdliner.Arg.(value & opt unif_conv No_unif & info ["meta.find"] ~docv:"METHOD" ~docs ~doc)
+    Cmdliner.Arg.(value & opt unif_conv Auto & info ["meta.find"] ~docv:"METHOD" ~docs ~doc)
   in
   let start =
     let doc = "Initial number of metavariables to generate for new formulas" in
@@ -478,7 +475,7 @@ let opts =
     let doc = Format.asprintf
         "Select heuristic to use when assigning scores to possible unifiers/instanciations.
          $(docv) may be %s" (Cmdliner.Arg.doc_alts_enum ~quoted:true heur_list) in
-    Cmdliner.Arg.(value & opt heur_conv No_heuristic & info ["meta.heur"] ~docv:"HEUR" ~docs ~doc)
+    Cmdliner.Arg.(value & opt heur_conv Goal_directed & info ["meta.heur"] ~docv:"HEUR" ~docs ~doc)
   in
   let sup_coef =
     let doc = "Affine coefficient for the superposition limit" in
@@ -494,7 +491,7 @@ let opts =
   in
   let rigid_depth =
     let doc = "Base to compute maximum depth when doing rigid unification." in
-    Cmdliner.Arg.(value & opt int 5 & info ["meta.rigid.depth"] ~docv:"N" ~docs ~doc)
+    Cmdliner.Arg.(value & opt int 3 & info ["meta.rigid.depth"] ~docv:"N" ~docs ~doc)
   in
   let rigid_incr =
     let doc = "Increment to the depth of rigid unification at each round." in
