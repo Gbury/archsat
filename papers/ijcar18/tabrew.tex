@@ -388,9 +388,9 @@ the literal. More precisely, given a literal $\lfloor{}P\rfloor$, where $P$ is a
 formula, and a formula $P'$ such that $P=_\mathcal{RE}P'$, we generate the
 following clause:
 
-$$(\bigvee_{(l,r)\in\mathcal{R}}
-\neg\lfloor\forall{}\vec{x}.l\Leftrightarrow{}r\rfloor)\lor
-(\bigvee_{(l,r)\in\mathcal{E}}\neg\lfloor\forall{}\vec{x}.l=r\rfloor)\lor
+$$\left(\bigvee_{(l,r)\in\mathcal{R}}
+\neg\lfloor\forall{}\vec{x}.l\Leftrightarrow{}r\rfloor\right)\lor
+\left(\bigvee_{(l,r)\in\mathcal{E}}\neg\lfloor\forall{}\vec{x}.l=r\rfloor\right)\lor
 \lfloor{}P\Leftrightarrow{}P'\rfloor$$
 
 where $\vec{x}=\mathrm{FV}(l)\cup\mathrm{FV}(r)$.
@@ -402,7 +402,7 @@ generate the formula where rewritings have been done, while triggers can just
 generate bindings, i.e. instances of the rewrite rules, which are used later to
 relate the initial formula and the rewritten formula. Moreover, in our case, we
 can perform several rewritings at once, while a trigger can only emulate one
-rewriting.
+rewriting at a time.
 
 Let us illustrate the use of the rewriting theory by means of an example in set
 theory. Let us prove that

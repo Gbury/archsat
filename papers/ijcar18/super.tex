@@ -65,8 +65,8 @@ $\sigma$ is less general than $\sigma'$.
 
 Considering a substitution as a function from variables to terms, we can define
 the domain of a substitution $\sigma$ as the set of variables which have a
-non-trivial binding in $\sigma$\footnote{A trivial binding maps a variable to
-itself.}. The co-domain of a substitution is the set of variables occurring in
+non-trivial binding in $\sigma$.\footnote{A trivial binding maps a variable to
+itself.} The co-domain of a substitution is the set of variables occurring in
 terms in the image of the domain of the substitution. In all the following, we
 will consider idempotent substitutions, i.e. substitution for which the domain
 and co-domain have an empty intersection.
@@ -94,7 +94,8 @@ with rigid variables. We adopt notations and names from Schulz's paper on
 E~\cite{SS02}. A single bar denotes an inference, i.e. we add the result to the
 saturation set,whereas a double bar is a simplification in which the premises
 are replaced by the conclusion(s). The relation $\prec$ is a {\em reduction
-ordering}, used to orient equations, thus pruning the search space. Typically,
+ordering}, used to orient equations and restrict inferences, thus pruning the search space.
+Typically,
 $\prec$ is one of RPO or KBO. The rules of Fig.~\ref{fig:unit-sup-rules} work as
 described below:
 
