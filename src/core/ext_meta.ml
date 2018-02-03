@@ -245,7 +245,7 @@ let do_meta_inst = function
       let t_metas = List.map Expr.Term.of_meta l' in
       let m = List.fold_left2 Mapping.Var.bind_ty Mapping.empty tys ty_metas in
       let m = List.fold_left2 Mapping.Var.bind_term m ts t_metas in
-      if not (Inst.add ~name:"meta_gen" ~mark:true ~delay:(delay !i) m) then assert false
+      if not (Inst.add ~name:"meta_gen" ~delay:(delay !i) m) then assert false
     end
   | _ -> assert false
 
@@ -266,7 +266,10 @@ let do_inst u =
 
 let first_inst u =
   Util.debug "Found inst: @[<hov>%a@]" Mapping.print u;
-  let l = Inst.partition @@ Inst.generalize @@ Mapping.fixpoint u in
+  let l = CCFun.(u
+                 |> Mapping.fixpoint
+                 |> Inst.generalize
+                 |> Inst.partition) in
   let _ = List.map do_inst l in
   raise Found_unif
 
@@ -306,7 +309,7 @@ let sup_empty f =
   let rules = sup_rules () in
   let max_depth = rigid_depth () in
   Util.log ~section "New empty superposition state (max_depth: %d)" max_depth;
-  Superposition.empty ~max_depth ~rules sup_section f
+  Superposition.empty ~max_depth ~rules sup_section (fun m -> f @@ Mapping.normalize m)
 
 let rec unif_f st = function
   | No_unif -> assert false
@@ -348,6 +351,7 @@ let rec unif_f st = function
         Util.debug ~section "@[<hv 2>unifying@ %a@ and@ %a@]"
           Expr.Print.term a Expr.Print.term b;
         try
+
           let _ = Superposition.solve (Superposition.add_neq t a b) in
           ()
         with Found_unif -> ()
@@ -387,10 +391,36 @@ let rec unif_f st = function
     end;
     Util.exit_prof sup_section
   | Auto ->
-    if st.equalities = [] then
-      unif_f st Simple
-    else
-      unif_f st SuperEach
+    Util.enter_prof sup_section;
+    let t = sup_empty first_inst in
+    let t = List.fold_left (fun acc (a, b) -> Superposition.add_eq acc a b) t st.equalities in
+    (* Rewrite rules *)
+    let t = List.fold_left (fun acc r ->
+        let open Rewrite.Rule in
+        match (r.guards, r.contents) with
+        | [], C (Term, { trigger; result }) ->
+          Superposition.add_eq acc trigger result
+        | [], C (Formula, { trigger = { Expr.formula = Expr.Pred p };
+                          result = { Expr.formula = Expr.Pred p' }; }) ->
+          Superposition.add_eq acc p p'
+        | _ -> acc
+      ) t (Ext_rewrite.get_active ()) in
+    Util.debug ~section "Saturating equalities.";
+    let t = lazy (Superposition.solve t) in
+    Util.debug ~section "Saturation complete.";
+    let n = fold_diff (fun acc _ _ -> acc + 1) 0 st in
+    Util.info ~section "Folding over %d pair of terms" n;
+    fold_diff (fun () a b ->
+        Util.debug ~section "@[<hv 2>unifying@ %a@ and@ %a@]"
+          Expr.Print.term a Expr.Print.term b;
+        try
+          (* try robinson first *)
+          let () = Unif.Robinson.unify_term ~section:unif_section (n_inst 1) a b in
+          (* If it failed, try using superposition *)
+          let _ = Superposition.solve (Superposition.add_neq (Lazy.force t) a b) in
+          ()
+        with Found_unif -> ()
+      ) () st
 
 (* Proof management *)
 (* ************************************************************************ *)

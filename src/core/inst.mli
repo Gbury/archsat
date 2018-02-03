@@ -27,10 +27,7 @@ val partition : Mapping.t -> Mapping.t list
     Additionally, no formula generating metas from two different unifiers in the list
     are comparable. *)
 
-val add :
-  ?name:string -> ?mark:bool ->
-  ?delay:int -> ?score:int ->
-  Mapping.t -> bool
+val add : ?name:string -> ?delay:int -> ?score:int -> Mapping.t -> bool
 (** Add a unifier to the list of instanciations to do, possibly giving it a score.
     Unifiers with lower scores are prioritized when pushing instanciations to the solver.
     Returns true if the unifier has been added to the queue of instanciations to do,
@@ -39,8 +36,7 @@ val add :
             that this is a meta creation. *)
 
 val soft_subst :
-  ?mark:bool -> name:string ->
-  Expr.formula -> Mapping.t -> Expr.formula list * Dispatcher.lemma
+  name:string -> Expr.formula -> Mapping.t -> Expr.formula list * Dispatcher.lemma
 (** [soft_subst f u], returns a clause and lemma suitable for pushing to the solver.
     The clause represents the instanciation of [f] using the mapping [u]. Only the
     top of the formula is instanciated (i.e the first type binder, *and* the first

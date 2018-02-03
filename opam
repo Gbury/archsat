@@ -30,7 +30,7 @@ depends: [
   "qcheck" { test & >= "dev" }
   "dolmen" { >= "dev" }
   "msat" { >= "0.6.1" }
-  "containers" { >= "1.0" }
+  "containers" { >= "2.0" }
   "cmdliner" { >= "0.9.8" }
   "zarith"
   "ocamlgraph"

@@ -120,12 +120,12 @@ let fold
   ?(term_meta=_id)
   ?(formula_var=_id)
   ?(formula_meta=_id) t acc =
-  S.fold ty_var t.ty_var @@
-  S.fold ty_meta t.ty_meta @@
-  S.fold term_var t.t_var @@
-  S.fold term_meta t.t_meta @@
+  S.fold formula_meta t.f_meta @@
   S.fold formula_var t.f_var @@
-  S.fold formula_meta t.f_meta acc
+  S.fold term_meta t.t_meta @@
+  S.fold term_var t.t_var @@
+  S.fold ty_meta t.ty_meta @@
+  S.fold ty_var t.ty_var acc
 
 let for_all
     ?(ty_var=_false)
@@ -202,6 +202,13 @@ let merge
     f_var = S.merge formula_var t.f_var t'.f_var;
     f_meta = S.merge formula_meta t.f_meta t'.f_meta;
   }
+
+let cardinal m =
+  let aux _ _ n = n + 1 in
+  fold m 0
+    ~ty_var:aux ~ty_meta:aux
+    ~term_var:aux ~term_meta:aux
+    ~formula_var:aux ~formula_meta:aux
 
 (* Mapping domain *)
 (* ************************************************************************ *)
@@ -439,5 +446,60 @@ let fixpoint t =
      during application *)
   let t' = complete t in
   apply ~fix:true t' t'
+
+(* Substitution normalization *)
+(* ************************************************************************ *)
+
+let mk_ty_var =
+  CCCache.with_cache (CCCache.unbounded ~eq:(=) 10)
+    (fun i -> Expr.Id.ttype (Format.asprintf "nty_%d" i))
+
+let mk_term_var =
+  let eq = CCPair.equal (=) Expr.Ty.equal in
+  CCCache.with_cache (CCCache.unbounded ~eq 107)
+    (fun (i, ty) -> Expr.Id.ty (Format.asprintf "n_%d" i) ty)
+
+let add_ty_var subst v =
+  if Var.mem_ty subst v then subst
+  else Var.bind_ty subst v (Expr.Ty.of_id (mk_ty_var (cardinal subst)))
+
+let add_term_var subst v =
+  if Var.mem_term subst v then subst
+  else Var.bind_term subst v (
+      Expr.Term.of_id (
+        mk_term_var (cardinal subst,
+                     apply_ty subst v.Expr.id_type)))
+
+let rec walk_ty subst = function
+  | { Expr.ty = Expr.TyVar v } -> add_ty_var subst v
+  | { Expr.ty = Expr.TyMeta _ } -> subst (* TODO: check type ? *)
+  | { Expr.ty = Expr.TyApp (_, l) } -> List.fold_left walk_ty subst l
+
+let rec walk_term subst = function
+  | { Expr.term = Expr.Var v } -> add_term_var subst v
+  | { Expr.term = Expr.Meta _ } -> subst (* TODO: check type ? *)
+  | { Expr.term = Expr.App (_, l, l') } ->
+    List.fold_left walk_term (
+      List.fold_left walk_ty subst l
+    ) l'
+
+let normalize m =
+  let ty bind v ty (subst, res) =
+    let subst = walk_ty subst ty in
+    (subst, bind res v (apply_ty subst ty))
+  in
+  let term bind v t (subst, res) =
+    let subst = walk_term subst t in
+    (subst, bind res v (apply_term subst t))
+  in
+  snd @@ fold m (empty, empty)
+    ~ty_var:(ty Var.bind_ty)
+    ~ty_meta:(ty Meta.bind_ty)
+    ~term_var:(term Var.bind_term)
+    ~term_meta:(term Meta.bind_term)
+    ~formula_var:(_assert_false2)
+    ~formula_meta:(_assert_false2)
+
+
 
 

@@ -395,7 +395,7 @@ let to_var s =
     ~term_meta:(fun {Expr.meta_id = v} t acc -> Mapping.Var.bind_term acc v t)
     s Mapping.empty
 
-let soft_subst ?(mark=false) ~name f t =
+let soft_subst ~name f t =
   let ty_subst = Mapping.ty_var t in
   let term_subst = Mapping.term_var t in
   let tys, ts =
@@ -410,7 +410,13 @@ let soft_subst ?(mark=false) ~name f t =
     Expr.Formula.all (tys, ts) @@
     Expr.Formula.partial_inst ty_subst term_subst f
   in
-  let () = if mark then mark_meta f q in
+  let () =
+    let _, (l, l') = Mapping.codomain t in
+    match indexes l l' with
+    | [] -> ()
+    | [i] -> mark_meta (Expr.Meta.def i) q
+    | _ -> assert false
+  in
   [ Expr.Formula.neg f; q], mk_proof ~name f q t tys ts
 
 (* Heap for prioritizing instanciations *)
@@ -421,7 +427,6 @@ module Inst = struct
     age   : int;
     hash  : int;
     score : int;
-    mark  : bool;
     name  : string;
     formula : Expr.formula;
     var_subst : Mapping.t;
@@ -432,11 +437,11 @@ module Inst = struct
   let clock () = incr age
 
   (* Constructor *)
-  let mk name mark u score =
+  let mk name u score =
     let formula = map_def u in
     let var_subst = to_var u in
     let hash = Hashtbl.hash (Expr.Formula.hash formula, Mapping.hash u) in
-    { age = !age; hash; score; mark; name; formula; var_subst; }
+    { age = !age; hash; score; name; formula; var_subst; }
 
   (* debug printing *)
   let print fmt t =
@@ -463,11 +468,11 @@ let delayed = ref []
 let inst_set = H.create 4096
 let inst_incr = ref 0
 
-let add ?(name="partial") ?(mark=false) ?(delay=0) ?(score=0) u =
+let add ?(name="partial") ?(delay=0) ?(score=0) u =
   assert (match split_cluster (reduce_map u) with
       | [s] -> Mapping.equal s u
       | _ -> false);
-  let t = Inst.mk name mark u score in
+  let t = Inst.mk name u score in
   if not (H.mem inst_set t) then begin
     H.add inst_set t false;
     Util.debug ~section "New inst /%d (%d):@ %a" score delay Inst.print t;
@@ -486,7 +491,7 @@ let push acc inst =
   H.replace inst_set inst true;
   let open Inst in
   Util.debug ~section "Pushing inst:@ %a" Inst.print inst;
-  let cl, p = soft_subst ~name:inst.name ~mark:inst.mark inst.formula inst.var_subst in
+  let cl, p = soft_subst ~name:inst.name inst.formula inst.var_subst in
   Dispatcher.push cl p;
   acc + 1
 

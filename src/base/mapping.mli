@@ -52,6 +52,10 @@ val complete : t -> t
     This funciton completes a mapping in this way, with regards to a list
     of variables (kinda like in the way quantified variables are renamed. *)
 
+val normalize : t -> t
+(** Replaces all the free variables in the codomain by fixed variables
+    to allow for comparison modulo alpha-equivalence. *)
+
 val map :
   (Expr.ty -> Expr.ty) ->
   (Expr.term -> Expr.term) ->
