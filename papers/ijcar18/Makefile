@@ -14,7 +14,7 @@ check:
         $(BIBTEX) $(TEX:.tex=) | grep "Error\|Warning"; exit 0
 
 clean:
-	rm -f *~ .*~ *.aux *.bbl *.blg *.log *.pdf
+	rm -f *~ .*~ *.aux *.bbl *.blg *.log *.out $(PDF)
 
 watch:
 	while inotifywait -e delete_self -e modify *.tex Makefile ; do \

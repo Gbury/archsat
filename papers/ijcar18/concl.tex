@@ -3,15 +3,10 @@
 \section{Conclusion}
 
 We have described the architecture of \archsat{}, an automated theorem prover
-that combines a SAT solver with tableau calculus and rewriting. The tableau
-calculus is introduced as a regular theory of SMT solving, and the rules are
-used to unfold propositional content into clauses while atomic formulas are
-handled using satisfiability decision procedures as in SMT solvers. To deal with
-quantified first order formulas, we use metavariables and perform rigid
-unification modulo equalities and rewriting, for which we introduce an algorithm
-based on superposition, but where all clauses contain a single atomic formula.
-As for rewriting, it is introduced along the lines of deduction modulo theory,
-where axioms are turned into rewrite rules over both propositions and terms.
+that combines a SAT solver with tableau calculus and rewriting. Compared to
+several other tools, \archsat{} appears quite effective in practice, as shown by
+some experimental results obtained by running our implementation over a
+benchmark of problems in the \bmth{} set theory.
 
 As perspectives, we plan to realize more tests of \archsat{} over other theories
 where a large part of these theories can be turned into rewrite rules. In

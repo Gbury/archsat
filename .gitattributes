@@ -1,0 +1,7 @@
+*.tex ident
+*.bib ident
+*.bst ident
+*.cls ident
+*.sty ident
+.*el ident
+Makefile ident

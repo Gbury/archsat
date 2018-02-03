@@ -22,10 +22,9 @@ several solutions (superposition rule for first order provers, triggers for SMT
 solvers, etc.). But deduction modulo theory~\cite{DA03} is probably the most
 general approach, where a theory can be partly turned in to a set of rewrite
 rules over both terms and propositions. Several proof search methods have been
-extended to deduction modulo theory, resulting in tools such as
-\iproverm{}~\cite{GB11} and \zenm{}~\cite{Zenon-Modulo}. This paper can be seen
-as a continuation of these previous experiments adapted to the framework of SMT
-solving.
+extended to deduction modulo theory, resulting in tools such as \iproverm{} and
+\zenm{}. This paper can be seen as a continuation of these previous experiments
+adapted to the framework of SMT solving.
 
 \subsection{SAT Solving Modulo Theories}
 
@@ -84,7 +83,7 @@ Fig.~\ref{fig:smt}. Each time a literal is propagated (rule
 to each theory, which may generate new clauses (rule ``$\mathrm{learn}$''). If a
 clause is unvalidated by the model, then it is possible to backtrack the
 decision over a given literal of the model if it exists (rule
-``$\mathrm{backjump}$'').  There are two final states in this transition
+``$\mathrm{backjump}$''). There are two final states in this transition
 system. The first one is ``$\mathrm{unsat}$'', which means that $S$ is
 unsatisfiable (rule ``$\mathrm{unsat}$''). The second one is $M\parallel{}S$,
 where $M$ is a model of $S$ and a tautology for every theory in $S_T$. In this
@@ -400,9 +399,9 @@ of triggers that are actually the left-hand side members of the class rewrite
 system $\mathcal{RE}$ introduced above. But, in our rewriting theory, we can
 generate the formula where rewritings have been done, while triggers can just
 generate bindings, i.e. instances of the rewrite rules, which are used later to
-relate the initial formula and the rewritten formula. Moreover, in our case, we
-can perform several rewritings at once, while a trigger can only emulate one
-rewriting at a time.
+relate the initial and rewritten formulas. Moreover, in our case, we can perform
+several rewritings at once, while a trigger can only emulate one rewriting at a
+time.
 
 Let us illustrate the use of the rewriting theory by means of an example in set
 theory. Let us prove that

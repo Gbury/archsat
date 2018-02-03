@@ -4,8 +4,8 @@
 
 \usepackage[utf8]{inputenc}
 \usepackage[T1]{fontenc}
-\usepackage[usenames,dvipsnames,svgnames,table]{xcolor}
 \usepackage{makeidx}
+\usepackage[hidelinks]{hyperref}
 \usepackage{bussproofs}
 \usepackage{amsmath,amsfonts,amssymb}
 \usepackage{stmaryrd}
@@ -15,7 +15,6 @@
 \usepackage{float}
 \usepackage{color}
 \usepackage{cite}
-\usepackage{hyperref}
 \usepackage{booktabs} % for tabular
 \floatstyle{boxed}
 \restylefloat{figure}
@@ -51,7 +50,7 @@ formulas, we use metavariables and perform rigid unification modulo equalities
 and rewriting, for which we introduce an algorithm based on superposition, but
 where all clauses contain a single atomic formula. Rewriting is introduced along
 the lines of deduction modulo theory, where axioms are turned into rewrite rules
-over both propositions and terms.  Finally, we assess our approach over a
+over both propositions and terms. Finally, we assess our approach over a
 benchmark of lemmas in the set theory of the \bmth{} method.
 
 \keywords{SAT, SMT, Tableaux, Rewriting, Superposition}
