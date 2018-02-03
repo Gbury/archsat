@@ -143,7 +143,7 @@ module Misc = struct
     Expr.Id.ty_fun name n
 
   let tuple_cstr =
-    CCCache.with_cache (CCCache.unbounded 17)
+    CCCache.with_cache (CCCache.unbounded ~eq:(=) 17)
       (fun n ->
          let name = string_of_int n ^ "-tuple" in
          let range = CCList.range 1 n in
@@ -163,7 +163,7 @@ module Misc = struct
   let p_true = Expr.Term.apply (Expr.Id.term_fun ~builtin:True "true" [] [] Expr.Ty.prop) [] []
   let p_false = Expr.Term.apply (Expr.Id.term_fun ~builtin:False "false" [] [] Expr.Ty.prop) [] []
 
-  let prop_cache = CCCache.unbounded 128
+  let prop_cache = CCCache.unbounded ~eq:(=) 128
   let mk_prop_aux = CCCache.with_cache prop_cache
       (fun i ->
          let c = Expr.Id.term_fun ("p" ^ string_of_int i) [] [] Expr.Ty.prop in

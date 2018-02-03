@@ -133,7 +133,7 @@ let mk_t_var =
 
 let indexes l l' =
   let aux m = m.Expr.meta_index in
-  CCList.sort_uniq (List.map aux l @ List.map aux l')
+  CCList.sort_uniq ~cmp:Pervasives.compare (List.map aux l @ List.map aux l')
 
 let meta_of_indexes l =
   CCFun.(l
