@@ -132,15 +132,14 @@ equality, not matching.
 \item[RN] is the same as RP but for rewriting negative clauses.
 \end{description}
 
-Rule \textbf{SN} (resp.~\textbf{SP}) generates as many equations
-(resp.~disequations) as there are in the set $(\Sigma \circ \sigma'')
-\uparrow (\Sigma' \circ \sigma'')$ because all substitutions may not
-always be merged, for instance consider $f(x) = t | \{
-  \{ X_1 \mapsto x \}, \{ X_2 \mapsto x \} \}$ and $f(a) = v | \{
-  \{ X_1 \mapsto a \} \} \}$, we have to derive two distinct, non-mergeable
-equations
-$ (t = v)\{ x \mapsto a \} | \{ \{ X_1 \mapsto a \} \}$ and
-$ (t = v)\{ x \mapsto a \} | \{ \{ X_1 \mapsto a; X_2 \mapsto a \} \}$.
+Rule \textbf{SN} (resp. \textbf{SP}) generates as many equations (resp.
+disequations) as there are in the set
+$(\Sigma \circ \sigma'') \uparrow (\Sigma' \circ \sigma'')$ because all
+substitutions may not always be merged. For instance, given
+$f(x) = t | \{ \{ X_1 \mapsto x \}, \{ X_2 \mapsto x \} \}$ and
+$f(a) = v | \{ \{ X_1 \mapsto a \} \} \}$, we have to derive two distinct
+non-mergeable equations $(t = v)\{ x \mapsto a \} | \{ \{ X_1 \mapsto a \} \}$
+and $(t = v)\{ x \mapsto a \} | \{ \{ X_1 \mapsto a; X_2 \mapsto a \} \}$.
 
 \begin{figure}[htb]
 \begin{center}
