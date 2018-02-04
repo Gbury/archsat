@@ -3,29 +3,27 @@
 \section{Equational Reasoning with Rigid Unit Superposition}
 \label{sec:super}
 
-There are many ways of integrating equational reasoning in Tableaux
+There are many ways of integrating equational reasoning in tableau
 methods~\cite{DB75,LS02,BR15,DV96}. Because our prover does not rely on clausal
 forms, but on arbitrary formulas with quantifiers occurring deep inside
-branches, we deal with {\em rigid} variables, i.e. variables that can be
-instantiated only once. The problem we want to solve, {\em rigid E-unification
-modulo rewrite rules}, is the following. Assume a set of equations $E$,
-containing rigid variables, a rewrite system $\mathcal{RE}$, and {\em target
-terms} $s$ and $t$. We want a substitution $\sigma$ such that
-$\bigwedge_{e \in E} e\sigma \vdash s\sigma =_\mathcal{E} t\sigma$; such a
-substitution is a {\em solution} to the rigid E-unification problem.
+branches, we deal with rigid variables, i.e. variables that can be instantiated
+only once. The problem we want to solve, rigid E-unification modulo rewrite
+rules, is the following. Assume a set of equations $E$, containing rigid
+variables, a rewrite system $\mathcal{RE}$, and target terms $s$ and $t$. We
+want a substitution $\sigma$ such that
+$\bigwedge_{e \in E} e\sigma \vdash s\sigma =_\mathcal{E} t\sigma$. Such a
+substitution is a solution to the rigid E-unification problem.
 
 We propose here an approach based on superposition with rigid variables, as in
 previous work by Degtyarev and Voronkov~\cite{DV96} and earlier work on rigid
-paramodulation~\cite{DAP00}, but with significant differences. First, to avoid
-constraint solving, we do not use basic superposition nor constraints. Second,
-we introduce a {\em merging} rule that factors together intermediate
-(dis)equations that are alpha-equivalent: with multiple instances of some of the
-quantified formulas ({\em amplification}), it becomes important not to duplicate
-work. In this aspect, our calculus is quite close to labeled unit
+paramodulation~\cite{DAP00}, but with significant differences. First, in order
+to avoid constraint solving, we do not use basic superposition nor
+constraints. Second, we introduce a merging rule, which factors together
+intermediate (dis)equations that are alpha-equivalent: with multiple instances
+of some of the quantified formulas (amplification), it becomes important not to
+duplicate work. In this aspect, our calculus is quite close to labeled unit
 superposition~\cite{KS10} when using sets as labels. Third, unlike rigid
-paramodulation we use a term ordering to orient the equations.
-
-%Mention whether other rigid E-unification modulo rewrite algorithm exists.
+paramodulation, we use a term ordering to orient the equations.
 
 \subsection{Preliminary Definitions}
 
@@ -35,7 +33,7 @@ exactly one equation (resp.~disequation) under hypothesis $\Sigma$ (which is a
 set of substitutions). We write $\clauseWithSubst{\emptyset}{\Sigma}$ for the
 empty clause under hypothesis $\Sigma$. We define $\renameVars{e}$, where $e$
 is a (dis)equation, as follows: let $\sigma$ map every rigid variable of $e$ to
-a fresh non-rigid variable; then
+a fresh non-rigid variable, then
 $\renameVars{e} = \clauseWithSubst{ e\sigma }{ \{ \sigma \} }$. For example,
 $\renameVars{p(X)\approx a}$ is $\clauseWithSubst{ p(Y)\approx a}{ \{ X\mapsto
 Y\} }$. The E-unification problem $E \vdash s\approx t$ can be solved by proving
@@ -48,7 +46,7 @@ substitution $\sigma$ for the metavariables.
 As can be noticed, we keep a set of substitutions, rather than unit clauses
 paired with individual substitutions, in order to avoid duplicating the work for
 alpha-equivalent clauses. Indeed, because of amplification, many instances of a
-given (dis)equation might be present in a branch of the tableau; it would be
+given (dis)equation might be present in a branch of the tableau. It would be
 inefficient to repeat the same inference steps with each variant of the axioms.
 Because we apply $\renameVars{e}$ on every initial $e$, clauses do not share any
 variable, except in their attached sets of substitutions.
@@ -56,51 +54,52 @@ variable, except in their attached sets of substitutions.
 To perform an inference step between two unit (dis)equations, we merge their
 sets of substitutions. Merging $\Sigma$ and $\Sigma'$, intuitively, means
 computing $\{ \textsf{merge}(\sigma,\sigma') ~|~ \sigma \in \Sigma, \sigma'\in
-\Sigma' \}$ for every pair $(\sigma,\sigma')$ of {\em compatible} substitutions.
-For example, the resolution step between $p(x,x)| \{ X \mapsto a \}$ and $\lnot
-p(y,b)| \{ X \mapsto y \}$ is not possible, because the result would need to map
-$X$ to $a$ and to $b$, which is impossible because $X$ is rigid. Compatibility
-relies on a partial ordering $\leq$, such that $\sigma \leq \sigma'$ means that
-$\sigma$ is less general than $\sigma'$.
+\Sigma' \}$ for every pair $(\sigma,\sigma')$ of compatible substitutions. For
+example, the resolution step between $p(x,x)| \{ X \mapsto a \}$ and
+$\lnot p(y,b)| \{ X \mapsto y \}$ is not possible, because the result would need
+to map $X$ to $a$ and $b$, which is impossible because $X$ is rigid.
+Compatibility relies on a partial ordering $\leq$, such that
+$\sigma \leq \sigma'$ means that $\sigma$ is less general than $\sigma'$.
 
-Considering a substitution as a function from variables to terms, we can define
-the domain of a substitution $\sigma$ as the set of variables which have a
+Considering a substitution as a function from variables to terms, we define the
+domain of a substitution $\sigma$ as the set of variables that have a
 non-trivial binding in $\sigma$.\footnote{A trivial binding maps a variable to
 itself.} The co-domain of a substitution is the set of variables occurring in
-terms in the image of the domain of the substitution. In all the following, we
-will consider idempotent substitutions, i.e. substitution for which the domain
-and co-domain have an empty intersection.
+terms in the image of the domain of the substitution. In the following, we will
+consider idempotent substitutions, i.e. substitutions for which the domain and
+co-domain have an empty intersection.
 
-The {\em composition} of substitutions $\sigma \circ \sigma'$ is well-defined
-iff the domains of $\sigma$ and $\sigma'$ have no intersection. In this case,
+The composition of two substitutions $\sigma$ and $\sigma'$, denoted by
+$\sigma \circ \sigma'$, is said to be well-defined if and only if the domains of
+$\sigma$ and $\sigma'$ have no intersection. In this case,
 $\sigma \circ \sigma' \triangleq \left\{ x \mapsto (x\sigma)\sigma' | x \in
 \text{domain}(\sigma) \right\}$. This definition extends to sets of
 substitutions: $\Sigma \circ \sigma' \triangleq \left\{ \sigma \circ \sigma' |
-\sigma \in \Sigma \right\}$. We then have $\sigma \leq \sigma'$ iff $\exists
-\sigma''.~ \sigma \circ \sigma'' = \sigma'$. This notion also extends to sets of
-substitutions: $\smash{ \Sigma \leq \Sigma' }$ iff $\smash{ \forall \sigma' \in
-\Sigma'.~ \exists \sigma \in \Sigma. \sigma \leq \sigma' }$. The {\em merging}
-of two substitutions $\sigma \uparrow \sigma'$ is the supremum of
-$\{\sigma,\sigma'\}$ for the order $\leq$, if it exists, or $\bot$ otherwise.
-The merging of sets of substitutions is $\Sigma \uparrow \Sigma' \triangleq
-\left\{ \sigma \uparrow \sigma' ~|~ \sigma \in \Sigma, \sigma' \in \Sigma'
-\right., \sigma \uparrow \sigma' \not= \bot \}$. An inference rule is said to be
-successful if the merging of the premises' substitution sets is non-empty.
+\sigma \in \Sigma \right\}$. We then have $\sigma \leq \sigma'$ if and only if
+$\exists \sigma''.~ \sigma \circ \sigma'' = \sigma'$. This notion also extends
+to sets of substitutions: $\smash{ \Sigma \leq \Sigma' }$ if and only if
+$\smash{ \forall \sigma' \in \Sigma'.~ \exists \sigma \in \Sigma. \sigma \leq
+\sigma' }$. The merging of two substitutions $\sigma \uparrow \sigma'$ is the
+supremum of $\{\sigma,\sigma'\}$ for the order $\leq$, if it exists, or $\bot$
+otherwise. The merging of sets of substitutions is
+$\Sigma \uparrow \Sigma' \triangleq \left\{ \sigma \uparrow \sigma' ~|~ \sigma
+\in \Sigma, \sigma' \in \Sigma' \right., \sigma \uparrow \sigma' \not= \bot
+\}$. An inference rule is said to be successful if the merging of the premises'
+substitution sets is non-empty.
 
 \subsection{Inference System}
 
 In Fig.~\ref{fig:unit-sup-rules}, we present the rules for unit superposition
 with rigid variables. We adopt notations and names from Schulz's paper on
 E~\cite{SS02}. A single bar denotes an inference, i.e. we add the result to the
-saturation set,whereas a double bar is a simplification in which the premises
-are replaced by the conclusion(s). The relation $\prec$ is a {\em reduction
-ordering}, used to orient equations and restrict inferences, thus pruning the search space.
-Typically,
-$\prec$ is one of RPO or KBO. The rules of Fig.~\ref{fig:unit-sup-rules} work as
-described below:
+saturation set, whereas a double bar is a simplification in which the premises
+are replaced by the conclusion(s). The relation $\prec$ is a reduction ordering,
+used to orient equations and restrict inferences, thus pruning the search space.
+Typically, $\prec$ is one of RPO or KBO. The rules of
+Fig.~\ref{fig:unit-sup-rules} work as described below:
 
 \begin{description}
-\item[ER] is {\em equality resolution}, where a disequation
+\item[ER] is equality resolution, where a disequation
 $\clauseWithSubst{s \not\approx t}\Sigma$ is solved by syntactically unifying
 $s$ and $t$ with $\sigma$, if $\sigma$ is compatible with $\Sigma$.
 \item[SN] is superposition into negative literals. A subterm of $u$ is rewritten
@@ -117,18 +116,18 @@ substitutions.
 the sets of substitutions. This rule is very important in practice, to prevent
 the search space from exploding due to the duplicates of most formulas.
 Superposition deals with this explosion by removing duplicates using
-{\em subsumption}, but in our context subsumption is not complete because rigid
+subsumption, but in our context subsumption is not complete because rigid
 variables are only proxy for ground terms: even if $C\sigma \subseteq D$, the
 one ground instance of $C$ might not be compatible with the ground instance of
 $D$.
 \item[ES] is a restricted form of equality subsumption. The active equation
 $\clauseWithSubst{ s\approx t}\Sigma $ can be used to delete another clause, as
 in E~\cite{SS02}. However, ES only works if $s$ and $t$ are syntactically equal
-to the corresponding subterms in the subsumed clause $C$; otherwise, there is no
+to the corresponding subterms in the subsumed clause $C$. Otherwise, there is no
 guarantee that further instantiations will not make $s\approx t$ incompatible
-with $C$. Moreover, $C$ needs not be entirely removed; only its substitutions
-that are compatible with $\Sigma$ are actually subsumed.
-\item[RP] similarly, rewriting of positive clauses only works for syntactical
+with $C$. Moreover, $C$ needs not be entirely removed. Only its substitutions
+that are compatible with $\Sigma$ are subsumed.
+\item[RP] is rewriting of positive clauses, which only works for syntactical
 equality, not matching.
 \item[RN] is the same as RP but for rewriting negative clauses.
 \end{description}
@@ -258,16 +257,16 @@ Rewrite rules can be integrated to the rigid unit superposition easily. In fact,
 a rewrite rule $l\rew{}r$ can be expressed as an equality with a hypothesis set
 consisting of a single trivial substitution
 $s\approx{}t|\{\text{identity}\}$. Since the trivial substitution is compatible
-with every substitution, it will never prevent any inference, thus allowing to
-use the unit clause as many times as needed to rewrite terms without
+with every substitution, it will never prevent any inference, thus allowing us
+to use the unit clause as many times as needed to rewrite terms without
 accumulating constraints, particularly using the rules RP and RN, whose side
-conditions are always verified by rewrite rules. Rigid unit superposition thus
-provides an algorithm for rigid E-unification modulo rewrite rules.
+conditions are always verified by rewrite rules. Rigid unit superposition
+therefore provides an algorithm for rigid E-unification modulo rewrite rules.
 
 \subsection{Main Loop}
 
 Our objective with rigid E-unification is to attempt to close a branch of the
-tableau prover (i.e., a set of Boolean literals set to true). To do so, all
+tableau prover (i.e. a set of Boolean literals set to true). To do so, all
 equational or atomic literals are added to a set of unit clauses to process,
 with a label $\Sigma \triangleq \{ \emptyset \}$. Then, the given-clause
 algorithm is applied to try and saturate the set. Assuming a fair strategy, this
@@ -275,7 +274,7 @@ will eventually find a solution (i.e. derive
 $\clauseWithSubst{\emptyset}{\Sigma}$) if there exists one. We refer the
 interested reader to~\cite{SS02} for more details.
 
-Because the whole branch is treated by a single given-clause saturation loop, we
+Because the whole branch is managed by a single given-clause saturation loop, we
 look for all solutions susceptible to close the branch at the same time.
 Moreover, this technique is amenable to incrementality, i.e. every time a
 (dis)equation is decided by the SAT solver, we could add it to the saturation

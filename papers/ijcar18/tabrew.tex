@@ -28,9 +28,9 @@ adapted to the framework of SMT solving.
 
 \subsection{SAT Solving Modulo Theories}
 
-In this section, we recall the classic architecture of SMT
+In this subsection, we recall the classic architecture of SMT
 solvers~\cite{BEA06}. We introduce $\mathcal{T}$ and $\mathcal{F}$ respectively
-the sets of first order terms and first order formulas over the signature
+the sets of first order terms and formulas over the signature
 $\mathcal{S}=(\mathcal{S}_\mathcal{F},\mathcal{S}_\mathcal{P})$, where
 $\mathcal{S}_\mathcal{F}$ is the set of function symbols, and
 $\mathcal{S}_\mathcal{P}$, the set of predicate symbols, such that
@@ -47,8 +47,8 @@ A boxed formula is of the form $\lfloor{}P\rfloor$, where $P$ is a formula. A
 boxed formula is called atom, and a literal is either an atom, or the negation
 of an atom. A literal is such that there is no negation on top of the boxed
 formula (which means that $\lfloor\neg{}P\rfloor=\neg\lfloor{}P\rfloor$, and
-that $\neg\neg\lfloor{}P\rfloor=\lfloor{}P\rfloor$). A clause is a disjunction
-of literals. It should be noted that SAT solving usually reasons over sets of
+$\neg\neg\lfloor{}P\rfloor=\lfloor{}P\rfloor$). A clause is a disjunction of
+literals. It should be noted that SAT solving usually reasons over sets of
 clauses composed of first order literals; here, a literal is a first order
 formula (possibly with quantifiers), which requires to box formulas to get a
 regular SAT solving problem where boxed formulas are propositional variables.
@@ -76,8 +76,8 @@ A SAT solver modulo theories is characterized by a set of theories $S_T$ and an
 internal state of the form $M\parallel{}S$, where $M$ is an ordered list of
 literals (if $M=l_1,l2,\ldots,l_n$ then $l_1<l_2<\ldots<l_n$) and $S$ a set of
 clauses. Intuitively, $M$ represents the model of $S$, which will be built
-progressively (initially $M=\emptyset$) by the application of a set of rules
-over the internal state of the solver. This set of rules is presented in
+progressively (initially, we have $M=\emptyset$) by the application of a set of
+rules over the internal state of the solver. This set of rules is presented in
 Fig.~\ref{fig:smt}. Each time a literal is propagated (rule
 ``$\mathrm{unit~prop}$'') or decided (rule ``$\mathrm{decide}$''), it is given
 to each theory, which may generate new clauses (rule ``$\mathrm{learn}$''). If a
@@ -396,7 +396,7 @@ where $\vec{x}=\mathrm{FV}(l)\cup\mathrm{FV}(r)$.
 
 It should be noted that in usual SMT solvers, rewriting can be emulated by means
 of triggers that are actually the left-hand side members of the class rewrite
-system $\mathcal{RE}$ introduced above. But, in our rewriting theory, we can
+system $\mathcal{RE}$ introduced above. But in our rewriting theory, we can
 generate the formula where rewritings have been done, while triggers can just
 generate bindings, i.e. instances of the rewrite rules, which are used later to
 relate the initial and rewritten formulas. Moreover, in our case, we can perform

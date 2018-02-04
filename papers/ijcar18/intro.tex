@@ -22,7 +22,7 @@ modulo theories. This resulted in the design of Satisfiability Modulo Theories
 years, SMT solvers have appeared as very efficient tools to reason over some
 well identified theories (equality, uninterpreted functions, linear arithmetic,
 arrays, etc.), and have allowed us to drag SAT solving toward first order logic.
-Although modern SMT solvers supports first order logic, most of them use
+Although modern SMT solvers support first order logic, most of them use
 heuristic quantifier instantiation for incorporating quantifier reasoning with
 ground decision procedures. This mechanism is relatively effective in some cases
 in practice, but it is not refutationally complete for first order logic. Hints
@@ -41,7 +41,7 @@ metavariables and perform rigid unification modulo equalities and rewriting, for
 which we introduce an algorithm based on superposition, but where all clauses
 contain a single atomic formula.
 
-We also propose to improve proof search by introducing rewriting to the SAT
+We also propose to improve proof search by introducing rewriting into the SAT
 solver as a regular SMT theory and along the lines of deduction modulo
 theory. Deduction modulo theory~\cite{DA03} focuses on the computational part of
 a theory, where axioms are transformed into rewrite rules, which induces a
@@ -74,8 +74,8 @@ been turned into rewrite rules. The benchmark itself gathers 319~lemmas coming
 from Chap.~2 of the \bbook{}~\cite{B-Book}.
 
 The paper is organized as follows: in Sec.~\ref{sec:smt}, we recall the classic
-architecture of SMT solvers and we introduce the tableau and rewriting theories;
-we then describe, in Sec.~\ref{sec:super}, our mechanism of equational reasoning
-by means of rigid unit superposition; finally, in Sec.~\ref{sec:bench}, we
-present some experimental results obtained by running our implementation over a
-benchmark of problems in the \bmth{} set theory.
+architecture of SMT solvers, and we introduce the tableau and rewriting
+theories; we then describe, in Sec.~\ref{sec:super}, our mechanism of equational
+reasoning by means of rigid unit superposition; finally, in
+Sec.~\ref{sec:bench}, we present some experimental results obtained by running
+our implementation over a benchmark of problems in the \bmth{} set theory.
