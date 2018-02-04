@@ -144,24 +144,24 @@ equality, not matching.
 \AXC{$s \approx t | \Sigma$}
 \AXC{$u \not\approx v | \Sigma'$}
 \LL{SN}
-  \BIC{$\sigma''(u[p \leftarrow t] \not\approx v) | \sigma'''$}
-\DP
-  $\text{if} \left\{ \begin{array}{l@{\quad}l}
+\BIC{$\sigma''(u[p \leftarrow t] \not\approx v) | \sigma'''$}\DP
+$\text{if} \left\{ \begin{array}{l@{\quad}l}
 \sigma'' = \text{mgu}(u_{|p}, s) & u_{|p} \not\in V\\
 \sigma''(s) \not\preceq \sigma''(t) & \sigma''(u) \not\preceq \sigma''(v)\\
-\multicolumn{2}{l}{ \sigma''' \in (\Sigma \circ \sigma'') \uparrow (\Sigma' \circ \sigma'') }
+\multicolumn{2}{l}{
+\sigma''' \in (\Sigma \circ \sigma'') \uparrow (\Sigma' \circ \sigma'')}
 \end{array}\right.$\\[12pt]
 
 % SP
 \AXC{$s \approx t | \Sigma$}
 \AXC{$u \approx v | \Sigma'$}
 \LL{SP}
-  \BIC{$\sigma''(u[p \leftarrow t] \approx v) | \sigma'''$}
-  \DP
-  $\text{if} \left\{ \begin{array}{l@{\quad}l}
+\BIC{$\sigma''(u[p \leftarrow t] \approx v) | \sigma'''$}\DP
+$\text{if} \left\{ \begin{array}{l@{\quad}l}
 \sigma'' = \text{mgu}(u_{|p}, s) & u_{|p} \not\in V\\
 \sigma''(s) \not\preceq \sigma''(t) & \sigma''(u) \not\preceq \sigma''(v)\\
-\multicolumn{2}{l}{ \sigma''' \in (\Sigma \circ \sigma'') \uparrow (\Sigma' \circ \sigma'') }
+\multicolumn{2}{l}{
+\sigma''' \in (\Sigma \circ \sigma'') \uparrow (\Sigma' \circ \sigma'')}
 \end{array}\right.$\\[12pt]
 
 \mbox{
@@ -178,25 +178,6 @@ equality, not matching.
 \doubleLine{}
 \UIC{$\top$}
 \DP}\\[12pt]
-
-% PS
-%\AXC{$s \approx t |\sigma$}
-%\AXC{$u[p \leftarrow \sigma''(s)] \not\approx u[p \leftarrow \sigma''(t)] |
-%\sigma' $}
-%\LL{PS}
-%\doubleLine{}
-%\BIC{$s \approx t | \sigma$ \qquad $\emptyset | \sigma \cup \sigma' \cup
-%\sigma''$}
-%\DP{} \\[12pt]
-
-% NS
-%\AXC{$s \not\approx t | \sigma$}
-%\AXC{$\sigma''(s \approx t) | \sigma'$}
-%\LL{NS}
-%\doubleLine{}
-%\BIC{$s \not\approx t | \sigma$ \qquad $\emptyset | \sigma \cup \sigma' \cup
-%\sigma''$}
-%\DP{} \\[12pt]
 
 % ME
 \AXC{$\rho(u) \approx \rho(v) | \Sigma$}
@@ -305,7 +286,7 @@ Fig.~\ref{fig:unit-sup-proof-example}.
 
 4 & \renameVarsSymb(1) &
 $\clauseWithSubst
-{ \text{pair}(\text{fst}(x), \text{snd}(x) \approx x }
+{ \text{pair}(\text{fst}(x), \text{snd}(x)) \approx x }
 { \{ \} }$\\
 
 5 & \renameVarsSymb(2) &
