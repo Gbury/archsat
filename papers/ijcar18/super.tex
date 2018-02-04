@@ -144,26 +144,24 @@ equality, not matching.
 \AXC{$s \approx t | \Sigma$}
 \AXC{$u \not\approx v | \Sigma'$}
 \LL{SN}
-\BIC{$\sigma''(u[p \leftarrow t] \not\approx v) | (\Sigma \circ \sigma'')
-\uparrow (\Sigma' \circ \sigma'')$}\DP
-$\text{if} \left\{ \begin{array}{l}
-\sigma'' = \text{mgu}(u_{|p}, s)\\
-\sigma''(s) \not\preceq \sigma''(t)\\
-\sigma''(u) \not\preceq \sigma''(v)\\
-u_{|p} \not\in V\\
+  \BIC{$\sigma''(u[p \leftarrow t] \not\approx v) | \sigma'''$}
+\DP
+  $\text{if} \left\{ \begin{array}{l@{\quad}l}
+\sigma'' = \text{mgu}(u_{|p}, s) & u_{|p} \not\in V\\
+\sigma''(s) \not\preceq \sigma''(t) & \sigma''(u) \not\preceq \sigma''(v)\\
+\multicolumn{2}{l}{ \sigma''' \in (\Sigma \circ \sigma'') \uparrow (\Sigma' \circ \sigma'') }
 \end{array}\right.$\\[12pt]
 
 % SP
 \AXC{$s \approx t | \Sigma$}
 \AXC{$u \approx v | \Sigma'$}
 \LL{SP}
-\BIC{$\sigma''(u[p \leftarrow t] \approx v) | (\Sigma \circ \sigma'') \uparrow
-(\Sigma' \circ \sigma'')$}\DP
-$\text{if} \left\{ \begin{array}{l}
-\sigma'' = \text{mgu}(u_{|p}, s)\\
-\sigma''(s) \not\preceq \sigma''(t)\\
-\sigma''(u) \not\preceq \sigma''(v)\\
-u_{|p} \not\in V\\
+  \BIC{$\sigma''(u[p \leftarrow t] \approx v) | \sigma'''$}
+  \DP
+  $\text{if} \left\{ \begin{array}{l@{\quad}l}
+\sigma'' = \text{mgu}(u_{|p}, s) & u_{|p} \not\in V\\
+\sigma''(s) \not\preceq \sigma''(t) & \sigma''(u) \not\preceq \sigma''(v)\\
+\multicolumn{2}{l}{ \sigma''' \in (\Sigma \circ \sigma'') \uparrow (\Sigma' \circ \sigma'') }
 \end{array}\right.$\\[12pt]
 
 \mbox{
@@ -235,12 +233,12 @@ u \not\succeq v ~ \text{or} ~ p \neq \lambda\\
 \end{array}\right.$\\[12pt]
 
 % RN
-\AXC{$s \approx t | \emptyset$}
-\AXC{$u \not\approx v | \sigma$}
+\AXC{$s \approx t | \Sigma$}
+\AXC{$u \not\approx v | \Sigma'$}
 \LL{RN}
 \doubleLine{}
-\BIC{$s \approx t | \emptyset$ \qquad $u[p \leftarrow t] \not\approx |
-\sigma$}\DP
+\BIC{$s \approx t | \Sigma$ \qquad $u[p \leftarrow t] \not\approx v |
+\Sigma'$}\DP
 $\text{if} \left\{\begin{array}{l}
 u_{|p} = s\\
 s \succ t\\
