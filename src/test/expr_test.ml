@@ -436,15 +436,17 @@ module Formula = struct
   }
 
   let pred ~config size =
-    G.(return Expr.Formula.pred <*>
-       (Term.typed ~config:config.term Expr.Ty.prop size))
+    G.(
+       Term.typed ~config:config.term Expr.Ty.prop size >|= fun t ->
+       Expr.Formula.pred t
+      )
 
   let eq ~config size =
     G.(Misc_test.split_int size >>= fun (a, b) ->
        Ty.sized (min 5 size) >>= fun ty ->
-       return Expr.Formula.eq
-       <*> (Term.typed ~config:config.term ty a)
-       <*> (Term.typed ~config:config.term ty b)
+       Term.typed ~config:config.term ty a >>= fun ta ->
+       Term.typed ~config:config.term ty b >|= fun tb ->
+       Expr.Formula.eq ta tb
       )
 
   let all f =
@@ -472,17 +474,19 @@ module Formula = struct
             config.pred,  pred ~config n;
             config.ex,    G.(self (n-1) >>= ex);
             config.all,   G.(self (n-1) >>= all);
-            config.neg,   G.(return Expr.Formula.neg <*> self (n-1));
+            config.neg,   G.(self (n-1) >|= fun f -> Expr.Formula.neg f);
             config.conj,  G.(Misc_test.split_int (n-1) >>= fun (a, b) ->
-                             self a >>= fun p -> self b >>= fun q ->
-                             return @@ Expr.Formula.f_and [p; q]);
+                             self a >>= fun p -> self b >|= fun q ->
+                             Expr.Formula.f_and [p; q]);
             config.disj,  G.(Misc_test.split_int (n-1) >>= fun (a, b) ->
-                             self a >>= fun p -> self b >>= fun q ->
-                             return @@ Expr.Formula.f_or [p; q]);
+                             self a >>= fun p -> self b >|= fun q ->
+                             Expr.Formula.f_or [p; q]);
             config.impl,  G.(Misc_test.split_int (n-1) >>= fun (a, b) ->
-                             return Expr.Formula.imply <*> self a <*> self b);
+                             self a >>= fun fa -> self b >|= fun fb ->
+                             Expr.Formula.imply fa fb);
             config.equiv, G.(Misc_test.split_int (n-1) >>= fun (a, b) ->
-                             return Expr.Formula.equiv <*> self a <*> self b);
+                             self a >>= fun fa -> self b >|= fun fb ->
+                             Expr.Formula.equiv fa fb);
           ]
       )
 

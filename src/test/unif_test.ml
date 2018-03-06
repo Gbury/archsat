@@ -75,7 +75,7 @@ let unif_tests =
 (* Problem generation *)
 (* ************************************************************************ *)
 
-let pair =
+let pair_sized gen =
   let print (x, y) =
     Format.asprintf "(@[<hv>%a,@ %a)@]"
       Expr.Print.term x Expr.Print.term y
@@ -83,7 +83,7 @@ let pair =
   let small (x, y) = E.Term.small x + E.Term.small y in
   let config = E.Term.({var = 0; meta = 1; }) in
   let shrink (x, y) = QCheck.Iter.pair (E.Term.shrink x) (E.Term.shrink y) in
-  let g = G.(sized @@ fun size ->
+  let g = G.(sized_size gen @@ fun size ->
                E.Ty.gen >>= fun ty ->
                E.Term.typed ~config ty size >>= fun a ->
                E.Term.typed ~config ty size >|= fun b -> (a, b)
@@ -91,6 +91,8 @@ let pair =
   QCheck.make ~print ~small ~shrink g
 (* Small hack to get the same printer/shrinker than for pairs, but
    still generate terms of the same type. *)
+
+let pair = pair_sized G.nat
 
 (* Robinson unification tests *)
 (* ************************************************************************ *)

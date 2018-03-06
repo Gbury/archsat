@@ -52,7 +52,7 @@ let pair =
                E.Term.typed ~config ty size >>= fun a ->
                E.Term.typed ~config ty size >|= fun b -> (a, b)
               ) in
-  QCheck.({(pair E.Term.t E.Term.t) with gen = g })
+  QCheck.(set_gen g (pair E.Term.t E.Term.t))
 (* Small hack to get the same printer/shrinker than for pairs, but
    still generate terms of the same type. *)
 

@@ -27,8 +27,8 @@ let (#:) ty n =
 (* Formula creation *)
 (* ************************************************************************ *)
 
-let (===) = Expr.Formula.eq
-let (?^) = Expr.Formula.pred
+let (===) a b = Expr.Formula.eq a b
+let (?^) t = Expr.Formula.pred t
 
 let (&&) a b = Expr.Formula.f_and [a; b]
 let (||) a b = Expr.Formula.f_or [a; b]

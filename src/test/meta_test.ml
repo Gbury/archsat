@@ -22,10 +22,14 @@ let state =
   in
   let a = QCheck.(triple
                     (list_of_size (G.oneofl [0;1])
-                       (E.Term.make (G.sized @@ E.Term.typed ~config Expr.Ty.prop)))
+                       (E.Term.make (G.(sized_size (1 -- 100)) @@
+                                     E.Term.typed ~config Expr.Ty.prop)))
                     (list_of_size (G.oneofl [0;1])
-                       (E.Term.make (G.sized @@ E.Term.typed ~config Expr.Ty.prop)))
-                    (list_of_size (G.oneofl [0;1]) Unif_test.pair)) in
+                       (E.Term.make (G.(sized_size (1 -- 100) @@
+                                        E.Term.typed ~config Expr.Ty.prop))))
+                    (list_of_size (G.oneofl [0;1]) @@ Unif_test.pair_sized G.(1 -- 100))
+                 )
+  in
   QCheck.map ~rev conv a
 
 (* High-level meta unification *)
@@ -101,7 +105,7 @@ let pp_set fmt s =
     (fun _ -> S.iter (fun x -> Format.fprintf fmt "@[<hov>%a@]@ " Mapping.print x)) s
 
 let mk_fold name f =
-  QCheck.Test.make ~count:1 ~long_factor:1000
+  QCheck.Test.make ~count:10 ~long_factor:100
     ~name state
     (fun state ->
        let s, t = time (fun () -> Ext_meta.fold_diff simple S.empty state) in
@@ -117,7 +121,7 @@ let mk_fold name f =
     )
 
 let mk_full name f =
-  QCheck.Test.make ~count:1 ~long_factor:1000
+  QCheck.Test.make ~count:10 ~long_factor:100
     ~name state
     (fun state ->
        let s, t = time (fun () -> Ext_meta.fold_diff simple S.empty state) in
