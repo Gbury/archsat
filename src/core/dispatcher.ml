@@ -387,8 +387,15 @@ let add_job job t =
   H.replace watch_map t (job :: l)
 
 let call_job j =
-  if CCOpt.(get_or ~default:true (j.job_formula >>= eval_f))
-  && j.job_done < !last_backtrack then begin
+  if not CCOpt.(get_or ~default:true (j.job_formula >>= eval_f)) then
+    Util.debug ~section "Ignoring job because of false formula:@ %a"
+      Expr.Formula.print (CCOpt.get_exn j.job_formula)
+  else if j.job_done >= !last_backtrack then
+    Util.debug ~section
+      "Ignoring job because it has already been executed since the last backtrack"
+  else begin
+    Util.debug ~section "Calling job from %s"
+      Plugin.((get j.job_ext).name);
     j.job_done <- !last_backtrack;
     profile j.job_section j.job_callback ()
   end
@@ -410,8 +417,6 @@ let update_watch x j =
       add_job j y
     with Not_found ->
       add_job j x;
-      Util.debug ~section "Calling job from %s"
-        Plugin.((get j.job_ext).name);
       call_job j
   with Not_found ->
     let ext = Plugin.get j.job_ext in
@@ -459,13 +464,15 @@ let watch ?formula ext_name k args f =
   in
   let t' = Builtin.Misc.tuple args in
   let l = try H.find watchers t' with Not_found -> [] in
+  Util.debug ~section "New watch from %s, %d among:@ @[<hov>%a@]"
+    Plugin.((get tag).name) k
+    CCFormat.(list ~sep:(return " ||@ ") Expr.Print.term) args;
   if not (List.mem tag l) then begin
-    Util.debug ~section "New watch from %s, %d among:@ @[<hov>%a@]"
-      Plugin.((get tag).name) k
-      CCFormat.(list ~sep:(return " ||@ ") Expr.Print.term) args;
+    Util.debug ~section "Watch added";
     H.add watchers t' (tag :: l);
     split [] [] k (List.sort_uniq Expr.Term.compare args)
-  end
+  end else
+    Util.debug ~section "Redundant watch"
 
 let rec assign_watch t = function
   | [] -> Util.exit_prof section

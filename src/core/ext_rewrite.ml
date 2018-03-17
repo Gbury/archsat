@@ -287,6 +287,8 @@ let parse_guard = function
     Some (Rewrite.Guard.Pred_false p)
   | { Expr.formula = Expr.Equal (a, b) } ->
     Some (Rewrite.Guard.Eq (a, b))
+  | { Expr.formula = Expr.Not { Expr.formula = Expr.Equal (a, b) } } ->
+    Some (Rewrite.Guard.Neq (a, b))
   | _ -> None
 
 let parse_guards = function
@@ -416,11 +418,15 @@ let instanciate rule subst =
         Dispatcher.watch ~formula:rule.Rewrite.Rule.formula name 1 watched
           (fun () ->
              let l' = List.map (Rewrite.Guard.map Dispatcher.get_assign) l in
-             if List.for_all Rewrite.Guard.check l' then begin
+             try
+               let g = List.find (fun g -> not (Rewrite.Guard.check g)) l' in
+               Util.debug ~section "False condition:@ %a"
+                 (Rewrite.Guard.print ~term:Expr.Term.print) g
+             with Not_found ->
+               Util.debug ~section "Pushing rewrite";
                let clause, lemma =
                  Inst.soft_subst ~name:"trigger" rule.Rewrite.Rule.formula subst in
                Dispatcher.push clause lemma
-             end
           )
     ) (rule, subst)
 

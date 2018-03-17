@@ -1,0 +1,5 @@
+# array_get_1.zf
+
+include "array.zf".
+
+goal forall (a : type) (x : a). get _ 0 (new _ x) = x.

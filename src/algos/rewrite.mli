@@ -12,6 +12,12 @@ module Guard : sig
     | Pred_true of Expr.term
     | Pred_false of Expr.term
     | Eq of Expr.term * Expr.term
+    | Neq of Expr.term * Expr.term
+
+  val print :
+    ?term:(Format.formatter -> Expr.term -> unit) ->
+    Format.formatter -> t -> unit
+  (** Printer function for guards. *)
 
   val map : (Expr.term -> Expr.term) -> t -> t
   (** Map a function on the terms in a guard. *)

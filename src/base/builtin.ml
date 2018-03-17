@@ -34,46 +34,46 @@ let parse_f env ast cstr args =
 
 let parse_tptp env ast s args =
   match s with
-  | { Id.name = "$_"; ns = Id.Term } ->
-    Some (Type.wildcard env ast s args)
-  | { Id.name = "$tType"; ns = Id.Term } ->
+  | Type.Id ({ Id.name = "$_"; ns = Id.Term } as id) ->
+    Some (Type.wildcard env ast id args)
+  | Type.Id { Id.name = "$tType"; ns = Id.Term } ->
     Some Type.Ttype
-  | { Id.name = "$o"; ns = Id.Term } ->
+  | Type.Id { Id.name = "$o"; ns = Id.Term } ->
     Some (Type.parse_app_ty env ast Expr.Id.prop args)
-  | { Id.name = "$i"; ns = Id.Term } ->
+  | Type.Id { Id.name = "$i"; ns = Id.Term } ->
     Some (Type.parse_app_ty env ast Expr.Id.base args)
-  | { Id.name = "$true"; ns = Id.Term } ->
+  | Type.Id { Id.name = "$true"; ns = Id.Term } ->
     Some (Type.parse_app_formula env ast Expr.Formula.f_true args)
-  | { Id.name = "$false"; ns = Id.Term } ->
+  | Type.Id { Id.name = "$false"; ns = Id.Term } ->
     Some (Type.parse_app_formula env ast Expr.Formula.f_false args)
-  | _ when Id.equal s Id.tptp_role ->
+  | Type.Id id when Id.equal id Id.tptp_role ->
     Some (Type.Tags [])
   | _ -> None
 
 let parse_smtlib env ast s args =
   match s with
   (** Boolean operators *)
-  | { Id.name = "Bool"; ns = Id.Sort } ->
+  | Type.Id { Id.name = "Bool"; ns = Id.Sort } ->
     Some (Type.parse_app_ty env ast Expr.Id.prop args)
-  | { Id.name = "true"; ns = Id.Term } ->
+  | Type.Id { Id.name = "true"; ns = Id.Term } ->
     Some (Type.Formula Expr.Formula.f_true)
-  | { Id.name = "false"; ns = Id.Term } ->
+  | Type.Id { Id.name = "false"; ns = Id.Term } ->
     Some (Type.Formula Expr.Formula.f_false)
-  | { Id.name = "not"; ns = Id.Term } ->
-    Some (parse_f env ast Dolmen.Term.not_t args)
-  | { Id.name = "and"; ns = Id.Term } ->
-    Some (parse_f env ast Dolmen.Term.and_t args)
-  | { Id.name = "or"; ns = Id.Term } ->
-    Some (parse_f env ast Dolmen.Term.or_t args)
-  | { Id.name = "xor"; ns = Id.Term } ->
-    Some (parse_f env ast Dolmen.Term.xor_t args)
-  | { Id.name = "=>"; ns = Id.Term } ->
-    Some (parse_f env ast Dolmen.Term.implies_t args)
+  | Type.Id { Id.name = "not"; ns = Id.Term } ->
+    Some (parse_f env ast (Dolmen.Term.not_t ()) args)
+  | Type.Id { Id.name = "and"; ns = Id.Term } ->
+    Some (parse_f env ast (Dolmen.Term.and_t ()) args)
+  | Type.Id { Id.name = "or"; ns = Id.Term } ->
+    Some (parse_f env ast (Dolmen.Term.or_t ()) args)
+  | Type.Id { Id.name = "xor"; ns = Id.Term } ->
+    Some (parse_f env ast (Dolmen.Term.xor_t ()) args)
+  | Type.Id { Id.name = "=>"; ns = Id.Term } ->
+    Some (parse_f env ast (Dolmen.Term.implies_t ()) args)
 
   (** Equality *)
-  | { Id.name = "distinct"; ns = Id.Term } ->
-    Some (parse_f env ast Dolmen.Term.neq_t args)
-  | { Id.name = "="; ns = Id.Term } ->
+  | Type.Id { Id.name = "distinct"; ns = Id.Term } ->
+    Some (parse_f env ast (Dolmen.Term.neq_t ()) args)
+  | Type.Id { Id.name = "="; ns = Id.Term } ->
     let l = List.map (Type.parse_term env) args in
     let l' = pair_map Expr.Formula.eq l in
     let res = match l' with
@@ -86,9 +86,9 @@ let parse_smtlib env ast s args =
 
 let parse_zf env ast s args =
   match s with
-    | _ when Id.equal s Id.rwrt_rule ->
+    | Type.Id id when Id.equal id Id.rwrt_rule ->
       Some (Type.Tags [Type.Any (Tag.rwrt, ())])
-    | { Id.name = "infix"; ns = Id.Term } ->
+    | Type.Id { Id.name = "infix"; ns = Id.Term } ->
       begin match args with
         | [ { Ast.term = Ast.Symbol { Id.name; _ } } ] ->
           Some (Type.Tags [
@@ -97,7 +97,7 @@ let parse_zf env ast s args =
             ])
         | _ -> assert false
       end
-    | { Id.name = "prefix"; ns = Id.Term } ->
+    | Type.Id { Id.name = "prefix"; ns = Id.Term } ->
       begin match args with
         | [ { Ast.term = Ast.Symbol { Id.name; _ } } ] ->
           Some (Type.Tags [
@@ -428,7 +428,7 @@ module Arith = struct
           res
       end
 
-  let parse_tptp env ast id args =
+  let parse_tptp env ast s args =
     let aux f =
       match List.map (Type.parse_term env) args with
       | [] -> raise (Type.Typing_error ("Arithmetics function need arguments", env, ast))
@@ -445,48 +445,62 @@ module Arith = struct
       | [x] -> Some (Type.Term (Misc.cast x ty))
       | _ -> raise (Type.Typing_error ("Casts expect one argument", env, ast))
     in
-    if id.Id.ns = Id.Term then
-      match id.Id.name with
-      | "$int" -> Some (Type.parse_app_ty env ast int_cstr args)
-      | "$rat" -> Some (Type.parse_app_ty env ast rat_cstr args)
-      | "$real" -> Some (Type.parse_app_ty env ast real_cstr args)
-      | "$less" -> aux less
-      | "$lesseq" -> aux lesseq
-      | "$greater" -> aux greater
-      | "$greatereq" -> aux greatereq
-      | "$uminus" -> aux uminus
-      | "$sum" -> aux sum
-      | "$difference" -> aux diff
-      | "$product" -> aux mult
-      | "$quotient" -> aux div
-      | "$quotient_e" -> aux div_e
-      | "$quotient_t" -> aux div_t
-      | "$quotient_f" -> aux div_f
-      | "$remainder_e" -> aux rem_e
-      | "$remainder_t" -> aux rem_t
-      | "$remainder_f" -> aux rem_f
-      | "$floor" -> aux floor
-      | "$ceiling" -> aux ceiling
-      | "$truncate" -> aux truncate
-      | "$round" -> aux round
-      | "$is_int" -> aux is_int
-      | "$is_rat" -> aux is_rat
-      | "$is_real" -> aux is_real
-      | "$to_int" -> aux_cast type_int
-      | "$to_rat" -> aux_cast type_rat
-      | "$to_real" -> aux_cast type_real
-      | s -> begin match val_of_string s with
-          | Some value ->
-            Some (Type.parse_app_term env ast (const_num s value) args)
-          | None -> None
-        end
-    else None
+    match s with
+    | Type.Builtin _ -> None
+    | Type.Id id ->
+      if id.Id.ns = Id.Term then
+        match id.Id.name with
+        | "$int" -> Some (Type.parse_app_ty env ast int_cstr args)
+        | "$rat" -> Some (Type.parse_app_ty env ast rat_cstr args)
+        | "$real" -> Some (Type.parse_app_ty env ast real_cstr args)
+        | "$less" -> aux less
+        | "$lesseq" -> aux lesseq
+        | "$greater" -> aux greater
+        | "$greatereq" -> aux greatereq
+        | "$uminus" -> aux uminus
+        | "$sum" -> aux sum
+        | "$difference" -> aux diff
+        | "$product" -> aux mult
+        | "$quotient" -> aux div
+        | "$quotient_e" -> aux div_e
+        | "$quotient_t" -> aux div_t
+        | "$quotient_f" -> aux div_f
+        | "$remainder_e" -> aux rem_e
+        | "$remainder_t" -> aux rem_t
+        | "$remainder_f" -> aux rem_f
+        | "$floor" -> aux floor
+        | "$ceiling" -> aux ceiling
+        | "$truncate" -> aux truncate
+        | "$round" -> aux round
+        | "$is_int" -> aux is_int
+        | "$is_rat" -> aux is_rat
+        | "$is_real" -> aux is_real
+        | "$to_int" -> aux_cast type_int
+        | "$to_rat" -> aux_cast type_rat
+        | "$to_real" -> aux_cast type_real
+        | s -> begin match val_of_string s with
+            | Some value ->
+              Some (Type.parse_app_term env ast (const_num s value) args)
+            | None -> None
+          end
+      else None
+
+  let parse_zf env ast s args =
+    match s with
+    | Type.Builtin Ast.Int -> Some (Type.parse_app_ty env ast int_cstr args)
+    | Type.Builtin _ -> None
+    | Type.Id id ->
+      begin match val_of_string id.Id.name with
+        | Some value ->
+          Some (Type.parse_app_term env ast (const_num id.Id.name value) args)
+        | None -> None
+      end
 
 end
 
 ;;
 Semantics.Addon.register "arith"
   ~descr:"Builtin symbols for arithmetic, and arithmetic constants of arbitrary precision"
-  (Semantics.mk_ext ~tptp:Arith.parse_tptp ())
+  (Semantics.mk_ext ~tptp:Arith.parse_tptp ~zf:Arith.parse_zf ())
 ;;
 

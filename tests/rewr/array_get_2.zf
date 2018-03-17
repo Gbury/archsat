@@ -1,0 +1,11 @@
+# array_get_1.zf
+
+include "array.zf".
+
+val ty : type.
+
+val t : array ty.
+val x : ty.
+
+goal get _ 1 (set _ 1 x t) = x.
+

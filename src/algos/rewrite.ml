@@ -10,6 +10,7 @@ module Guard = struct
     | Pred_true of Expr.term
     | Pred_false of Expr.term
     | Eq of Expr.term * Expr.term
+    | Neq of Expr.term * Expr.term
 
   let print ?(term=Expr.Print.term) fmt = function
     | Pred_true p ->
@@ -18,21 +19,26 @@ module Guard = struct
       Format.fprintf fmt "~ %a" term p
     | Eq (a, b) ->
       Format.fprintf fmt "%a=%a" term a term b
+    | Neq (a, b) ->
+      Format.fprintf fmt "%a!=%a" term a term b
 
   let map f = function
     | Pred_true p -> Pred_true (f p)
     | Pred_false p -> Pred_false (f p)
     | Eq (a, b) -> Eq (f a, f b)
+    | Neq (a, b) -> Neq (f a, f b)
 
   let to_list = function
     | Pred_true p -> [p]
     | Pred_false p -> [p]
     | Eq (a, b) -> [a; b]
+    | Neq (a, b) -> [a; b]
 
   let check = function
     | Pred_true p -> Expr.Term.equal p Builtin.Misc.p_true
     | Pred_false p -> Expr.Term.equal p Builtin.Misc.p_false
     | Eq (a, b) -> Expr.Term.equal a b
+    | Neq (a, b) -> not @@ Expr.Term.equal a b
 
 end
 

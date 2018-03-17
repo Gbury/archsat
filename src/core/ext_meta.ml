@@ -96,7 +96,7 @@ let unif_conv = Cmdliner.Arg.enum unif_list
 
 (* Unification parameters *)
 let rigid_depth () =
-  max 1 (!rigid_max_depth + (int_of_float (
+  max 0 (!rigid_max_depth + (int_of_float (
       (float @@ Ext_stats.current_round ()) *. !rigid_round_incr)))
 
 (* Assumed formula parsing *)
@@ -521,7 +521,7 @@ let opts =
   in
   let rigid_depth =
     let doc = "Base to compute maximum depth when doing rigid unification." in
-    Cmdliner.Arg.(value & opt int 3 & info ["meta.rigid.depth"] ~docv:"N" ~docs ~doc)
+    Cmdliner.Arg.(value & opt int 5 & info ["meta.rigid.depth"] ~docv:"N" ~docs ~doc)
   in
   let rigid_incr =
     let doc = "Increment to the depth of rigid unification at each round." in

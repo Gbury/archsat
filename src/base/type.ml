@@ -116,6 +116,11 @@ type inferred =
   | Ty_fun of Expr.Id.TyCstr.t
   | Term_fun of Expr.Id.Const.t
 
+(* Wrapper around potential function symbols in Dolmen *)
+type symbol =
+  | Id of Dolmen.Id.t
+  | Builtin of Dolmen.Term.builtin
+
 (* The local environments used for type-checking. *)
 type env = {
 
@@ -144,7 +149,7 @@ type env = {
 (* Builtin symbols, i.e symbols understood by some theories,
    but which do not have specific syntax, so end up as special
    cases of application. *)
-and builtin_symbols = env -> Dolmen.Term.t -> Dolmen.Id.t -> Ast.t list -> res option
+and builtin_symbols = env -> Dolmen.Term.t -> symbol -> Ast.t list -> res option
 
 type 'a typer = env -> Dolmen.Term.t -> 'a
 
@@ -463,6 +468,10 @@ let _unused_term v env =
     Dolmen.ParseLocation.fmt (get_reason_loc (F.find v env.term_locs))
     Expr.Print.id v
 
+let _unknown_builtin env ast b =
+  let msg = Format.asprintf "Unkown builtin: %a" Ast.print_builtin b in
+  raise (Typing_error (msg, env, ast))
+
 (* Wrappers for expression building *)
 (* ************************************************************************ *)
 
@@ -726,6 +735,13 @@ let rec parse_expr (env : env) t =
     | { Ast.term = Ast.App ({ Ast.term = Ast.Symbol s }, l) } as ast ->
       parse_app env ast s l
 
+    (* Builtin application not treated directly, but instead
+       routed to a semantic extension through builtin_symbols. *)
+    | { Ast.term = Ast.Builtin b } as ast ->
+      parse_builtin env ast b []
+    | { Ast.term = Ast.App ({ Ast.term = Ast.Builtin b }, l) } as ast ->
+      parse_builtin env ast b l
+
     (* Local bindings *)
     | { Ast.term = Ast.Binder (Ast.Let, vars, f) } ->
       parse_let env f vars
@@ -844,14 +860,14 @@ and parse_app env ast s args =
           | `Term_alias (f_ty_args, f_t_args, body) ->
             parse_app_subst_term env ast s args f_ty_args f_t_args body
           | `Not_found ->
-            begin match env.builtins env ast s args with
+            begin match env.builtins env ast (Id s) args with
               | Some res -> res
               | None ->
                 begin match infer env ast s args (get_loc ast) with
                   | Some Ty_fun f -> parse_app_ty env ast f args
                   | Some Term_fun f -> parse_app_term env ast f args
                   | None ->
-                    Util.error ~section
+                    Util.warn ~section
                       "Looking up '%a' failed, possibilities were:@ @[<hov>%a@]"
                       Id.print s (suggest ~limit:1 env) s;
                     raise (Typing_error (
@@ -873,7 +889,8 @@ and parse_app_term env ast f args =
     if n_args = n_ty + n_t then
       CCList.take_drop n_ty args
     else if n_args = n_t then
-      (CCList.replicate n_ty Dolmen.Term.wildcard, args)
+      (* TODO: give some ghost location to the wildcards ? *)
+      (CCList.replicate n_ty (Dolmen.Term.wildcard ()), args)
     else
       _bad_term_arity env f (n_ty + n_t) ast
   in
@@ -895,6 +912,11 @@ and parse_app_subst_term env ast id args f_ty_args f_t_args body =
   let ty_args = List.map (parse_ty env) ty_l in
   let t_args = List.map (parse_term env) t_l in
   Term (term_subst env ast id ty_args t_args f_ty_args f_t_args body)
+
+and parse_builtin env ast b args =
+  match env.builtins env ast (Builtin b) [] with
+  | Some res -> res
+  | None -> _unknown_builtin env ast b
 
 and parse_ty env ast =
   match parse_expr (expect env Type) ast with

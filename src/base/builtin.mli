@@ -57,11 +57,12 @@ end
 (** Arithmetic builtins *)
 module Arith : sig
 
-  (** {5 Arithmetic builtins declarations} *)
-
   type ty = Int | Rat | Real
 
-  type value = Int of Z.t | Rat of Q.t | Real of Q.t Lazy.t
+  type value =
+    | Int of Z.t
+    | Rat of Q.t
+    | Real of Q.t Lazy.t
 
   type op =
     | Less | Lesseq
