@@ -35,10 +35,8 @@ let pb =
       let l' = List.map (fun x -> (false, x)) (pairify neqs) in
       shuffle_l (l @ l')
     ) in
-  QCheck.{
-    (list (pair bool (pair Expr_test.Term.t Expr_test.Term.t)))
-    with QCheck.gen = g
-  }
+  QCheck.(set_gen g
+    (list (pair bool (pair Expr_test.Term.t Expr_test.Term.t))))
 
 (* Naive solving *)
 (* ************************************************************************ *)
