@@ -1,38 +1,46 @@
+(* $Id$ *)
 
-A README has been added to the repo, and cherry-picked to
-a new branch ijcar18 built on top of the commit referenced in the paper.
-Benchmark files and results can be found on the following github repository:
+Dear Stephan and PC chairs,
+
+Thanks a lot for your message, and thanks a lot to the reviewer for his/her
+remarks as well.
+
+Regarding the tool and benchmark problems, a README has been added to the
+repository, and cherry-picked to a new branch ijcar18 built on top of the commit
+referenced in the paper. Benchmark files and results can be found on the
+following GitHub repository:
+
 https://github.com/delahayd/bset
 
-Concerning correctness of the presented systems.
-Assuming, subsystems (1), (2) and (3) respectively corresponds to
-the tableaux-like method of finding instanciations, the rewrite
-system, and the rigid superposition. Tableaux method correctness implies
-correctness of (1). (2) is also correct since it computes normal form
-according to a static and global rewrite system and then explicit the equivalence
-(or equality) of a term and its normal form. Finally (3) is also correct since it can only
-produce inferences that could be inferred in regular superposition (erasing the
-set of mappings).
+Concerning the correctness of the presented systems, we assume that subsystems
+(1), (2) and (3) referenced in reviewer's message respectively correspond to
+the tableau theory, the rewrite theory, and the rigid superposition. The
+correctness of (1) relies on the correctness of the tableau method, as the
+theory only adds clauses corresponding to instances of tableau rules. (2) is
+also correct since it computes normal forms according to a static and global
+rewrite system and then explicit the equivalence (or equality) of a term and its
+normal form. Finally, (3) is also correct since it can only produce inferences
+that could be inferred in regular superposition (erasing the set of mappings).
 
-About completeness, (1) relies on the completeness of the tableaux method,
-which is guaranteed under fairness of the tableaux expansion strategy.
-
-For rewriting using subsystem (2), we must first assume completeness of the
-ground reasonning of the SMT, and completeness of the sequent calculus modulo
-the rewriting system used. We then have two cases: either there are no equalities
-in the problem, in which case (2) is complete since it computes all normal forms,
-after which the proof can be found using ground reasoning. In presence of equalities,
-we rely on the completeness of (1) and (3) to find rewrite rules instanciations.
-The B theory presented in the paper is a special case where equalities between sets
-are syntaxically matched and directly rewritten as predicates on the membership relation,
-using the rewrite rule for extensionnality.
+About completeness, (1) relies on the completeness of the tableau method, which
+is guaranteed under a fair expansion strategy. For rewriting using subsystem
+(2), we must first assume completeness of the ground reasoning of the SMT, and
+completeness of the sequent calculus modulo the rewriting system used. We then
+have two cases: either there are no equalities in the problem, in which case (2)
+is complete since it computes all normal forms, after which the proof can be
+found using ground reasoning. In presence of equalities, we rely on the
+completeness of (1) and (3) to find rewrite rule instantiations. The B theory
+presented in the paper is a special case where equalities between sets are
+syntactically matched and directly rewritten as predicates on the membership
+relation, using the rewrite rule for extensionality.
 
 (3) TODO
 
-These justifications and clues will be added to the final version of the paper
-if accepted though no formal proof will be provided.
+These justifications will be added and discussed further in the paper if it is
+accepted.
 
-Apologies for the inconvenience,
+Thanks again for your help.
 
-Guillaume Bury, David Delahaye & Simon Cruanès
+Best regards,
 
+Guillaume Bury, Simon Cruanes, and David Delahaye
