@@ -1,0 +1,38 @@
+
+A README has been added to the repo, and cherry-picked to
+a new branch ijcar18 built on top of the commit referenced in the paper.
+Benchmark files and results can be found on the following github repository:
+https://github.com/delahayd/bset
+
+Concerning correctness of the presented systems.
+Assuming, subsystems (1), (2) and (3) respectively corresponds to
+the tableaux-like method of finding instanciations, the rewrite
+system, and the rigid superposition. Tableaux method correctness implies
+correctness of (1). (2) is also correct since it computes normal form
+according to a rewrite system and then explicit the equivalence (or equality)
+of a term and its normal form. Finally (3) is also correct since it can only
+produce inferences that could be inferred in regular superposition (erasing the
+set of mappings).
+
+About completeness, (1) relies on the completeness of the tableaux method,
+which is guaranteed under fairness of the tableaux expansion strategy.
+
+For rewriting using subsystem (2), we must first assume completeness of the
+ground reasonning of the SMT, and completeness of the sequent calculus modulo
+the rewriting system used. We then have two cases: either there are no equalities
+in the problem, in which case (2) is complete since it computes all normal forms,
+after which the proof can be found using ground reasoning. In presence of equalities,
+we rely on the completeness of (1) and (3) to find rewrite rules instanciations.
+The B theory presented in the paper is a special case where equalities between sets
+are syntaxically matched and directly rewritten as predicates on the membership relation,
+using the rewrite rule for extensionnality.
+
+(3) TODO
+
+These justifications and clues will be added to the final version of the paper
+if accepted though no formal proof will be provided.
+
+Apologies for the inconvenience,
+
+Guillaume Bury, David Delahaye & Simon Cruanès
+
