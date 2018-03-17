@@ -9,8 +9,8 @@ Assuming, subsystems (1), (2) and (3) respectively corresponds to
 the tableaux-like method of finding instanciations, the rewrite
 system, and the rigid superposition. Tableaux method correctness implies
 correctness of (1). (2) is also correct since it computes normal form
-according to a rewrite system and then explicit the equivalence (or equality)
-of a term and its normal form. Finally (3) is also correct since it can only
+according to a static and global rewrite system and then explicit the equivalence
+(or equality) of a term and its normal form. Finally (3) is also correct since it can only
 produce inferences that could be inferred in regular superposition (erasing the
 set of mappings).
 
