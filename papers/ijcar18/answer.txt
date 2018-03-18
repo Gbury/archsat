@@ -34,7 +34,13 @@ presented in the paper is a special case where equalities between sets are
 syntactically matched and directly rewritten as predicates on the membership
 relation, using the rewrite rule for extensionality.
 
-(3) TODO
+(3) Completeness of the superposistion subsystem follows from completeness of superposition,
+as we only restricts inferences of regular superposition to honour rigid variables,
+thus it provides a complete rigid unification algorithm.
+Rigid unification then provides a complete strategy for proof search as any proof
+uses a finite amount of instances for each axiom, thus with enough rigid variables,
+the proof will be found using rigid unification, assuming a fair strategy for
+new rigid variables generation.
 
 These justifications will be added and discussed further in the paper if it is
 accepted.
