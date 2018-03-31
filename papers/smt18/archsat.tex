@@ -1,0 +1,65 @@
+% $Id$
+
+\documentclass[a4paper]{easychair}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{makeidx}
+\usepackage[hidelinks]{hyperref}
+\usepackage{bussproofs}
+\usepackage{amsmath,amsfonts,amssymb}
+\usepackage{stmaryrd}
+\usepackage{tabularx}
+\usepackage{pgf,tikz}
+\usepackage{url}
+\usepackage{float}
+\usepackage{color}
+\usepackage{cite}
+\usepackage{booktabs}
+\floatstyle{boxed}
+\restylefloat{figure}
+\usepackage{relsize}
+
+\input{macros}
+
+\begin{document}
+
+\title{SAT Solving Modulo Tableau and Rewriting Theories}
+\titlerunning{SAT Solving Modulo Tableau and Rewriting Theories}
+
+\author{Guillaume~Bury\inst{1} \and Simon~Cruanes\inst{2} \and
+David~Delahaye\inst{3}}
+\authorrunning{Guillaume~Bury, Simon~Cruanes, and David~Delahaye}
+
+\institute{\inria{}/\lsv{}/\ens{}, Cachan, France\\
+\email{Guillaume.Bury@inria.fr} \and
+\ai{}, Austin (Texas), USA\\
+\email{simon@aestheticintegration.com} \and
+\lirmm{}/\um{}, Montpellier, France\\
+\email{David.Delahaye@lirmm.fr}}
+
+\maketitle
+
+\begin{abstract}
+We propose an automated theorem prover that combines a SAT solver with tableau
+calculus and rewriting. Tableau inference rules are used to unfold propositional
+content into clauses while atomic formulas are handled using satisfiability
+decision procedures as in SMT solvers. To deal with quantified first order
+formulas, we use metavariables and perform rigid unification modulo equalities
+and rewriting, for which we introduce an algorithm based on superposition, but
+where all clauses contain a single atomic formula. Rewriting is introduced along
+the lines of deduction modulo theory, where axioms are turned into rewrite rules
+over both terms and propositions. Finally, we assess our approach over a
+benchmark of problems in the set theory of the \bmth{} method.
+\end{abstract}
+
+\input{intro}
+\input{tabrew}
+\input{super}
+\input{bench}
+\input{concl}
+
+\bibliographystyle{abbrv}
+\bibliography{biblio}
+
+\end{document}

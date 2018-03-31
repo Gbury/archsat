@@ -1,0 +1,23 @@
+% $Id$
+
+\section{Conclusion}
+
+We have described the architecture of \archsat{}, an automated theorem prover
+that combines a SAT solver with tableau calculus and rewriting. Compared to
+several other tools, \archsat{} appears quite effective in practice, as shown by
+some experimental results obtained by running our implementation over a
+benchmark of problems in the \bmth{} set theory.
+
+As perspectives, we plan to realize more tests of \archsat{} over other theories
+where a large part of these theories can be turned into rewrite rules. In
+particular, a regular trigger mechanism has been also implemented in \archsat{}
+and can be used to deal with conditional rewriting (the instantiation is delayed
+and performed once the condition has been evaluated to true). This feature
+should open up a range of new perspectives on the theories that our approach
+could handle. We also aim to apply our tool to the benchmark of the \bware{}
+project~\cite{BWare}, which consists of a large collection of proof obligations
+coming from the development of industrial applications using the \bmth{} method.
+This collection gathers about 13,000~problems, and should allow us to understand
+to what extent our tool scales up. To do so, we have to extend \archsat{} to
+arithmetic, which can be done using the modular architecture of \archsat{} and
+adding an arithmetic theory to the SAT solver core of the prover.
