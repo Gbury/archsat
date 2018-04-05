@@ -20,7 +20,7 @@ particular (see Sec.~\ref{sec:super}).
 Regarding the integration of rewriting, automated theorem provers rely on
 several solutions (superposition rule for first order provers, triggers for SMT
 solvers, etc.). But deduction modulo theory~\cite{DA03} is probably the most
-general approach, where a theory can be partly turned in to a set of rewrite
+general approach, where a theory can be partly turned into a set of rewrite
 rules over both terms and propositions. Several proof search methods have been
 extended to deduction modulo theory, resulting in tools such as \iproverm{} and
 \zenm{}. This paper can be seen as a continuation of these previous experiments
@@ -29,22 +29,22 @@ adapted to the framework of SMT solving.
 \subsection{SAT Solving Modulo Theories}
 
 In this subsection, we recall the classic architecture of SMT
-solvers~\cite{BEA06}. We introduce $\mathcal{T}$ and $\mathcal{F}$ respectively
+solvers~\cite{BEA06}. We introduce $\mathcal{T}$ and $\mathcal{F}$ respectively,
 the sets of first order terms and formulas over the signature
 $\mathcal{S}=(\mathcal{S}_\mathcal{F},\mathcal{S}_\mathcal{P})$, where
 $\mathcal{S}_\mathcal{F}$ is the set of function symbols, and
 $\mathcal{S}_\mathcal{P}$, the set of predicate symbols, such that
 $\mathcal{S}_\mathcal{F}\cap\mathcal{S}_\mathcal{P}=\emptyset$. The set
 $\mathcal{T}$ is extended with two kinds of terms specific to tableau proof
-search, i.e. $\epsilon{}$-terms (used instead of Skolemization) of the form
+search. First are $\epsilon{}$-terms (used instead of Skolemization) of the form
 $\epsilon(x).P(x)$, where $P(x)$ is a formula, and which means some $x$ that
-satisfies $P(x)$, if it exists, and metavariables (often named free variables in
+satisfies $P(x)$, if it exists. And second, metavariables (often named free variables in
 the tableau-related literature) of the form $X_P$, where $P$ is the formula that
 introduces the metavariable, and which is either $\forall{}x.Q(x)$ or
 $\neg\exists{}x.Q(x)$, with $Q(x)$ a formula.
 
 A boxed formula is of the form $\lfloor{}P\rfloor$, where $P$ is a formula. A
-boxed formula is called atom, and a literal is either an atom, or the negation
+boxed formula is called an atom, and a literal is either an atom, or the negation
 of an atom. A literal is such that there is no negation on top of the boxed
 formula (which means that $\lfloor\neg{}P\rfloor=\neg\lfloor{}P\rfloor$, and
 $\neg\neg\lfloor{}P\rfloor=\lfloor{}P\rfloor$). A clause is a disjunction of
@@ -72,9 +72,10 @@ tautology in $T$. Given two sets of clauses $M$ and $S$, we say that $M$ is a
 model of $S$ modulo the theory $T$ and write $M\models_TS$, if $M$ is a model of
 $S$ and $M$ is a tautology in $T$.
 
-A SAT solver modulo theories is characterized by a set of theories $S_T$ and an
+A SAT solver modulo theory is characterized by a theory $T$ and an
 internal state of the form $M\parallel{}S$, where $M$ is an ordered list of
-literals (if $M=l_1,l2,\ldots,l_n$ then $l_1<l_2<\ldots<l_n$) and $S$ a set of
+literals (if $M=l_1,l_2,\ldots,l_n$ then $l_1<l_2<\ldots<l_n$) representing
+decisions and propagations in chronological order, and $S$ a set of
 clauses. Intuitively, $M$ represents the model of $S$, which will be built
 progressively (initially, we have $M=\emptyset$) by the application of a set of
 rules over the internal state of the solver. This set of rules is presented in
@@ -83,10 +84,10 @@ Fig.~\ref{fig:smt}. Each time a literal is propagated (rule
 to each theory, which may generate new clauses (rule ``$\mathrm{learn}$''). If a
 clause is unvalidated by the model, then it is possible to backtrack the
 decision over a given literal of the model if it exists (rule
-``$\mathrm{backjump}$''). There are two final states in this transition
-system. The first one is ``$\mathrm{unsat}$'', which means that $S$ is
+``$\mathrm{backjump}$''). Two cases wrt final states can be distinguished.
+The first one is ``$\mathrm{unsat}$'', which means that $S$ is
 unsatisfiable (rule ``$\mathrm{unsat}$''). The second one is $M\parallel{}S$,
-where $M$ is a model of $S$ and a tautology for every theory in $S_T$. In this
+where $M$ is a model of $S$ and a tautology the theory $T$. In this
 last case, if $M$ is not a tautology in a theory $T$, this theory generates a
 set of conflict clauses (rule ``$\mathrm{learn}$'').
 
@@ -96,7 +97,7 @@ set of conflict clauses (rule ``$\mathrm{learn}$'').
 \begin{center}
 $\begin{array}{l@{\hspace{0.4cm}}l@{\hspace{0.4cm}}l}
 M\parallel{}S,C\lor{}l\longrightarrow{}M,l\parallel{}S,C\lor{}l &
-(\mathrm{unit~prop}) & \mbox{if }l\not\in{}M\mbox{ and }M\models{}\neg{}C\\\\
+  (\mathrm{unit~prop}) & \mbox{if }l\mbox{ undefined in }{}M\mbox{ and }M\models{}\neg{}C\\\\
 
 M\parallel{}S\longrightarrow{}M,l^\mathrm{d}\parallel{}S & (\mathrm{decide}) &
 \mbox{if }l\not\in{}M\mbox{, and }l\in{}S\mbox{ or }\neg{}l\in{}S\\\\
@@ -124,32 +125,36 @@ M\parallel{}S\longrightarrow{}M\parallel{}S,S'
 \end{figure}
 
 \subsection{The Tableau Theory}
+\label{sec:tab}
 
-In the SAT solver previously described, the tableau proof search method is
+In the SMT solver previously described, the tableau proof search method is
 integrated as a regular theory. When a literal is propagated or decided, we
 generate a set of clauses corresponding to the application of a tableau rule
-over the logical connective at root of the formula in the box of the
+depending on the logical connective at the root of the formula in the box of the
 literal. More precisely, for a literal $l$, we generate the set of clauses
 $\llbracket{}l\rrbracket$, where the function $\llbracket\cdot\rrbracket$ is
 described by the rules of Fig.~\ref{fig:tabth}. When a literal is propagated or
 decided, we use all the rules of Fig.~\ref{fig:tabth} except the instantiation
 $\gamma$-rules (rules $\gamma_{\forall\mathrm{inst}}$ and
 $\gamma_{\neg\exists\mathrm{inst}}$). It should be noted that we use the same
-names for the rules than in tableau calculus ($\alpha$-rules, $\beta$-rules,
+names for the rules as in tableau calculus ($\alpha$-rules, $\beta$-rules,
 etc.), but there is no precedence between rules and therefore no priority in the
 application of the rules contrary to the tableau proof search method (where
 $\alpha$ rules are applied before $\beta$-rules, and so on).
 
-When the SAT solver reaches a state $M\parallel{}S$, where $M$ is a model of
+When the SMT solver reaches a state $M\parallel{}S$, where $M$ is a model of
 $S$, we look for a conflict in $M$ between two literals by unification and we
 generate the clauses corresponding to the instantiation of the metavariables
 using the result of the unification. More precisely, if there exist two literals
 $l$ and $\neg{}l'$ in $M$ such that $l=\lfloor{}Q\rfloor$ and
-$l'=\lfloor{}R\rfloor$, with $Q$ and $R$ two formulas, then for each
-substitution $(X_{\forall{}x.P(x)}\mapsto{}t)\in\mathrm{mgu}(Q,R)$ (resp.
-$(X_{\neg\exists{}x.P(x)}\mapsto{}t)\in\mathrm{mgu}(Q,R)$) such that there is no
-$Y_T\in\forall{}x.P(x)$ (resp. $Y_T\in\neg\exists{}x.P(x)$), we can generate the
-clauses $\llbracket\lfloor\forall{}x.P(x)\rfloor{}\rrbracket$ 
+$l'=\lfloor{}R\rfloor$, with $Q$ and $R$ two formulas, then for each binding
+$(X_{\forall{}x.P(x)}\mapsto{}t)\in\sigma$ belonging to a
+substitution\footnote{In practice, the implementation also splits and
+reduce substitutions in order to only generate clauses corresponding to the
+outermost meta-variables.}
+$\sigma\in\mathrm{mgu}(Q,R)$ (resp.
+$(X_{\neg\exists{}x.P(x)}\mapsto{}t)\in\sigma\in\mathrm{mgu}(Q,R)$)
+we can generate the clauses $\llbracket\lfloor\forall{}x.P(x)\rfloor{}\rrbracket$
 (resp. $\llbracket\neg\lfloor\exists{}x.P(x)\rfloor{}\rrbracket$) using the rule
 $\gamma_{\forall\mathrm{inst}}$ (resp. $\gamma_{\neg\exists\mathrm{inst}}$) of
 Fig.~\ref{fig:tabth}.
@@ -380,8 +385,8 @@ $\mathcal{RE}$ and the rewrite relation $\rew_\mathcal{RE}$. In particular, if
 the rewrite relation $\rew_\mathcal{RE}$ is confluent and (weakly) terminating,
 then the relation $=_\mathcal{RE}$ is decidable.
 
-The rewriting theory is integrated into the SAT solver in a similar way than for
-the tableau theory. When a literal is propagated or decided, we generate a
+The rewriting theory is integrated into the SAT solver in a similar way as for
+the tableau theory. Whenever a literal is propagated or decided, we generate a
 clause introducing a new formula that is congruent to the formula in the box of
 the literal. More precisely, given a literal $\lfloor{}P\rfloor$, where $P$ is a
 formula, and a formula $P'$ such that $P=_\mathcal{RE}P'$, we generate the
@@ -397,7 +402,7 @@ where $\vec{x}=\mathrm{FV}(l)\cup\mathrm{FV}(r)$.
 It should be noted that in usual SMT solvers, rewriting can be emulated by means
 of triggers that are actually the left-hand side members of the class rewrite
 system $\mathcal{RE}$ introduced above. But in our rewriting theory, we can
-generate the formula where rewritings have been done, while triggers can just
+generate the formula where rewriting setps have been done, while triggers can just
 generate bindings, i.e. instances of the rewrite rules, which are used later to
 relate the initial and rewritten formulas. Moreover, in our case, we can perform
 several rewritings at once, while a trigger can only emulate one rewriting at a
@@ -407,7 +412,7 @@ Let us illustrate the use of the rewriting theory by means of an example in set
 theory. Let us prove that
 $(\forall{}s,t.s\subseteq{}t\Leftrightarrow{}\forall{}x.x\in{}s\Rightarrow{}
 x\in{}t)\Rightarrow{}a\subseteq{}a$, where $a$ is a constant. The proof is given
-by Fig.~\ref{fig:rew}, where the rules ``$\mathrm{learn~tab}$'' and
+in Fig.~\ref{fig:rew}, where the rules ``$\mathrm{learn~tab}$'' and
 ``$\mathrm{learn~rew}$'' represent the rule ``$\mathrm{learn}$'' using
 respectively the tableau and rewriting theories.
 
@@ -490,10 +495,10 @@ $\begin{array}{l}
 ~~~~D\equiv\lfloor{}a\subseteq{}a\Leftrightarrow
 \forall{}x.x\in{}a\Rightarrow{}x\in{}a\rfloor &
 ~~~~E\equiv\lfloor{}a\subseteq{}a\Rightarrow
-\forall{}.x\in{}a\Rightarrow{}x\in{}a\rfloor\\
-~~~~F\equiv\lfloor(\forall{}.x\in{}a\Rightarrow{}x\in{}a)
+\forall{}x.x\in{}a\Rightarrow{}x\in{}a\rfloor\\
+~~~~F\equiv\lfloor(\forall{}x.x\in{}a\Rightarrow{}x\in{}a)
 \Rightarrow{}a\subseteq{}a\rfloor &
-~~~~G\equiv\lfloor\forall{}.x\in{}a\Rightarrow{}x\in{}a\rfloor\\
+~~~~G\equiv\lfloor\forall{}x.x\in{}a\Rightarrow{}x\in{}a\rfloor\\
 ~~~~H\equiv\lfloor\epsilon_x\in{}a\Rightarrow\epsilon_x\in{}a\rfloor &
 ~~~~I\equiv\lfloor\epsilon_x\in{}a\rfloor
 \end{array}\\\\

@@ -31,23 +31,26 @@ of the formula, so that it fails to prove formulas that can be easily discharged
 by provers based on more traditional first order proof search methods (tableaux,
 resolution, etc.).
 
-In this paper, we propose to overcome this problem of completeness for first
+In this paper, we propose to improve first order proof search by introducing
+rewriting into the SAT solver as a regular SMT theory, along the lines of
+deduction modulo theory. Deduction modulo theory~\cite{DA03} focuses on the
+computational part of a theory, where axioms are transformed into rewrite rules,
+which induces a congruence over propositions, and where reasoning is performed
+modulo this congruence. In deduction modulo theory, this congruence is then
+induced by a set of rewrite rules over both terms and propositions. In the SAT
+solver, this congruence is used a first time to speed up ground reasoning
+by computing normal forms for terms, but this still yields an incomplete
+algorithm.
+
+We thus propose to overcome the problem of completeness for first
 order logic in SMT solving by combining a SAT solver core with tableau
 calculus. The tableau calculus is introduced as a regular theory of SMT solving,
 and the rules are used to unfold propositional content into clauses while atomic
 formulas are handled using satisfiability decision procedures as in
 SMT solvers. To deal with quantified first order formulas, we use
-metavariables and perform rigid unification modulo equalities and rewriting, for
-which we introduce an algorithm based on superposition, but where all clauses
+metavariables and perform rigid unification modulo equalities and modulo rewriting,
+for which we introduce an algorithm based on superposition, but where all clauses
 contain a single atomic formula.
-
-We also propose to improve proof search by introducing rewriting into the SAT
-solver as a regular SMT theory and along the lines of deduction modulo
-theory. Deduction modulo theory~\cite{DA03} focuses on the computational part of
-a theory, where axioms are transformed into rewrite rules, which induces a
-congruence over propositions, and where reasoning is performed modulo this
-congruence. In deduction modulo theory, this congruence is then induced by a set
-of rewrite rules over both terms and propositions.
 
 Our approach provides several advantages compared to usual SMT solving and first
 order proof search methods. First, we benefit from the efficiency of a SAT

@@ -12,7 +12,7 @@ this implementation over a benchmark of problems in the \bmth{} set theory.
 The algorithms described in this paper are implemented in the \archsat{}
 automated theorem prover\footnote{Available at:
 \url{https://gforge.inria.fr/projects/archsat}.}. It relies on the
-\msat{}~\cite{GB17} library, derived from the \altergoz{} tool, and which is a
+\msat{}~\cite{GB17} library, derived from the \altergoz{} tool, which is a
 generic library for building automated deduction tools based on SAT solvers. The
 SAT core in \msat{} is implemented using CDCL rather than the DPLL strategy
 described in Sec.~\ref{sec:smt}, but our approach is actually agnostic with
@@ -30,7 +30,7 @@ refinements, software that is correct by design. This theory is suitable as it
 can be easily turned into a theory that is compatible with deduction modulo
 theory, i.e. where a large part of axioms can be turned into rewrite rules, and
 for which the rewriting theory proposed previously in Subsec.~\ref{sec:rew}
-should work. Starting from the theory described in Chap.~2 of the
+works. Starting from the theory described in Chap.~2 of the
 \bbook{}~\cite{B-Book}, we therefore transform whenever possible the axioms and
 definitions into rewrite rules. The resulting theory has been introduced
 in~\cite{BA15}, and due to lack of space, we only provide, in
@@ -102,12 +102,12 @@ deal with first order logic with polymorphic types and rewriting natively. In
 particular, we consider \zipper{} (version~1.5), a prover based on superposition
 and rewriting, as well as \zenm{} (version~0.4.2), a tableau-based prover that
 is an extension of \zenon{} to deduction modulo theory. To show the impact of
-rewriting over the results, we also include the \altergo{} SMT solver
+rewriting on the results, we also include the \altergo{} SMT solver
 (version~1.01). It would have been possible to also consider provers dealing
 with pure first order logic and encode the polymorphic layer. But preliminary
 tests have been conducted and very low results have been obtained even for the
 best state-of-the-art provers (we have considered \e{} and \cvc{} in
-particular), which tends to show that polymorphism encoding adds a lot of noise
+particular), which indicates that polymorphism encoding adds a lot of noise
 in proof search and is not effective in practice.
 
 The experiment was run on an \intel{}~3.50~GHz computer, with a timeout of 90~s
@@ -119,7 +119,7 @@ practice. However, \archsat{} places second behind \zipper{}, which means that
 there is still room for improvement regarding the implementation of our tool.
 Looking at the cumulative times, \altergo{} is not really faster than
 \archsat{} and \zipper{}, which take more time to find few more difficult
-problems (with a timeout of 3~s, they respectively find 260 and 303~proofs in
+problems (with a timeout of 3s, they respectively find 260 and 303~proofs in
 16.61~s and 17.61~s, while \altergo{} obtains the same results).
 
 \setlength{\tabcolsep}{3pt}

@@ -7,10 +7,10 @@ There are many ways of integrating equational reasoning in tableau
 methods~\cite{DB75,LS02,BR15,DV96}. Because our prover does not rely on clausal
 forms, but on arbitrary formulas with quantifiers occurring deep inside
 branches, we deal with rigid variables, i.e. variables that can be instantiated
-only once. The problem we want to solve, rigid E-unification modulo rewrite
-rules, is the following. Assume a set of equations $E$, containing rigid
-variables, a rewrite system $\mathcal{RE}$, and target terms $s$ and $t$. We
-want a substitution $\sigma$ such that
+only once. In order to find instanciation as described in \ref{sec:tab},
+we need to solve rigid E-unification modulo rewrite rules:~assume a set of
+equations $E$, containing rigid variables, a rewrite system $\mathcal{RE}$,
+and target terms $s$ and $t$; we want a substitution $\sigma$ such that
 $\bigwedge_{e \in E} e\sigma \vdash s\sigma =_\mathcal{E} t\sigma$. Such a
 substitution is a solution to the rigid E-unification problem.
 
@@ -28,38 +28,32 @@ paramodulation, we use a term ordering to orient the equations.
 \subsection{Preliminary Definitions}
 
 We write $ \clauseWithSubst{ s \approx t }{ \Sigma}$ (resp.
-$\clauseWithSubst{ s \not\approx t }{ \Sigma}$), the unit clause that contains
+$\clauseWithSubst{ s \not\approx t }{ \Sigma}$) for the unit clause that contains
 exactly one equation (resp.~disequation) under hypothesis $\Sigma$ (which is a
 set of substitutions). We write $\clauseWithSubst{\emptyset}{\Sigma}$ for the
 empty clause under hypothesis $\Sigma$. We define $\renameVars{e}$, where $e$
 is a (dis)equation, as follows: let $\sigma$ map every rigid variable of $e$ to
 a fresh non-rigid variable, then
 $\renameVars{e} = \clauseWithSubst{ e\sigma }{ \{ \sigma \} }$. For example,
-$\renameVars{p(X)\approx a}$ is $\clauseWithSubst{ p(Y)\approx a}{ \{ X\mapsto
-Y\} }$. The E-unification problem $E \vdash s\approx t$ can be solved by proving
-$\clauseWithSubst{\emptyset }{ \Sigma}$ from
-$\{ \renameVars{e} \}_{ e \in E } \cup \{ \renameVars{ s \not\approx t } \}$,
-where $\Sigma$ contains the solutions. The meaning of $s \approx t | \Sigma$ is
+$\renameVars{p(X)\approx a}$ is $\clauseWithSubst{ p(v1)\approx a}{ \{ X\mapsto
+v1\} }$.
+The meaning of $clauseWithSubst{s \approx t}{ \Sigma}$ is
 that for every $\sigma \in \Sigma$, $s \approx t$ is provable using the
 substitution $\sigma$ for the metavariables.
+
+The E-unification problem $E \vdash s\approx t$ can be solved by reaching
+$\clauseWithSubst{\emptyset }{ \Sigma}$ from
+$\{ \renameVars{e} \}_{ e \in E } \cup \{ \renameVars{ s \not\approx t } \}$
+using the inference rules in Fig.~\ref{fig:unit-sup-rules},
+with $\Sigma$ the set of solutions.
 
 As can be noticed, we keep a set of substitutions, rather than unit clauses
 paired with individual substitutions, in order to avoid duplicating the work for
 alpha-equivalent clauses. Indeed, because of amplification, many instances of a
 given (dis)equation might be present in a branch of the tableau. It would be
 inefficient to repeat the same inference steps with each variant of the axioms.
-Because we apply $\renameVars{e}$ on every initial $e$, clauses do not share any
-variable, except in their attached sets of substitutions.
-
-To perform an inference step between two unit (dis)equations, we merge their
-sets of substitutions. Merging $\Sigma$ and $\Sigma'$, intuitively, means
-computing $\{ \textsf{merge}(\sigma,\sigma') ~|~ \sigma \in \Sigma, \sigma'\in
-\Sigma' \}$ for every pair $(\sigma,\sigma')$ of compatible substitutions. For
-example, the resolution step between $p(x,x)| \{ X \mapsto a \}$ and
-$\lnot p(y,b)| \{ X \mapsto y \}$ is not possible, because the result would need
-to map $X$ to $a$ and $b$, which is impossible because $X$ is rigid.
-Compatibility relies on a partial ordering $\leq$, such that
-$\sigma \leq \sigma'$ means that $\sigma$ is less general than $\sigma'$.
+Because we apply $\renameVars{e}$ on every input equality $e$, clauses do not share any
+variable, though they may share meta-variables in their attached sets of substitutions.
 
 Considering a substitution as a function from variables to terms, we define the
 domain of a substitution $\sigma$ as the set of variables that have a
@@ -84,8 +78,14 @@ supremum of $\{\sigma,\sigma'\}$ for the order $\leq$, if it exists, or $\bot$
 otherwise. The merging of sets of substitutions is
 $\Sigma \uparrow \Sigma' \triangleq \left\{ \sigma \uparrow \sigma' ~|~ \sigma
 \in \Sigma, \sigma' \in \Sigma' \right., \sigma \uparrow \sigma' \not= \bot
-\}$. An inference rule is said to be successful if the merging of the premises'
-substitution sets is non-empty.
+\}$.
+
+To perform an inference step between two unit (dis)equations, we merge their
+sets of substitutions. An inference rule is said to be successful if the merging
+of the premises' substitution sets is non-empty. For example, the resolution step
+between $p(x,x)| \{ X \mapsto a \}$ and $\lnot p(y,b)| \{ X \mapsto y \}$ is not
+possible, because the result would need to map $X$ to $a$ and $b$, which is
+impossible because $X$ is rigid.
 
 \subsection{Inference System}
 
@@ -100,7 +100,7 @@ Fig.~\ref{fig:unit-sup-rules} work as described below:
 
 \begin{description}
 \item[ER] is equality resolution, where a disequation
-$\clauseWithSubst{s \not\approx t}\Sigma$ is solved by syntactically unifying
+$\clauseWithSubst{s \not\approx t}{\Sigma}$ is solved by syntactically unifying
 $s$ and $t$ with $\sigma$, if $\sigma$ is compatible with $\Sigma$.
 \item[SN] is superposition into negative literals. A subterm of $u$ is rewritten
 using $s \approx t$ after unifying it with $s$ by $\sigma$. The rewriting is
@@ -137,23 +137,23 @@ disequations) as there are in the set
 $(\Sigma \circ \sigma'') \uparrow (\Sigma' \circ \sigma'')$ because all
 substitutions may not always be merged. For instance, given
 $f(x) = t | \{ \{ X_1 \mapsto x \}, \{ X_2 \mapsto x \} \}$ and
-$f(a) = v | \{ \{ X_1 \mapsto a \} \} \}$, we have to derive two distinct
+$f(a) = v | \{ \{ X_1 \mapsto a \} \}$, we have to derive two distinct
 non-mergeable equations $(t = v)\{ x \mapsto a \} | \{ \{ X_1 \mapsto a \} \}$
 and $(t = v)\{ x \mapsto a \} | \{ \{ X_1 \mapsto a; X_2 \mapsto a \} \}$.
 
 \begin{figure}[htb]
 \begin{center}
 % ER
-\AXC{$s \not\approx t |\Sigma$}
+\AXC{$\clauseWithSubst{s \not\approx t}{\Sigma}$}
 \LL{ER}
 \RL{if $\sigma = \text{mgu}(s, t)$}
-\UIC{$\emptyset | \Sigma \circ \sigma $}\DP\\[12pt]
+\UIC{$\clauseWithSubst{\emptyset}{\Sigma \circ \sigma}$}\DP\\[12pt]
 
 % SN
-\AXC{$s \approx t | \Sigma$}
-\AXC{$u \not\approx v | \Sigma'$}
+\AXC{$\clauseWithSubst{s \approx t}{\Sigma}$}
+\AXC{$\clauseWithSubst{u \not\approx v}{\Sigma'}$}
 \LL{SN}
-\BIC{$\sigma''(u[p \leftarrow t] \not\approx v) | \sigma'''$}\DP
+\BIC{$\clauseWithSubst{\sigma''(u[p \leftarrow t] \not\approx v)}{\sigma'''}$}\DP
 $\text{if} \left\{ \begin{array}{l@{\quad}l}
 \sigma'' = \text{mgu}(u_{|p}, s) & u_{|p} \not\in V\\
 \sigma''(s) \not\preceq \sigma''(t) & \sigma''(u) \not\preceq \sigma''(v)\\
@@ -162,10 +162,10 @@ $\text{if} \left\{ \begin{array}{l@{\quad}l}
 \end{array}\right.$\\[12pt]
 
 % SP
-\AXC{$s \approx t | \Sigma$}
-\AXC{$u \approx v | \Sigma'$}
+\AXC{$\clauseWithSubst{s \approx t}{\Sigma}$}
+\AXC{$\clauseWithSubst{u \approx v}{\Sigma'}$}
 \LL{SP}
-\BIC{$\sigma''(u[p \leftarrow t] \approx v) | \sigma'''$}\DP
+\BIC{$\clauseWithSubst{\sigma''(u[p \leftarrow t] \approx v)}{\sigma'''}$}\DP
 $\text{if} \left\{ \begin{array}{l@{\quad}l}
 \sigma'' = \text{mgu}(u_{|p}, s) & u_{|p} \not\in V\\
 \sigma''(s) \not\preceq \sigma''(t) & \sigma''(u) \not\preceq \sigma''(v)\\
@@ -175,13 +175,13 @@ $\text{if} \left\{ \begin{array}{l@{\quad}l}
 
 \mbox{
 % TD1
-\AXC{$s \approx s | \Sigma $}
+\AXC{$\clauseWithSubst{s \approx s}{\Sigma}$}
 \LL{TD1}
 \doubleLine{}
 \UIC{$\top$}\DP
 
 % TD2
-\AXC{$s \mathrel{R} t | \emptyset$}
+\AXC{$\clauseWithSubst{s \mathrel{R} t}{\emptyset}$}
 \LL{TD2}
 \RL{$ R \in \{ \approx, \not\approx \} $}
 \doubleLine{}
@@ -189,16 +189,16 @@ $\text{if} \left\{ \begin{array}{l@{\quad}l}
 \DP}\\[12pt]
 
 % ME
-\AXC{$\rho(u) \approx \rho(v) | \Sigma$}
-\AXC{$u \approx v | \Sigma'$}
+\AXC{$\clauseWithSubst{\rho(u) \approx \rho(v)}{\Sigma}$}
+\AXC{$\clauseWithSubst{u \approx v}{\Sigma'}$}
 \LL{ME}
 \RL{$\rho \text{ is a variable renaming}$}
 \doubleLine{}
-\BIC{$\rho(u) \approx \rho(v) | \Sigma \cup (\Sigma' \circ \rho)$}\DP\\[12pt]
+\BIC{$\clauseWithSubst{\rho(u) \approx \rho(v)}{\Sigma \cup (\Sigma' \circ \rho)}$}\DP\\[12pt]
 
 % ES
-\AXC{$s \approx t | \Sigma$}
-\AXC{$u[p \leftarrow s] \approx u[p \leftarrow t] | \Sigma' \cup \Sigma''$}
+\AXC{$\clauseWithSubst{s \approx t}{\Sigma}$}
+\AXC{$\clauseWithSubst{u[p \leftarrow s] \approx u[p \leftarrow t]}{\Sigma' \cup \Sigma''}$}
 \LL{ES}
 \RL{$
 \text{if} \left\{ \begin{array}{l}
@@ -206,15 +206,16 @@ $\text{if} \left\{ \begin{array}{l@{\quad}l}
 \Sigma \leq \Sigma''
 \end{array}\right.$}
 \doubleLine{}
-\BIC{$s\approx t | \Sigma \qquad u[p\leftarrow s] \approx u[p \leftarrow t] |
-\Sigma'$}\DP\\[12pt]
+\BIC{$\clauseWithSubst{s\approx t}{\Sigma} \qquad
+      \clauseWithSubst{u[p\leftarrow s] \approx u[p \leftarrow t]}{\Sigma'}$}\DP\\[12pt]
 
 % RP
-\AXC{$s \approx t | \Sigma$}
-\AXC{$u \approx v | \Sigma'$}
+\AXC{$\clauseWithSubst{s \approx t}{\Sigma}$}
+\AXC{$\clauseWithSubst{u \approx v}{\Sigma'}$}
 \LL{RP}
 \doubleLine{}
-\BIC{$s \approx t | \Sigma$ \qquad $u[p \leftarrow t] \approx v | \Sigma'$}\DP
+\BIC{$\clauseWithSubst{s \approx t}{\Sigma}$ \qquad
+     $\clauseWithSubst{u[p \leftarrow t] \approx v}{\Sigma'}$}\DP
 $\text{if} \left\{\begin{array}{l}
 u_{|p} = s\\
 s \succ t\\
@@ -223,12 +224,12 @@ u \not\succeq v ~ \text{or} ~ p \neq \lambda\\
 \end{array}\right.$\\[12pt]
 
 % RN
-\AXC{$s \approx t | \Sigma$}
-\AXC{$u \not\approx v | \Sigma'$}
+\AXC{$\clauseWithSubst{s \approx t}{\Sigma}$}
+\AXC{$\clauseWithSubst{u \not\approx v}{\Sigma'}$}
 \LL{RN}
 \doubleLine{}
-\BIC{$s \approx t | \Sigma$ \qquad $u[p \leftarrow t] \not\approx v |
-\Sigma'$}\DP
+\BIC{$\clauseWithSubst{s \approx t}{\Sigma}$ \qquad
+     $\clauseWithSubst{u[p \leftarrow t] \not\approx v}{\Sigma'}$}\DP
 $\text{if} \left\{\begin{array}{l}
 u_{|p} = s\\
 s \succ t\\
@@ -244,23 +245,24 @@ s \succ t\\
 Rewrite rules can be integrated to the rigid unit superposition easily. In fact,
 a rewrite rule $l\rew{}r$ can be expressed as an equality with a hypothesis set
 consisting of a single trivial substitution
-$s\approx{}t|\{\text{identity}\}$. Since the trivial substitution is compatible
+$\clauseWithSubst{s\approx{}t}{\{\emptyset\}}$\footnote{$\{\emptyset\}$ is not to be confused with $\emptyset$}.
+Since the trivial substitution is compatible
 with every substitution, it will never prevent any inference, thus allowing us
 to use the unit clause as many times as needed to rewrite terms without
 accumulating constraints, particularly using the rules RP and RN, whose side
 conditions are always verified by rewrite rules. Rigid unit superposition
-therefore provides an algorithm for rigid E-unification modulo rewrite rules.
+therefore provides an algorithm for rigid E-unification modulo rewrite rules,
+see the next paragraph for the algorithm.
 
 \subsection{Main Loop}
 
 Our objective with rigid E-unification is to attempt to close a branch of the
-tableau prover (i.e. a set of Boolean literals set to true). To do so, all
-equational or atomic literals are added to a set of unit clauses to process,
-with a label $\Sigma \triangleq \{ \emptyset \}$. Then, the given-clause
-algorithm is applied to try and saturate the set. Assuming a fair strategy, this
-will eventually find a solution (i.e. derive
-$\clauseWithSubst{\emptyset}{\Sigma}$) if there exists one. We refer the
-interested reader to~\cite{SS02} for more details.
+tableau prover (i.e. a set of Boolean literals set to true). To do so, we first
+creat a set of unit clauses to process from the rewrite rules, and the renamed
+equational or atomic literals. Then, the given-clause algorithm is applied to try and
+saturate the set. Assuming a fair strategy, this will eventually find a
+solution (i.e. derive $\clauseWithSubst{\emptyset}{\Sigma}$) if there exists
+one. We refer the interested reader to~\cite{SS02} for more details.
 
 Because the whole branch is managed by a single given-clause saturation loop, we
 look for all solutions susceptible to close the branch at the same time.
@@ -275,6 +277,7 @@ clauses stemming from set theory, where pair, fst, and snd are the constructor
 and destructors of tuples, $f$ a function on tuples, and $X$ a rigid variable:
 
 \[\begin{array}{rcl}
+a &\preceq b \\
 \text{pair}(\text{fst}(x), \text{snd}(x))) &\rew& x\\
 \text{fst}(a) &\approx& \text{fst}(b)\\
 p(a) &\not\approx& p(\text{pair}(\text{fst}(b), X))\\
@@ -287,13 +290,13 @@ Fig.~\ref{fig:unit-sup-proof-example}.
 \begin{figure}[t]
 \begin{center}
 \begin{tabular}{clc}
-1 & axiom & $\text{pair}(\text{fst}(x), \text{snd}(x))) \rew x$\\
+1 & rewrite rule & $\text{pair}(\text{fst}(x), \text{snd}(x))) \rew x$\\
 
 2 & axiom & $\text{fst}(a) = \text{fst}(b)$\\
 
 3 & axiom & $p(a) \not= p(\text{pair}(\text{fst}(b), X))$\\
 
-4 & \renameVarsSymb(1) &
+4 & \textsf{rewr}(1) &
 $\clauseWithSubst
 { \text{pair}(\text{fst}(x), \text{snd}(x)) \approx x }
 { \{ \} }$\\
