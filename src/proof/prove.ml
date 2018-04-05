@@ -94,7 +94,6 @@ let declare_goal opt id f =
 type _ Dispatcher.msg +=
   | Lemma : Dispatcher.lemma_info -> Proof.proof Dispatcher.msg
 
-
 (* Output proofs *)
 (* ************************************************************************ *)
 

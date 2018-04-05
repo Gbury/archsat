@@ -32,6 +32,7 @@ and t = private {
   ty : t;
   term : descr;
   mutable hash : int;
+  mutable reduced : t option;
 }
 (** Term records. Contains the type of the term,
     to avoid recomputing it every time (which is pretty
@@ -58,36 +59,21 @@ val equal : t -> t -> bool
 val compare: t -> t -> int
 (** standard comparison function *)
 
+val reduce : t -> t
+(** Compute the beta-normal form of the term. *)
+
 val print : Format.formatter -> t -> unit
+val print_typed : Format.formatter -> t -> unit
 (** Print a term (quite verbose). *)
 
 
-(** {2 Term translation} *)
+(** {2 Id creation} *)
 
-type callback = id -> unit
-type 'a translator = ?callback:callback -> 'a -> t
-(** Type for callbacks and translators.
-    Callbacks are called on every identifier inferred during translation. *)
+val declare : string -> t -> id
+(** [delcare name ty] declare a new symbol of type [ty]. *)
 
-val of_unit : unit translator
-val of_ttype : Expr.ttype translator
-val of_ty : Expr.ty translator
-val of_term : Expr.term translator
-val of_formula : Expr.formula translator
-(** Translating expressions into terms. *)
-
-val of_id :
-  'a translator -> 'a Expr.id translator
-val of_id_aux :
-  'a translator -> ?callback:callback -> 'a Expr.id -> id
-val of_function_descr :
-  'a translator -> 'b translator -> ('a, 'b) Expr.function_descr translator
-(** Translating functions *)
-
-val trap_id : _ Expr.id -> id -> unit
-val trap_ty : Expr.ty -> t -> unit
-val trap_term : Expr.term -> t -> unit
-(** Force translation for given types and terms. *)
+val define : string -> t -> id
+(** [define name t] defines a new symbol, equal to [t], and with the same type. *)
 
 
 (** {2 Term creation} *)
@@ -163,6 +149,34 @@ val or_term : t
 val and_id : id
 val and_term : t
 (** Propositional conjunction *)
+
+
+(** {2 Term translation} *)
+
+type callback = id -> unit
+type 'a translator = ?callback:callback -> 'a -> t
+(** Type for callbacks and translators.
+    Callbacks are called on every identifier inferred during translation. *)
+
+val of_unit : unit translator
+val of_ttype : Expr.ttype translator
+val of_ty : Expr.ty translator
+val of_term : Expr.term translator
+val of_formula : Expr.formula translator
+(** Translating expressions into terms. *)
+
+val of_id :
+  'a translator -> 'a Expr.id translator
+val of_id_aux :
+  'a translator -> ?callback:callback -> 'a Expr.id -> id
+val of_function_descr :
+  'a translator -> 'b translator -> ('a, 'b) Expr.function_descr translator
+(** Translating functions *)
+
+val trap_id : _ Expr.id -> id -> unit
+val trap_ty : Expr.ty -> t -> unit
+val trap_term : Expr.term -> t -> unit
+(** Force translation for given types and terms. *)
 
 
 (** {2 Term substitution} *)

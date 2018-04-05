@@ -178,11 +178,6 @@ module Print = struct
   let pos : Pretty.pos tag = Tag.create ()
   let name : Pretty.name tag = Tag.create ()
 
-  let get_name v =
-    match Tag.get v.id_tags name with
-    | None -> v.id_name
-    | Some s -> s
-
   let id fmt v =
     match Tag.get v.id_tags name with
     | Some s -> Format.fprintf fmt "%s" s

@@ -18,3 +18,5 @@ val declare_goal : Options.proof_options -> Term.id -> Expr.formula -> unit
 
 val output_proof : Options.proof_options -> Solver.proof -> unit
 (** Output the proof on all relevant files according to options. *)
+
+

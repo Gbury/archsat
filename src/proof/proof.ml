@@ -28,7 +28,7 @@ module Env = struct
   type t = {
     (** Map between terms and term ids *)
     names : Term.id Mt.t;
-    (** Options for nive names *)
+    (** Options for nice names *)
     prefix : string;  (** current prefix *)
     count : int Ms.t; (** use count for each prefix *)
   }
@@ -174,30 +174,29 @@ type ('input, 'state) step = {
     pretty * (Format.formatter -> 'state -> unit);
 
   (* Semantics *)
-  prelude   : 'state -> Prelude.t list;
   compute   : sequent -> 'input -> 'state * sequent array;
+  prelude   : 'state -> Prelude.t list;
   elaborate : 'state -> Term.t array -> Term.t;
 }
 
-type proof_step =
-  | Any : 'state * (_, 'state) step -> proof_step
 
-type opt =
-  | Open of sequent
-  | Proof of node
-
-and node = {
-  step : proof_step;
-  branches : opt array;
+type node = {
+  pos : pos;
+  proof : proof_node;
 }
 
-(* Some aliases *)
+and pos = node array * int
 
-type proof = opt array
+and proof_node =
+  | Open  : sequent -> proof_node
+  | Proof : (_, 'state) step * 'state * node array -> proof_node
 
-type pos = opt array * int
+(* Alias for proof *)
+type proof = node array
+(** Simpler option would be a node ref, but it would complexify functions
+    and positions neddlessly. *)
 
-(* Contexts *)
+(* Sequents *)
 (* ************************************************************************ *)
 
 let env { env; _ } = env
@@ -225,31 +224,47 @@ let () = Printexc.register_printer (function
 let _prelude _ = []
 
 let mk_step ?(prelude=_prelude) ~coq ~compute ~elaborate = {
-  print = (function Coq -> coq);
   prelude; compute; elaborate;
+  print = (function Coq -> coq);
 }
 
 (* Building proofs *)
 (* ************************************************************************ *)
 
-let mk sequent =
-  let res = [| Open sequent |] in
-  res, (res, 0)
+let get ((t, i) : pos) = t.(i)
+let set ((t, i) as pos : pos) step state branches =
+  match (get pos).proof with
+  | Open _ ->
+    t.(i) <- { pos; proof = Proof (step, state, branches); }
+  | Proof _ ->
+    Util.error ~section "Trying to apply reasonning step to an aleardy closed proof";
+    assert false
 
-let get_pos (t, i) = t.(i)
+let dummy_node = {
+  pos = [| |], -1;
+  proof = Open (mk_sequent Env.empty Term.true_term);
+}
 
-let apply_step (t, i) step input =
-  match get_pos (t, i) with
+let mk_branches n f =
+  let res = Array.make n dummy_node in
+  for i = 0 to n - 1 do
+    let pos = (res, i) in
+    res.(i) <- { pos; proof = f i; }
+  done;
+  res
+
+let mk sequent = mk_branches 1 (fun _ -> Open sequent)
+
+let apply_step pos step input =
+  match (get pos).proof with
   | Proof _ ->
     Util.error ~section "Trying to apply reasonning step to an aleardy closed proof";
     assert false
   | Open sequent ->
-    let y, a = step.compute sequent input in
-    let branches = Array.map (fun sequent -> Open sequent) a in
-    let res = { step = Any (y, step); branches } in
-    let () = t.(i) <- Proof res in
-    y, Array.init (Array.length a) (fun i -> (branches, i))
-
+    let state, a = step.compute sequent input in
+    let branches = mk_branches (Array.length a) (fun i -> Open a.(i)) in
+    let () = set pos step state branches in
+    state, Array.map (fun { pos; _} -> pos) branches
 
 (* Printing proofs *)
 (* ************************************************************************ *)
@@ -267,18 +282,18 @@ let bullet depth =
 
 let rec print_branching_coq ~depth fmt t =
   Format.fprintf fmt "%s @[<hov>%a@]"
-    (bullet depth) (print_opt ~depth:(depth + 1) ~lang:Coq) t
+    (bullet depth) (print_node ~depth:(depth + 1) ~lang:Coq) t
 
 and print_bracketed_coq ~depth fmt t =
-  Format.fprintf fmt "{ @[<hov>%a@] }" (print_opt ~depth ~lang:Coq) t
+  Format.fprintf fmt "{ @[<hov>%a@] }" (print_node ~depth ~lang:Coq) t
 
 and print_lbnl_coq ~depth fmt t =
-  print_opt ~depth ~lang:Coq fmt t
+  print_node ~depth ~lang:Coq fmt t
 
 and print_array_coq ~depth ~pretty fmt a =
   match a with
   | [| |] -> ()
-  | [| x |] -> print_opt ~depth ~lang:Coq fmt x
+  | [| x |] -> print_node ~depth ~lang:Coq fmt x
   | _ ->
     begin match pretty with
       | Branching ->
@@ -288,6 +303,7 @@ and print_array_coq ~depth ~pretty fmt a =
         let a' = Array.sub a 0 (Array.length a - 1) in
         Format.fprintf fmt "@[<v>%a@ @]"
           CCFormat.(array ~sep:(return "@ ") (print_bracketed_coq ~depth)) a';
+        (* separate call to ensure tail call *)
         print_lbnl_coq ~depth fmt a.(Array.length a - 1)
     end
 
@@ -295,32 +311,33 @@ and print_array ~depth ~lang ~pretty fmt a =
   match lang with
   | Coq -> print_array_coq ~depth ~pretty fmt a
 
-and print_opt ~depth ~lang fmt = function
-  | Proof t -> print_node ~depth ~lang fmt t
+and print_proof_node ~depth ~lang fmt = function
   | Open _ -> raise Open_proof
+  | Proof (step, state, branches) ->
+    let pretty, pp = step.print lang in
+    Format.fprintf fmt "@[<hov 2>%a@]" pp state;
+    print_array ~depth ~lang ~pretty fmt branches
 
-and print_node ~depth ~lang fmt { step = Any (state, step); branches; } =
-  let pretty, pp = step.print lang in
-  Format.fprintf fmt "@[<hov 2>%a@]" pp state;
-  print_array ~depth ~lang ~pretty fmt branches
+and print_node ~depth ~lang fmt { proof; _ } =
+  print_proof_node ~depth ~lang fmt proof
 
 let print ~lang fmt = function
-  | [| p |] -> print_opt ~lang ~depth:0 fmt p
+  | [| p |] -> print_node ~lang ~depth:0 fmt p
   | _ -> assert false
 
 (* Inspecting proofs *)
 (* ************************************************************************ *)
 
-let extract = function
-  | Proof node -> node
-  | Open _ -> raise Open_proof
-
 let root = function
-  | [| p |] -> extract p
+  | [| p |] -> p
   | _ -> assert false
 
+let pos { pos; _ } = pos
+
 let branches node =
-  Array.map extract node.branches
+  match node.proof with
+  | Open _ -> raise Open_proof
+  | Proof (_, _, branches) -> branches
 
 (* Proof elaboration *)
 (* ************************************************************************ *)
@@ -328,7 +345,7 @@ let branches node =
 let rec elaborate_array_aux k a res i =
   if i >= Array.length a then k res
   else
-    elaborate_opt (fun x ->
+    elaborate_node (fun x ->
         res.(i) <- x;
         elaborate_array_aux k a res (i + 1)) a.(i)
 
@@ -336,15 +353,16 @@ and elaborate_array k a =
   let res = Array.make (Array.length a) Term._Type in
   elaborate_array_aux k a res 0
 
-and elaborate_node k { step = Any (state, step); branches; } =
-  elaborate_array (fun args -> k @@ step.elaborate state args) branches
-
-and elaborate_opt k = function
-  | Proof t -> elaborate_node k t
+and elaborate_proof_node k = function
   | Open _ -> raise Open_proof
+  | Proof (step, state, branches) ->
+    elaborate_array (fun args -> k @@ step.elaborate state args) branches
+
+and elaborate_node k { proof; _ } =
+  elaborate_proof_node k proof
 
 let elaborate = function
-  | [| p |] -> elaborate_opt (fun x -> x) p
+  | [| p |] -> elaborate_node (fun x -> x) p
   | _ -> assert false
 
 

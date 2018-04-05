@@ -93,13 +93,13 @@ val mk_sequent : Env.t -> Term.t -> sequent
 
 type proof
 (** The type of proof objects. A proof is created incomplete,
-    and can then be compelted in a mutable way by applying
+    and can then be completed in a mutable way by applying
     reasoning steps to positions. *)
 
 type pos
 (** The type of positions within the proof. *)
 
-val mk : sequent -> proof * pos
+val mk : sequent -> proof
 (** Create an empty proof with the given goal and environent.
     Returns the proof, together with the open position at the root
     of the proof. *)
@@ -119,7 +119,7 @@ exception Failure of string * sequent
 
 type ('input, 'state) step
 (** The type of reasonning steps. A reasonning step's goal is to
-    take an context, and return a set of contexts, each corresponding
+    take a context, and return a set of contexts, each corresponding
     to a branch that needs to be proven, much like in sequent calculus. *)
 
 val mk_step :
@@ -133,7 +133,7 @@ val mk_step :
     The compute function goal is to compute the branches
     to prove after application of th reasonning step.
     The elaboration function should compute the corresponding proof term.
-    *)
+*)
 
 val apply_step : pos -> ('a, 'b) step -> 'a -> 'b * pos array
 (** Apply a reasoning step at a position in the proof. Returns the computed
@@ -144,12 +144,22 @@ val apply_step : pos -> ('a, 'b) step -> 'a -> 'b * pos array
 
 (** {2 Proof inspection} *)
 
+
 type node
 (** The type of internal node of proof trees *)
+
+exception Open_proof
+(** Exception raised during traversal if an incomplete proof is found. *)
 
 val root : proof -> node
 (** Returns the root of a proof
     @raise Open_proof if there is no step applied to the root of the proof. *)
+
+val pos : node -> pos
+(** Return the position of a node. *)
+
+val get : pos -> node
+(** Return a node given its position. *)
 
 val branches : node -> node array
 (** Returns the branches of a node.

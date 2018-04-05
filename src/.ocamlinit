@@ -29,4 +29,5 @@ open Archsat;;
 #install_printer Expr.Print.const_ttype;;
 #install_printer Index.Fingerprint.print;;
 #install_printer Ext_eq.Class.print;;
+#install_printer Term.print_typed;;
 

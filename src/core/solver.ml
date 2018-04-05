@@ -56,7 +56,7 @@ let mk_term s l =
     | [f] -> Term.of_formula f
     | _ -> Term.of_formula (Expr.Formula.f_or l)
   in
-  Expr.Id.mk_new s t
+  Term.declare s t
 
 let add_hyp id l =
   let n = CCVector.length hyp_table in

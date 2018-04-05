@@ -214,7 +214,7 @@ module Arg = struct
   let hyp_info c =
     let id = CCOpt.get_exn @@ Solver.hyp_proof c in
     "Hypothesis", Some "YELLOW",
-    [fun fmt () -> Print.id fmt id]
+    [fun fmt () -> Print.id fmt (id :> Term.t Expr.id)]
 
   let lemma_info c =
     let lemma =

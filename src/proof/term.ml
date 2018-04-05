@@ -24,6 +24,7 @@ and t = {
   ty : t;
   term : descr;
   mutable hash : int;
+  mutable reduced : t option;
 }
 
 exception Function_expected of t
@@ -58,33 +59,45 @@ let _descr = function
   | Let _ -> 3
   | Binder _ -> 4
 
-let rec compare_aux t t' =
-  match t.term, t'.term with
-  | Type, Type -> 0
-  | Id x, Id y -> Expr.Id.compare x y
-  | App (f, arg), App (f', arg') ->
-    CCOrd.Infix.(compare f f'
-                 <?> (compare, arg, arg'))
-  | Let (x, v, body), Let (x', v', body') ->
-    CCOrd.Infix.(Expr.Id.compare x x'
-                 <?> (compare, v, v')
-                 <?> (compare, body, body'))
-  | Binder (b, v, body), Binder (b', v', body') ->
-    CCOrd.Infix.(Pervasives.compare b b'
-                 <?> (Expr.Id.compare, v, v')
-                 <?> (compare, body, body'))
-  | u, v -> Pervasives.compare (_descr u) (_descr v)
+(* Binder printing helpers *)
+(* ************************************************************************ *)
 
-and compare t t' =
-  if t == t' then 0
-  else
-    CCOrd.(Pervasives.compare (hash t) (hash t')
-           <?> (compare_aux, t, t'))
+let binder_name = function
+  | Pi -> "Π"
+  | Arrow -> "->"
+  | Lambda -> "λ"
+  | Forall -> "∀"
+  | Exists -> "∃"
 
-let equal t t' = compare t t' = 0
+let binder_sep = function _ -> ","
 
+(* Debug printing *)
+(* ************************************************************************ *)
 
-(* Bound variables *)
+let rec pp fmt t =
+  match t.term with
+  | Type -> Format.fprintf fmt "Type"
+  | Id v -> Expr.Id.print fmt v
+  | App (f, arg) ->
+    Format.fprintf fmt "@[<hv 2>(%a@ %a)@]" pp f pp arg
+  | Let (v, e, body) ->
+    Format.fprintf fmt "@[<v>let %a = %a in@ @]%a"
+      Expr.Id.print v pp e pp body
+  | Binder (b, v, body) ->
+    Format.fprintf fmt "@[<hv 2>%s %a.@ %a@]"
+      (binder_name b) Expr.Id.print v pp body
+
+(* Id creation *)
+(* ************************************************************************ *)
+
+let declare s ty = Expr.Id.mk_new s ty
+
+type Expr.builtin += Defined of t
+
+let define s def =
+  Expr.Id.mk_new ~builtin:(Defined def) s def.ty
+
+(* Free variables *)
 (* ************************************************************************ *)
 
 module S = Set.Make(struct
@@ -103,10 +116,12 @@ let rec free_vars acc t =
   | Binder (_, v, body) ->
     S.remove v (free_vars acc body)
 
+(* Simple Term creation *)
+(* ************************************************************************ *)
 
 (** Creating terms *)
 let mk ty term =
-  { ty; term; hash = -1; }
+  { ty; term; hash = -1; reduced = None; }
 
 let const v = mk v.Expr.id_type (Id v)
 
@@ -114,18 +129,49 @@ let rec _Type = {
   ty = _Type;
   term = Type;
   hash = -1;
+  reduced = Some _Type;
 }
 
 let _Prop_id = Expr.Id.mk_new "Prop" _Type
 let _Prop = const _Prop_id
 
-let letin v e body =
-  if equal v.Expr.id_type e.ty then
-    mk body.ty (Let (v, e, body))
-  else
-    raise (Type_mismatch (e, v.Expr.id_type))
+(* Reduction, matching and comparison *)
+(* ************************************************************************ *)
 
-let rec bind b v body =
+module Subst = Map.Make(struct
+    type nonrec t = t Expr.Id.t
+    let compare = Expr.Id.compare
+  end)
+
+(* get a function type *)
+let extract_fun_ty t =
+  match t.ty with
+  | { term = Binder (Pi, v, ty) }
+  | { term = Binder (Arrow, v, ty) } -> v, ty
+  | _ -> raise (Function_expected t)
+
+(* function application *)
+let rec _assert t ty =
+  if not (equal t.ty ty) then begin
+    Util.error
+      "@[<hv>Proof term@ %a@ has type@ %a@ but was expected of type@ %a"
+      pp t pp t.ty pp ty;
+    raise (Type_mismatch (t, ty))
+  end
+
+and app t arg =
+  let v, ty = extract_fun_ty t in
+  let expected_arg_ty = v.Expr.id_type in
+  _assert arg expected_arg_ty;
+  let s = Subst.singleton v arg in
+  let res_ty = subst s ty in
+  mk res_ty (App (t, arg))
+
+and letin v e body =
+  _assert e v.Expr.id_type;
+  mk body.ty (Let (v, e, body))
+
+and bind b v body =
   match b with
   | Lambda ->
     let fv = free_vars S.empty body.ty in
@@ -135,36 +181,8 @@ let rec bind b v body =
   | Pi | Arrow ->
     mk _Type (Binder (b, v, body))
   | Forall | Exists ->
-    if equal _Prop body.ty then
-      mk _Prop (Binder (b, v, body))
-    else
-      raise (Type_mismatch (body, _Prop))
-
-
-(* Typing and application *)
-(* ************************************************************************ *)
-
-module Subst = Map.Make(struct
-    type nonrec t = t Expr.Id.t
-    let compare = Expr.Id.compare
-  end)
-
-let extract_fun_ty t =
-  match t.ty with
-  | { term = Binder (Pi, v, ty) }
-  | { term = Binder (Arrow, v, ty) } -> v, ty
-  | _ -> raise (Function_expected t)
-
-let rec app t arg =
-  let v, ty = extract_fun_ty t in
-  let expected_arg_ty = v.Expr.id_type in
-  let actual_arg_ty = arg.ty in
-  if equal expected_arg_ty actual_arg_ty then
-    let s = Subst.singleton v arg in
-    let res_ty = subst s ty in
-    mk res_ty (App (t, arg))
-  else
-    raise (Type_mismatch (arg, expected_arg_ty))
+    _assert body _Prop;
+    mk _Prop (Binder (b, v, body))
 
 and subst s t =
   match t.term with
@@ -185,7 +203,7 @@ and subst s t =
     in
     let body' = subst s'' body in
     if v == v' && e == e' && body == body' then t
-    else letin v' e' body'
+    else mk body'.ty (Let (v', e', body'))
   | Binder (b, v, body) ->
     let ty = v.Expr.id_type in
     let ty' = subst s ty in
@@ -200,6 +218,154 @@ and subst s t =
     if v == v' && body == body' then t
     else bind b v' body'
 
+and reduce_aux t =
+  Util.log "Reducing %a" pp t;
+  match t.term with
+  | Type -> t
+  | Id { Expr.builtin = Defined b; _ } -> b
+  | Id _ -> t
+  | App (f, arg) ->
+    let f' = reduce f in
+    if f == f' then begin (* f is already reduced *)
+      let arg' = reduce arg in
+      if arg == arg' then begin (* arg is already reduced *)
+        match f.term with
+        | Binder (Lambda, v, body) ->
+          let body' = reduce body in
+          reduce (subst (Subst.singleton v arg) body')
+        | _ -> t
+      end else
+        reduce (app f arg') (* recompute the type just to be sure *)
+    end else
+      reduce (app f' arg)
+  | Let (v, e, body) ->
+    let e' = reduce e in
+    let body' = reduce body in
+    reduce (subst (Subst.singleton v e') body')
+  | Binder (b, v, body) ->
+    let body' = reduce body in
+    if body == body' then t else bind b v body'
+
+and reduce t =
+  match t.reduced with
+  | Some t' -> t'
+  | None ->
+    let t' = reduce_aux t in
+    t'.reduced <- Some t';
+    t.reduced <- Some t';
+    t'
+
+and compare_rec t t' =
+  match t.term, t'.term with
+  | Type, Type -> 0
+  | Id x, Id y -> Expr.Id.compare x y
+  | App (f, arg), App (f', arg') ->
+    CCOrd.Infix.(compare_aux f f'
+                 <?> (compare_aux, arg, arg'))
+  | Let (x, v, body), Let (x', v', body') ->
+    CCOrd.Infix.(Expr.Id.compare x x'
+                 <?> (compare_aux, v, v')
+                 <?> (compare_aux, body, body'))
+  | Binder (b, v, body), Binder (b', v', body') ->
+    CCOrd.Infix.(Pervasives.compare b b'
+                 <?> (Expr.Id.compare, v, v')
+                 <?> (compare_aux, body, body'))
+  | u, v -> Pervasives.compare (_descr u) (_descr v)
+
+and compare_aux t t' =
+  if t == t' then 0
+  else
+    CCOrd.(Pervasives.compare (hash t) (hash t')
+           <?> (compare_rec, t, t'))
+
+and compare t t' =
+  compare_aux (reduce t) (reduce t')
+
+and equal t t' =
+  compare t t' = 0
+
+(* Pattern matching *)
+(* ************************************************************************ *)
+
+exception Match_Impossible of t * t
+
+let rec match_aux subst pat t =
+  match pat, t with
+  | { term = Id v }, _ ->
+    begin match Subst.find v subst with
+      | exception Not_found -> Subst.add v t subst
+      | t' ->
+        if equal t t' then subst
+        else raise (Match_Impossible (pat, t))
+    end
+  | { term = Type }, { term = Type } -> subst
+  | { term = App (f, f_arg) },
+    { term = App (g, g_arg) } ->
+    match_aux (match_aux subst f g) f_arg g_arg
+  | { term = Binder (b, v, body) },
+    { term = Binder (b', v', body') } ->
+    if b = b' then
+      match_aux (Subst.add v (const v') subst) body body'
+    else
+      raise (Match_Impossible (pat, t))
+  | _ -> raise (Match_Impossible (pat, t))
+
+let pmatch ~pat t =
+  let s = match_aux Subst.empty (reduce pat) (reduce t) in
+  let fv = free_vars S.empty pat in
+  Subst.filter (fun v _ -> S.mem v fv) s
+
+(* Unification *)
+(* ************************************************************************ *)
+
+exception Unif_Impossible of t * t
+
+let rec follow subst = function
+  | { term = Id v } as t ->
+    begin match Subst.find v subst with
+      | exception Not_found -> t
+      | t' ->follow subst  t'
+    end
+  | t -> t
+
+let rec occurs subst l = function
+  | { term = Type } -> false
+  | { term = Id v } ->
+    CCList.mem ~eq:Expr.Id.equal v l ||
+    begin match Subst.find v subst with
+      | exception Not_found -> false
+      | e -> occurs subst (v :: l) e
+    end
+  | { term = App (f, arg) } -> occurs subst l f || occurs subst l arg
+  | { term = Let (_, e, body) } -> occurs subst l e || occurs subst l body
+  | { term = Binder (_, _, body) } -> occurs subst l body
+
+let rec unif_aux subst s t =
+  let s = follow subst s in
+  let t = follow subst t in
+  match s, t with
+  | ({ term = Id v } as m), u
+  | u, ({ term = Id v } as m) ->
+    if equal m u then subst
+    else if occurs subst [v] u then raise (Unif_Impossible (m, u))
+    else Subst.add v u subst
+  | { term = Type },
+    { term = Type } -> subst
+  | { term = App (f, arg) },
+    { term = App (f', arg') } ->
+    unif_aux (unif_aux subst f f') arg arg'
+  | { term = Binder (b, v, body) },
+    { term = Binder (b', v', body') } ->
+    if b = b' then
+      unif_aux (Subst.add v (const v') subst) body body'
+    else
+      raise (Unif_Impossible (s, t))
+  | _ -> raise (Unif_Impossible (s, t))
+
+let unif s t =
+  let res = unif_aux Subst.empty s t in
+  let fv = free_vars (free_vars S.empty s) t in
+  Subst.filter (fun v _ -> S.mem v fv) res
 
 (* Shorthands for constructors *)
 (* ************************************************************************ *)
@@ -226,6 +392,63 @@ let foralls l body = List.fold_right forall l body
 
 let exist v body = bind Exists v body
 let exists l body = List.fold_right exist l body
+
+(* Proof term constants *)
+(* ************************************************************************ *)
+
+let true_id = declare "true" _Prop
+let true_term = const true_id
+
+let false_id = declare "false" _Prop
+let false_term = const false_id
+
+let imply_id =
+  let a = declare "A" _Prop in
+  let b = declare "B" _Prop in
+  let x = declare "_" (const a) in
+  let t = lambda a (lambda b (forall x (const b))) in
+  define "imply" t
+
+let imply_term = const imply_id
+
+let not_id =
+  let a = declare "A" _Prop in
+  let t = lambda a (apply imply_term [const a; false_term]) in
+  define "not" t
+
+let not_term = const not_id
+
+let equal_id =
+  let a_id = Expr.Id.mk_new "a" _Type in
+  let a_type = const a_id in
+  Expr.Id.mk_new "==" (pi a_id (arrows [a_type; a_type] _Prop))
+
+let equal_term = const equal_id
+
+let or_id =
+  Expr.Id.mk_new "||" (arrows [_Prop; _Prop] _Prop)
+
+let or_term = const or_id
+
+let and_id =
+  Expr.Id.mk_new "&&" (arrows [_Prop; _Prop] _Prop)
+
+let and_term = const and_id
+
+let equiv_id =
+  let a = declare "A" _Prop in
+  let b = declare "B" _Prop in
+  let t_a = const a in
+  let t_b = const b in
+  let t = lambda a (lambda b (
+      apply and_term [
+        apply imply_term [t_a; t_b];
+        apply imply_term [t_b; t_a];
+      ]
+    )) in
+  define "iff" t
+
+let equiv_term = const equiv_id
 
 (* Printing helpers *)
 (* ************************************************************************ *)
@@ -307,18 +530,6 @@ let concat_vars l =
   in
   aux _Type [] [] l
 
-(* Binder printing helpers *)
-(* ************************************************************************ *)
-
-let binder_name = function
-  | Pi -> "Π"
-  | Arrow -> "->"
-  | Lambda -> "λ"
-  | Forall -> "∀"
-  | Exists -> "∃"
-
-let binder_sep = function _ -> ","
-
 (* Printing *)
 (* ************************************************************************ *)
 
@@ -369,42 +580,8 @@ and print fmt t =
   | Binder (Arrow, _, _) -> print_arrow fmt t
   | Binder (b, _, _) -> print_binder fmt b t
 
-
-(* Proof term constants *)
-(* ************************************************************************ *)
-
-let equal_id =
-  let a_id = Expr.Id.mk_new "a" _Type in
-  let a_type = const a_id in
-  Expr.Id.mk_new "==" (pi a_id (arrows [a_type; a_type] _Prop))
-
-let true_id = Expr.Id.mk_new "true" _Prop
-let false_id = Expr.Id.mk_new "false" _Prop
-
-let not_id = Expr.Id.mk_new "not" (arrow _Prop _Prop)
-
-let imply_id =
-  Expr.Id.mk_new "->" (arrows [_Prop; _Prop] _Prop)
-
-let equiv_id =
-  Expr.Id.mk_new "<->" (arrows [_Prop; _Prop] _Prop)
-
-let or_id =
-  Expr.Id.mk_new "||" (arrows [_Prop; _Prop] _Prop)
-
-let and_id =
-  Expr.Id.mk_new "&&" (arrows [_Prop; _Prop] _Prop)
-
-
-let or_term = const or_id
-let and_term = const and_id
-let not_term = const not_id
-let true_term = const true_id
-let false_term = const false_id
-let equal_term = const equal_id
-let imply_term = const imply_id
-let equiv_term = const equiv_id
-
+let print_typed fmt t =
+  Format.fprintf fmt "@[<hv 2>%a :@ %a@]" print t print t.ty
 
 (* Tanslating from Expr to Term *)
 (* ************************************************************************ *)
