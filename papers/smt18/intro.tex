@@ -2,26 +2,10 @@
 
 \section{Introduction}
 
-These days, Boolean satisfiability (SAT) solvers are undeniably quite reliable
-tools despite the worst-case exponential run time of all known
-algorithms. Modern SAT solvers provide a ``black-box'' procedure that can often
-solve hard structured problems with over a million variables and several million
-constraints. These tools are therefore used in many applications outside the
-scope of knowledge representation and reasoning, which nonetheless was their
-initial domain of application. The underlying representational formalism of SAT
-solvers is propositional logic, and even if a given problem is not a pure
-propositional problem, it is not unusual to encode it so that it can be viewed
-as a propositional reasoning task. This encoding may be complex and possibly
-costly, but the effectiveness of SAT solvers generally compensates for the cost
-of this encoding.
-
-This growing interest for SAT solvers has steered them toward a more first order
-approach, with the possibility to deal with first order literals and reason
-modulo theories. This resulted in the design of Satisfiability Modulo Theories
-(SMT) solvers, which are built on top of SAT solvers. Over the last past few
+Over the last past few
 years, SMT solvers have appeared as very efficient tools to reason over some
 well identified theories (equality, uninterpreted functions, linear arithmetic,
-arrays, etc.), and have allowed us to drag SAT solving toward first order logic.
+arrays, etc.), and have allowed us to bring SAT solving toward first order logic.
 Although modern SMT solvers support first order logic, most of them use
 heuristic quantifier instantiation for incorporating quantifier reasoning with
 ground decision procedures. This mechanism is relatively effective in some cases
@@ -37,17 +21,16 @@ deduction modulo theory. Deduction modulo theory~\cite{DA03} focuses on the
 computational part of a theory, where axioms are transformed into rewrite rules,
 which induces a congruence over propositions, and where reasoning is performed
 modulo this congruence. In deduction modulo theory, this congruence is then
-induced by a set of rewrite rules over both terms and propositions. In the SAT
-solver, this congruence is used a first time to speed up ground reasoning
+induced by a set of rewrite rules over both terms and propositions. In our
+proposal, this congruence is used a first time to speed up ground reasoning
 by computing normal forms for terms, but this still yields an incomplete
 algorithm.
 
 We thus propose to overcome the problem of completeness for first
-order logic in SMT solving by combining a SAT solver core with tableau
-calculus. The tableau calculus is introduced as a regular theory of SMT solving,
-and the rules are used to unfold propositional content into clauses while atomic
+order logic by using tableau calculus as an SMT theory. The tableau calculus
+rules are used to unfold propositional content into clauses while atomic
 formulas are handled using satisfiability decision procedures as in
-SMT solvers. To deal with quantified first order formulas, we use
+regular SMT solvers. To deal with quantified first order formulas, we use
 metavariables and perform rigid unification modulo equalities and modulo rewriting,
 for which we introduce an algorithm based on superposition, but where all clauses
 contain a single atomic formula.
@@ -65,7 +48,7 @@ or decided. This makes the production of genuine output proofs easier, contrary
 to the usual approach, where the Skolemization/CNF translation is realized at
 the beginning and externalized with respect to the proof search.
 
-Our proposal combining SAT solving with tableau calculus and rewriting has been
+Our proposal combining SMT solving with tableau calculus and rewriting has been
 implemented and the corresponding tool is called \archsat{}. This tool is able
 to deal with first order logic extended to polymorphic types à la ML, through a
 type system in the spirit of~\cite{BP13}. To test this tool, we propose a
@@ -76,9 +59,8 @@ compatible with deduction modulo theory, i.e. where a large part of axioms has
 been turned into rewrite rules. The benchmark itself gathers 319~lemmas coming
 from Chap.~2 of the \bbook{}~\cite{B-Book}.
 
-The paper is organized as follows: in Sec.~\ref{sec:smt}, we recall the classic
-architecture of SMT solvers, and we introduce the tableau and rewriting
-theories; we then describe, in Sec.~\ref{sec:super}, our mechanism of equational
-reasoning by means of rigid unit superposition; finally, in
+The paper is organized as follows: in Sec.~\ref{sec:smt}, we introduce the tableau
+and rewriting theories; we then describe, in Sec.~\ref{sec:super}, our mechanism
+of equational reasoning by means of rigid unit superposition; finally, in
 Sec.~\ref{sec:bench}, we present some experimental results obtained by running
 our implementation over a benchmark of problems in the \bmth{} set theory.

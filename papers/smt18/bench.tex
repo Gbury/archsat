@@ -33,61 +33,12 @@ for which the rewriting theory proposed previously in Subsec.~\ref{sec:rew}
 works. Starting from the theory described in Chap.~2 of the
 \bbook{}~\cite{B-Book}, we therefore transform whenever possible the axioms and
 definitions into rewrite rules. The resulting theory has been introduced
-in~\cite{BA15}, and due to lack of space, we only provide, in
-Fig.~\ref{fig:bset}, the three rewriting rules corresponding to the axiomatic
-core of the \bmth{} set theory that we consider.
-
-As can be seen, the proposed theory is typed, using first order logic extended
+in~\cite{BA15}. As can be seen, the proposed theory is typed, using first order logic extended
 to polymorphic types à la ML, through a type system in the spirit
 of~\cite{BP13}. This extension to polymorphic types offers more flexibility, and
 in particular allows us to deal with theories that rely on elaborate type
 systems, like the \bmth{} set theory (see Chap.~2 of the
-\bbook{}~\cite{B-Book}). The complete type system that is used in this
-formalization can be found in~\cite{BA15}. The type constructors,
-i.e. $\mathsf{tup}$ for tuples and $\mathsf{set}$ for sets, and type schemes of
-the considered set constructs are provided in Fig.~\ref{fig:bset} as well, where
-\type{} is the type of types and $\omicron$ the type of formulas, and where type
-arguments are subscript annotations of the constructs.
-
-\begin{figure}[t]
-\small
-\hspace{0.2cm}\underline{Axioms of Set Theory}
-\begin{flushleft}
-$\begin{array}{@{\hspace{0.2cm}}l}
-(x,y)_{\alpha_1,\alpha_2}\in_{\tuple{\alpha_1}{\alpha_2}}s\times_{\alpha_1,\alpha_2}t\rew
-x\in_{\alpha_1}s\land{}y\in_{\alpha_2}t\\
-s\in_{\set{\alpha}}\mathbb{P}_\alpha(t)\rew
-\forall{}x:\alpha.x\in_\alpha{}s\Rightarrow{}x\in_\alpha{}t\\
-s=_{\set{\alpha}}t\rew
-\forall{}x:\alpha.x\in_\alpha{}s\Leftrightarrow{}x\in_\alpha{}t
-\end{array}$
-\end{flushleft}
-\hspace{0.2cm}\underline{Type Constructors}
-\begin{flushleft}
-$\begin{array}{@{\hspace{0.2cm}}l@{\hspace{1.0cm}}l}
-\mathsf{tup}:\Pi\alpha_1,\alpha_2:\type.\type &
-\mathsf{set}:\Pi\alpha:\type.\type
-\end{array}$
-\end{flushleft}
-\hspace{0.2cm}\underline{Type Schemes of the Set Constructs}
-\begin{flushleft}
-$\begin{array}{@{\hspace{0.2cm}}lcl}
-\arg\in\arg & : &
-\Pi\alpha:\type.\alpha\rightarrow\set{\alpha}\rightarrow\omicron\\
-(\arg,\arg) & : &
-\Pi\alpha_1,\alpha_2:\type.\alpha_1\rightarrow\alpha_2\rightarrow
-\tuple{\alpha_1}{\alpha_2}\\
-\arg\times\arg & : &
-\Pi\alpha_1,\alpha_2:\type.\set{\alpha_1}\rightarrow\set{\alpha_2}\rightarrow
-\set{\tuple{\alpha_1}{\alpha_2}}\\
-\mathbb{P}(\arg) & : &
-\Pi\alpha:\type.\set{\alpha}\rightarrow\set{\set{\alpha}}\\
-\arg=\arg & : & \Pi\alpha:\type.\alpha\rightarrow\alpha\rightarrow\omicron\\
-\end{array}$
-\end{flushleft}
-\caption{Rewriting Rules of the Axiomatic Core of the \bmth{} Set Theory}
-\label{fig:bset}
-\end{figure}
+\bbook{}~\cite{B-Book}).
 
 To test \archsat{} in this theory, we consider 319~lemmas coming from Chap.~2 of
 the \bbook{}~\cite{B-Book}. These lemmas are properties of various difficulty
@@ -99,8 +50,7 @@ projects, and are not necessarily standard in set theory.
 As tools, we consider \archsat{} (development version\footnote{\git{}
 version~7720d8c.}). We also include other automated theorem provers, able to
 deal with first order logic with polymorphic types and rewriting natively. In
-particular, we consider \zipper{} (version~1.5), a prover based on superposition
-and rewriting, as well as \zenm{} (version~0.4.2), a tableau-based prover that
+particular, we consider \zenm{} (version~0.4.2), a tableau-based prover that
 is an extension of \zenon{} to deduction modulo theory. To show the impact of
 rewriting on the results, we also include the \altergo{} SMT solver
 (version~1.01). It would have been possible to also consider provers dealing
@@ -110,7 +60,7 @@ best state-of-the-art provers (we have considered \e{} and \cvc{} in
 particular), which indicates that polymorphism encoding adds a lot of noise
 in proof search and is not effective in practice.
 
-The experiment was run on an \intel{}~3.50~GHz computer, with a timeout of 90~s
+The experiment was run on an \intel{}~3.50~GHz computer, with a timeout of 90s
 (beyond this timeout, results do not change) and a memory limit of 1~GiB. The
 results are summarized in Tab.~\ref{tab:bench}. In these results, we observe
 that \archsat{} obtains better results, in terms of proved problems, than
@@ -118,9 +68,9 @@ that \archsat{} obtains better results, in terms of proved problems, than
 practice. However, \archsat{} places second behind \zipper{}, which means that
 there is still room for improvement regarding the implementation of our tool.
 Looking at the cumulative times, \altergo{} is not really faster than
-\archsat{} and \zipper{}, which take more time to find few more difficult
-problems (with a timeout of 3s, they respectively find 260 and 303~proofs in
-16.61~s and 17.61~s, while \altergo{} obtains the same results).
+\archsat{}, which take more time to find few more difficult
+problems: with a timeout of 3s, \archsat{} finds 260 proofs in 16.61~s,
+while \altergo{} obtains the same results).
 
 \setlength{\tabcolsep}{3pt}
 \renewcommand{\arraystretch}{1.2}
@@ -128,16 +78,13 @@ problems (with a timeout of 3s, they respectively find 260 and 303~proofs in
 
 \begin{table}[t]
 \begin{center}
-\begin{tabularx}{\textwidth}{|X|C|C|C|C|}
+\begin{tabularx}{\textwidth}{|X|C|C|C|}
 \hline
 \begin{tabular}{l}
 319~Problems
 \end{tabular} &
 \begin{tabular}{c}
 \archsat{}
-\end{tabular} &
-\begin{tabular}{c}
-\zipper{}
 \end{tabular} &
 \begin{tabular}{c}
 \zenm{}
@@ -153,9 +100,6 @@ Proofs
 272
 \end{tabular} &
 \begin{tabular}{c}
-306
-\end{tabular} &
-\begin{tabular}{c}
 138
 \end{tabular} &
 \begin{tabular}{c}
@@ -169,9 +113,6 @@ Rate
 85.3\%
 \end{tabular} &
 \begin{tabular}{c}
-95,9\%
-\end{tabular} &
-\begin{tabular}{c}
 43.3\%
 \end{tabular} &
 \begin{tabular}{c}
@@ -183,9 +124,6 @@ Time \small{(s)}
 \end{tabular} &
 \begin{tabular}{c}
 268.69
-\end{tabular} &
-\begin{tabular}{c}
-109.88
 \end{tabular} &
 \begin{tabular}{c}
 2.86

@@ -3,9 +3,6 @@
 \section{SAT Solving Modulo Tableau and Rewriting Theories}
 \label{sec:smt}
 
-In this section, we recall the classic architecture of SMT solvers and we then
-introduce the tableau and rewriting theories.
-
 Compared to genuine tableau automated theorem provers, like \princess{} or
 \zenon{} for example, our approach has the benefit of being versatile since the
 tableau rules are actually integrated as a regular SMT theory. This way, the
@@ -26,10 +23,10 @@ extended to deduction modulo theory, resulting in tools such as \iproverm{} and
 \zenm{}. This paper can be seen as a continuation of these previous experiments
 adapted to the framework of SMT solving.
 
-\subsection{SAT Solving Modulo Theories}
+\subsection{The Tableau Theory}
+\label{sec:tab}
 
-In this subsection, we recall the classic architecture of SMT
-solvers~\cite{BEA06}. We introduce $\mathcal{T}$ and $\mathcal{F}$ respectively,
+We introduce $\mathcal{T}$ and $\mathcal{F}$ respectively,
 the sets of first order terms and formulas over the signature
 $\mathcal{S}=(\mathcal{S}_\mathcal{F},\mathcal{S}_\mathcal{P})$, where
 $\mathcal{S}_\mathcal{F}$ is the set of function symbols, and
@@ -48,87 +45,13 @@ boxed formula is called an atom, and a literal is either an atom, or the negatio
 of an atom. A literal is such that there is no negation on top of the boxed
 formula (which means that $\lfloor\neg{}P\rfloor=\neg\lfloor{}P\rfloor$, and
 $\neg\neg\lfloor{}P\rfloor=\lfloor{}P\rfloor$). A clause is a disjunction of
-literals. It should be noted that SAT solving usually reasons over sets of
+literals. It should be noted that SMT solving usually reasons over sets of
 clauses composed of first order literals; here, a literal is a first order
 formula (possibly with quantifiers), which requires to box formulas to get a
 regular SAT solving problem where boxed formulas are propositional variables.
 
-An assignment of the boxed formulas is a partial function that assigns to boxed
-formulas an element of $\{\top,\bot\}$ (values of the Boolean algebra). Given a
-clause $C$, we say that $C$ is valid and write $\models{}C$, if $C$ evaluates to
-$\top$ for every assignment. Given a set of clauses $S$, we say that $S$ is
-valid and write $\models{}S$, if each clause of $S$ is valid. Given two sets of
-clauses $S$ and $S'$, we say that $S$ implies $S'$ and write $S\models{}S'$ if,
-for every assignment, if each clause of $S$ evaluates to $\top$ then each clause
-of $S'$ evaluates to $\top$. If $S$ is a set of literals, then we say that $S$
-is a model of $S'$.
-
-A theory $T$ is a set of formulas over a given signature $\mathcal{S}$, which
-are called axioms of the theory $T$. A clause $C$ is a tautology in the theory
-$T$, written $\models_TC$, if the axioms of $T$ imply the formula $C'$, where
-$C'$ is the clause $C$ where all the boxed formulas have been unboxed. A set of
-clauses $S$ is a tautology in the theory $T$ if each clause of $S$ is a
-tautology in $T$. Given two sets of clauses $M$ and $S$, we say that $M$ is a
-model of $S$ modulo the theory $T$ and write $M\models_TS$, if $M$ is a model of
-$S$ and $M$ is a tautology in $T$.
-
-A SAT solver modulo theory is characterized by a theory $T$ and an
-internal state of the form $M\parallel{}S$, where $M$ is an ordered list of
-literals (if $M=l_1,l_2,\ldots,l_n$ then $l_1<l_2<\ldots<l_n$) representing
-decisions and propagations in chronological order, and $S$ a set of
-clauses. Intuitively, $M$ represents the model of $S$, which will be built
-progressively (initially, we have $M=\emptyset$) by the application of a set of
-rules over the internal state of the solver. This set of rules is presented in
-Fig.~\ref{fig:smt}. Each time a literal is propagated (rule
-``$\mathrm{unit~prop}$'') or decided (rule ``$\mathrm{decide}$''), it is given
-to each theory, which may generate new clauses (rule ``$\mathrm{learn}$''). If a
-clause is unvalidated by the model, then it is possible to backtrack the
-decision over a given literal of the model if it exists (rule
-``$\mathrm{backjump}$''). Two cases wrt final states can be distinguished.
-The first one is ``$\mathrm{unsat}$'', which means that $S$ is
-unsatisfiable (rule ``$\mathrm{unsat}$''). The second one is $M\parallel{}S$,
-where $M$ is a model of $S$ and a tautology the theory $T$. In this
-last case, if $M$ is not a tautology in a theory $T$, this theory generates a
-set of conflict clauses (rule ``$\mathrm{learn}$'').
-
-\begin{figure}[t]
-\parbox{\textwidth}
-{\small
-\begin{center}
-$\begin{array}{l@{\hspace{0.4cm}}l@{\hspace{0.4cm}}l}
-M\parallel{}S,C\lor{}l\longrightarrow{}M,l\parallel{}S,C\lor{}l &
-  (\mathrm{unit~prop}) & \mbox{if }l\mbox{ undefined in }{}M\mbox{ and }M\models{}\neg{}C\\\\
-
-M\parallel{}S\longrightarrow{}M,l^\mathrm{d}\parallel{}S & (\mathrm{decide}) &
-\mbox{if }l\not\in{}M\mbox{, and }l\in{}S\mbox{ or }\neg{}l\in{}S\\\\
-
-M\parallel{}S,C\longrightarrow\mathrm{unsat} & (\mathrm{unsat}) &
-\mbox{if }M'\models{}\neg{}C\mbox{ s.t. }M'\subseteq{}M\\
-&& \mbox{and there is no }l^\mathrm{d}\leq{}l'\mbox{ in }M\\
-&& \mbox{for all }l'\in{}M'\\\\
- 
-M,l^\mathrm{d},M'\parallel{}S,C\longrightarrow{}M,l'\parallel{}S,C &
-(\mathrm{backjump}) & \mbox{if }M,l^\mathrm{d},M'\models\neg{}C
-\mbox{, and there is}\\
-&& \mbox{some clause }C'\lor{}l' s.t.:\\
-&& l'\not\in{}M\mbox{, and }l'\in{}S\mbox{ or }\neg{}l'\in{}S\\
-&& \mbox{or }l'\in{}M,l^\mathrm{d},M'\mbox{ or }
-\neg{}l'\in{}M,l^\mathrm{d},M',\\
-&& \mbox{and }S,C\models{}C'\lor{}l'\mbox{, and }M\models\neg{}C'\\\\
-
-M\parallel{}S\longrightarrow{}M\parallel{}S,S'
-& (\mathrm{learn}) & \models_TS'\mbox{, where }T\mbox{ is a theory}
-\end{array}$
-\end{center}}
-\caption{Rules of SAT Solving Modulo Theory}
-\label{fig:smt}
-\end{figure}
-
-\subsection{The Tableau Theory}
-\label{sec:tab}
-
-In the SMT solver previously described, the tableau proof search method is
-integrated as a regular theory. When a literal is propagated or decided, we
+Tableau proof search method is integrated as a regular theory in our SMT solver.
+When a literal is propagated or decided, we
 generate a set of clauses corresponding to the application of a tableau rule
 depending on the logical connective at the root of the formula in the box of the
 literal. More precisely, for a literal $l$, we generate the set of clauses
@@ -142,8 +65,8 @@ etc.), but there is no precedence between rules and therefore no priority in the
 application of the rules contrary to the tableau proof search method (where
 $\alpha$ rules are applied before $\beta$-rules, and so on).
 
-When the SMT solver reaches a state $M\parallel{}S$, where $M$ is a model of
-$S$, we look for a conflict in $M$ between two literals by unification and we
+When the SMT solver finds a model $M$ of the current set of clauses,
+we look for a conflict in $M$ between boxed atomic formulas by unification and we
 generate the clauses corresponding to the instantiation of the metavariables
 using the result of the unification. More precisely, if there exist two literals
 $l$ and $\neg{}l'$ in $M$ such that $l=\lfloor{}Q\rfloor$ and
@@ -164,42 +87,61 @@ Fig.~\ref{fig:tabth}.
 {\small
 \underline{Analytic Rules}
 \begin{center}
-$\begin{array}{lll@{\hspace{0.5cm}}l}
-\llbracket\lfloor{}P\land{}Q\rfloor{}\rrbracket & = &
-\neg\lfloor{}P\land{}Q\rfloor\lor\lfloor{}P\rfloor,
-\neg\lfloor{}P\land{}Q\rfloor\lor\lfloor{}Q\rfloor & (\alpha_\land)\\\\
+$\begin{array}{llll}
+(\alpha_\land) &
+\llbracket\lfloor{}P\land{}Q\rfloor{}\rrbracket =
+\left\{\begin{array}{l}
+  \neg\lfloor{}P\land{}Q\rfloor\lor\lfloor{}P\rfloor \\
+  \neg\lfloor{}P\land{}Q\rfloor\lor\lfloor{}Q\rfloor
+\end{array} &
 
-\llbracket\neg\lfloor{}P\land{}Q\rfloor{}\rrbracket & = &
-\lfloor{}P\land{}Q\rfloor\lor\neg\lfloor{}P\rfloor\lor\neg\lfloor{}Q\rfloor &
-(\beta_{\neg\land})\\\\
+(\beta_{\neg\land}) &
+\llbracket\neg\lfloor{}P\land{}Q\rfloor{}\rrbracket =
+\lfloor{}P\land{}Q\rfloor\lor\neg\lfloor{}P\rfloor\lor\neg\lfloor{}Q\rfloor
 
-\llbracket{}\lfloor{}P\lor{}Q\rfloor{}\rrbracket & = &
+\\\\
+
+(\beta_\lor) &
+\llbracket{}\lfloor{}P\lor{}Q\rfloor{}\rrbracket =
 \neg\lfloor{}P\lor{}Q\rfloor\lor\lfloor{}P\rfloor\lor\lfloor{}Q\rfloor &
-(\beta_\lor)\\\\
 
-\llbracket\neg\lfloor{}P\lor{}Q\rfloor{}\rrbracket & = &
-\lfloor{}P\lor{}Q\rfloor\lor\neg\lfloor{}P\rfloor,
-\lfloor{}P\lor{}Q\rfloor\lor\neg\lfloor{}Q\rfloor &
-(\alpha_{\neg\lor})\\\\
+(\alpha_{\neg\lor}) &
+\llbracket\neg\lfloor{}P\lor{}Q\rfloor{}\rrbracket =
+\left\{\begin{array}{l}
+  \lfloor{}P\lor{}Q\rfloor\lor\neg\lfloor{}P\rfloor \\
+  \lfloor{}P\lor{}Q\rfloor\lor\neg\lfloor{}Q\rfloor
+\end{array}
 
-\llbracket{}\lfloor{}P\Rightarrow{}Q\rfloor{}\rrbracket & = &
+\\\\
+
+(\beta_\Rightarrow) &
+\llbracket{}\lfloor{}P\Rightarrow{}Q\rfloor{}\rrbracket =
 \neg\lfloor{}P\Rightarrow{}Q\rfloor\lor\neg\lfloor{}P\rfloor\lor
-\lfloor{}Q\rfloor & (\beta_\Rightarrow)\\\\
+\lfloor{}Q\rfloor &
 
-\llbracket\neg\lfloor{}P\Rightarrow{}Q\rfloor{}\rrbracket & = &
-\lfloor{}P\Rightarrow{}Q\rfloor\lor\lfloor{}P\rfloor,
-\lfloor{}P\Rightarrow{}Q\rfloor\lor\neg\lfloor{}Q\rfloor &
-(\alpha_{\neg\Rightarrow})\\\\
+(\alpha_{\neg\Rightarrow}) &
+\llbracket\neg\lfloor{}P\Rightarrow{}Q\rfloor{}\rrbracket =
+\left\{\begin{array}{l}
+  \lfloor{}P\Rightarrow{}Q\rfloor\lor\lfloor{}P\rfloor \\
+  \lfloor{}P\Rightarrow{}Q\rfloor\lor\neg\lfloor{}Q\rfloor
+\end{array}
 
-\llbracket{}\lfloor{}P\Leftrightarrow{}Q\rfloor{}\rrbracket & = &
-\neg\lfloor{}P\Leftrightarrow{}Q\rfloor\lor\lfloor{}P\Rightarrow{}Q\rfloor,
-\neg\lfloor{}P\Leftrightarrow{}Q\rfloor\lor\lfloor{}Q\Rightarrow{}P\rfloor &
-(\beta_\Rightarrow)\\\\
+\\\\
 
-\llbracket{}\neg\lfloor{}P\Leftrightarrow{}Q\rfloor{}\rrbracket &
-= &
-\lfloor{}P\Leftrightarrow{}Q\rfloor\lor\neg\lfloor{}P\Rightarrow{}Q\rfloor\lor
-\neg\lfloor{}Q\Rightarrow{}P\rfloor & (\beta_{\neg\Rightarrow})
+(\beta_\Rightarrow) &
+\llbracket{}\lfloor{}P\Leftrightarrow{}Q\rfloor{}\rrbracket =
+\left\{\begin{array}{l}
+  \neg\lfloor{}P\Leftrightarrow{}Q\rfloor\lor\lfloor{}P\Rightarrow{}Q\rfloor \\
+  \neg\lfloor{}P\Leftrightarrow{}Q\rfloor\lor\lfloor{}Q\Rightarrow{}P\rfloor
+\end{array} &
+
+(\beta_{\neg\Rightarrow}) &
+\llbracket{}\neg\lfloor{}P\Leftrightarrow{}Q\rfloor{}\rrbracket =
+\begin{array}{l}
+  \lfloor{}P\Leftrightarrow{}Q\rfloor \\
+  \lor\neg\lfloor{}P\Rightarrow{}Q\rfloor \\
+  \lor\neg\lfloor{}Q\Rightarrow{}P\rfloor
+\end{array}
 \end{array}$
 \end{center}
 
@@ -239,110 +181,6 @@ $\begin{array}{lll@{\hspace{0.5cm}}l}
 \end{center}}
 \caption{Rules of Tableau Theory}
 \label{fig:tabth}
-\end{figure}
-
-To show how this theory works, let us prove that
-$\exists{}x.P(x)\Rightarrow{}P(a)\land{}P(b)$, where $P$ is a predicate symbol
-and $a,b$ two constants. The SAT solver is initiated with the state
-$\emptyset\parallel
-\neg\lfloor\exists{}x.P(x)\Rightarrow{}P(a)\land{}P(b)\rfloor$, and the proof is
-described in Fig.~\ref{fig:tab}, where $X$ is a shortcut for
-$X_{\neg\exists{}x.P(x)\Rightarrow{}P(a)\land{}P(b)}$. It should be noted that
-to do this proof in sequent calculus, a right contraction is necessary to
-instantiate the formula twice (with $a$ and $b$). In Fig.~\ref{fig:tab}, it is
-done by propagating the literal $\lfloor{}P(X)\rfloor{}$, which can provide as
-many instantiations (by unification) as necessary.
-
-\begin{figure}[t!]
-\parbox{\textwidth}
-{\small
-\begin{center}
-$\begin{array}{lcl}
-\emptyset\parallel\neg{}A & \longrightarrow & (\mathrm{unit~prop})\\
-
-\boldsymbol{\neg{}A}\parallel{}\neg{}A & \longrightarrow & (\mathrm{learn})\\
-
-\neg{}A\parallel\neg{}A,\boldsymbol{A\lor\neg{}B} & \longrightarrow &
-(\mathrm{unit~prop})\\
-
-\neg{}A,\boldsymbol{\neg{}B}\parallel\neg{}A,A\lor\neg{}B & \longrightarrow &
-(\mathrm{learn})\\
-
-\neg{}A,\neg{}B\parallel\neg{}A,A\lor\neg{}B,\boldsymbol{B\lor{}C},
-\boldsymbol{B\lor\neg{}D} & \longrightarrow & (\mathrm{unit~prop})\times{}2\\
-
-\neg{}A,\neg{}B,\boldsymbol{C},\boldsymbol{\neg{}D}\parallel\neg{}A,
-A\lor\neg{}B,B\lor{}C,B\lor\neg{}D & \longrightarrow & (\mathrm{learn})\\
-
-\neg{}A,\neg{}B,C,\neg{}D\parallel\neg{}A,A\lor\neg{}B,B\lor{}C,B\lor\neg{}D,\\
-~~~~\boldsymbol{D\lor\neg{}E\lor\neg{}F} & \longrightarrow & (\mathrm{decide})\\
-
-\neg{}A,\neg{}B,C,\neg{}D,\boldsymbol{\neg{}E^d}\parallel
-\neg{}A,A\lor\neg{}B,B\lor{}C, & \longrightarrow &
-(\mathrm{learn})\\
-~~~~B\lor\neg{}D,D\lor\neg{}E\lor\neg{}F && \{X\mapsto{}a\}=\mathrm{mgu}(C,E)\\
-
-\neg{}A,\neg{}B,C,\neg{}D,\neg{}E^d\parallel
-\neg{}A,A\lor\neg{}B,B\lor{}C,\\
-~~~~B\lor\neg{}D,D\lor\neg{}E\lor\neg{}F,\boldsymbol{A\lor\neg{}G} &
-\longrightarrow & (\mathrm{unit~prop})\\
-
-\neg{}A,\neg{}B,C,\neg{}D,\neg{}E^d,\boldsymbol{\neg{}G}\parallel
-\neg{}A,A\lor\neg{}B,B\lor{}C,\\
-~~~~B\lor\neg{}D,D\lor\neg{}E\lor\neg{}F,A\lor\neg{}G & \longrightarrow &
-(\mathrm{learn})\\
-
-\neg{}A,\neg{}B,C,\neg{}D,\neg{}E^d,\neg{}G\parallel
-\neg{}A,A\lor\neg{}B,B\lor{}C,\\
-~~~~B\lor\neg{}D,D\lor\neg{}E\lor\neg{}F,A\lor\neg{}G,\boldsymbol{G\lor{}E},
-\boldsymbol{G\lor\neg{}D} & \longrightarrow & (\mathrm{backjump})\\
-
-\neg{}A,\neg{}B,C,\neg{}D,\boldsymbol{E}\parallel
-\neg{}A,A\lor\neg{}B,B\lor{}C,\\
-~~~~B\lor\neg{}D,D\lor\neg{}E\lor\neg{}F,A\lor\neg{}G,G\lor{}E,G\lor\neg{}D &
-\longrightarrow & (\mathrm{unit~prop})\times{}2\\
-
-\neg{}A,\neg{}B,C,\neg{}D,E,\boldsymbol{\neg{}F},\boldsymbol{\neg{}G}\parallel
-\neg{}A,A\lor\neg{}B,B\lor{}C, & \longrightarrow & (\mathrm{learn})\\
-~~~~B\lor\neg{}D,D\lor\neg{}E\lor\neg{}F,A\lor\neg{}G,G\lor{}E,G\lor\neg{}D &&
-\{X\mapsto{}b\}=\mathrm{mgu}(C,F)\\
-
-\neg{}A,\neg{}B,C,\neg{}D,E,\neg{}F,\neg{}G\parallel
-\neg{}A,A\lor\neg{}B,B\lor{}C,\\
-~~~~B\lor\neg{}D,D\lor\neg{}E\lor\neg{}F,A\lor\neg{}G,G\lor{}E,G\lor\neg{}D\\
-~~~~\boldsymbol{A\lor\neg{}H} & \longrightarrow & (\mathrm{unit~prop})\\
-
-\neg{}A,\neg{}B,C,\neg{}D,E,\neg{}F,\neg{}G,\boldsymbol{\neg{}H}\parallel
-\neg{}A,A\lor\neg{}B,B\lor{}C,\\
-~~~~B\lor\neg{}D,D\lor\neg{}E\lor\neg{}F,A\lor\neg{}G,G\lor{}E,G\lor\neg{}D\\
-~~~~A\lor\neg{}H & \longrightarrow & (\mathrm{learn})\\
-
-\neg{}A,\neg{}B,C,\neg{}D,E,\neg{}F,\neg{}G,\neg{}H\parallel
-\neg{}A,A\lor\neg{}B,B\lor{}C,\\
-~~~~B\lor\neg{}D,D\lor\neg{}E\lor\neg{}F,A\lor\neg{}G,G\lor{}E,G\lor\neg{}D\\
-~~~~A\lor\neg{}H,\boldsymbol{H\lor{}F},\boldsymbol{H\lor{}\neg{}D} &
-\longrightarrow & (\mathrm{unsat})\\
-
-\mathrm{unsat}
-\end{array}$
-\end{center}
-\begin{flushleft}
-$\begin{array}{l}
-\mbox{where:}\\
-\begin{array}{ll}
-~~~~A\equiv\lfloor\exists{}x.P(x)\Rightarrow{}P(a)\land{}P(b)\rfloor &
-~~~~B\equiv\lfloor{}P(X)\Rightarrow{}P(a)\land{}P(b)\rfloor\\
-~~~~C\equiv\lfloor{}P(X)\rfloor{} &
-~~~~D\equiv\lfloor{}P(a)\land{}P(b)\rfloor{}\\
-~~~~E\equiv\lfloor{}P(a)\rfloor &
-~~~~F\equiv\lfloor{}P(b)\rfloor\\
-~~~~G\equiv{}\lfloor{}P(a)\Rightarrow{}P(a)\land{}P(b)\rfloor &
-~~~~H\equiv{}\lfloor{}P(b)\Rightarrow{}P(a)\land{}P(b)\rfloor
-\end{array}
-\end{array}$
-\end{flushleft}}
-\caption{Example of Proof Using the Tableau Theory}
-\label{fig:tab}
 \end{figure}
 
 \subsection{The Rewriting Theory}
@@ -411,10 +249,10 @@ time.
 Let us illustrate the use of the rewriting theory by means of an example in set
 theory. Let us prove that
 $(\forall{}s,t.s\subseteq{}t\Leftrightarrow{}\forall{}x.x\in{}s\Rightarrow{}
-x\in{}t)\Rightarrow{}a\subseteq{}a$, where $a$ is a constant. The proof is given
-in Fig.~\ref{fig:rew}, where the rules ``$\mathrm{learn~tab}$'' and
-``$\mathrm{learn~rew}$'' represent the rule ``$\mathrm{learn}$'' using
-respectively the tableau and rewriting theories.
+x\in{}t) \Rightarrow{} {}a\subseteq{}a$, where $a$ is a constant. The proof is given
+in Fig.~\ref{fig:rew}, with the state of the solver represented as $T \parallel S$,
+with $T$ the trail of the SMT, in chronological order left to right, and $S$ the set
+of clauses to be satisfied by the solver.
 
 \begin{figure}[t!]
 \parbox{\textwidth}
@@ -424,62 +262,62 @@ $\begin{array}{lcl}
 \emptyset\parallel
 \neg{}A & \longrightarrow & (\mathrm{unit~prop})\\
 
-\boldsymbol{\neg{}A}\parallel{}\neg{}A & \longrightarrow &
-(\mathrm{learn~tab})\\
+  \boldsymbol{\neg{}A}\parallel{}\mathcal{C}_1 = \neg{}A & \longrightarrow &
+(\mathrm{Tableaux})\\
 
 \neg{}A\parallel
-\neg{}A,\boldsymbol{A\lor{}B},\boldsymbol{A\lor\neg{}C} & \longrightarrow &
-(\mathrm{unit~prop})\times{}2\\
+\mathcal{C}_1,\boldsymbol{\mathcal{C}_2 = A\lor{}B},\boldsymbol{\mathcal{C}_3 = A\lor\neg{}C}
+& \longrightarrow & (\mathrm{unit~prop})\times{}2\\
 
 \neg{}A,\boldsymbol{B},\boldsymbol{\neg{}C}\parallel
-\neg{}A,A\lor{}B,A\lor\neg{}C & \longrightarrow & (\mathrm{learn~rew})\\
+\mathcal{C}_1, \mathcal{C}_2, \mathcal{C}_3
+& \longrightarrow & (\mathrm{Rewriting})\\
 
-\neg{}A,B,\neg{}C\parallel\neg{}A,A\lor{}B,A\lor\neg{}C,
-\boldsymbol{\neg{}B\lor{}D} & \longrightarrow & (\mathrm{unit~prop})\\
+\neg{}A,B,\neg{}C\parallel
+\mathcal{C}_1,\mathcal{C}_2,\mathcal{C}_3, \boldsymbol{\mathcal{C}_4=\neg{}B\lor{}D}
+& \longrightarrow & (\mathrm{unit~prop})\\
 
-\neg{}A,B,\neg{}C,\boldsymbol{D}\parallel\neg{}A,A\lor{}B,A\lor\neg{}C,
-\neg{}B\lor{}D & \longrightarrow & (\mathrm{learn~tab})\\
+\neg{}A,B,\neg{}C,\boldsymbol{D}\parallel
+\mathcal{C}_1,\mathcal{C}_2,\mathcal{C}_3,\mathcal{C}_4
+& \longrightarrow & (\mathrm{Tableaux})\\
 
-\neg{}A,B,\neg{}C,D\parallel\neg{}A,A\lor{}B,A\lor\neg{}C,\neg{}B\lor{}D,
-\boldsymbol{\neg{}D\lor{}E},\boldsymbol{\neg{}D\lor{}F} & \longrightarrow &
-(\mathrm{unit~prop})\times{}2\\
+\neg{}A,B,\neg{}C,D\parallel
+\mathcal{C}_1,\mathcal{C}_2,\mathcal{C}_3,\mathcal{C}_4,
+\boldsymbol{\mathcal{C}_5=\neg{}D\lor{}E},\boldsymbol{\mathcal{C}_6=\neg{}D\lor{}F}
+& \longrightarrow & (\mathrm{unit~prop})\times{}2\\
 
 \neg{}A,B,\neg{}C,D,\boldsymbol{E},\boldsymbol{F}\parallel
-\neg{}A,A\lor{}B,A\lor\neg{}C,\neg{}B\lor{}D,\neg{}D\lor{}E,\\
-~~~~\neg{}D\lor{}F & \longrightarrow & (\mathrm{learn~tab})\\
+\mathcal{C}_1,\mathcal{C}_2,\mathcal{C}_3,\mathcal{C}_4, \mathcal{C}_5, \mathcal{C}_6
+& \longrightarrow & (\mathrm{Tableaux})\\
 
-\neg{}A,B,\neg{}C,D,E,F\parallel\neg{}A,A\lor{}B,A\lor\neg{}C,\neg{}B\lor{}D,
-\neg{}D\lor{}E\\
-~~~~\neg{}D\lor{}F,\boldsymbol{\neg{}F\lor\neg{}G\lor{}C} & \longrightarrow &
-(\mathrm{unit~prop})\\
+\neg{}A,B,\neg{}C,D,E,F\parallel
+\mathcal{C}_1,\mathcal{C}_2,\mathcal{C}_3,\mathcal{C}_4, \mathcal{C}_5, \mathcal{C}_6,
+  \boldsymbol{\mathcal{C}_7=\neg{}F\lor\neg{}G\lor{}C}
+& \longrightarrow & (\mathrm{unit~prop})\\
 
-\neg{}A,B,\neg{}C,D,E,F,\boldsymbol{\neg{}G}\parallel\neg{}A,A\lor{}B,
-A\lor\neg{}C,\neg{}B\lor{}D,\neg{}D\lor{}E\\
-~~~~\neg{}D\lor{}F,\neg{}F\lor\neg{}G\lor{}C & \longrightarrow &
-(\mathrm{learn~tab})\\
+\neg{}A,B,\neg{}C,D,E,F,\boldsymbol{\neg{}G}\parallel
+\mathcal{C}_1,\mathcal{C}_2,\mathcal{C}_3,\mathcal{C}_4, \mathcal{C}_5, \mathcal{C}_6, \mathcal{C}_7
+& \longrightarrow & (\mathrm{Tableaux})\\
 
-\neg{}A,B,\neg{}C,D,E,F,\neg{}G\parallel\neg{}A,A\lor{}B,A\lor\neg{}C,
-\neg{}B\lor{}D,\neg{}D\lor{}E\\
-~~~~\neg{}D\lor{}F,\neg{}F\lor\neg{}G\lor{}C,\boldsymbol{G\lor\neg{}H} &
-\longrightarrow & (\mathrm{unit~prop})\\
+\neg{}A,B,\neg{}C,D,E,F,\neg{}G\parallel
+\mathcal{C}_1,\mathcal{C}_2,\mathcal{C}_3,\mathcal{C}_4, \mathcal{C}_5, \mathcal{C}_6, \mathcal{C}_7,
+  \boldsymbol{\mathcal{C}_8=G\lor\neg{}H}
+& \longrightarrow & (\mathrm{unit~prop})\\
 
-\neg{}A,B,\neg{}C,D,E,F,\neg{}G,\boldsymbol{\neg{}H}\parallel\neg{}A,A\lor{}B,
-A\lor\neg{}C,\neg{}B\lor{}D\\
-~~~~\neg{}D\lor{}E,\neg{}D\lor{}F,\neg{}F\lor\neg{}G\lor{}C,
-G\lor\neg{}H & \longrightarrow & (\mathrm{learn~tab})\\
+\neg{}A,B,\neg{}C,D,E,F,\neg{}G,\boldsymbol{\neg{}H}\parallel
+\mathcal{C}_1,\mathcal{C}_2,\mathcal{C}_3,\mathcal{C}_4, \mathcal{C}_5, \mathcal{C}_6, \mathcal{C}_7, \mathcal{C}_8
+& \longrightarrow & (\mathrm{Tableaux})\\
 
-\neg{}A,B,\neg{}C,D,E,F,\neg{}G,\neg{}H\parallel\neg{}A,A\lor{}B,A\lor\neg{}C,
-\neg{}B\lor{}D\\
-~~~~\neg{}D\lor{}E,\neg{}D\lor{}F,\neg{}F\lor\neg{}G\lor{}C,
-G\lor\neg{}H,\boldsymbol{H\lor{}I},\boldsymbol{H\lor\neg{}I} & \longrightarrow &
-(\mathrm{unit~prop})\\
+\neg{}A,B,\neg{}C,D,E,F,\neg{}G,\neg{}H\parallel
+\mathcal{C}_1,\mathcal{C}_2,\mathcal{C}_3,\mathcal{C}_4, \mathcal{C}_5, \mathcal{C}_6, \mathcal{C}_7, \mathcal{C}_8, \\
+~~~~\boldsymbol{\mathcal{C}_9=H\lor{}I},\boldsymbol{\mathcal{C}_{10}=H\lor\neg{}I}
+& \longrightarrow & (\mathrm{unit~prop})\\
 
-\neg{}A,B,\neg{}C,D,E,F,\neg{}G,\neg{}H,\boldsymbol{I}\parallel\neg{}A,A\lor{}B,
-A\lor\neg{}C,\neg{}B\lor{}D\\
-~~~~\neg{}D\lor{}E,\neg{}D\lor{}F,\neg{}F\lor\neg{}G\lor{}C,
-G\lor\neg{}H,H\lor{}I,H\lor\neg{}I & \longrightarrow & (\mathrm{unsat})\\
+\neg{}A,B,\neg{}C,D,E,F,\neg{}G,\neg{}H,\boldsymbol{I}\parallel
+\mathcal{C}_1,\mathcal{C}_2,\mathcal{C}_3,\mathcal{C}_4, \mathcal{C}_5, \mathcal{C}_6, \mathcal{C}_7, \mathcal{C}_8, \mathcal{C}_9, \mathcal{C}_{10}
+& \longrightarrow & (\mathrm{unsat})\\
 
-\mathrm{unsat}
+\boldsymbol{\mathrm{unsat}}
 \end{array}$
 \end{center}
 \begin{flushleft}

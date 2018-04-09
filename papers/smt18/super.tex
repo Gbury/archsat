@@ -37,15 +37,9 @@ a fresh non-rigid variable, then
 $\renameVars{e} = \clauseWithSubst{ e\sigma }{ \{ \sigma \} }$. For example,
 $\renameVars{p(X)\approx a}$ is $\clauseWithSubst{ p(v1)\approx a}{ \{ X\mapsto
 v1\} }$.
-The meaning of $clauseWithSubst{s \approx t}{ \Sigma}$ is
+The meaning of $\clauseWithSubst{s \approx t}{ \Sigma}$ is
 that for every $\sigma \in \Sigma$, $s \approx t$ is provable using the
 substitution $\sigma$ for the metavariables.
-
-The E-unification problem $E \vdash s\approx t$ can be solved by reaching
-$\clauseWithSubst{\emptyset }{ \Sigma}$ from
-$\{ \renameVars{e} \}_{ e \in E } \cup \{ \renameVars{ s \not\approx t } \}$
-using the inference rules in Fig.~\ref{fig:unit-sup-rules},
-with $\Sigma$ the set of solutions.
 
 As can be noticed, we keep a set of substitutions, rather than unit clauses
 paired with individual substitutions, in order to avoid duplicating the work for
@@ -102,12 +96,11 @@ Fig.~\ref{fig:unit-sup-rules} work as described below:
 \item[ER] is equality resolution, where a disequation
 $\clauseWithSubst{s \not\approx t}{\Sigma}$ is solved by syntactically unifying
 $s$ and $t$ with $\sigma$, if $\sigma$ is compatible with $\Sigma$.
-\item[SN] is superposition into negative literals. A subterm of $u$ is rewritten
+\item[SN/SP] is superposition into positive or negative literals. A subterm of $u$ is rewritten
 using $s \approx t$ after unifying it with $s$ by $\sigma$. The rewriting is
 done only if $s\sigma \not\preceq t\sigma$, a sufficient (but not necessary)
 condition for a ground instance of $s\sigma \approx t\sigma$ to be oriented
 left-to-right.
-\item[SP] is similar to SN, but superposes into a positive literal.
 \item[TD1] deletes trivial equations that will never contribute to a proof.
 \item[TD2] deletes clauses with an empty set of substitutions. In practice, we
 only apply a rule if the conclusion is labeled with a non-empty set of
@@ -127,13 +120,11 @@ to the corresponding subterms in the subsumed clause $C$. Otherwise, there is no
 guarantee that further instantiations will not make $s\approx t$ incompatible
 with $C$. Moreover, $C$ needs not be entirely removed. Only its substitutions
 that are compatible with $\Sigma$ are subsumed.
-\item[RP] is rewriting of positive clauses, which only works for syntactical
+\item[RN/RP] are rewriting of clauses, which only works for syntactical
 equality, not matching.
-\item[RN] is the same as RP but for rewriting negative clauses.
 \end{description}
 
-Rule \textbf{SN} (resp. \textbf{SP}) generates as many equations (resp.
-disequations) as there are in the set
+Rule \textbf{SN/SP} generates as many equations as there are in the set
 $(\Sigma \circ \sigma'') \uparrow (\Sigma' \circ \sigma'')$ because all
 substitutions may not always be merged. For instance, given
 $f(x) = t | \{ \{ X_1 \mapsto x \}, \{ X_2 \mapsto x \} \}$ and
@@ -143,37 +134,27 @@ and $(t = v)\{ x \mapsto a \} | \{ \{ X_1 \mapsto a; X_2 \mapsto a \} \}$.
 
 \begin{figure}[htb]
 \begin{center}
+
+% SN
+\AXC{$\clauseWithSubst{s \approx t}{\Sigma}$}
+\AXC{$\clauseWithSubst{u \mathrel{R} v}{\Sigma'}$}
+\LL{SN/SP}
+\BIC{$\clauseWithSubst{\sigma''(u[p \leftarrow t] \mathrel{R} v)}{\sigma'''}$}\DP
+$\text{if} \left\{ \begin{array}{l@{\quad}l}
+\sigma'' = \text{mgu}(u_{|p}, s) & u_{|p} \not\in V\\
+\sigma''(s) \not\preceq \sigma''(t) & \sigma''(u) \not\preceq \sigma''(v)\\
+\multicolumn{2}{l}{
+\sigma''' \in (\Sigma \circ \sigma'') \uparrow (\Sigma' \circ \sigma'')} \\
+\multicolumn{2}{l}{R \in \{ \approx, \not\approx \} }
+\end{array}\right.$\\[12pt]
+
+\mbox{
 % ER
 \AXC{$\clauseWithSubst{s \not\approx t}{\Sigma}$}
 \LL{ER}
 \RL{if $\sigma = \text{mgu}(s, t)$}
-\UIC{$\clauseWithSubst{\emptyset}{\Sigma \circ \sigma}$}\DP\\[12pt]
+\UIC{$\clauseWithSubst{\emptyset}{\Sigma \circ \sigma}$}\DP
 
-% SN
-\AXC{$\clauseWithSubst{s \approx t}{\Sigma}$}
-\AXC{$\clauseWithSubst{u \not\approx v}{\Sigma'}$}
-\LL{SN}
-\BIC{$\clauseWithSubst{\sigma''(u[p \leftarrow t] \not\approx v)}{\sigma'''}$}\DP
-$\text{if} \left\{ \begin{array}{l@{\quad}l}
-\sigma'' = \text{mgu}(u_{|p}, s) & u_{|p} \not\in V\\
-\sigma''(s) \not\preceq \sigma''(t) & \sigma''(u) \not\preceq \sigma''(v)\\
-\multicolumn{2}{l}{
-\sigma''' \in (\Sigma \circ \sigma'') \uparrow (\Sigma' \circ \sigma'')}
-\end{array}\right.$\\[12pt]
-
-% SP
-\AXC{$\clauseWithSubst{s \approx t}{\Sigma}$}
-\AXC{$\clauseWithSubst{u \approx v}{\Sigma'}$}
-\LL{SP}
-\BIC{$\clauseWithSubst{\sigma''(u[p \leftarrow t] \approx v)}{\sigma'''}$}\DP
-$\text{if} \left\{ \begin{array}{l@{\quad}l}
-\sigma'' = \text{mgu}(u_{|p}, s) & u_{|p} \not\in V\\
-\sigma''(s) \not\preceq \sigma''(t) & \sigma''(u) \not\preceq \sigma''(v)\\
-\multicolumn{2}{l}{
-\sigma''' \in (\Sigma \circ \sigma'') \uparrow (\Sigma' \circ \sigma'')}
-\end{array}\right.$\\[12pt]
-
-\mbox{
 % TD1
 \AXC{$\clauseWithSubst{s \approx s}{\Sigma}$}
 \LL{TD1}
@@ -252,13 +233,13 @@ to use the unit clause as many times as needed to rewrite terms without
 accumulating constraints, particularly using the rules RP and RN, whose side
 conditions are always verified by rewrite rules. Rigid unit superposition
 therefore provides an algorithm for rigid E-unification modulo rewrite rules,
-see the next paragraph for the algorithm.
+as detailed in the next paragraph.
 
 \subsection{Main Loop}
 
 Our objective with rigid E-unification is to attempt to close a branch of the
 tableau prover (i.e. a set of Boolean literals set to true). To do so, we first
-creat a set of unit clauses to process from the rewrite rules, and the renamed
+create a set of unit clauses to process from the rewrite rules, and the renamed
 equational or atomic literals. Then, the given-clause algorithm is applied to try and
 saturate the set. Assuming a fair strategy, this will eventually find a
 solution (i.e. derive $\clauseWithSubst{\emptyset}{\Sigma}$) if there exists
