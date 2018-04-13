@@ -24,8 +24,8 @@
 
 \begin{document}
 
-\title{SAT Solving Modulo Tableau and Rewriting Theories}
-\titlerunning{SAT Solving Modulo Tableau and Rewriting Theories}
+\title{SMT Solving Modulo Tableau and Rewriting Theories}
+\titlerunning{SMT Solving Modulo Tableau and Rewriting Theories}
 
 \author{Guillaume~Bury\inst{1} \and Simon~Cruanes\inst{2} \and
 David~Delahaye\inst{3}}
@@ -41,10 +41,10 @@ David~Delahaye\inst{3}}
 \maketitle
 
 \begin{abstract}
-We propose an automated theorem prover that combines a SAT solver with tableau
+We propose an automated theorem prover that combines an SMT solver with tableau
 calculus and rewriting. Tableau inference rules are used to unfold propositional
 content into clauses while atomic formulas are handled using satisfiability
-decision procedures as in SMT solvers. To deal with quantified first order
+decision procedures as in traditional SMT solvers. To deal with quantified first order
 formulas, we use metavariables and perform rigid unification modulo equalities
 and rewriting, for which we introduce an algorithm based on superposition, but
 where all clauses contain a single atomic formula. Rewriting is introduced along

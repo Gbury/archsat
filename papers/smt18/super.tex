@@ -6,12 +6,13 @@
 There are many ways of integrating equational reasoning in tableau
 methods~\cite{DB75,LS02,BR15,DV96}. Because our prover does not rely on clausal
 forms, but on arbitrary formulas with quantifiers occurring deep inside
-branches, we deal with rigid variables, i.e. variables that can be instantiated
-only once. In order to find instanciation as described in \ref{sec:tab},
+branches, we deal with rigid variables, i.e.~variables that should be instantiated
+only once, since multiple instanciations would create new propositional branches.
+In order to find instanciation as described in~\ref{sec:tab},
 we need to solve rigid E-unification modulo rewrite rules:~assume a set of
 equations $E$, containing rigid variables, a rewrite system $\mathcal{RE}$,
 and target terms $s$ and $t$; we want a substitution $\sigma$ such that
-$\bigwedge_{e \in E} e\sigma \vdash s\sigma =_\mathcal{E} t\sigma$. Such a
+$\bigwedge_{e \in E} e\sigma \vdash s\sigma =_\mathcal{RE} t\sigma$. Such a
 substitution is a solution to the rigid E-unification problem.
 
 We propose here an approach based on superposition with rigid variables, as in
@@ -54,16 +55,18 @@ domain of a substitution $\sigma$ as the set of variables that have a
 non-trivial binding in $\sigma$.\footnote{A trivial binding maps a variable to
 itself.} The co-domain of a substitution is the set of variables occurring in
 terms in the image of the domain of the substitution. In the following, we will
-consider idempotent substitutions, i.e. substitutions for which the domain and
+consider idempotent substitutions, i.e.~substitutions for which the domain and
 co-domain have an empty intersection.
 
+\begin{sloppy}
 The composition of two substitutions $\sigma$ and $\sigma'$, denoted by
 $\sigma \circ \sigma'$, is said to be well-defined if and only if the domains of
 $\sigma$ and $\sigma'$ have no intersection. In this case,
 $\sigma \circ \sigma' \triangleq \left\{ x \mapsto (x\sigma)\sigma' | x \in
 \text{domain}(\sigma) \right\}$. This definition extends to sets of
-substitutions: $\Sigma \circ \sigma' \triangleq \left\{ \sigma \circ \sigma' |
-\sigma \in \Sigma \right\}$. We then have $\sigma \leq \sigma'$ if and only if
+substitutions:
+${\Sigma \circ \sigma' \triangleq \left\{ \sigma \circ \sigma' |
+\sigma \in \Sigma \right\} }$. We then have $\sigma \leq \sigma'$ if and only if
 $\exists \sigma''.~ \sigma \circ \sigma'' = \sigma'$. This notion also extends
 to sets of substitutions: $\smash{ \Sigma \leq \Sigma' }$ if and only if
 $\smash{ \forall \sigma' \in \Sigma'.~ \exists \sigma \in \Sigma. \sigma \leq
@@ -73,6 +76,7 @@ otherwise. The merging of sets of substitutions is
 $\Sigma \uparrow \Sigma' \triangleq \left\{ \sigma \uparrow \sigma' ~|~ \sigma
 \in \Sigma, \sigma' \in \Sigma' \right., \sigma \uparrow \sigma' \not= \bot
 \}$.
+\end{sloppy}
 
 To perform an inference step between two unit (dis)equations, we merge their
 sets of substitutions. An inference rule is said to be successful if the merging
@@ -226,7 +230,9 @@ s \succ t\\
 Rewrite rules can be integrated to the rigid unit superposition easily. In fact,
 a rewrite rule $l\rew{}r$ can be expressed as an equality with a hypothesis set
 consisting of a single trivial substitution
-$\clauseWithSubst{s\approx{}t}{\{\emptyset\}}$\footnote{$\{\emptyset\}$ is not to be confused with $\emptyset$}.
+$\clauseWithSubst{s\approx{}t}{\{\emptyset\}}$\footnote{$\{\emptyset\}$, the
+singleton set containing the trivial (or identify) substitution, is not to be confused
+with $\emptyset$, the empty set}.
 Since the trivial substitution is compatible
 with every substitution, it will never prevent any inference, thus allowing us
 to use the unit clause as many times as needed to rewrite terms without
@@ -238,17 +244,17 @@ as detailed in the next paragraph.
 \subsection{Main Loop}
 
 Our objective with rigid E-unification is to attempt to close a branch of the
-tableau prover (i.e. a set of Boolean literals set to true). To do so, we first
+tableau prover (i.e.~a set of Boolean literals set to true). To do so, we first
 create a set of unit clauses to process from the rewrite rules, and the renamed
 equational or atomic literals. Then, the given-clause algorithm is applied to try and
 saturate the set. Assuming a fair strategy, this will eventually find a
-solution (i.e. derive $\clauseWithSubst{\emptyset}{\Sigma}$) if there exists
+solution (i.e.~derive $\clauseWithSubst{\emptyset}{\Sigma}$) if there exists
 one. We refer the interested reader to~\cite{SS02} for more details.
 
 Because the whole branch is managed by a single given-clause saturation loop, we
 look for all solutions susceptible to close the branch at the same time.
-Moreover, this technique is amenable to incrementality, i.e. every time a
-(dis)equation is decided by the SAT solver, we could add it to the saturation
+Moreover, this technique is amenable to incrementality, i.e.~every time a
+(dis)equation is decided by the SMT solver, we could add it to the saturation
 set and perform a (limited) number of steps of the given-clause algorithm.
 
 \subsection{Example}

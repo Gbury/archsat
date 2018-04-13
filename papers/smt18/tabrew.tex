@@ -8,7 +8,7 @@ Compared to genuine tableau automated theorem provers, like \princess{} or
 tableau rules are actually integrated as a regular SMT theory. This way, the
 tableau rules can be easily combined with other theories, such as equality logic
 with uninterpreted functions or arithmetic. The way we integrate the tableau
-rules into the SAT solver (mainly by boxing/unboxing first order formulas) is
+rules into the SMT solver (mainly by boxing/unboxing first order formulas) is
 close to what is done in the \satallax{} tool~\cite{CEB12}. The difference
 resides in the fact that we are in a pure first order framework, which has
 significant consequences in the management of quantifiers and unification in
@@ -54,8 +54,9 @@ Tableau proof search method is integrated as a regular theory in our SMT solver.
 When a literal is propagated or decided, we
 generate a set of clauses corresponding to the application of a tableau rule
 depending on the logical connective at the root of the formula in the box of the
-literal. More precisely, for a literal $l$, we generate the set of clauses
-$\llbracket{}l\rrbracket$, where the function $\llbracket\cdot\rrbracket$ is
+literal. More precisely, for a literal $l$, we generate and add to the solver,
+the set of clauses $\llbracket{}l\rrbracket$, where the function
+$\llbracket\cdot\rrbracket$ is
 described by the rules of Fig.~\ref{fig:tabth}. When a literal is propagated or
 decided, we use all the rules of Fig.~\ref{fig:tabth} except the instantiation
 $\gamma$-rules (rules $\gamma_{\forall\mathrm{inst}}$ and
@@ -71,12 +72,11 @@ generate the clauses corresponding to the instantiation of the metavariables
 using the result of the unification. More precisely, if there exist two literals
 $l$ and $\neg{}l'$ in $M$ such that $l=\lfloor{}Q\rfloor$ and
 $l'=\lfloor{}R\rfloor$, with $Q$ and $R$ two formulas, then for each binding
-$(X_{\forall{}x.P(x)}\mapsto{}t)\in\sigma$ belonging to a
-substitution\footnote{In practice, the implementation also splits and
-reduce substitutions in order to only generate clauses corresponding to the
-outermost meta-variables.}
-$\sigma\in\mathrm{mgu}(Q,R)$ (resp.
-$(X_{\neg\exists{}x.P(x)}\mapsto{}t)\in\sigma\in\mathrm{mgu}(Q,R)$)
+$(X_{\forall{}x.P(x)}\mapsto{}t)\in\mathrm{mgu}(Q,R)$\footnote{In practice,
+the implementation also splits and reduce substitutions in order to only generate
+clauses corresponding to the outermost meta-variables.}
+(resp.
+$(X_{\neg\exists{}x.P(x)}\mapsto{}t)\in\mathrm{mgu}(Q,R)$)
 we can generate the clauses $\llbracket\lfloor\forall{}x.P(x)\rfloor{}\rrbracket$
 (resp. $\llbracket\neg\lfloor\exists{}x.P(x)\rfloor{}\rrbracket$) using the rule
 $\gamma_{\forall\mathrm{inst}}$ (resp. $\gamma_{\neg\exists\mathrm{inst}}$) of
@@ -150,7 +150,9 @@ $\begin{array}{llll}
 $\begin{array}{lll@{\hspace{0.5cm}}l}
 \llbracket\lfloor\exists{}x.P(x)\rfloor{}\rrbracket & = &
 \neg{}\lfloor\exists{}x.P(x)\rfloor\lor\lfloor{}P(\epsilon(x).P(x))\rfloor &
-(\delta_\exists)\\\\
+(\delta_\exists)
+
+\\
 
 \llbracket\neg\lfloor\forall{}x.P(x)\rfloor{}\rrbracket & = &
 \lfloor\forall{}x.P(x)\rfloor\lor\neg\lfloor{}P(\epsilon(x).\neg{}P(x))\rfloor &
@@ -163,16 +165,22 @@ $\begin{array}{lll@{\hspace{0.5cm}}l}
 $\begin{array}{lll@{\hspace{0.5cm}}l}
 \llbracket\lfloor\forall{}x.P(x)\rfloor{}\rrbracket & = &
 \neg\lfloor\forall{}x.P(x)\rfloor\lor\lfloor{}P(X_{\forall{}x.P(x)})\rfloor &
-(\gamma_{\forall{}M})\\\\
+(\gamma_{\forall{}M})
+
+\\
 
 \llbracket\neg\lfloor\exists{}x.P(x)\rfloor{}\rrbracket & = &
 \lfloor\exists{}x.P(x)\rfloor\lor
 \neg\lfloor{}P(X_{\neg\exists{}x.P(x)})\rfloor &
-(\gamma_{\neg\exists{}M})\\\\
+(\gamma_{\neg\exists{}M})
+
+\\
 
 \llbracket\lfloor\forall{}x.P(x)\rfloor{}\rrbracket & = &
 \neg\lfloor\forall{}x.P(x)\rfloor\lor\lfloor{}P(t)\rfloor &
-(\gamma_{\forall\mathrm{inst}})\\\\
+(\gamma_{\forall\mathrm{inst}})
+
+\\
 
 \llbracket\neg\lfloor\exists{}x.P(x)\rfloor{}\rrbracket & = &
 \lfloor\exists{}x.P(x)\rfloor\lor\neg\lfloor{}P(t)\rfloor &
@@ -186,7 +194,7 @@ $\begin{array}{lll@{\hspace{0.5cm}}l}
 \subsection{The Rewriting Theory}
 \label{sec:rew}
 
-A rewriting theory allows us to introduce a computational behavior to the SAT
+A rewriting theory allows us to introduce a computational behavior to the SMT
 solver. We aim to integrate rewriting in the broadest sense of the term as
 proposed by deduction modulo theory. Deduction modulo theory~\cite{DA03} focuses
 on the computational part of a theory, where axioms are transformed into rewrite
@@ -223,12 +231,12 @@ $\mathcal{RE}$ and the rewrite relation $\rew_\mathcal{RE}$. In particular, if
 the rewrite relation $\rew_\mathcal{RE}$ is confluent and (weakly) terminating,
 then the relation $=_\mathcal{RE}$ is decidable.
 
-The rewriting theory is integrated into the SAT solver in a similar way as for
-the tableau theory. Whenever a literal is propagated or decided, we generate a
-clause introducing a new formula that is congruent to the formula in the box of
-the literal. More precisely, given a literal $\lfloor{}P\rfloor$, where $P$ is a
-formula, and a formula $P'$ such that $P=_\mathcal{RE}P'$, we generate the
-following clause:
+The rewriting theory is integrated into the SMT solver in a similar way as for
+the tableau theory. Whenever a literal is propagated or decided, we generate and
+add to the solver, a clause introducing a new formula that is congruent to the
+formula in the box of the literal. More precisely, given a literal
+$\lfloor{}P\rfloor$, where $P$ is a formula, and a formula $P'$ such that
+$P=_\mathcal{RE}P'$, we generate and add the following clause:
 
 $$\left(\bigvee_{(l,r)\in\mathcal{R}}
 \neg\lfloor\forall{}\vec{x}.l\Leftrightarrow{}r\rfloor\right)\lor
@@ -240,7 +248,7 @@ where $\vec{x}=\mathrm{FV}(l)\cup\mathrm{FV}(r)$.
 It should be noted that in usual SMT solvers, rewriting can be emulated by means
 of triggers that are actually the left-hand side members of the class rewrite
 system $\mathcal{RE}$ introduced above. But in our rewriting theory, we can
-generate the formula where rewriting setps have been done, while triggers can just
+generate the formula resulting from the rewriting steps, while triggers can just
 generate bindings, i.e. instances of the rewrite rules, which are used later to
 relate the initial and rewritten formulas. Moreover, in our case, we can perform
 several rewritings at once, while a trigger can only emulate one rewriting at a
