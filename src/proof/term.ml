@@ -4,9 +4,9 @@ let section = Section.make "proof"
 (* Proof terms *)
 (* ************************************************************************ *)
 
+module S = Expr.Subst
+
 type binder =
-  | Pi
-  | Arrow
   | Lambda
   | Forall
   | Exists
@@ -25,32 +25,17 @@ and t = {
   term : descr;
   mutable hash : int;
   mutable reduced : t option;
+  mutable free : (id, unit) S.t option;
 }
+
 
 exception Function_expected of t
 exception Type_mismatch of t * t
+exception Match_Impossible of t * t
+exception Unif_Impossible of t * t
 
-(* Std functions *)
+(* Small helper *)
 (* ************************************************************************ *)
-
-let rec hash_aux t =
-  match t.term with
-  | Type -> 0
-  | Id x -> Expr.Id.hash x
-  | App (f, arg) ->
-    Hashtbl.hash (hash f, hash arg)
-  | Let (x, v, body) ->
-    Hashtbl.hash (Expr.Id.hash x, hash v, hash body)
-  | Binder (b, var, body) ->
-    Hashtbl.hash (Hashtbl.hash b, Expr.Id.hash var, hash body)
-
-and hash t =
-  if t.hash > 0 then t.hash
-  else begin
-    let h = hash_aux t in
-    t.hash <- h;
-    h
-  end
 
 let _descr = function
   | Type -> 0
@@ -63,8 +48,6 @@ let _descr = function
 (* ************************************************************************ *)
 
 let binder_name = function
-  | Pi -> "Π"
-  | Arrow -> "->"
   | Lambda -> "λ"
   | Forall -> "∀"
   | Exists -> "∃"
@@ -100,54 +83,52 @@ let define s def =
 (* Free variables *)
 (* ************************************************************************ *)
 
-module S = Set.Make(struct
-    type nonrec t = t Expr.Id.t
-    let compare = Expr.Id.compare
-  end)
+let merge s s' = S.merge (fun _ o o' -> CCOpt.(o <+> o')) s s'
 
-let rec free_vars acc t =
-  match t.term with
-  | Type -> acc
-  | Id v -> S.add v acc
-  | App (f, arg) ->
-    free_vars (free_vars acc f) arg
-  | Let (v, e, body) ->
-    S.remove v (free_vars (free_vars acc e) body)
-  | Binder (_, v, body) ->
-    S.remove v (free_vars acc body)
+let rec free_vars t =
+  match t.free with
+  | Some s -> s
+  | None ->
+    let res =
+      match t.term with
+      | Type -> S.empty
+      | Id v -> S.Id.bind S.empty v ()
+      | App (f, arg) -> merge (free_vars f) (free_vars arg)
+      | Binder (_, v, body) -> S.Id.remove v (free_vars body)
+      | Let (v, e, body) -> S.Id.remove v (merge (free_vars e) (free_vars body))
+    in
+    t.free <- Some res;
+    res
+
+let occurs v t = S.Id.mem v (free_vars t)
 
 (* Simple Term creation *)
 (* ************************************************************************ *)
 
 (** Creating terms *)
 let mk ty term =
-  { ty; term; hash = -1; reduced = None; }
+  { ty; term; hash = -1; free = None; reduced = None; }
 
 let const v = mk v.Expr.id_type (Id v)
 
 let rec _Type = {
-  ty = _Type;
-  term = Type;
-  hash = -1;
+  ty      = _Type;
+  term    = Type;
+  hash    = -1;
+  free    = None;
   reduced = Some _Type;
 }
 
 let _Prop_id = Expr.Id.mk_new "Prop" _Type
 let _Prop = const _Prop_id
 
-(* Reduction, matching and comparison *)
+(* Reduction and comparison *)
 (* ************************************************************************ *)
-
-module Subst = Map.Make(struct
-    type nonrec t = t Expr.Id.t
-    let compare = Expr.Id.compare
-  end)
 
 (* get a function type *)
 let extract_fun_ty t =
   match t.ty with
-  | { term = Binder (Pi, v, ty) }
-  | { term = Binder (Arrow, v, ty) } -> v, ty
+  | { term = Binder (Forall, v, ty) } -> v, ty
   | _ -> raise (Function_expected t)
 
 (* function application *)
@@ -163,7 +144,7 @@ and app t arg =
   let v, ty = extract_fun_ty t in
   let expected_arg_ty = v.Expr.id_type in
   _assert arg expected_arg_ty;
-  let s = Subst.singleton v arg in
+  let s = S.Id.bind S.empty v arg in
   let res_ty = subst s ty in
   mk res_ty (App (t, arg))
 
@@ -174,32 +155,27 @@ and letin v e body =
 and bind b v body =
   match b with
   | Lambda ->
-    let fv = free_vars S.empty body.ty in
-    let ty_b = if S.mem v fv then Pi else Arrow in
-    let res_ty = bind ty_b v body.ty in
-    mk res_ty (Binder (b, v, body))
-  | Pi | Arrow ->
-    mk _Type (Binder (b, v, body))
+    let res_ty = bind Forall v body.ty in
+    mk res_ty (Binder (Lambda, v, body))
   | Forall | Exists ->
-    _assert body _Prop;
     mk _Prop (Binder (b, v, body))
 
 and subst s t =
   match t.term with
   | Type -> t
   | Id v ->
-    begin try Subst.find v s
+    begin try S.Id.get v s
       with Not_found -> t end
   | App (f, arg) ->
     app (subst s f) (subst s arg)
   | Let (v, e, body) ->
     let e' = subst s e in
-    let s' = Subst.remove v s in
+    let s' = S.Id.remove v s in
     let v', s'' =
       if equal e.ty e'.ty then v, s'
       else
         let v' = Expr.Id.mk_new v.Expr.id_name e'.ty in
-        v', Subst.add v (const v') s'
+        v', S.Id.bind s' v (const v')
     in
     let body' = subst s'' body in
     if v == v' && e == e' && body == body' then t
@@ -207,12 +183,12 @@ and subst s t =
   | Binder (b, v, body) ->
     let ty = v.Expr.id_type in
     let ty' = subst s ty in
-    let s' = Subst.remove v s in
+    let s' = S.Id.remove v s in
     let v', s'' =
       if equal ty ty' then v, s'
       else
         let v' = Expr.Id.mk_new v.Expr.id_name ty' in
-        v', Subst.add v (const v') s'
+        v', S.Id.bind s' v (const v')
     in
     let body' = subst s'' body in
     if v == v' && body == body' then t
@@ -232,7 +208,7 @@ and reduce_aux t =
         match f.term with
         | Binder (Lambda, v, body) ->
           let body' = reduce body in
-          reduce (subst (Subst.singleton v arg) body')
+          reduce (subst (S.Id.bind S.empty v arg) body')
         | _ -> t
       end else
         reduce (app f arg') (* recompute the type just to be sure *)
@@ -241,7 +217,7 @@ and reduce_aux t =
   | Let (v, e, body) ->
     let e' = reduce e in
     let body' = reduce body in
-    reduce (subst (Subst.singleton v e') body')
+    reduce (subst (S.Id.bind S.empty v e') body')
   | Binder (b, v, body) ->
     let body' = reduce body in
     if body == body' then t else bind b v body'
@@ -284,16 +260,34 @@ and compare t t' =
 and equal t t' =
   compare t t' = 0
 
+and hash_aux t =
+  match t.term with
+  | Type -> 0
+  | Id x -> Expr.Id.hash x
+  | App (f, arg) ->
+    Hashtbl.hash (hash f, hash arg)
+  | Let (x, v, body) ->
+    Hashtbl.hash (Expr.Id.hash x, hash v, hash body)
+  | Binder (b, var, body) ->
+    Hashtbl.hash (Hashtbl.hash b, Expr.Id.hash var, hash body)
+
+and hash t =
+  if t.hash > 0 then t.hash
+  else begin
+    let h = hash_aux (reduce t) in
+    t.hash <- h;
+    h
+  end
+
+
 (* Pattern matching *)
 (* ************************************************************************ *)
-
-exception Match_Impossible of t * t
 
 let rec match_aux subst pat t =
   match pat, t with
   | { term = Id v }, _ ->
-    begin match Subst.find v subst with
-      | exception Not_found -> Subst.add v t subst
+    begin match S.Id.get v subst with
+      | exception Not_found -> S.Id.bind subst v t
       | t' ->
         if equal t t' then subst
         else raise (Match_Impossible (pat, t))
@@ -305,40 +299,38 @@ let rec match_aux subst pat t =
   | { term = Binder (b, v, body) },
     { term = Binder (b', v', body') } ->
     if b = b' then
-      match_aux (Subst.add v (const v') subst) body body'
+      match_aux (S.Id.bind subst v (const v')) body body'
     else
       raise (Match_Impossible (pat, t))
   | _ -> raise (Match_Impossible (pat, t))
 
 let pmatch ~pat t =
-  let s = match_aux Subst.empty (reduce pat) (reduce t) in
-  let fv = free_vars S.empty pat in
-  Subst.filter (fun v _ -> S.mem v fv) s
+  let s = match_aux S.empty (reduce pat) (reduce t) in
+  let fv = free_vars pat in
+  S.filter (fun v _ -> S.Id.mem v fv) s
 
 (* Unification *)
 (* ************************************************************************ *)
 
-exception Unif_Impossible of t * t
-
 let rec follow subst = function
   | { term = Id v } as t ->
-    begin match Subst.find v subst with
+    begin match S.Id.get v subst with
       | exception Not_found -> t
       | t' ->follow subst  t'
     end
   | t -> t
 
-let rec occurs subst l = function
+let rec occurs_check subst l = function
   | { term = Type } -> false
   | { term = Id v } ->
     CCList.mem ~eq:Expr.Id.equal v l ||
-    begin match Subst.find v subst with
+    begin match S.Id.get v subst with
       | exception Not_found -> false
-      | e -> occurs subst (v :: l) e
+      | e -> occurs_check subst (v :: l) e
     end
-  | { term = App (f, arg) } -> occurs subst l f || occurs subst l arg
-  | { term = Let (_, e, body) } -> occurs subst l e || occurs subst l body
-  | { term = Binder (_, _, body) } -> occurs subst l body
+  | { term = App (f, arg) } -> occurs_check subst l f || occurs_check subst l arg
+  | { term = Let (_, e, body) } -> occurs_check subst l e || occurs_check subst l body
+  | { term = Binder (_, _, body) } -> occurs_check subst l body
 
 let rec unif_aux subst s t =
   let s = follow subst s in
@@ -347,8 +339,8 @@ let rec unif_aux subst s t =
   | ({ term = Id v } as m), u
   | u, ({ term = Id v } as m) ->
     if equal m u then subst
-    else if occurs subst [v] u then raise (Unif_Impossible (m, u))
-    else Subst.add v u subst
+    else if occurs_check subst [v] u then raise (Unif_Impossible (m, u))
+    else S.Id.bind subst v u
   | { term = Type },
     { term = Type } -> subst
   | { term = App (f, arg) },
@@ -357,15 +349,15 @@ let rec unif_aux subst s t =
   | { term = Binder (b, v, body) },
     { term = Binder (b', v', body') } ->
     if b = b' then
-      unif_aux (Subst.add v (const v') subst) body body'
+      unif_aux (S.Id.bind subst v (const v')) body body'
     else
       raise (Unif_Impossible (s, t))
   | _ -> raise (Unif_Impossible (s, t))
 
 let unif s t =
-  let res = unif_aux Subst.empty s t in
-  let fv = free_vars (free_vars S.empty s) t in
-  Subst.filter (fun v _ -> S.mem v fv) res
+  let res = unif_aux S.empty s t in
+  let fv = merge (free_vars s) (free_vars t) in
+  S.filter (fun v _ -> S.Id.mem v fv) res
 
 (* Shorthands for constructors *)
 (* ************************************************************************ *)
@@ -378,13 +370,10 @@ let rec apply_left f = function
   | x :: y :: r ->
     apply_left f (apply f [x; y] :: r)
 
-let pi v body = bind Pi v body
-let pis l body = List.fold_right pi l body
-
 let lambda v body = bind Lambda v body
 let lambdas l body = List.fold_right lambda l body
 
-let arrow ty ret = bind Arrow (Expr.Id.mk_new "_" ty) ret
+let arrow ty ret = bind Forall (Expr.Id.mk_new "_" ty) ret
 let arrows l ret = List.fold_right arrow l ret
 
 let forall v body = bind Forall v body
@@ -421,7 +410,7 @@ let not_term = const not_id
 let equal_id =
   let a_id = Expr.Id.mk_new "a" _Type in
   let a_type = const a_id in
-  Expr.Id.mk_new "==" (pi a_id (arrows [a_type; a_type] _Prop))
+  Expr.Id.mk_new "==" (forall a_id (arrows [a_type; a_type] _Prop))
 
 let equal_term = const equal_id
 
@@ -506,9 +495,9 @@ let uncurry ?assoc t =
 (* Binder concatenation *)
 (* ************************************************************************ *)
 
-let flatten_binder b t =
+let flatten_binder o b t =
   let rec aux b acc = function
-    | { term = Binder (b', v, body) } when (b = b') ->
+    | { term = Binder (b', v, body) } when (b = b') && o = occurs v body ->
       aux b (v :: acc) body
     | t -> List.rev acc, t
   in
@@ -550,7 +539,7 @@ and print_let fmt v e body =
     print_id v print e print body
 
 and print_arrow fmt t =
-  let l, body = flatten_binder Arrow t in
+  let l, body = flatten_binder false Forall t in
   let l' = List.map (fun v -> v.Expr.id_type) l in
   let sep fmt () = Format.fprintf fmt " ->@ " in
   Format.fprintf fmt "(@[<hov>%a ->@ %a@])"
@@ -565,7 +554,7 @@ and print_var_lists fmt l =
   CCFormat.(list ~sep:(return "@ ") print_var_list) fmt l
 
 and print_binder fmt b t =
-  let l, body = flatten_binder b t in
+  let l, body = flatten_binder true b t in
   let l' = concat_vars l in
   Format.fprintf fmt "(@[<hov 2>%s@[<hov>%a@]%s@ %a@])"
     (binder_name b) print_var_lists l'
@@ -577,7 +566,9 @@ and print fmt t =
   | Id v -> print_id fmt v
   | App _ -> print_app fmt t
   | Let (v, e, body) -> print_let fmt v e body
-  | Binder (Arrow, _, _) -> print_arrow fmt t
+  | Binder (Forall, v, body) ->
+
+    print_arrow fmt t
   | Binder (b, _, _) -> print_binder fmt b t
 
 let print_typed fmt t =
@@ -638,7 +629,7 @@ let of_id tr ?callback id = const (of_id_aux tr ?callback id)
 let of_function_descr tr tr' ?callback fd =
   let rec aux_vars body = function
     | [] -> body
-    | v :: r -> aux_vars (pi (of_id_aux ?callback tr v) body) r
+    | v :: r -> aux_vars (forall (of_id_aux ?callback tr v) body) r
   and aux_args vars body = function
     | [] -> aux_vars body vars
     | ty :: r -> aux_args vars (arrow (tr' ?callback ty) body) r

@@ -18,6 +18,9 @@ module Env : sig
   (** The type of environments, i.e bijective maps
       between proof terms and names. *)
 
+  val print : Format.formatter -> t -> unit
+  (** Printing function to be used for debugging. *)
+
   val empty : t
   (** The empty environment. *)
 
@@ -36,6 +39,9 @@ module Env : sig
   val intro : t -> Term.t -> t
   (** Introduce the given term, automatically choosing a term for it,
       using the prefix of the environment. *)
+
+  val add : t -> Term.id -> t
+  (** Add the given identifier to the environment. *)
 
 end
 
@@ -70,7 +76,7 @@ type lang =
 
 type pretty =
   | Branching           (** All branches are equivalent *)
-  | Last_but_not_least  (** The last "branch" s the most important
+  | Last_but_not_least  (** The last "branch" is the most important
                             and/or bigger one. *)
 (** Pretty printing information about branches of a proof. *)
 
@@ -141,12 +147,35 @@ val apply_step : pos -> ('a, 'b) step -> 'a -> 'b * pos array
     branches to prove. These positions are in the same order as the branches
     computed by the reasoning step. *)
 
+val intro : (string, Term.id) step
+(** The itnroduction reasoning step. *)
+
+val apply : (Term.t * int * Prelude.t list,
+             Term.t * int * Prelude.t list) step
+(** The term application reasoning step. Aplplies the given term,
+    using the integer provided as arity i.e the number of arguments
+    expected by the term, and thus also of branhces generated. *)
+
+val letin : (string * Term.t, Term.id * Term.t) step
+(** Let-binding in proofs. Given a prefix string, and a term,
+    generate a new id and bind it to the given term for the
+    remainder of the proof. *)
+
+val cut : (string * Term.t, Term.id) step
+(** Cut/assertion in proofs. Generate two branch,
+    the first one in which the given term has to be proven,
+    and a second one where the proven term has been bound
+    to the returned id. *)
+
 
 (** {2 Proof inspection} *)
 
-
 type node
 (** The type of internal node of proof trees *)
+
+type proof_node =
+  | Open  : sequent -> proof_node
+  | Proof : (_, 'state) step * 'state * node array -> proof_node
 
 exception Open_proof
 (** Exception raised during traversal if an incomplete proof is found. *)
@@ -161,8 +190,33 @@ val pos : node -> pos
 val get : pos -> node
 (** Return a node given its position. *)
 
+val extract : node -> proof_node
+(** Extract the contents of a node. *)
+
 val branches : node -> node array
 (** Returns the branches of a node.
     @raise Open_proof if there is at least one open branch. *)
 
+
+(** {2 Proof tactics and useful stuff} *)
+
+type ('a, 'b) tactic = 'a -> 'b
+(** The type of tactics. Should represent computations that manipulate
+    proof positions. Using input ['a] and output ['b].
+
+    Most proof tactics should take a [pos] as input, and return:
+    - [unit] if it closes the branch
+    - a single [pos] it it does not create multple branches
+    - a tuple, list or array of [pos] if it branches
+*)
+
+
+val match_arrow : Term.t -> (Term.t * Term.t) option
+(** Try ad match the given term with an arrow type, is succesful returns
+    the pair (argument_type, return_type). *)
+
+val match_arrows : Term.t -> Term.t list * Term.t
+(** Try ad match the given term with an arrow type as much as possible,
+    and return the list of argument types expected, followed by
+    the return type of the function type provided. *)
 

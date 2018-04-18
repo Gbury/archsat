@@ -56,18 +56,14 @@ module Print = struct
     | _ -> None
 
   let binder_name = function
-    | Term.Pi
     | Term.Forall -> "forall"
     | Term.Exists -> "exists"
     | Term.Lambda -> "fun"
-    | Term.Arrow -> assert false
 
   let binder_sep = function
     | Term.Lambda -> "=>"
-    | Term.Pi
     | Term.Forall
     | Term.Exists -> ","
-    | Term.Arrow -> assert false
 
   let rec term fmt t =
     match t.Term.term with
@@ -95,13 +91,13 @@ module Print = struct
     | Term.Let (v, e, body) ->
       Format.fprintf fmt "@[<v>@[<hv>let %a := @[<hov>%a@]@ in@]@ %a"
         id v term e term body
-    | Term.Binder (Term.Arrow as b, _, _) ->
-      let vars, body = Term.flatten_binder b t in
+    | Term.Binder (Term.Forall as b, v, body) when not (Term.occurs v body) ->
+      let vars, body = Term.flatten_binder false b t in
       let tys = List.map (fun id -> id.Expr.id_type) vars in
       Format.fprintf fmt "@[<hov>%a@ ->%a@]"
         CCFormat.(list ~sep:(return "@ -> ") term) tys term body
     | Term.Binder (b, _, _) ->
-      let vars, body = Term.flatten_binder b t in
+      let vars, body = Term.flatten_binder true b t in
       let l = Term.concat_vars vars in
       Format.fprintf fmt "(@[<hov 2>%s@[<hov>%a@]%s@ %a@])"
         (binder_name b) var_lists l

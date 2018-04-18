@@ -56,8 +56,9 @@ Ext_constraints
 # Proof manipulations
 Dot
 Coq
-Proof
 Term
+Proof
+Logic
 Tactics
 Unsat_core
 

@@ -52,13 +52,20 @@ module Env = struct
   let count t s =
     try Ms.find s t.count with Not_found -> 0
 
+  let add t id =
+    let f = id.Expr.id_type in
+    match Mt.find f t.names with
+    | name -> raise (Added_twice f)
+    | exception Not_found ->
+      { t with names = Mt.add f id t.names; }
+
   let intro t f =
     match Mt.find f t.names with
     | name -> raise (Added_twice f)
     | exception Not_found ->
       let n = count t t.prefix in
       let name = Format.sprintf "%s%d" t.prefix n in
-      let id = Expr.Id.mk_new name f in
+      let id = Term.declare name f in
       { t with
         names = Mt.add f id t.names;
         count = Ms.add t.prefix (n + 1) t.count;
@@ -196,6 +203,19 @@ type proof = node array
 (** Simpler option would be a node ref, but it would complexify functions
     and positions neddlessly. *)
 
+
+(* Proof tactics *)
+type ('a, 'b) tactic = 'a -> 'b
+(** The type of tactics. Should represent computations that manipulate
+    proof positions. Using input ['a] and output ['b].
+
+    Most proof tactics should take a [pos] as input, and return:
+    - [unit] if it closes the branch
+    - a single [pos] it it does not create multple branches
+    - a tuple, list or array of [pos] if it branches
+*)
+
+
 (* Sequents *)
 (* ************************************************************************ *)
 
@@ -303,7 +323,7 @@ and print_array_coq ~depth ~pretty fmt a =
         let a' = Array.sub a 0 (Array.length a - 1) in
         Format.fprintf fmt "@[<v>%a@ @]"
           CCFormat.(array ~sep:(return "@ ") (print_bracketed_coq ~depth)) a';
-        (* separate call to ensure tail call *)
+        (* separate call to ensure tail call, useful for long proofs *)
         print_lbnl_coq ~depth fmt a.(Array.length a - 1)
     end
 
@@ -333,6 +353,8 @@ let root = function
   | _ -> assert false
 
 let pos { pos; _ } = pos
+
+let extract { proof; _ } = proof
 
 let branches node =
   match node.proof with
@@ -365,4 +387,115 @@ let elaborate = function
   | [| p |] -> elaborate_node (fun x -> x) p
   | _ -> assert false
 
+(* Match an arrow type *)
+(* ************************************************************************ *)
+
+let match_arrow ty =
+  match Term.reduce ty with
+  | { Term.term = Term.Binder (Term.Forall, v, ret) }
+    when not (Term.occurs v ret) ->
+    Some (v.Expr.id_type, ret)
+  | _ -> None
+
+let match_arrows ty =
+  let rec aux acc t =
+    match match_arrow t with
+    | Some (arg, ret) -> aux (arg :: acc) ret
+    | None -> List.rev acc, t
+  in
+  aux [] ty
+
+let rec match_n_arrow acc n ty =
+  if n <= 0 then Some (List.rev acc, ty)
+  else begin
+    match match_arrow ty with
+    | None -> None
+    | Some (arg_ty, ret) -> match_n_arrow (arg_ty :: acc) (n - 1) ret
+  end
+
+(* Proof steps *)
+(* ************************************************************************ *)
+
+let apply =
+  let prelude (_, _, l) = l in
+  let compute ctx (f, n, prelude) =
+    let g = goal ctx in
+    match match_n_arrow [] n f.Term.ty with
+    | None ->
+      Util.warn ~section
+        "@[<hv 2>Expected a non-dependant product type but got:@ %a@]"
+        Term.print f.Term.ty;
+      assert false
+    | Some (l, ret) ->
+      assert (Term.equal ret g);
+      let e = env ctx in
+      (f, n, prelude), Array.map (fun g' -> mk_sequent e g') (Array.of_list l)
+  in
+  let elaborate (f, _, _) args = Term.apply f (Array.to_list args) in
+  let coq = Branching, (fun fmt (f, n, _) ->
+      Format.fprintf fmt "%s %a."
+        (if n = 0 then "exact" else "apply") Coq.Print.term f
+    ) in
+  mk_step ~prelude ~coq ~compute ~elaborate
+
+let intro =
+  let prelude _ = [] in
+  let compute ctx prefix =
+    match Term.reduce @@ goal ctx with
+    | { Term.term = Term.Binder (Term.Forall, v (* : p *), q) } ->
+      if Term.occurs v q then begin
+        v, [| mk_sequent (env ctx) q |]
+      end else begin
+        let p = v.Expr.id_type in
+        let e = Env.intro (Env.prefix (env ctx) prefix) p in
+        Env.find e p, [| mk_sequent e q |]
+      end
+    | t ->
+      Util.warn ~section "Expected a universal quantification, but got: %a"
+        Term.print t;
+      raise (Failure ("Can't introduce formula", ctx))
+  in
+  let elaborate id = function
+    | [| body |] -> Term.lambda id body
+    | _ -> assert false
+  in
+  let coq = Last_but_not_least, (fun fmt p ->
+      Format.fprintf fmt "intro %a." Coq.Print.id p)
+  in
+  mk_step ~prelude ~coq ~compute ~elaborate
+
+let letin =
+  let prelude _ = [] in
+  let compute ctx (prefix, t) =
+    let e = Env.prefix (env ctx) prefix in
+    let e' = Env.intro e t.Term.ty in
+    (Env.find e' t, t), [| mk_sequent e' (goal ctx) |]
+  in
+  let elaborate (id, t) = function
+    | [| body |] -> Term.letin id t body
+    | _ -> assert false
+  in
+  let coq = Last_but_not_least, (fun fmt (id, t) ->
+      Format.fprintf fmt "let %a =@ @[<hov>%a@] in"
+        Coq.Print.id id Coq.Print.term t
+    ) in
+  mk_step ~prelude ~coq ~compute ~elaborate
+
+let cut =
+  let prelude _ = [] in
+  let compute ctx (prefix, t) =
+    let e = env ctx in
+    let e' = Env.prefix e prefix in
+    let e'' = Env.intro e' t in
+    Env.find e'' t, [| mk_sequent e t ; mk_sequent e'' (goal ctx) |]
+  in
+  let elaborate id = function
+    | [| t; body |] -> Term.letin id t body
+    | _ -> assert false
+  in
+  let coq = Last_but_not_least, (fun fmt id ->
+      Format.fprintf fmt "assert (%a:@ @[<hov>%a@])."
+        Coq.Print.id id Coq.Print.term id.Expr.id_type
+    ) in
+  mk_step ~prelude ~coq ~compute ~elaborate
 

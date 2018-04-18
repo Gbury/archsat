@@ -2,12 +2,12 @@
 val section : Section.t
 (** Main section for proofs *)
 
+module S = Expr.Subst
+(** Alias module for substitutions *)
 
 (** {2 Terms} *)
 
 type binder = private
-  | Pi      (** Dependant product *)
-  | Arrow   (** Function type *)
   | Lambda  (** Function binder *)
   | Forall  (** Universal quantification *)
   | Exists  (** Existencial quantification *)
@@ -33,6 +33,7 @@ and t = private {
   term : descr;
   mutable hash : int;
   mutable reduced : t option;
+  mutable free : (id, unit) S.t option;
 }
 (** Term records. Contains the type of the term,
     to avoid recomputing it every time (which is pretty
@@ -47,6 +48,9 @@ exception Type_mismatch of t * t
     pair [(arg, ty)] where [arg] is the provided argument and
     [ty] the expected type of the argument. *)
 
+exception Match_Impossible of t * t
+(** Raised during pattern matching when incompatible terms
+    are being matched. *)
 
 (** {2 Term inspection} *)
 
@@ -59,12 +63,19 @@ val equal : t -> t -> bool
 val compare: t -> t -> int
 (** standard comparison function *)
 
-val reduce : t -> t
-(** Compute the beta-normal form of the term. *)
-
 val print : Format.formatter -> t -> unit
 val print_typed : Format.formatter -> t -> unit
 (** Print a term (quite verbose). *)
+
+val reduce : t -> t
+(** Compute the beta-normal form of the term. *)
+
+val free_vars : t -> (id, unit) S.t
+(** Computes the set of free variable sin a term. *)
+
+val occurs : id -> t -> bool
+(** Does the variable occurs in the set of free variables of
+    the given term. *)
 
 
 (** {2 Id creation} *)
@@ -94,10 +105,6 @@ val apply : t -> t list -> t
 
 val letin : id -> t -> t -> t
 (** Local let, as [letin v e body],binds [v] to [e] in [body]. *)
-
-val pi : id -> t -> t
-val pis : id list -> t -> t
-(** Dependant product. *)
 
 val lambda : id -> t -> t
 val lambdas : id list -> t -> t
@@ -181,12 +188,12 @@ val trap_term : Expr.term -> t -> unit
 
 (** {2 Term substitution} *)
 
-module Subst : Map.S with type key = id
-(** Substitutions, aka mapping from variables to terms. *)
-
-val subst : t Subst.t -> t -> t
+val subst : (id, t) S.t -> t -> t
 (** Substitution on terms. Correctly handles *)
 
+val pmatch : pat:t -> t -> (id, t) S.t
+(** Pattern matching on terms.
+    @raise Match_Impossible if pattern matching is not possible. *)
 
 (** {2 Term destruction} *)
 
@@ -201,8 +208,9 @@ val uncurry_assoc_left : id -> t list -> t list
 val uncurry_assoc_right : id -> t list -> t list
 (** Uncurry a left (or right) associative symbol in a term. *)
 
-val flatten_binder : binder -> t -> id list * t
-(** Get the list of all consecutive variables bound by the same bidner in a term. *)
+val flatten_binder : bool -> binder -> t -> id list * t
+(** [flatten_binder o b t] returns the list of all consecutive variables bound by the
+    same binder, and with the same occurence truth value as [o] in a term. *)
 
 val concat_vars : id list -> (t * id list) list
 (** Groups variables by types. *)
