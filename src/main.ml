@@ -62,6 +62,9 @@ let () =
       Util.log "plugins: @[<hov>%a@]"
         CCFormat.(list string) (Dispatcher.Plugin.active ());
 
+      (* Initialize proof outputs *)
+      Prove.init opt ();
+
       (* Return the parsor generator *)
       Pipe.parse opt
 

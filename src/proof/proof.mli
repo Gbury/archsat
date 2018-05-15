@@ -106,9 +106,7 @@ type pos
 (** The type of positions within the proof. *)
 
 val mk : sequent -> proof
-(** Create an empty proof with the given goal and environent.
-    Returns the proof, together with the open position at the root
-    of the proof. *)
+(** Create an empty proof with the given goal and environent. *)
 
 val print : lang:lang -> Format.formatter -> proof -> unit
 (** Print the proof in the given language. *)

@@ -23,6 +23,9 @@ end
 
 (** {2 Type defs} *)
 
+type id
+(** Abstract type for hypothesis identifiers. *)
+
 type model = Model.t
 (** The type of models. *)
 
@@ -41,7 +44,7 @@ type res =
 
 (** {2 Core solver} *)
 
-val assume : solve:bool -> Dolmen.Id.t -> Expr.formula list -> Term.id
+val assume : solve:bool -> Expr.formula list -> id
 (** Add a clause to the current problem, and return the corresponding proof id.
     @solve determine wether to really add the clause to the solver, else
            just the proof id is generated. *)
@@ -66,7 +69,10 @@ val add_atom : Expr.formula -> unit
 val export_dimacs : Format.formatter -> unit -> unit
 (** Export the current problem in dimacs format. *)
 
-val hyp_proof : Dispatcher.SolverTypes.clause -> Term.id option
+val register_hyp : id -> Term.id -> unit
+(** Assign the given proof id to the hyp linked to the identifier. *)
+
+val hyp_proof : Dispatcher.SolverTypes.clause -> Term.id
 (** Get the proof id of an hypothesis clause. *)
 
 (** {2 Dispatcher messages} *)

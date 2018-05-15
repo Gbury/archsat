@@ -33,6 +33,15 @@ module Env = struct
     count : int Ms.t; (** use count for each prefix *)
   }
 
+  let print_aux fmt (t, id) =
+    Format.fprintf fmt "%a: @[<hov>%a@]" Expr.Print.id id Term.print t
+
+  let print fmt t =
+    let l = Mt.bindings t.names in
+    let l = List.sort (fun (_, x) (_, y) ->
+        compare x.Expr.id_name y.Expr.id_name) l in
+    CCFormat.(list ~sep:(return "@ ") print_aux) fmt l
+
   let empty = {
     names = Mt.empty;
     prefix = "";
@@ -70,15 +79,6 @@ module Env = struct
         names = Mt.add f id t.names;
         count = Ms.add t.prefix (n + 1) t.count;
       }
-
-  let print_aux fmt (t, id) =
-    Format.fprintf fmt "%a: @[<hov>%a@]" Expr.Print.id id Term.print t
-
-  let print fmt t =
-    let l = Mt.bindings t.names in
-    let l = List.sort (fun (_, x) (_, y) ->
-        compare x.Expr.id_name y.Expr.id_name) l in
-    CCFormat.(list ~sep:(return "@ ") print_aux) fmt l
 
 end
 
@@ -476,8 +476,8 @@ let letin =
     | _ -> assert false
   in
   let coq = Last_but_not_least, (fun fmt (id, t) ->
-      Format.fprintf fmt "let %a =@ @[<hov>%a@] in"
-        Coq.Print.id id Coq.Print.term t
+      Format.fprintf fmt "@[<hv 2>pose proof (@,%a@;<0,-2>) as %a.@]"
+        Coq.Print.term t Coq.Print.id id
     ) in
   mk_step ~prelude ~coq ~compute ~elaborate
 

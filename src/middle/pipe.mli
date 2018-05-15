@@ -30,8 +30,8 @@ type assume = [
 (** The type of top-level assertion statements *)
 
 type sequent = [
-  | `Left of Term.id
-  | `Right of Term.id * Expr.formula
+  | `Left of Solver.id * Expr.formula
+  | `Right of Solver.id * Expr.formula
 ]
 (** The type of sequent components (for proof output). *)
 

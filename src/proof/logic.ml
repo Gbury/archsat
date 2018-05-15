@@ -23,8 +23,63 @@ let nnpp_id =
   let nnp = Term.app Term.not_term (Term.app Term.not_term p_t) in
   Term.declare "NNPP" (Term.forall p (Term.arrow nnp p_t))
 
+let and_elim_id, and_elim_alias =
+  let a = Term.declare "A" Term._Prop in
+  let b = Term.declare "B" Term._Prop in
+  let p = Term.declare "P" Term._Prop in
+  let a_t = Term.const a in
+  let b_t = Term.const b in
+  let p_t = Term.const p in
+  let a_and_b = Term.(apply and_term [a_t; b_t]) in
+  let a_to_b_to_p = Term.arrows [a_t; b_t] p_t in
+  let o = Term.declare "o" a_and_b in
+  let f = Term.declare "f" a_to_b_to_p in
+  let and_ind =
+    Term.declare "and_ind"
+      (Term.foralls [a; b; p] (
+          Term.arrows [a_to_b_to_p; a_and_b]
+            p_t
+        )
+      ) in
+  let t =
+    Term.lambdas [a; b; p; o; f] (
+      Term.(apply (const and_ind) [a_t; b_t; p_t; const f; const o])
+    ) in
+  let id = Term.define "and_elim" t in
+  id, Proof.Prelude.alias id t
+
+let or_elim_id, or_elim_alias =
+  let a = Term.declare "A" Term._Prop in
+  let b = Term.declare "B" Term._Prop in
+  let p = Term.declare "P" Term._Prop in
+  let a_t = Term.const a in
+  let b_t = Term.const b in
+  let p_t = Term.const p in
+  let a_or_b = Term.(apply or_term [a_t; b_t]) in
+  let a_to_p = Term.arrow a_t p_t in
+  let b_to_p = Term.arrow b_t p_t in
+  let o = Term.declare "o" a_or_b in
+  let f = Term.declare "f" a_to_p in
+  let g = Term.declare "g" b_to_p in
+  let or_ind =
+    Term.declare "or_ind"
+      (Term.foralls [a; b; p] (
+          Term.arrows [a_to_p; b_to_p; a_or_b]
+            p_t
+        )
+      ) in
+  let t =
+    Term.lambdas [a; b; p; o; f; g] (
+      Term.(apply (const or_ind) [a_t; b_t; p_t; const f; const g; const o])
+    ) in
+  let id = Term.define "or_elim" t in
+  id, Proof.Prelude.alias id t
+
 let nnpp_term = Term.const nnpp_id
 let exfalso_term = Term.const exfalso_id
+let or_elim_term = Term.const or_elim_id
+let and_elim_term = Term.const and_elim_id
+
 
 (* Some generic tactic manipulations *)
 (* ************************************************************************ *)
@@ -33,6 +88,12 @@ let extract_open pos =
   match Proof.extract @@ Proof.get pos with
   | Proof.Open sequent -> sequent
   | Proof.Proof _ -> assert false
+
+let find t f pos =
+  let seq = extract_open pos in
+  let env = Proof.env seq in
+  let id = Proof.Env.find env t in
+  f id pos
 
 (** Iterate a tactic n times *)
 let rec iter tactic n pos =
@@ -47,6 +108,16 @@ let rec iter tactic n pos =
 let intro prefix pos =
   match Proof.apply_step pos Proof.intro prefix with
   | _, [| res |] -> res
+  | _ -> assert false
+
+let introN prefix n = iter (intro prefix) n
+
+(** Cut *)
+let cut ~f s t pos =
+  match Proof.apply_step pos Proof.cut (s, t) with
+  | _, [| aux ; main |] ->
+    let () = f aux in
+    main
   | _ -> assert false
 
 (** Fixed arity applications *)
@@ -151,8 +222,55 @@ let absurd atom pos =
   let env = Proof.env ctx in
   pos |> exfalso |> exact (find_absurd env atom) []
 
+
+(* Logical connective elimination *)
+(* ************************************************************************ *)
+
+let or_left = Term.declare "a" Term._Prop
+let or_right = Term.declare "b" Term._Prop
+let or_elim_pat = Term.(apply or_term [const or_left; const or_right])
+
+let rec or_elim ~f id pos =
+  let ctx = extract_open pos in
+  let goal = Proof.goal ctx in
+  try
+    let s = Term.pmatch ~pat:or_elim_pat id.Expr.id_type in
+    let left_term = Term.S.Id.get or_left s in
+    let right_term = Term.S.Id.get or_right s in
+    let t' = Term.apply or_elim_term [left_term; right_term; goal; Term.const id] in
+    apply2 t' [or_elim_alias] pos |> split
+      ~left:(fun p -> p |> intro "O" |> find left_term (or_elim ~f))
+      ~right:(fun p -> p |> intro "O" |> find right_term (or_elim ~f))
+  with Term.Match_Impossible _ ->
+    f id.Expr.id_type pos
+
+let and_left = Term.declare "a" Term._Prop
+let and_right = Term.declare "b" Term._Prop
+let and_elim_pat = Term.(apply and_term [const or_left; const or_right])
+
+let rec and_elim t pos =
+  let ctx = extract_open pos in
+  let goal = Proof.goal ctx in
+  let env = Proof.env ctx in
+  let id = Proof.Env.find env t in
+  try
+    let s = Term.pmatch ~pat:and_elim_pat id.Expr.id_type in
+    let left_term = Term.S.Id.get and_left s in
+    let right_term = Term.S.Id.get and_right s in
+    let t' = Term.apply and_elim_term [left_term; right_term; goal; Term.const id] in
+    apply1 t' [and_elim_alias] pos
+    |> intro "A" |> intro "A"
+    |> and_elim left_term
+    |> and_elim right_term
+  with Term.Match_Impossible _ -> pos
+
+
 (* Resolution tactics *)
 (* ************************************************************************ *)
+
+let clause_type l =
+  List.fold_right (fun l c ->
+      Term.arrow (Term.app Term.not_term l) c) l Term.false_term
 
 let resolve_clause_aux c1 c2 res pos =
   let n = List.length res in
@@ -177,8 +295,7 @@ let resolve_clause c1 c2 res =
   let e = Proof.Env.empty in
   let e = Proof.Env.add e c1 in
   let e = Proof.Env.add e c2 in
-  let goal = List.fold_right (fun l c ->
-      Term.arrow (Term.app Term.not_term l) c) res Term.false_term in
+  let goal = clause_type res in
   let p = Proof.mk (Proof.mk_sequent e goal) in
   let () = resolve_clause_aux c1 c2 res (Proof.pos @@ Proof.root p) in
   Proof.elaborate p

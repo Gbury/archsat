@@ -195,6 +195,7 @@ val pmatch : pat:t -> t -> (id, t) S.t
 (** Pattern matching on terms.
     @raise Match_Impossible if pattern matching is not possible. *)
 
+
 (** {2 Term destruction} *)
 
 val uncurry_app : t -> t * t list

@@ -195,7 +195,6 @@ and subst s t =
     else bind b v' body'
 
 and reduce_aux t =
-  Util.log "Reducing %a" pp t;
   match t.term with
   | Type -> t
   | Id { Expr.builtin = Defined b; _ } -> b
@@ -279,35 +278,6 @@ and hash t =
     h
   end
 
-
-(* Pattern matching *)
-(* ************************************************************************ *)
-
-let rec match_aux subst pat t =
-  match pat, t with
-  | { term = Id v }, _ ->
-    begin match S.Id.get v subst with
-      | exception Not_found -> S.Id.bind subst v t
-      | t' ->
-        if equal t t' then subst
-        else raise (Match_Impossible (pat, t))
-    end
-  | { term = Type }, { term = Type } -> subst
-  | { term = App (f, f_arg) },
-    { term = App (g, g_arg) } ->
-    match_aux (match_aux subst f g) f_arg g_arg
-  | { term = Binder (b, v, body) },
-    { term = Binder (b', v', body') } ->
-    if b = b' then
-      match_aux (S.Id.bind subst v (const v')) body body'
-    else
-      raise (Match_Impossible (pat, t))
-  | _ -> raise (Match_Impossible (pat, t))
-
-let pmatch ~pat t =
-  let s = match_aux S.empty (reduce pat) (reduce t) in
-  let fv = free_vars pat in
-  S.filter (fun v _ -> S.Id.mem v fv) s
 
 (* Unification *)
 (* ************************************************************************ *)
@@ -573,6 +543,36 @@ and print fmt t =
 
 let print_typed fmt t =
   Format.fprintf fmt "@[<hv 2>%a :@ %a@]" print t print t.ty
+
+(* Pattern matching *)
+(* ************************************************************************ *)
+
+let rec match_aux subst pat t =
+  match pat, t with
+  | { term = Id v }, _ ->
+    begin match S.Id.get v subst with
+      | exception Not_found -> S.Id.bind subst v t
+      | t' ->
+        if equal t t' then subst
+        else raise (Match_Impossible (pat, t))
+    end
+  | { term = Type }, { term = Type } -> subst
+  | { term = App (f, f_arg) },
+    { term = App (g, g_arg) } ->
+    match_aux (match_aux subst f g) f_arg g_arg
+  | { term = Binder (b, v, body) },
+    { term = Binder (b', v', body') } ->
+    if b = b' then
+      match_aux (S.Id.bind subst v (const v')) body body'
+    else
+      raise (Match_Impossible (pat, t))
+  | _ -> raise (Match_Impossible (pat, t))
+
+let pmatch ~pat t =
+  Util.debug ~section "@[<hv 2>pattern match:@ %a@ ~~~@ %a" print pat print t;
+  let s = match_aux S.empty (reduce pat) (reduce t) in
+  let fv = free_vars pat in
+  S.filter (fun v _ -> S.Id.mem v fv) s
 
 (* Tanslating from Expr to Term *)
 (* ************************************************************************ *)

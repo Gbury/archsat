@@ -212,7 +212,7 @@ module Arg = struct
     box Print.formula f fmt ()
 
   let hyp_info c =
-    let id = CCOpt.get_exn @@ Solver.hyp_proof c in
+    let id = Solver.hyp_proof c in
     "Hypothesis", Some "YELLOW",
     [fun fmt () -> Print.id fmt (id :> Term.t Expr.id)]
 

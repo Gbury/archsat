@@ -25,7 +25,17 @@ end
 
 (** {2 Printing proofs} *)
 
+val init : Format.formatter -> Options.opts -> unit
+(** Print some prefix for the proof (mainly some
+    generic info, to make the proof look better). *)
+
 val declare_id : Format.formatter -> Term.id -> unit
-(** Declare a new identifier, with th corrct type. *)
+(** Declare a new identifier, with the correct type. *)
+
+val declare_hyp : Format.formatter -> Term.id -> unit
+(** Declare a new hypothesis, with the correct type. *)
+
+val declare_goal : Format.formatter -> Term.id -> unit
+(** Declare a new hypothesis, with the correct type. *)
 
 

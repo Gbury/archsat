@@ -43,12 +43,16 @@ type proof = S.Proof.proof
 type res =
   | Sat of model
   | Unsat of proof
-  | Unknown
+  | Unknown (**)
+(** Possible results of solving. *)
+
+type id = int
+(** Alias for hyp id/tags in mSAT. *)
 
 (* Hypothesis table *)
 (* ************************************************************************ *)
 
-let hyp_table = CCVector.create ()
+let hyp_table : (Term.id option, _) CCVector.t = CCVector.create ()
 
 let mk_term s l =
   let t = match l with
@@ -58,16 +62,32 @@ let mk_term s l =
   in
   Term.declare s t
 
-let add_hyp id l =
+let new_hyp () =
   let n = CCVector.length hyp_table in
-  let p = mk_term (Dolmen.Id.full_name id) l in
-  let () = CCVector.push hyp_table p in
-  n, p
+  let () = CCVector.push hyp_table None in
+  n
+
+let register_hyp n id =
+  match CCVector.get hyp_table n with
+  | Some _ ->
+    Util.error ~section "Redundant registering of hypothesis";
+    assert false
+  | None ->
+    CCVector.set hyp_table n (Some id)
 
 let hyp_proof c =
   match c.Dispatcher.SolverTypes.tag with
-  | None -> None
-  | Some tag -> Some (CCVector.get hyp_table tag)
+  | None ->
+    Util.error ~section "Accessing proof for non-existant hyp";
+    assert false
+  | Some tag ->
+    begin match CCVector.get hyp_table tag with
+      | None ->
+        Util.error ~section "Accessing proof id of non registered hyp";
+        assert false
+      | Some id ->
+        id
+    end
 
 (* Messages *)
 (* ************************************************************************ *)
@@ -186,9 +206,9 @@ let solve ?check_model ?check_proof ?export () =
   Util.exit_prof section;
   res
 
-let assume ~solve id l =
+let assume ~solve l =
   Util.enter_prof section;
-  let tag, id = add_hyp id l in
+  let tag = new_hyp () in
   if solve then begin
     let l' = List.map Dispatcher.pre_process l in
     Util.debug ~section "@[<hov 2>New hypothesis:@ @[<hov>%a@]"
@@ -196,7 +216,7 @@ let assume ~solve id l =
     S.assume ~tag [l']
   end;
   Util.exit_prof section;
-  id
+  tag
 
 let add_atom = S.new_atom
 

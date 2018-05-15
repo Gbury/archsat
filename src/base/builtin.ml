@@ -371,7 +371,7 @@ module Arith = struct
         let pos = pos + 1 in
         let m, new_pos = parse_int s pos Z.zero in
         let exp = new_pos - pos in
-        let r = lazy (Q.make n Z.(m / (pow (of_int 10) exp))) in
+        let r = lazy (Q.add (Q.make n Z.one) Q.(make m (Z.pow (Z.of_int 10) exp))) in
         if new_pos = String.length s then begin
           Real r
         end else begin match s.[new_pos] with

@@ -37,8 +37,8 @@ type assume = [
 ]
 
 type sequent = [
-  | `Left of Term.id
-  | `Right of Term.id * Expr.formula
+  | `Left of Solver.id * Expr.formula
+  | `Right of Solver.id * Expr.formula
 ]
 
 type solve = [
@@ -245,15 +245,16 @@ let solve (opt, (c : typechecked stmt)) : solved stmt =
     res
   | ({ contents = `Clause l; _ } as res) ->
     start_section ~section:Dispatcher.section Util.debug "Assume clause";
-    let id = Solver.assume ~solve:Options.(opt.solve) c.id l in
-    (simple res.id (`Left id) :> solved stmt)
+    let id = Solver.assume ~solve:Options.(opt.solve) l in
+    let f = Expr.Formula.f_or l in
+    (simple res.id (`Left (id, f)) :> solved stmt)
   | ({ contents = `Hyp f; _ } as res) ->
     start_section ~section:Dispatcher.section Util.debug "Assume hyp";
-    let id = Solver.assume ~solve:Options.(opt.solve) c.id [f] in
-    (simple res.id (`Left id) :> solved stmt)
+    let id = Solver.assume ~solve:Options.(opt.solve) [f] in
+    (simple res.id (`Left (id, f)) :> solved stmt)
   | ({ contents = `Goal f; _ } as res) ->
     start_section ~section:Dispatcher.section Util.info "Assume goal";
-    let id = Solver.assume ~solve:Options.(opt.solve) c.id
+    let id = Solver.assume ~solve:Options.(opt.solve)
         [Expr.Formula.neg ~status:Expr.Status.goal f] in
     (simple res.id (`Right (id, f)) :> solved stmt)
   | { contents = `Solve; _ } ->
@@ -328,10 +329,16 @@ let print_proof (opt, (c : solved stmt)) =
       Util.warn "Proof check/output activated, but no proof was found"
 
   (* Interesting parts *)
-  | { contents = `Type_decl f; _ } -> Prove.declare_ty Options.(opt.proof) f
-  | { contents = `Term_decl f; _ } -> Prove.declare_term Options.(opt.proof) f
-  | { contents = `Left p ; id; _ } -> Prove.declare_hyp Options.(opt.proof) p
-  | { contents = `Right (p, f); id; _ } -> Prove.declare_goal Options.(opt.proof) p f
+  | { contents = `Type_decl f; _ } ->
+    Prove.declare_ty Options.(opt.proof) f
+  | { contents = `Term_decl f; _ } ->
+    Prove.declare_term Options.(opt.proof) f
+  | { contents = `Left (hyp_id, f) ; id; _ } ->
+    let t = Prove.declare_hyp Options.(opt.proof) id f in
+    Solver.register_hyp hyp_id t
+  | { contents = `Right (hyp_id, f); id; _ } ->
+    let _ = Prove.declare_goal Options.(opt.proof) id f in
+    ()
   | { contents = `Proof p; _ } ->
     Util.info "Proof size: %a" Util.print_size (Util.size p);
     Prove.output_proof Options.(opt.proof) p
