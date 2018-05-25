@@ -7,8 +7,8 @@ There are many ways of integrating equational reasoning in tableau
 methods~\cite{DB75,LS02,BR15,DV96}. Because our prover does not rely on clausal
 forms, but on arbitrary formulas with quantifiers occurring deep inside
 branches, we deal with rigid variables, i.e.~variables that should be instantiated
-only once, since multiple instanciations would create new propositional branches.
-In order to find instanciations for universally quantified formulas, the procedure
+only once, since multiple instantiations would create new propositional branches.
+In order to find instantiations for universally quantified formulas, the procedure
 described in~\ref{sec:tab} need a unification algorithm. In order to be complete,
 this algorithm needs to solve rigid E-unification modulo rewrite rules:~assume a set of
 equations $E$, containing rigid variables, a rewrite system $\mathcal{RE}$,
@@ -67,8 +67,8 @@ $\sigma$ and $\sigma'$ have no intersection. In this case,
 $\sigma \circ \sigma' \triangleq \left\{ x \mapsto (x\sigma)\sigma' | x \in
 \text{domain}(\sigma) \right\}$. This definition extends to sets of
 substitutions:
-${\Sigma \circ \sigma' \triangleq \left\{ \sigma \circ \sigma' |
-\sigma \in \Sigma \right\} }$. We then have $\sigma \leq \sigma'$ if and only if
+$\Sigma \circ \sigma' \triangleq \left\{ \sigma \circ \sigma' |
+\sigma \in \Sigma \right\}$. We then have $\sigma \leq \sigma'$ if and only if
 $\exists \sigma''.~ \sigma \circ \sigma'' = \sigma'$. This notion also extends
 to sets of substitutions: $\smash{ \Sigma \leq \Sigma' }$ if and only if
 $\smash{ \forall \sigma' \in \Sigma'.~ \exists \sigma \in \Sigma. \sigma \leq
@@ -233,7 +233,7 @@ Rewrite rules can be integrated into the rigid unit superposition easily. In fac
 a rewrite rule $l\rew{}r$ can be expressed as an equality with a hypothesis set
 consisting of a single trivial substitution
 $\clauseWithSubst{s\approx{}t}{\{\emptyset\}}$\footnote{The singleton set containing the trivial
-(or identify) substitution $\{\emptyset\}$, is not to be confused with $\emptyset$, the empty set}.
+(or identity) substitution $\{\emptyset\}$, is not to be confused with $\emptyset$, the empty set}.
 Since the trivial substitution is compatible
 with every substitution, it will never prevent any inference, thus allowing us
 to use the unit clause as many times as needed to rewrite terms without
@@ -260,7 +260,8 @@ set and perform a (limited) number of steps of the given-clause algorithm.
 
 \subsection{Example}
 
-To illustrate the calculus, we detail a refutation of the following set of
+To illustrate the calculus, we detail Fig.~\ref{fig:unit-sup-proof-example}.
+a refutation of the following set of
 clauses stemming from set theory, where pair, fst, and snd are the constructor
 and destructors of tuples, $f$ a function on tuples, and $X$ a rigid variable:
 
@@ -270,10 +271,6 @@ a &\preceq b \\
 \text{fst}(a) &\approx& \text{fst}(b)\\
 p(a) &\not\approx& p(\text{pair}(\text{fst}(b), X))\\
 \end{array}\]
-
-Because the problem is purely equational, the tableau structure is trivial, and
-all the work is done by the rigid superposition procedure as shown in
-Fig.~\ref{fig:unit-sup-proof-example}.
 
 \begin{figure}[t]
 \begin{center}
