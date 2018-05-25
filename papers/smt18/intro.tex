@@ -28,7 +28,8 @@ algorithm.
 
 We thus propose to overcome the problem of completeness for first
 order logic by using tableau calculus as an SMT theory. The tableau calculus
-rules are used to unfold propositional content into clauses while atomic
+rules are used to encode propositional content into clauses\footnote{Similar to
+a lazy CNF transformation with named formulas.} while atomic
 formulas are handled using satisfiability decision procedures as in
 regular SMT solvers. To deal with quantified first order formulas, we use
 metavariables and perform rigid unification modulo equalities and modulo rewriting,
@@ -52,7 +53,7 @@ Our proposal combining SMT solving with tableau calculus and rewriting has been
 implemented and the corresponding tool is called \archsat{}. This tool is able
 to deal with first order logic extended to polymorphic types à la ML, through a
 type system in the spirit of~\cite{BP13}. To test this tool, we propose a
-benchmark in the framework of the set theory of the \bmth{}
+suite of benchmarks in the framework of the set theory of the \bmth{}
 method~\cite{B-Book}. This theory~\cite{BA15} has been expressed using first
 order logic extended to polymorphic types and turned into a theory that is
 compatible with deduction modulo theory, i.e. where a large part of axioms has

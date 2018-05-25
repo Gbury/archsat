@@ -8,8 +8,9 @@ methods~\cite{DB75,LS02,BR15,DV96}. Because our prover does not rely on clausal
 forms, but on arbitrary formulas with quantifiers occurring deep inside
 branches, we deal with rigid variables, i.e.~variables that should be instantiated
 only once, since multiple instanciations would create new propositional branches.
-In order to find instanciation as described in~\ref{sec:tab},
-we need to solve rigid E-unification modulo rewrite rules:~assume a set of
+In order to find instanciations for universally quantified formulas, the procedure
+described in~\ref{sec:tab} need a unification algorithm. In order to be complete,
+this algorithm needs to solve rigid E-unification modulo rewrite rules:~assume a set of
 equations $E$, containing rigid variables, a rewrite system $\mathcal{RE}$,
 and target terms $s$ and $t$; we want a substitution $\sigma$ such that
 $\bigwedge_{e \in E} e\sigma \vdash s\sigma =_\mathcal{RE} t\sigma$. Such a
@@ -32,15 +33,16 @@ We write $ \clauseWithSubst{ s \approx t }{ \Sigma}$ (resp.
 $\clauseWithSubst{ s \not\approx t }{ \Sigma}$) for the unit clause that contains
 exactly one equation (resp.~disequation) under hypothesis $\Sigma$ (which is a
 set of substitutions). We write $\clauseWithSubst{\emptyset}{\Sigma}$ for the
-empty clause under hypothesis $\Sigma$. We define $\renameVars{e}$, where $e$
+empty clause under hypothesis $\Sigma$.
+The meaning of $\clauseWithSubst{s \approx t}{ \Sigma}$ is
+that for every $\sigma \in \Sigma$, $s \approx t$ is provable using the
+substitution $\sigma$ for the metavariables.
+We also define $\renameVars{e}$, where $e$
 is a (dis)equation, as follows: let $\sigma$ map every rigid variable of $e$ to
 a fresh non-rigid variable, then
 $\renameVars{e} = \clauseWithSubst{ e\sigma }{ \{ \sigma \} }$. For example,
 $\renameVars{p(X)\approx a}$ is $\clauseWithSubst{ p(v1)\approx a}{ \{ X\mapsto
 v1\} }$.
-The meaning of $\clauseWithSubst{s \approx t}{ \Sigma}$ is
-that for every $\sigma \in \Sigma$, $s \approx t$ is provable using the
-substitution $\sigma$ for the metavariables.
 
 As can be noticed, we keep a set of substitutions, rather than unit clauses
 paired with individual substitutions, in order to avoid duplicating the work for
@@ -130,9 +132,9 @@ equality, not matching.
 
 Rule \textbf{SN/SP} generates as many equations as there are in the set
 $(\Sigma \circ \sigma'') \uparrow (\Sigma' \circ \sigma'')$ because all
-substitutions may not always be merged. For instance, given
+substitutions may not always be merged. For instance, given two unit clauses
 $f(x) = t | \{ \{ X_1 \mapsto x \}, \{ X_2 \mapsto x \} \}$ and
-$f(a) = v | \{ \{ X_1 \mapsto a \} \}$, we have to derive two distinct
+$f(a) = v | \{ \{ X_1 \mapsto a \} \}$, rule \textbf{SP} allows to derive two distinct
 non-mergeable equations $(t = v)\{ x \mapsto a \} | \{ \{ X_1 \mapsto a \} \}$
 and $(t = v)\{ x \mapsto a \} | \{ \{ X_1 \mapsto a; X_2 \mapsto a \} \}$.
 
@@ -227,12 +229,11 @@ s \succ t\\
 
 \subsection{Rewriting}
 
-Rewrite rules can be integrated to the rigid unit superposition easily. In fact,
+Rewrite rules can be integrated into the rigid unit superposition easily. In fact,
 a rewrite rule $l\rew{}r$ can be expressed as an equality with a hypothesis set
 consisting of a single trivial substitution
-$\clauseWithSubst{s\approx{}t}{\{\emptyset\}}$\footnote{$\{\emptyset\}$, the
-singleton set containing the trivial (or identify) substitution, is not to be confused
-with $\emptyset$, the empty set}.
+$\clauseWithSubst{s\approx{}t}{\{\emptyset\}}$\footnote{The singleton set containing the trivial
+(or identify) substitution $\{\emptyset\}$, is not to be confused with $\emptyset$, the empty set}.
 Since the trivial substitution is compatible
 with every substitution, it will never prevent any inference, thus allowing us
 to use the unit clause as many times as needed to rewrite terms without
@@ -295,19 +296,19 @@ $\clauseWithSubst
 
 6 & \renameVarsSymb(3) &
 $\clauseWithSubst
-{ f(a) \not\approx f(\text{pair}(\text{fst}(b), y)) }
+{ p(a) \not\approx p(\text{pair}(\text{fst}(b), y)) }
 { \{ \mapVar{X}y \} }$\\
 
 \midrule
 
 7 & RN(5,6) &
 $\clauseWithSubst
-{ f(a) \not\approx f(\text{pair}(\text{fst}(a), y)) }
+{ p(a) \not\approx p(\text{pair}(\text{fst}(a), y)) }
 { \{ \mapVar{X}y \} }$\\
 
 8 & SN(4,7) &
 $\clauseWithSubst
-{ f(a) \not\approx f(a) }
+{ p(a) \not\approx p(a) }
 { \{ \mapVar{X}{\text{snd}(a)} \} }$\\
 
 9 & ER(8) &

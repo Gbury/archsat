@@ -7,19 +7,13 @@ In this section, we briefly describe the implementation of our approach
 introduced previously, and present some experimental results obtained by running
 this implementation over a benchmark of problems in the \bmth{} set theory.
 
-\subsection{Implementation}
-
 The algorithms described in this paper are implemented in the \archsat{}
 automated theorem prover\footnote{Available at:
 \url{https://gforge.inria.fr/projects/archsat}.}. It relies on the
 \msat{}~\cite{GB17} library, derived from the \altergoz{} tool, which is a
-generic library for building automated deduction tools based on SAT solvers. The
-SAT core in \msat{} is implemented using CDCL rather than the DPLL strategy
-described in Sec.~\ref{sec:smt}, but our approach is actually agnostic with
-respect to the SAT solver core and it therefore does not have any impact on the
-first order reasoning or rewriting presented previously. \archsat{} (as well as
-\msat{}) is written in \ocaml{}. \archsat{} natively supports polymorphic types
-as described in~\cite{BP13}.
+generic library for building automated deduction tools based on SAT solvers.
+\archsat{} (as well as \msat{}) is written in \ocaml{}. \archsat{} natively
+supports polymorphic types as described in~\cite{BP13}.
 
 \subsection{Experimental Results}
 
@@ -120,8 +114,8 @@ Rate
 72.7\%
 \end{tabular}\tabularnewline
 \hline
-\begin{tabular}{l}
-Time \small{(s)}
+\begin{tabular}
+Total time \small{(s)}
 \end{tabular} &
 \begin{tabular}{c}
 268.69

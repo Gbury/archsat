@@ -18,10 +18,11 @@ Regarding the integration of rewriting, automated theorem provers rely on
 several solutions (superposition rule for first order provers, triggers for SMT
 solvers, etc.). But deduction modulo theory~\cite{DA03} is probably the most
 general approach, where a theory can be partly turned into a set of rewrite
-rules over both terms and propositions. Several proof search methods have been
+rules over both terms and formulas. Several proof search methods have been
 extended to deduction modulo theory, resulting in tools such as \iproverm{} and
 \zenm{}. This paper can be seen as a continuation of these previous experiments
 adapted to the framework of SMT solving.
+
 
 \subsection{The Tableau Theory}
 \label{sec:tab}
@@ -38,49 +39,71 @@ $\epsilon(x).P(x)$, where $P(x)$ is a formula, and which means some $x$ that
 satisfies $P(x)$, if it exists. And second, metavariables (often named free variables in
 the tableau-related literature) of the form $X_P$, where $P$ is the formula that
 introduces the metavariable, and which is either $\forall{}x.Q(x)$ or
-$\neg\exists{}x.Q(x)$, with $Q(x)$ a formula.
+$\neg\exists{}x.Q(x)$, with $Q(x)$ a formula. Metavariables are written using capitalized
+letters (such as $X_P$ or $Y_P$), will never be substituted\footnote{More genrally, terms
+are immutable and are never modified in place: application of a substitution creates new terms
+that may be used, but will never modify existing terms.}. They will also be considered
+rigid in the following, meaning that in context where we try and unify terms, by building
+a mapping from metavariables to terms, each metavariables may be bound at most once.
+This is because in tableaux calculus, if you instanciate a formula multiple times,
+it may create additional propositional branches, which we do not want. Instead we consider
+metavariables rigid, and we'll generate multiple metavariables for the same formula
+if needed.
 
 A boxed formula is of the form $\lfloor{}P\rfloor$, where $P$ is a formula. A
 boxed formula is called an atom, and a literal is either an atom, or the negation
 of an atom. A literal is such that there is no negation on top of the boxed
-formula (which means that $\lfloor\neg{}P\rfloor=\neg\lfloor{}P\rfloor$, and
-$\neg\neg\lfloor{}P\rfloor=\lfloor{}P\rfloor$). A clause is a disjunction of
-literals. It should be noted that SMT solving usually reasons over sets of
-clauses composed of first order literals; here, a literal is a first order
+formula (which means that $\lfloor\neg{}P\rfloor$ is automatically translated into
+$\neg\lfloor{}P\rfloor$, and $\neg\neg\lfloor{}P\rfloor$ into $\lfloor{}P\rfloor$).
+A clause is a disjunction of literals. It should be noted that SMT solving usually
+reasons over sets of clauses composed of first order terms; here, a literal is a first order
 formula (possibly with quantifiers), which requires to box formulas to get a
 regular SAT solving problem where boxed formulas are propositional variables.
+The state of a SMT solver can be represented as $T \parallel S$,
+with $T$ the trail of the SMT, i.e.~a list of boxed formula, in chronological order left to right,
+and $S$ the set of clauses to be satisfied by the solver. One very important point is that SMT theories
+can and will often add some clauses to the set $S$ of clauses that the solver
+tries to satisfy. This is sound as long as only tautologies are added. In the following,
+this will often be abbreviated by only writing ``adding the clause''.
 
 Tableau proof search method is integrated as a regular theory in our SMT solver.
-When a literal is propagated or decided, we
-generate a set of clauses corresponding to the application of a tableau rule
-depending on the logical connective at the root of the formula in the box of the
-literal. More precisely, for a literal $l$, we generate and add to the solver,
-the set of clauses $\llbracket{}l\rrbracket$, where the function
-$\llbracket\cdot\rrbracket$ is
-described by the rules of Fig.~\ref{fig:tabth}. When a literal is propagated or
-decided, we use all the rules of Fig.~\ref{fig:tabth} except the instantiation
-$\gamma$-rules (rules $\gamma_{\forall\mathrm{inst}}$ and
-$\gamma_{\neg\exists\mathrm{inst}}$). It should be noted that we use the same
+Whenever a literal $l$ is decided or propataged by the solver, the tableaux theory generates
+the set of clauses $\llbracket{}l\rrbracket$, where the function $\llbracket\cdot\rrbracket$ is
+described by the rules of Fig.~\ref{fig:tabth}, and then add these clauses\footnote{We use all rules
+except the instantiation $\gamma$-rules: $\gamma_{\forall\mathrm{inst}}$ and
+$\gamma_{\neg\exists\mathrm{inst}}$ which are only used once adequate terms for instanciation have been found}.
+It should be noted that we use the same
 names for the rules as in tableau calculus ($\alpha$-rules, $\beta$-rules,
 etc.), but there is no precedence between rules and therefore no priority in the
 application of the rules contrary to the tableau proof search method (where
 $\alpha$ rules are applied before $\beta$-rules, and so on).
+Application of this can be seen in Figure~\ref{fig:rew}, on the third line,
+where once the solver has propagated that $A \equiv \lfloor B \rightarrow C \rfloor$ is false,
+the tableaux theory adds two new clauses: $A \lor B$ and $A \lor \neg C$,
+whose aim is to ensure that as long as $A$ is false, $B$ will be true and $C$ will be false.
+The clauses added should be seen as an implication: $\neg A \rightarrow B$ and
+$\neg A \rightarrow \neg C$, where the presence of $A$ in the clauses is important because
+the tableaux theory does not know whether $A$ is always false or not: it might be
+that $A$ being false was a decision of the SAT solver (or a consequence of a decision),
+and thus might be backtracked; in this case it is important to not have the propagations
+of $B$ and $\neg C$ depend on the propagation of $\neg A$.
+
 
 When the SMT solver finds a model $M$ of the current set of clauses,
-we look for a conflict in $M$ between boxed atomic formulas by unification and we
-generate the clauses corresponding to the instantiation of the metavariables
-using the result of the unification. More precisely, if there exist two literals
-$l$ and $\neg{}l'$ in $M$ such that $l=\lfloor{}Q\rfloor$ and
+we look for a conflict in $M$ between boxed atomic formulas by unification.
+If there exist two literals $l$ and $\neg{}l'$ in $M$ such that $l=\lfloor{}Q\rfloor$ and
 $l'=\lfloor{}R\rfloor$, with $Q$ and $R$ two formulas, then for each binding
-$(X_{\forall{}x.P(x)}\mapsto{}t)\in\mathrm{mgu}(Q,R)$\footnote{In practice,
-the implementation also splits and reduce substitutions in order to only generate
-clauses corresponding to the outermost meta-variables.}
-(resp.
+$(X_{\forall{}x.P(x)}\mapsto{}t)\in\mathrm{mgu}(Q,R)$ (resp.
 $(X_{\neg\exists{}x.P(x)}\mapsto{}t)\in\mathrm{mgu}(Q,R)$)
 we can generate the clauses $\llbracket\lfloor\forall{}x.P(x)\rfloor{}\rrbracket$
 (resp. $\llbracket\neg\lfloor\exists{}x.P(x)\rfloor{}\rrbracket$) using the rule
 $\gamma_{\forall\mathrm{inst}}$ (resp. $\gamma_{\neg\exists\mathrm{inst}}$) of
-Fig.~\ref{fig:tabth}.
+Fig.~\ref{fig:tabth}, and then add these new clauses. For instance, suppose we find a model where $\lfloor P(X_{\forall x. P(x)}) \rfloor$
+is true and $\lfloor P(a) \rfloor$ is false, then we'll add the following clause to the solver: $\neg \lfloor \forall x. P(x) \rfloor \lor \lfloor P(a) \rfloor$, representing
+the instanciation of $\forall x. P(x)$ using the term $a$. This clause will ensure that
+the model where $\lfloor P(a) \rfloor$ is false cannot happen again as long as
+$\lfloor \forall x. P(x) \rfloor$ is true. Note that we did not substitute any metavariables,
+we only added some tautologies, thus there is no need for any special backtracking.
 
 \begin{figure}[t]
 \parbox{\textwidth}
@@ -194,47 +217,45 @@ $\begin{array}{lll@{\hspace{0.5cm}}l}
 \subsection{The Rewriting Theory}
 \label{sec:rew}
 
-A rewriting theory allows us to introduce a computational behavior to the SMT
-solver. We aim to integrate rewriting in the broadest sense of the term as
+A rewriting theory allows us to replace instanciations by
+computations in the SMT solver. We aim to integrate rewriting in the broadest sense of the term as
 proposed by deduction modulo theory. Deduction modulo theory~\cite{DA03} focuses
 on the computational part of a theory, where axioms are transformed into rewrite
-rules, which induces a congruence over propositions, and where reasoning is
+rules, which induces a congruence over formulas, and where reasoning is
 performed modulo this congruence. In deduction modulo theory, this congruence is
-then induced by a set of rewrite rules over both terms and propositions.
+then induced by a set of rewrite rules over both terms and formulas.
 
 In the following, we borrow some of the notations and definitions
 of~\cite{DA03}. We call $\mathrm{FV}$ the function that returns the set of
 free variables of a term or a formula. A term rewrite rule is a pair of terms
 denoted by $l\rew{}r$, where $\mathrm{FV}(r)\subseteq\mathrm{FV}(l)$. A
-proposition rewrite rule is a pair of propositions denoted by $l\rew{}r$, where
-$l$ is an atomic proposition and $r$ is an arbitrary proposition, and where
+formula rewrite rule is a pair of formulas denoted by $l\rew{}r$, where
+$l$ is an atomic formula and $r$ is an arbitrary formula, and where
 $\mathrm{FV}(r)\subseteq\mathrm{FV}(l)$. A class rewrite system is a pair of
 rewrite systems, denoted by $\mathcal{RE}$, consisting of $\mathcal{R}$, a set
-of proposition rewrite rules, and $\mathcal{E}$, a set of term rewrite rules.
-
+of formula rewrite rules, and $\mathcal{E}$, a set of term rewrite rules.
 Given a class rewrite system $\mathcal{RE}$, the relations $=_\mathcal{E}$ and
 $=_\mathcal{RE}$ are the congruences generated respectively by the sets
 $\mathcal{E}$ and $\mathcal{R}\cup\mathcal{E}$. In the following, we use the
 standard concepts of subterm and term replacement: given an occurrence $\omega$
-in a proposition $P$, we write $P_{|\omega}$ for the term or proposition at
-$\omega$, and $P[t]_\omega$ for the proposition obtained by replacing
+in a formula $P$, we write $P_{|\omega}$ for the term or formula at
+$\omega$, and $P[t]_\omega$ for the formula obtained by replacing
 $P_{|\omega}$ by $t$ in $P$ at $\omega$. Given a class rewrite system
-$\mathcal{RE}$, the proposition $P$ $\mathcal{RE}$-rewrites to $P'$, denoted by
+$\mathcal{RE}$, the formula $P$ $\mathcal{RE}$-rewrites to $P'$, denoted by
 $P\rew_\mathcal{RE}P'$, if $P=_\mathcal{E}Q$, $Q_{|\omega}=\sigma(l)$, and
 $P'=_\mathcal{E}Q[\sigma(r)]_\omega$, for some rule $l\rew{}r\in\mathcal{R}$,
-some proposition $Q$, some occurrence $\omega$ in $Q$, and some substitution
-$\sigma$.
-
-The relation $=_\mathcal{RE}$ is not decidable in general, but there are some
+some formula $Q$, some occurrence $\omega$ in $Q$, and some substitution
+$\sigma$. The relation $=_\mathcal{RE}$ is not decidable in general, but there are some
 cases where this relation is decidable depending on the class rewrite system
 $\mathcal{RE}$ and the rewrite relation $\rew_\mathcal{RE}$. In particular, if
 the rewrite relation $\rew_\mathcal{RE}$ is confluent and (weakly) terminating,
 then the relation $=_\mathcal{RE}$ is decidable.
 
 The rewriting theory is integrated into the SMT solver in a similar way as for
-the tableau theory. Whenever a literal is propagated or decided, we generate and
-add to the solver, a clause introducing a new formula that is congruent to the
-formula in the box of the literal. More precisely, given a literal
+the tableau theory. Whenever a literal is propagated or decided, we generate some clauses,
+and add them. The clauses we generate
+express the equivalence (resp. equality) between a formula (resp. term) and its normal form
+in the rewrite system. More precisely, given a literal
 $\lfloor{}P\rfloor$, where $P$ is a formula, and a formula $P'$ such that
 $P=_\mathcal{RE}P'$, we generate and add the following clause:
 
@@ -258,9 +279,7 @@ Let us illustrate the use of the rewriting theory by means of an example in set
 theory. Let us prove that
 $(\forall{}s,t.s\subseteq{}t\Leftrightarrow{}\forall{}x.x\in{}s\Rightarrow{}
 x\in{}t) \Rightarrow{} {}a\subseteq{}a$, where $a$ is a constant. The proof is given
-in Fig.~\ref{fig:rew}, with the state of the solver represented as $T \parallel S$,
-with $T$ the trail of the SMT, in chronological order left to right, and $S$ the set
-of clauses to be satisfied by the solver.
+in Fig.~\ref{fig:rew}.
 
 \begin{figure}[t!]
 \parbox{\textwidth}
