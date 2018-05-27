@@ -6,15 +6,16 @@
 There are many ways of integrating equational reasoning in tableau
 methods~\cite{DB75,LS02,BR15,DV96}. Because our prover does not rely on clausal
 forms, but on arbitrary formulas with quantifiers occurring deep inside
-branches, we deal with rigid variables, i.e.~variables that should be instantiated
-only once, since multiple instantiations would create new propositional branches.
-In order to find instantiations for universally quantified formulas, the procedure
-described in~\ref{sec:tab} need a unification algorithm. In order to be complete,
-this algorithm needs to solve rigid E-unification modulo rewrite rules:~assume a set of
-equations $E$, containing rigid variables, a rewrite system $\mathcal{RE}$,
-and target terms $s$ and $t$; we want a substitution $\sigma$ such that
-$\bigwedge_{e \in E} e\sigma \vdash s\sigma =_\mathcal{RE} t\sigma$. Such a
-substitution is a solution to the rigid E-unification problem.
+branches, we deal with rigid variables, i.e.~variables that should be
+instantiated only once, since multiple instantiations would create new
+propositional branches.  In order to find instantiations for universally
+quantified formulas, the procedure described in~\ref{sec:tab} need a unification
+algorithm. In order to be complete, this algorithm needs to solve rigid
+E-unification modulo rewrite rules:~assume a set of equations $E$, containing
+rigid variables, a rewrite system $\mathcal{RE}$, and target terms $s$ and $t$;
+we want a substitution $\sigma$ such that $\bigwedge_{e \in E} e\sigma \vdash
+s\sigma =_\mathcal{RE} t\sigma$. Such a substitution is a solution to the rigid
+E-unification problem.
 
 We propose here an approach based on superposition with rigid variables, as in
 previous work by Degtyarev and Voronkov~\cite{DV96} and earlier work on rigid
@@ -29,28 +30,27 @@ paramodulation, we use a term ordering to orient the equations.
 
 \subsection{Preliminary Definitions}
 
-We write $ \clauseWithSubst{ s \approx t }{ \Sigma}$ (resp.
-$\clauseWithSubst{ s \not\approx t }{ \Sigma}$) for the unit clause that contains
-exactly one equation (resp.~disequation) under hypothesis $\Sigma$ (which is a
-set of substitutions). We write $\clauseWithSubst{\emptyset}{\Sigma}$ for the
-empty clause under hypothesis $\Sigma$.
-The meaning of $\clauseWithSubst{s \approx t}{ \Sigma}$ is
-that for every $\sigma \in \Sigma$, $s \approx t$ is provable using the
-substitution $\sigma$ for the metavariables.
-We also define $\renameVars{e}$, where $e$
-is a (dis)equation, as follows: let $\sigma$ map every rigid variable of $e$ to
-a fresh non-rigid variable, then
-$\renameVars{e} = \clauseWithSubst{ e\sigma }{ \{ \sigma \} }$. For example,
-$\renameVars{p(X)\approx a}$ is $\clauseWithSubst{ p(v1)\approx a}{ \{ X\mapsto
-v1\} }$.
+We write $ \clauseWithSubst{ s \approx t }{ \Sigma}$ (resp.  $\clauseWithSubst{
+  s \not\approx t }{ \Sigma}$) for the unit clause that contains exactly one
+equation (resp.~disequation) under hypothesis $\Sigma$ (which is a set of
+substitutions). We write $\clauseWithSubst{\emptyset}{\Sigma}$ for the empty
+clause under hypothesis $\Sigma$.  The meaning of $\clauseWithSubst{s \approx
+  t}{ \Sigma}$ is that for every $\sigma \in \Sigma$, $s \approx t$ is provable
+using the substitution $\sigma$ for the metavariables.  We also define
+$\renameVars{e}$, where $e$ is a (dis)equation, as follows: let $\sigma$ map
+every rigid variable of $e$ to a fresh non-rigid variable, then $\renameVars{e}
+= \clauseWithSubst{ e\sigma }{ \{ \sigma \} }$. For example,
+$\renameVars{p(X)\approx a}$ is
+$\clauseWithSubst{ p(v1)\approx a}{ \{ X\mapsto v1\} }$.
 
 As can be noticed, we keep a set of substitutions, rather than unit clauses
 paired with individual substitutions, in order to avoid duplicating the work for
 alpha-equivalent clauses. Indeed, because of amplification, many instances of a
 given (dis)equation might be present in a branch of the tableau. It would be
 inefficient to repeat the same inference steps with each variant of the axioms.
-Because we apply $\renameVars{e}$ on every input equality $e$, clauses do not share any
-variable, though they may share meta-variables in their attached sets of substitutions.
+Because we apply $\renameVars{e}$ on every input equality $e$, clauses do not
+share any variable, though they may share meta-variables in their attached sets
+of substitutions.
 
 Considering a substitution as a function from variables to terms, we define the
 domain of a substitution $\sigma$ as the set of variables that have a
@@ -61,31 +61,30 @@ consider idempotent substitutions, i.e.~substitutions for which the domain and
 co-domain have an empty intersection.
 
 \begin{sloppy}
-The composition of two substitutions $\sigma$ and $\sigma'$, denoted by
-$\sigma \circ \sigma'$, is said to be well-defined if and only if the domains of
-$\sigma$ and $\sigma'$ have no intersection. In this case,
-$\sigma \circ \sigma' \triangleq \left\{ x \mapsto (x\sigma)\sigma' | x \in
-\text{domain}(\sigma) \right\}$. This definition extends to sets of
-substitutions:
-$\Sigma \circ \sigma' \triangleq \left\{ \sigma \circ \sigma' |
-\sigma \in \Sigma \right\}$. We then have $\sigma \leq \sigma'$ if and only if
-$\exists \sigma''.~ \sigma \circ \sigma'' = \sigma'$. This notion also extends
-to sets of substitutions: $\smash{ \Sigma \leq \Sigma' }$ if and only if
+The composition of two substitutions $\sigma$ and $\sigma'$, denoted by $\sigma
+\circ \sigma'$, is well-defined if and only if the domains of $\sigma$ and
+$\sigma'$ have no intersection. In this case, $\sigma \circ \sigma' \triangleq
+\left\{ x \mapsto (x\sigma)\sigma' | x \in \text{domain}(\sigma) \right\}$. This
+definition extends to sets of substitutions: $\Sigma \circ \sigma' \triangleq
+\left\{ \sigma \circ \sigma' | \sigma \in \Sigma \right\}$. We then have $\sigma
+\leq \sigma'$ if and only if $\exists \sigma''.~ \sigma \circ \sigma'' =
+\sigma'$. This notion also extends to sets of substitutions:
+$\smash{ \Sigma \leq \Sigma' }$ if and only if
 $\smash{ \forall \sigma' \in \Sigma'.~ \exists \sigma \in \Sigma. \sigma \leq
 \sigma' }$. The merging of two substitutions $\sigma \uparrow \sigma'$ is the
 supremum of $\{\sigma,\sigma'\}$ for the order $\leq$, if it exists, or $\bot$
 otherwise. The merging of sets of substitutions is
-$\Sigma \uparrow \Sigma' \triangleq \left\{ \sigma \uparrow \sigma' ~|~ \sigma
-\in \Sigma, \sigma' \in \Sigma' \right., \sigma \uparrow \sigma' \not= \bot
-\}$.
+$\Sigma \uparrow \Sigma' \triangleq \left\{ \sigma \uparrow \sigma' ~|~
+\sigma \in \Sigma, \sigma' \in \Sigma' \right., \sigma \uparrow \sigma' \not=
+\bot \}$.
 \end{sloppy}
 
 To perform an inference step between two unit (dis)equations, we merge their
 sets of substitutions. An inference rule is said to be successful if the merging
-of the premises' substitution sets is non-empty. For example, the resolution step
-between $p(x,x)| \{ X \mapsto a \}$ and $\lnot p(y,b)| \{ X \mapsto y \}$ is not
-possible, because the result would need to map $X$ to $a$ and $b$, which is
-impossible because $X$ is rigid.
+of the premises' substitution sets is non-empty. For example, the resolution
+step between $p(x,x)| \{ X \mapsto a \}$ and $\lnot p(y,b)| \{ X \mapsto y \}$
+is not possible, because the result would need to map $X$ to $a$ and $b$, which
+is impossible because $X$ is rigid.
 
 \subsection{Inference System}
 
@@ -102,11 +101,11 @@ Fig.~\ref{fig:unit-sup-rules} work as described below:
 \item[ER] is equality resolution, where a disequation
 $\clauseWithSubst{s \not\approx t}{\Sigma}$ is solved by syntactically unifying
 $s$ and $t$ with $\sigma$, if $\sigma$ is compatible with $\Sigma$.
-\item[SN/SP] is superposition into positive or negative literals. A subterm of $u$ is rewritten
-using $s \approx t$ after unifying it with $s$ by $\sigma$. The rewriting is
-done only if $s\sigma \not\preceq t\sigma$, a sufficient (but not necessary)
-condition for a ground instance of $s\sigma \approx t\sigma$ to be oriented
-left-to-right.
+\item[SN/SP] is superposition into positive or negative literals. A subterm of
+$u$ is rewritten using $s \approx t$ after unifying it with $s$ by $\sigma$. The
+rewriting is done only if $s\sigma \not\preceq t\sigma$, a sufficient (but not
+necessary) condition for a ground instance of $s\sigma \approx t\sigma$ to be
+oriented left-to-right.
 \item[TD1] deletes trivial equations that will never contribute to a proof.
 \item[TD2] deletes clauses with an empty set of substitutions. In practice, we
 only apply a rule if the conclusion is labeled with a non-empty set of
@@ -134,9 +133,11 @@ Rule \textbf{SN/SP} generates as many equations as there are in the set
 $(\Sigma \circ \sigma'') \uparrow (\Sigma' \circ \sigma'')$ because all
 substitutions may not always be merged. For instance, given two unit clauses
 $f(x) = t | \{ \{ X_1 \mapsto x \}, \{ X_2 \mapsto x \} \}$ and
-$f(a) = v | \{ \{ X_1 \mapsto a \} \}$, rule \textbf{SP} allows to derive two distinct
-non-mergeable equations $(t = v)\{ x \mapsto a \} | \{ \{ X_1 \mapsto a \} \}$
-and $(t = v)\{ x \mapsto a \} | \{ \{ X_1 \mapsto a; X_2 \mapsto a \} \}$.
+$f(a) = v | \{ \{ X_1 \mapsto a \} \}$, rule \textbf{SP} allows us to derive two
+distinct equations
+$(t = v)\{ x \mapsto a \} | \{ \{ X_1 \mapsto a \} \}$ and
+$(t = v)\{ x \mapsto a \} | \{ \{ X_1 \mapsto a; X_2 \mapsto a \} \}$, which are
+non-mergeable.
 
 \begin{figure}[htb]
 \begin{center}
@@ -145,7 +146,8 @@ and $(t = v)\{ x \mapsto a \} | \{ \{ X_1 \mapsto a; X_2 \mapsto a \} \}$.
 \AXC{$\clauseWithSubst{s \approx t}{\Sigma}$}
 \AXC{$\clauseWithSubst{u \mathrel{R} v}{\Sigma'}$}
 \LL{SN/SP}
-\BIC{$\clauseWithSubst{\sigma''(u[p \leftarrow t] \mathrel{R} v)}{\sigma'''}$}\DP
+\BIC{$\clauseWithSubst{\sigma''(u[p \leftarrow t] \mathrel{R} v)}
+{\sigma'''}$}\DP
 $\text{if} \left\{ \begin{array}{l@{\quad}l}
 \sigma'' = \text{mgu}(u_{|p}, s) & u_{|p} \not\in V\\
 \sigma''(s) \not\preceq \sigma''(t) & \sigma''(u) \not\preceq \sigma''(v)\\
@@ -181,11 +183,13 @@ $\text{if} \left\{ \begin{array}{l@{\quad}l}
 \LL{ME}
 \RL{$\rho \text{ is a variable renaming}$}
 \doubleLine{}
-\BIC{$\clauseWithSubst{\rho(u) \approx \rho(v)}{\Sigma \cup (\Sigma' \circ \rho)}$}\DP\\[12pt]
+\BIC{$\clauseWithSubst{\rho(u) \approx \rho(v)}
+{\Sigma \cup (\Sigma' \circ \rho)}$}\DP\\[12pt]
 
 % ES
 \AXC{$\clauseWithSubst{s \approx t}{\Sigma}$}
-\AXC{$\clauseWithSubst{u[p \leftarrow s] \approx u[p \leftarrow t]}{\Sigma' \cup \Sigma''}$}
+\AXC{$\clauseWithSubst{u[p \leftarrow s] \approx u[p \leftarrow t]}
+{\Sigma' \cup \Sigma''}$}
 \LL{ES}
 \RL{$
 \text{if} \left\{ \begin{array}{l}
@@ -194,7 +198,8 @@ $\text{if} \left\{ \begin{array}{l@{\quad}l}
 \end{array}\right.$}
 \doubleLine{}
 \BIC{$\clauseWithSubst{s\approx t}{\Sigma} \qquad
-      \clauseWithSubst{u[p\leftarrow s] \approx u[p \leftarrow t]}{\Sigma'}$}\DP\\[12pt]
+\clauseWithSubst{u[p\leftarrow s] \approx u[p \leftarrow t]}
+{\Sigma'}$}\DP\\[12pt]
 
 % RP
 \AXC{$\clauseWithSubst{s \approx t}{\Sigma}$}
@@ -229,26 +234,26 @@ s \succ t\\
 
 \subsection{Rewriting}
 
-Rewrite rules can be integrated into the rigid unit superposition easily. In fact,
-a rewrite rule $l\rew{}r$ can be expressed as an equality with a hypothesis set
-consisting of a single trivial substitution
-$\clauseWithSubst{s\approx{}t}{\{\emptyset\}}$\footnote{The singleton set containing the trivial
-(or identity) substitution $\{\emptyset\}$, is not to be confused with $\emptyset$, the empty set}.
-Since the trivial substitution is compatible
-with every substitution, it will never prevent any inference, thus allowing us
-to use the unit clause as many times as needed to rewrite terms without
-accumulating constraints, particularly using the rules RP and RN, whose side
-conditions are always verified by rewrite rules. Rigid unit superposition
-therefore provides an algorithm for rigid E-unification modulo rewrite rules,
-as detailed in the next paragraph.
+Rewrite rules can be integrated into the rigid unit superposition easily. In
+fact, a rewrite rule $l\rew{}r$ can be expressed as an equality with a
+hypothesis set consisting of a single trivial substitution
+$\clauseWithSubst{s\approx{}t}{\{\emptyset\}}$\footnote{The singleton set
+containing the trivial (or identity) substitution $\{\emptyset\}$, is not to be
+confused with $\emptyset$, the empty set}.  Since the trivial substitution is
+compatible with every substitution, it will never prevent any inference, thus
+allowing us to use the unit clause as many times as needed to rewrite terms
+without accumulating constraints, particularly using the rules RP and RN, whose
+side conditions are always verified by rewrite rules. Rigid unit superposition
+therefore provides an algorithm for rigid E-unification modulo rewrite rules, as
+detailed in the next paragraph.
 
 \subsection{Main Loop}
 
 Our objective with rigid E-unification is to attempt to close a branch of the
 tableau prover (i.e.~a set of Boolean literals set to true). To do so, we first
 create a set of unit clauses to process from the rewrite rules, and the renamed
-equational or atomic literals. Then, the given-clause algorithm is applied to try and
-saturate the set. Assuming a fair strategy, this will eventually find a
+equational or atomic literals. Then, the given-clause algorithm is applied to
+try and saturate the set. Assuming a fair strategy, this will eventually find a
 solution (i.e.~derive $\clauseWithSubst{\emptyset}{\Sigma}$) if there exists
 one. We refer the interested reader to~\cite{SS02} for more details.
 
@@ -256,7 +261,7 @@ Because the whole branch is managed by a single given-clause saturation loop, we
 look for all solutions susceptible to close the branch at the same time.
 Moreover, this technique is amenable to incrementality, i.e.~every time a
 (dis)equation is decided by the SMT solver, we could add it to the saturation
-set and perform a (limited) number of steps of the given-clause algorithm.
+set and perform a number of steps of the given-clause algorithm.
 
 \subsection{Example}
 

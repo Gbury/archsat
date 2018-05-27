@@ -23,12 +23,11 @@ extended to deduction modulo theory, resulting in tools such as \iproverm{} and
 \zenm{}. This paper can be seen as a continuation of these previous experiments
 adapted to the framework of SMT solving.
 
-
 \subsection{The Tableau Theory}
 \label{sec:tab}
 
-We introduce $\mathcal{T}$ and $\mathcal{F}$ respectively,
-the sets of first order terms and formulas over the signature
+We introduce $\mathcal{T}$ and $\mathcal{F}$ respectively, the sets of first
+order terms and formulas over the signature
 $\mathcal{S}=(\mathcal{S}_\mathcal{F},\mathcal{S}_\mathcal{P})$, where
 $\mathcal{S}_\mathcal{F}$ is the set of function symbols, and
 $\mathcal{S}_\mathcal{P}$, the set of predicate symbols, such that
@@ -36,74 +35,80 @@ $\mathcal{S}_\mathcal{F}\cap\mathcal{S}_\mathcal{P}=\emptyset$. The set
 $\mathcal{T}$ is extended with two kinds of terms specific to tableau proof
 search. First are $\epsilon{}$-terms (used instead of Skolemization) of the form
 $\epsilon(x).P(x)$, where $P(x)$ is a formula, and which means some $x$ that
-satisfies $P(x)$, if it exists. And second, metavariables (often named free variables in
-the tableau-related literature) of the form $X_P$, where $P$ is the formula that
-introduces the metavariable, and which is either $\forall{}x.Q(x)$ or
-$\neg\exists{}x.Q(x)$, with $Q(x)$ a formula. Metavariables are written using capitalized
-letters (such as $X_P$ or $Y_P$), will never be substituted\footnote{More genrally, terms
-are immutable and are never modified in place: application of a substitution creates new terms
-that may be used, but will never modify existing terms.}. They will also be considered
-rigid in the following, meaning that in context where we try and unify terms, by building
-a mapping from metavariables to terms, each metavariables may be bound at most once.
-This is because in tableaux calculus, if you instanciate a formula multiple times,
-it may create additional propositional branches, which we do not want. Instead we consider
-metavariables rigid, and we'll generate multiple metavariables for the same formula
-if needed.
+satisfies $P(x)$, if it exists. And second, metavariables (often named free
+variables in the tableau-related literature) of the form $X_P$, where $P$ is the
+formula that introduces the metavariable, and which is either $\forall{}x.Q(x)$
+or $\neg\exists{}x.Q(x)$, with $Q(x)$ a formula. Metavariables are written using
+capitalized letters (such as $X_P$ or $Y_P$), will never be
+substituted\footnote{More generally, terms are immutable and are never modified
+in place: application of a substitution creates new terms that may be used,
+but will never modify existing terms.}. They will also be considered rigid in
+the following, meaning that in context where we try and unify terms, by building
+a mapping from metavariables to terms, each metavariables may be bound at most
+once.  This is because in tableaux calculus, if you instantiate a formula
+multiple times, it may create additional propositional branches, which we do not
+want. Instead we consider metavariables rigid, and we'll generate multiple
+metavariables for the same formula if needed.
 
 A boxed formula is of the form $\lfloor{}P\rfloor$, where $P$ is a formula. A
-boxed formula is called an atom, and a literal is either an atom, or the negation
-of an atom. A literal is such that there is no negation on top of the boxed
-formula (which means that $\lfloor\neg{}P\rfloor$ is automatically translated into
-$\neg\lfloor{}P\rfloor$, and $\neg\neg\lfloor{}P\rfloor$ into $\lfloor{}P\rfloor$).
-A clause is a disjunction of literals. It should be noted that SMT solving usually
-reasons over sets of clauses composed of first order terms; here, a literal is a first order
-formula (possibly with quantifiers), which requires to box formulas to get a
-regular SAT solving problem where boxed formulas are propositional variables.
-The state of a SMT solver can be represented as $T \parallel S$,
-with $T$ the trail of the SMT, i.e.~a list of boxed formula, in chronological order left to right,
-and $S$ the set of clauses to be satisfied by the solver. One very important point is that SMT theories
-can and will often add some clauses to the set $S$ of clauses that the solver
-tries to satisfy. This is sound as long as only tautologies are added. In the following,
-this will often be abbreviated by only writing ``adding the clause''.
+boxed formula is called an atom, and a literal is either an atom, or the
+negation of an atom. A literal is such that there is no negation on top of the
+boxed formula (which means that $\lfloor\neg{}P\rfloor$ is automatically
+translated into $\neg\lfloor{}P\rfloor$, and $\neg\neg\lfloor{}P\rfloor$ into
+$\lfloor{}P\rfloor$).  A clause is a disjunction of literals. It should be noted
+that SMT solving usually reasons over sets of clauses composed of first order
+terms; here, a literal is a first order formula (possibly with quantifiers),
+which requires to box formulas to get a regular SAT solving problem where boxed
+formulas are propositional variables.  The state of a SMT solver can be
+represented as $T \parallel S$, with $T$ the trail of the SMT, i.e.~a list of
+boxed formula, in chronological order left to right, and $S$ the set of clauses
+to be satisfied by the solver. One very important point is that SMT theories can
+and will often add some clauses to the set $S$ of clauses that the solver tries
+to satisfy. This is sound as long as only tautologies are added. In the
+following, this will often be abbreviated by only writing ``adding the clause''.
 
 Tableau proof search method is integrated as a regular theory in our SMT solver.
-Whenever a literal $l$ is decided or propataged by the solver, the tableaux theory generates
-the set of clauses $\llbracket{}l\rrbracket$, where the function $\llbracket\cdot\rrbracket$ is
-described by the rules of Fig.~\ref{fig:tabth}, and then add these clauses\footnote{We use all rules
+Whenever a literal $l$ is decided or propagated by the solver, the tableaux
+theory generates the set of clauses $\llbracket{}l\rrbracket$, where the
+function $\llbracket\cdot\rrbracket$ is described by the rules of
+Fig.~\ref{fig:tabth}, and then add these clauses\footnote{We use all rules
 except the instantiation $\gamma$-rules: $\gamma_{\forall\mathrm{inst}}$ and
-$\gamma_{\neg\exists\mathrm{inst}}$ which are only used once adequate terms for instanciation have been found}.
-It should be noted that we use the same
+$\gamma_{\neg\exists\mathrm{inst}}$ which are only used once adequate terms
+for instantiation have been found}.  It should be noted that we use the same
 names for the rules as in tableau calculus ($\alpha$-rules, $\beta$-rules,
 etc.), but there is no precedence between rules and therefore no priority in the
 application of the rules contrary to the tableau proof search method (where
-$\alpha$ rules are applied before $\beta$-rules, and so on).
-Application of this can be seen in Figure~\ref{fig:rew}, on the third line,
-where once the solver has propagated that $A \equiv \lfloor B \rightarrow C \rfloor$ is false,
-the tableaux theory adds two new clauses: $A \lor B$ and $A \lor \neg C$,
-whose aim is to ensure that as long as $A$ is false, $B$ will be true and $C$ will be false.
-The clauses added should be seen as an implication: $\neg A \rightarrow B$ and
-$\neg A \rightarrow \neg C$, where the presence of $A$ in the clauses is important because
-the tableaux theory does not know whether $A$ is always false or not: it might be
-that $A$ being false was a decision of the SAT solver (or a consequence of a decision),
-and thus might be backtracked; in this case it is important to not have the propagations
-of $B$ and $\neg C$ depend on the propagation of $\neg A$.
+$\alpha$ rules are applied before $\beta$-rules, and so on).  Application of
+this can be seen in Figure~\ref{fig:rew}, on the third line, where once the
+solver has propagated that $A \equiv \lfloor B \rightarrow C \rfloor$ is false,
+the tableaux theory adds two new clauses: $A \lor B$ and $A \lor \neg C$, whose
+aim is to ensure that as long as $A$ is false, $B$ will be true and $C$ will be
+false.  The clauses added should be seen as an implication: $\neg A \rightarrow
+B$ and $\neg A \rightarrow \neg C$, where the presence of $A$ in the clauses is
+important because the tableaux theory does not know whether $A$ is always false
+or not: it might be that $A$ being false was a decision of the SAT solver (or a
+consequence of a decision), and thus might be backtracked; in this case it is
+important to not have the propagations of $B$ and $\neg C$ depend on the
+propagation of $\neg A$.
 
-
-When the SMT solver finds a model $M$ of the current set of clauses,
-we look for a conflict in $M$ between boxed atomic formulas by unification.
-If there exist two literals $l$ and $\neg{}l'$ in $M$ such that $l=\lfloor{}Q\rfloor$ and
+When the SMT solver finds a model $M$ of the current set of clauses, we look for
+a conflict in $M$ between boxed atomic formulas by unification.  If there exist
+two literals $l$ and $\neg{}l'$ in $M$ such that $l=\lfloor{}Q\rfloor$ and
 $l'=\lfloor{}R\rfloor$, with $Q$ and $R$ two formulas, then for each binding
 $(X_{\forall{}x.P(x)}\mapsto{}t)\in\mathrm{mgu}(Q,R)$ (resp.
-$(X_{\neg\exists{}x.P(x)}\mapsto{}t)\in\mathrm{mgu}(Q,R)$)
-we can generate the clauses $\llbracket\lfloor\forall{}x.P(x)\rfloor{}\rrbracket$
+$(X_{\neg\exists{}x.P(x)}\mapsto{}t)\in\mathrm{mgu}(Q,R)$) we can generate the
+clauses $\llbracket\lfloor\forall{}x.P(x)\rfloor{}\rrbracket$
 (resp. $\llbracket\neg\lfloor\exists{}x.P(x)\rfloor{}\rrbracket$) using the rule
 $\gamma_{\forall\mathrm{inst}}$ (resp. $\gamma_{\neg\exists\mathrm{inst}}$) of
-Fig.~\ref{fig:tabth}, and then add these new clauses. For instance, suppose we find a model where $\lfloor P(X_{\forall x. P(x)}) \rfloor$
-is true and $\lfloor P(a) \rfloor$ is false, then we'll add the following clause to the solver: $\neg \lfloor \forall x. P(x) \rfloor \lor \lfloor P(a) \rfloor$, representing
-the instanciation of $\forall x. P(x)$ using the term $a$. This clause will ensure that
-the model where $\lfloor P(a) \rfloor$ is false cannot happen again as long as
-$\lfloor \forall x. P(x) \rfloor$ is true. Note that we did not substitute any metavariables,
-we only added some tautologies, thus there is no need for any special backtracking.
+Fig.~\ref{fig:tabth}, and then add these new clauses. For instance, suppose we
+find a model where $\lfloor P(X_{\forall x. P(x)}) \rfloor$ is true and $\lfloor
+P(a) \rfloor$ is false, then we'll add the following clause to the solver: $\neg
+\lfloor \forall x. P(x) \rfloor \lor \lfloor P(a) \rfloor$, representing the
+instantiation of $\forall x. P(x)$ using the term $a$. This clause will ensure
+that the model where $\lfloor P(a) \rfloor$ is false cannot happen again as long
+as $\lfloor \forall x. P(x) \rfloor$ is true. Note that we did not substitute
+any metavariables, we only added some tautologies, thus there is no need for any
+special backtracking.
 
 \begin{figure}[t]
 \parbox{\textwidth}
@@ -116,7 +121,7 @@ $\begin{array}{llll}
 \left\{\begin{array}{l}
   \neg\lfloor{}P\land{}Q\rfloor\lor\lfloor{}P\rfloor \\
   \neg\lfloor{}P\land{}Q\rfloor\lor\lfloor{}Q\rfloor
-\end{array} &
+\end{array}\right. &
 
 (\beta_{\neg\land}) &
 \llbracket\neg\lfloor{}P\land{}Q\rfloor{}\rrbracket =
@@ -133,7 +138,7 @@ $\begin{array}{llll}
 \left\{\begin{array}{l}
   \lfloor{}P\lor{}Q\rfloor\lor\neg\lfloor{}P\rfloor \\
   \lfloor{}P\lor{}Q\rfloor\lor\neg\lfloor{}Q\rfloor
-\end{array}
+\end{array}\right.
 
 \\\\
 
@@ -147,7 +152,7 @@ $\begin{array}{llll}
 \left\{\begin{array}{l}
   \lfloor{}P\Rightarrow{}Q\rfloor\lor\lfloor{}P\rfloor \\
   \lfloor{}P\Rightarrow{}Q\rfloor\lor\neg\lfloor{}Q\rfloor
-\end{array}
+\end{array}\right.
 
 \\\\
 
@@ -156,7 +161,7 @@ $\begin{array}{llll}
 \left\{\begin{array}{l}
   \neg\lfloor{}P\Leftrightarrow{}Q\rfloor\lor\lfloor{}P\Rightarrow{}Q\rfloor \\
   \neg\lfloor{}P\Leftrightarrow{}Q\rfloor\lor\lfloor{}Q\Rightarrow{}P\rfloor
-\end{array} &
+\end{array}\right. &
 
 (\beta_{\neg\Rightarrow}) &
 \llbracket{}\neg\lfloor{}P\Leftrightarrow{}Q\rfloor{}\rrbracket =
@@ -217,7 +222,7 @@ $\begin{array}{lll@{\hspace{0.5cm}}l}
 \subsection{The Rewriting Theory}
 \label{sec:rew}
 
-A rewriting theory allows us to replace instanciations by
+A rewriting theory allows us to replace instantiations by
 computations in the SMT solver. We aim to integrate rewriting in the broadest sense of the term as
 proposed by deduction modulo theory. Deduction modulo theory~\cite{DA03} focuses
 on the computational part of a theory, where axioms are transformed into rewrite
@@ -278,8 +283,8 @@ time.
 Let us illustrate the use of the rewriting theory by means of an example in set
 theory. Let us prove that
 $(\forall{}s,t.s\subseteq{}t\Leftrightarrow{}\forall{}x.x\in{}s\Rightarrow{}
-x\in{}t) \Rightarrow{} {}a\subseteq{}a$, where $a$ is a constant. The proof is given
-in Fig.~\ref{fig:rew}.
+x\in{}t) \Rightarrow{} {}a\subseteq{}a$, where $a$ is a constant. The proof is
+given in Fig.~\ref{fig:rew}.
 
 \begin{figure}[t!]
 \parbox{\textwidth}
@@ -293,7 +298,8 @@ $\begin{array}{lcl}
 (\mathrm{Tableaux})\\
 
 \neg{}A\parallel
-\mathcal{C}_1,\boldsymbol{\mathcal{C}_2 = A\lor{}B},\boldsymbol{\mathcal{C}_3 = A\lor\neg{}C}
+\mathcal{C}_1,\boldsymbol{\mathcal{C}_2 = A\lor{}B},
+\boldsymbol{\mathcal{C}_3 = A\lor\neg{}C}
 & \longrightarrow & (\mathrm{unit~prop})\times{}2\\
 
 \neg{}A,\boldsymbol{B},\boldsymbol{\neg{}C}\parallel
@@ -301,7 +307,8 @@ $\begin{array}{lcl}
 & \longrightarrow & (\mathrm{Rewriting})\\
 
 \neg{}A,B,\neg{}C\parallel
-\mathcal{C}_1,\mathcal{C}_2,\mathcal{C}_3, \boldsymbol{\mathcal{C}_4=\neg{}B\lor{}D}
+\mathcal{C}_1,\mathcal{C}_2,\mathcal{C}_3,
+\boldsymbol{\mathcal{C}_4=\neg{}B\lor{}D}
 & \longrightarrow & (\mathrm{unit~prop})\\
 
 \neg{}A,B,\neg{}C,\boldsymbol{D}\parallel
@@ -310,38 +317,46 @@ $\begin{array}{lcl}
 
 \neg{}A,B,\neg{}C,D\parallel
 \mathcal{C}_1,\mathcal{C}_2,\mathcal{C}_3,\mathcal{C}_4,
-\boldsymbol{\mathcal{C}_5=\neg{}D\lor{}E},\boldsymbol{\mathcal{C}_6=\neg{}D\lor{}F}
+\boldsymbol{\mathcal{C}_5=\neg{}D\lor{}E},
+\boldsymbol{\mathcal{C}_6=\neg{}D\lor{}F}
 & \longrightarrow & (\mathrm{unit~prop})\times{}2\\
 
 \neg{}A,B,\neg{}C,D,\boldsymbol{E},\boldsymbol{F}\parallel
-\mathcal{C}_1,\mathcal{C}_2,\mathcal{C}_3,\mathcal{C}_4, \mathcal{C}_5, \mathcal{C}_6
+\mathcal{C}_1,\mathcal{C}_2,\mathcal{C}_3,\mathcal{C}_4, \mathcal{C}_5,
+\mathcal{C}_6
 & \longrightarrow & (\mathrm{Tableaux})\\
 
 \neg{}A,B,\neg{}C,D,E,F\parallel
-\mathcal{C}_1,\mathcal{C}_2,\mathcal{C}_3,\mathcal{C}_4, \mathcal{C}_5, \mathcal{C}_6,
-  \boldsymbol{\mathcal{C}_7=\neg{}F\lor\neg{}G\lor{}C}
+\mathcal{C}_1,\mathcal{C}_2,\mathcal{C}_3,\mathcal{C}_4,\mathcal{C}_5,
+\mathcal{C}_6,\boldsymbol{\mathcal{C}_7=\neg{}F\lor\neg{}G\lor{}C}
 & \longrightarrow & (\mathrm{unit~prop})\\
 
 \neg{}A,B,\neg{}C,D,E,F,\boldsymbol{\neg{}G}\parallel
-\mathcal{C}_1,\mathcal{C}_2,\mathcal{C}_3,\mathcal{C}_4, \mathcal{C}_5, \mathcal{C}_6, \mathcal{C}_7
+\mathcal{C}_1,\mathcal{C}_2,\mathcal{C}_3,\mathcal{C}_4, \mathcal{C}_5,
+\mathcal{C}_6, \mathcal{C}_7
 & \longrightarrow & (\mathrm{Tableaux})\\
 
 \neg{}A,B,\neg{}C,D,E,F,\neg{}G\parallel
-\mathcal{C}_1,\mathcal{C}_2,\mathcal{C}_3,\mathcal{C}_4, \mathcal{C}_5, \mathcal{C}_6, \mathcal{C}_7,
+\mathcal{C}_1,\mathcal{C}_2,\mathcal{C}_3,\mathcal{C}_4, \mathcal{C}_5,
+\mathcal{C}_6, \mathcal{C}_7,
   \boldsymbol{\mathcal{C}_8=G\lor\neg{}H}
 & \longrightarrow & (\mathrm{unit~prop})\\
 
 \neg{}A,B,\neg{}C,D,E,F,\neg{}G,\boldsymbol{\neg{}H}\parallel
-\mathcal{C}_1,\mathcal{C}_2,\mathcal{C}_3,\mathcal{C}_4, \mathcal{C}_5, \mathcal{C}_6, \mathcal{C}_7, \mathcal{C}_8
+\mathcal{C}_1,\mathcal{C}_2,\mathcal{C}_3,\mathcal{C}_4, \mathcal{C}_5,
+\mathcal{C}_6, \mathcal{C}_7, \mathcal{C}_8
 & \longrightarrow & (\mathrm{Tableaux})\\
 
 \neg{}A,B,\neg{}C,D,E,F,\neg{}G,\neg{}H\parallel
-\mathcal{C}_1,\mathcal{C}_2,\mathcal{C}_3,\mathcal{C}_4, \mathcal{C}_5, \mathcal{C}_6, \mathcal{C}_7, \mathcal{C}_8, \\
-~~~~\boldsymbol{\mathcal{C}_9=H\lor{}I},\boldsymbol{\mathcal{C}_{10}=H\lor\neg{}I}
+\mathcal{C}_1,\mathcal{C}_2,\mathcal{C}_3,\mathcal{C}_4, \mathcal{C}_5,
+\mathcal{C}_6, \mathcal{C}_7, \mathcal{C}_8, \\
+~~~~\boldsymbol{\mathcal{C}_9=H\lor{}I},
+\boldsymbol{\mathcal{C}_{10}=H\lor\neg{}I}
 & \longrightarrow & (\mathrm{unit~prop})\\
 
 \neg{}A,B,\neg{}C,D,E,F,\neg{}G,\neg{}H,\boldsymbol{I}\parallel
-\mathcal{C}_1,\mathcal{C}_2,\mathcal{C}_3,\mathcal{C}_4, \mathcal{C}_5, \mathcal{C}_6, \mathcal{C}_7, \mathcal{C}_8, \mathcal{C}_9, \mathcal{C}_{10}
+\mathcal{C}_1,\mathcal{C}_2,\mathcal{C}_3,\mathcal{C}_4, \mathcal{C}_5,
+\mathcal{C}_6, \mathcal{C}_7, \mathcal{C}_8, \mathcal{C}_9, \mathcal{C}_{10}
 & \longrightarrow & (\mathrm{unsat})\\
 
 \boldsymbol{\mathrm{unsat}}

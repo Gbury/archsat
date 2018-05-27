@@ -27,20 +27,20 @@ for which the rewriting theory proposed previously in Subsec.~\ref{sec:rew}
 works. Starting from the theory described in Chap.~2 of the
 \bbook{}~\cite{B-Book}, we therefore transform whenever possible the axioms and
 definitions into rewrite rules. The resulting theory has been introduced
-in~\cite{BA15}. As can be seen, the proposed theory is typed, using first order logic extended
-to polymorphic types à la ML, through a type system in the spirit
+in~\cite{BA15}. As can be seen, the proposed theory is typed, using first order
+logic extended to polymorphic types à la ML, through a type system in the spirit
 of~\cite{BP13}. This extension to polymorphic types offers more flexibility, and
 in particular allows us to deal with theories that rely on elaborate type
 systems, like the \bmth{} set theory (see Chap.~2 of the
 \bbook{}~\cite{B-Book}).
 
-To test \archsat{} in this theory, we consider 319~lemmas coming from Chap.~2 of
-the \bbook{}~\cite{B-Book}\footnote{Available at: \url{https://github.com/delahayd/bset}}.
-These lemmas are properties of various difficulty
-regarding the set constructs introduced by the \bmth{} method. It should be
-noted that these constructs and notations are, for a large part of them,
-specific to the \bmth{} method, as they are used for the modeling of industrial
-projects, and are not necessarily standard in set theory.
+To test \archsat{} in this theory, we consider a set of 319~lemmas coming from
+Chap.~2 of the \bbook{}~\cite{B-Book}\footnote{Available at:
+\url{https://github.com/delahayd/bset}}.  These lemmas are properties of
+various difficulty regarding the set constructs introduced by the \bmth{}
+method. It should be noted that these constructs and notations are, for a large
+part of them, specific to the \bmth{} method, as they are used for the modeling
+of industrial projects, and are not necessarily standard in set theory.
 
 As tools, we consider \archsat{} (development version\footnote{\git{}
 branch smt18.}). We also include other automated theorem provers, able to
@@ -112,7 +112,7 @@ Rate
 72.7\%
 \end{tabular}\tabularnewline
 \hline
-\begin{tabular}
+\begin{tabular}{l}
 Total time \small{(s)}
 \end{tabular} &
 \begin{tabular}{c}

@@ -2,18 +2,17 @@
 
 \section{Introduction}
 
-Over the last past few
-years, SMT solvers have appeared as very efficient tools to reason over some
-well identified theories (equality, uninterpreted functions, linear arithmetic,
-arrays, etc.), and have allowed us to bring SAT solving toward first order logic.
-Although modern SMT solvers support first order logic, most of them use
-heuristic quantifier instantiation for incorporating quantifier reasoning with
-ground decision procedures. This mechanism is relatively effective in some cases
-in practice, but it is not refutationally complete for first order logic. Hints
-(triggers) are usually required, and it is sensitive to the syntactic structure
-of the formula, so that it fails to prove formulas that can be easily discharged
-by provers based on more traditional first order proof search methods (tableaux,
-resolution, etc.).
+Over the last past few years, SMT solvers have appeared as very efficient tools
+to reason over some well identified theories (equality, uninterpreted functions,
+linear arithmetic, arrays, etc.), and have allowed us to bring SAT solving
+toward first order logic.  Although modern SMT solvers support first order
+logic, most of them use heuristic quantifier instantiation for incorporating
+quantifier reasoning with ground decision procedures. This mechanism is
+relatively effective in some cases in practice, but it is not refutationally
+complete for first order logic. Hints (triggers) are usually required, and it is
+sensitive to the syntactic structure of the formula, so that it fails to prove
+formulas that can be easily discharged by provers based on more traditional
+first order proof search methods (tableaux, resolution, etc.).
 
 In this paper, we propose to improve first order proof search by introducing
 rewriting as a regular SMT theory, along the lines of
@@ -26,15 +25,15 @@ proposal, this congruence is used a first time to speed up ground reasoning
 by computing normal forms for terms, but this still yields an incomplete
 algorithm.
 
-We thus propose to overcome the problem of completeness for first
-order logic by using tableau calculus as an SMT theory. The tableau calculus
-rules are used to encode propositional content into clauses\footnote{Similar to
-a lazy CNF transformation with named formulas.} while atomic
-formulas are handled using satisfiability decision procedures as in
-regular SMT solvers. To deal with quantified first order formulas, we use
-metavariables and perform rigid unification modulo equalities and modulo rewriting,
-for which we introduce an algorithm based on superposition, but where all clauses
-contain a single atomic formula.
+We thus propose to overcome the problem of completeness for first order logic by
+using tableau calculus as an SMT theory. The tableau calculus rules are used to
+encode propositional content into clauses\footnote{Similar to a lazy CNF
+transformation with named formulas.} while atomic formulas are handled using
+satisfiability decision procedures as in regular SMT solvers. To deal with
+quantified first order formulas, we use metavariables and perform rigid
+unification modulo equalities and modulo rewriting, for which we introduce an
+algorithm based on superposition, but where all clauses contain a single atomic
+formula.
 
 Our approach provides several advantages compared to usual SMT solving and first
 order proof search methods. First, we benefit from the efficiency of a SAT
@@ -60,8 +59,9 @@ compatible with deduction modulo theory, i.e. where a large part of axioms has
 been turned into rewrite rules. The benchmark itself gathers 319~lemmas coming
 from Chap.~2 of the \bbook{}~\cite{B-Book}.
 
-The paper is organized as follows: in Sec.~\ref{sec:smt}, we introduce the tableau
-and rewriting theories; we then describe, in Sec.~\ref{sec:super}, our mechanism
-of equational reasoning by means of rigid unit superposition; finally, in
-Sec.~\ref{sec:bench}, we present some experimental results obtained by running
-our implementation over a benchmark of problems in the \bmth{} set theory.
+The paper is organized as follows: in Sec.~\ref{sec:smt}, we introduce the
+tableau and rewriting theories; we then describe, in Sec.~\ref{sec:super}, our
+mechanism of equational reasoning by means of rigid unit superposition; finally,
+in Sec.~\ref{sec:bench}, we present some experimental results obtained by
+running our implementation over a benchmark of problems in the \bmth{} set
+theory.
