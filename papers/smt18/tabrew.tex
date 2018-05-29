@@ -43,12 +43,12 @@ capitalized letters (such as $X_P$ or $Y_P$), will never be
 substituted\footnote{More generally, terms are immutable and are never modified
 in place: application of a substitution creates new terms that may be used,
 but will never modify existing terms.}. They will also be considered rigid in
-the following, meaning that in context where we try and unify terms, by building
+the following, meaning that in a context where we try and unify terms, by building
 a mapping from metavariables to terms, each metavariables may be bound at most
 once.  This is because in tableaux calculus, if you instantiate a formula
 multiple times, it may create additional propositional branches, which we do not
 want. Instead we consider metavariables rigid, and we'll generate multiple
-metavariables for the same formula if needed.
+(distinct) metavariables for the same formula if needed.
 
 A boxed formula is of the form $\lfloor{}P\rfloor$, where $P$ is a formula. A
 boxed formula is called an atom, and a literal is either an atom, or the
@@ -285,6 +285,9 @@ theory. Let us prove that
 $(\forall{}s,t.s\subseteq{}t\Leftrightarrow{}\forall{}x.x\in{}s\Rightarrow{}
 x\in{}t) \Rightarrow{} {}a\subseteq{}a$, where $a$ is a constant. The proof is
 given in Fig.~\ref{fig:rew}.
+Note that, for the rewriting theory, any boxed quantified formula can be understood as
+a rewrite rule as long as they represent one, for instance, the formula $B$ in
+the example in Figure~\ref{fig:rew}.
 
 \begin{figure}[t!]
 \parbox{\textwidth}
@@ -385,6 +388,6 @@ $\begin{array}{l}
 \mbox{with: }\epsilon_x=\epsilon(x).\neg(x\in{}a\Rightarrow{}x\in{}a)
 \end{array}$
 \end{flushleft}}
-\caption{Example of Proof Using the Rewriting Theory}
+\caption{Example of Proof Using the Tableaux and Rewriting Theory}
 \label{fig:rew}
 \end{figure}

@@ -41,7 +41,7 @@ $\renameVars{e}$, where $e$ is a (dis)equation, as follows: let $\sigma$ map
 every rigid variable of $e$ to a fresh non-rigid variable, then $\renameVars{e}
 = \clauseWithSubst{ e\sigma }{ \{ \sigma \} }$. For example,
 $\renameVars{p(X)\approx a}$ is
-$\clauseWithSubst{ p(v1)\approx a}{ \{ X\mapsto v1\} }$.
+$\clauseWithSubst{ p(v_1)\approx a}{ \{ X\mapsto v_1\} }$.
 
 As can be noticed, we keep a set of substitutions, rather than unit clauses
 paired with individual substitutions, in order to avoid duplicating the work for
@@ -262,8 +262,6 @@ look for all solutions susceptible to close the branch at the same time.
 Moreover, this technique is amenable to incrementality, i.e.~every time a
 (dis)equation is decided by the SMT solver, we could add it to the saturation
 set and perform a number of steps of the given-clause algorithm.
-
-\subsection{Example}
 
 To illustrate the calculus, we detail Fig.~\ref{fig:unit-sup-proof-example}.
 a refutation of the following set of
