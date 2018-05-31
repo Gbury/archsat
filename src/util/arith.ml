@@ -2,6 +2,7 @@
 module A = Builtin.Arith
 module M = Map.Make(Expr.Term)
 
+(*
 module Mod = struct
 
   type t = (Z.t * Prime.divisor) list
@@ -43,6 +44,7 @@ module Mod = struct
     rem, tot
 
 end
+*)
 
 module Lit = struct
   type t = {
@@ -92,4 +94,5 @@ module Lit = struct
     | { Expr.t_type = { Expr.ty = Expr.TyApp ({ Expr.builtin = A.Type _ }, []) } } as e ->
       Some (monome Q.one e)
     | _ -> None
+
 end
