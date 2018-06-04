@@ -66,7 +66,8 @@ type stats_options = {
 type proof_options = {
   active      : bool;
   context     : bool;
-  dot         : Format.formatter option;
+  res_dot     : Format.formatter option;
+  full_dot    : Format.formatter option;
   unsat_core  : Format.formatter option;
   coq         : Format.formatter option;
 }

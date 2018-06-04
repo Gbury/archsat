@@ -70,6 +70,7 @@ end
 (** {2 Languages & printing} *)
 
 type lang =
+  | Dot     (** The DOT graphviz language *)
   | Coq     (** The Coq language *)
 (** Supported languages for proof output (not to be confused with
     proof term output). *)
@@ -128,11 +129,13 @@ type ('input, 'state) step
 
 val mk_step :
   ?prelude:('state -> Prelude.t list) ->
+  ?dot:pretty * (Format.formatter -> 'state -> unit) ->
   coq:pretty * (Format.formatter -> 'state -> unit) ->
   compute:(sequent -> 'input -> 'state * sequent array) ->
-  elaborate:('state -> Term.t array -> Term.t) ->
+  elaborate:('state -> Term.t array -> Term.t) -> string ->
   ('input, 'state) step
 (** Create a reasoning step with internal state type ['state].
+    The non-named string argument is the name of the step.
     The coq parameter is there for languages-specific printing.
     The compute function goal is to compute the branches
     to prove after application of th reasonning step.

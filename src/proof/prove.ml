@@ -12,16 +12,12 @@ let pp_opt pp o x =
   | None -> ()
   | Some fmt -> pp fmt x
 
-let pp_opt_lazy pp o x =
-  match o with
-  | None -> ()
-  | Some fmt -> pp fmt (Lazy.force x)
-
 (* Proof introduction *)
 (* ************************************************************************ *)
 
 let init opt () =
   pp_opt Coq.init Options.(opt.proof.coq) opt;
+  pp_opt Dot.init_full Options.(opt.proof.full_dot) opt;
   ()
 
 (* Proof hyps *)
@@ -126,6 +122,7 @@ let declare_goal opt id f =
   let p = Term.declare (Dolmen.Id.full_name id) t in
   let () = declare_implicits opt implicit in
   let () = add_goal p in
+  if Options.(opt.context) then declare_goal_aux opt p;
   p
 
 (* Resolution helpers *)
@@ -178,22 +175,36 @@ let compute opt p =
   let proof = Proof.mk seq in
   let () =
     let init = Proof.(pos (root proof)) in
-    let final = P.fold compute_aux init p in
-    if not (Logic.trivial final) then begin
-      Util.error ~section "Resolution proof incomplete";
-      assert false
-    end
+    try
+      let final = P.fold compute_aux init p in
+      if not (Logic.trivial final) then begin
+        Util.error ~section "Proof incomplete";
+      end
+    with Proof.Failure (msg, _) ->
+      Util.warn ~section "@[<hv>Error during proof building:@ %s@\n%s"
+        msg "Try and look at the full-dot output to see the incomplete proof"
   in
   proof
 
 (* Output proofs *)
 (* ************************************************************************ *)
 
+let pp_proof_lazy lang pp o x =
+  match o with
+  | None -> ()
+  | Some fmt ->
+    begin try
+        pp fmt (Lazy.force x)
+      with Proof.Open_proof ->
+        Util.warn ~section "Printed an open proof for language '%s'" lang
+    end
+
 let output_proof opt p =
   let () = pp_opt Unsat_core.print Options.(opt.unsat_core) p in
-  let () = pp_opt Dot.print Options.(opt.dot) p in
+  let () = pp_opt Dot.print Options.(opt.res_dot) p in
   let p' = lazy (compute opt p) in
-  let () = pp_opt_lazy (Proof.print ~lang:Proof.Coq) Options.(opt.coq) p' in
+  let () = pp_proof_lazy "coq" (Proof.print ~lang:Proof.Coq) Options.(opt.coq) p' in
+  let () = pp_proof_lazy "full-dot" (Proof.print ~lang:Proof.Dot) Options.(opt.full_dot) p' in
   ()
 
 

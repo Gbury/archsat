@@ -550,9 +550,7 @@ and print fmt t =
   | Id v -> print_id fmt v
   | App _ -> print_app fmt t
   | Let (v, e, body) -> print_let fmt v e body
-  | Binder (Forall, v, body) ->
-
-    print_arrow fmt t
+  | Binder (Forall, v, body) -> print_arrow fmt t
   | Binder (b, _, _) -> print_binder fmt b t
 
 let print_typed fmt t =

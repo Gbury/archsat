@@ -80,6 +80,10 @@ module Env = struct
         count = Ms.add t.prefix (n + 1) t.count;
       }
 
+  let list t = Mt.bindings t.names
+
+  let count t = Mt.cardinal t.names
+
 end
 
 (* Proof preludes *)
@@ -156,6 +160,7 @@ end
 (* ************************************************************************ *)
 
 type lang =
+  | Dot     (**)
   | Coq     (**)
 (* Proof languages supported. *)
 
@@ -176,6 +181,9 @@ type sequent = {
 
 type ('input, 'state) step = {
 
+  (* step name *)
+  name : string;
+
   (* Printing information *)
   print : lang ->
     pretty * (Format.formatter -> 'state -> unit);
@@ -188,6 +196,7 @@ type ('input, 'state) step = {
 
 
 type node = {
+  id : int;
   pos : pos;
   proof : proof_node;
 }
@@ -215,6 +224,8 @@ type ('a, 'b) tactic = 'a -> 'b
     - a tuple, list or array of [pos] if it branches
 *)
 
+exception Open_proof
+(** Raised by functions that encounter an unexpected open proof. *)
 
 (* Sequents *)
 (* ************************************************************************ *)
@@ -243,25 +254,30 @@ let () = Printexc.register_printer (function
 
 let _prelude _ = []
 
-let mk_step ?(prelude=_prelude) ~coq ~compute ~elaborate = {
-  prelude; compute; elaborate;
-  print = (function Coq -> coq);
-}
+let _dummy_dot_print = Branching, (fun fmt _ -> Format.fprintf fmt "N/A")
+
+let mk_step ?(prelude=_prelude) ?(dot=_dummy_dot_print) ~coq ~compute ~elaborate name =
+  { name ;prelude; compute; elaborate;
+    print = (function Dot -> dot | Coq -> coq); }
 
 (* Building proofs *)
 (* ************************************************************************ *)
 
+let _node_idx = ref 0
+
 let get ((t, i) : pos) = t.(i)
+
 let set ((t, i) as pos : pos) step state branches =
   match (get pos).proof with
   | Open _ ->
-    t.(i) <- { pos; proof = Proof (step, state, branches); }
+    incr _node_idx;
+    t.(i) <- { id = !_node_idx; pos; proof = Proof (step, state, branches); }
   | Proof _ ->
     Util.error ~section "Trying to apply reasonning step to an aleardy closed proof";
     assert false
 
 let dummy_node = {
-  pos = [| |], -1;
+  id = 0; pos = [| |], -1;
   proof = Open (mk_sequent Env.empty Term.true_term);
 }
 
@@ -269,7 +285,8 @@ let mk_branches n f =
   let res = Array.make n dummy_node in
   for i = 0 to n - 1 do
     let pos = (res, i) in
-    res.(i) <- { pos; proof = f i; }
+    incr _node_idx;
+    res.(i) <- { id = !_node_idx; pos; proof = f i; }
   done;
   res
 
@@ -286,10 +303,64 @@ let apply_step pos step input =
     let () = set pos step state branches in
     state, Array.map (fun { pos; _} -> pos) branches
 
-(* Printing proofs *)
+(* Printing Dot proofs *)
 (* ************************************************************************ *)
 
-exception Open_proof
+let print_hyp_dot fmt (t, v) =
+  Format.fprintf fmt "<TD>%a</TD><TD>%a</TD>"
+    Dot.Print.Proof.id v (Dot.box Dot.Print.Proof.term) t
+
+let print_sequent_dot fmt s =
+  Format.fprintf fmt "<TR><TD BGCOLOR=\"YELLOW\" colspan=\"3\">%a</TD></TR>"
+    (Dot.box Dot.Print.Proof.term) (goal s);
+  match Env.list (env s) with
+  | [] -> Format.fprintf fmt "<TR><TD BGCOLOR=\"RED\" colspan=\"3\">OPEN</TD></TR>"
+  | h :: r ->
+    Format.fprintf fmt
+      "<TR><TD BGCOLOR=\"RED\" rowspan=\"%d\">OPEN</TD>%a</TR>"
+      (List.length r + 1) print_hyp_dot h;
+    List.iter (print_hyp_dot fmt) r
+
+let print_step_dot fmt (s, st) =
+  let _, pp = s.print Dot in
+  Format.fprintf fmt "<TR><TD>%s</TD><TD>%a</TD></TR>" s.name pp st
+
+let print_dot_id fmt { id; _ } =
+  Format.fprintf fmt "node_%d" id
+
+let print_table_options fmt color =
+  Format.fprintf fmt
+    "BORDER=\"0\" CELLBORDER=\"1\" CELLSPACING=\"0\" BGCOLOR=\"%s\"" color
+
+let print_edge src fmt dst =
+  Format.fprintf fmt "%a -> %a;@\n"
+    print_dot_id src print_dot_id dst
+
+let print_edges src fmt a =
+  Array.iter (print_edge src fmt) a
+
+let rec print_node_dot fmt node =
+  match node.proof with
+  | Open s ->
+    Format.fprintf fmt
+      "%a [shape=plaintext, label=<<TABLE %a>%a</TABLE>>];@\n"
+      print_dot_id node
+      print_table_options "LIGHTBLUE"
+      print_sequent_dot s
+  | Proof (s, st, br) ->
+    Format.fprintf fmt
+      "%a [shape=plaintext, label=<<TABLE %a>%a</TABLE>>];@\n"
+      print_dot_id node
+      print_table_options "LIGHTBLUE"
+      print_step_dot (s, st);
+    let () = print_edges node fmt br in
+    Array.iter (print_node_dot fmt) br
+
+let print_dot fmt node =
+  Format.fprintf fmt "digraph proof {@\n%a}@." print_node_dot node
+
+(* Printing Coq proofs *)
+(* ************************************************************************ *)
 
 let bullet_list = [ '-'; '+' ]
 let bullet_n = List.length bullet_list
@@ -302,18 +373,18 @@ let bullet depth =
 
 let rec print_branching_coq ~depth fmt t =
   Format.fprintf fmt "%s @[<hov>%a@]"
-    (bullet depth) (print_node ~depth:(depth + 1) ~lang:Coq) t
+    (bullet depth) (print_node_coq ~depth:(depth + 1)) t
 
 and print_bracketed_coq ~depth fmt t =
-  Format.fprintf fmt "{ @[<hov>%a@] }" (print_node ~depth ~lang:Coq) t
+  Format.fprintf fmt "{ @[<hov>%a@] }" (print_node_coq ~depth) t
 
 and print_lbnl_coq ~depth fmt t =
-  print_node ~depth ~lang:Coq fmt t
+  print_node_coq ~depth fmt t
 
 and print_array_coq ~depth ~pretty fmt a =
   match a with
   | [| |] -> ()
-  | [| x |] -> print_node ~depth ~lang:Coq fmt x
+  | [| x |] -> print_node_coq ~depth fmt x
   | _ ->
     begin match pretty with
       | Branching ->
@@ -327,22 +398,27 @@ and print_array_coq ~depth ~pretty fmt a =
         print_lbnl_coq ~depth fmt a.(Array.length a - 1)
     end
 
-and print_array ~depth ~lang ~pretty fmt a =
-  match lang with
-  | Coq -> print_array_coq ~depth ~pretty fmt a
-
-and print_proof_node ~depth ~lang fmt = function
+and print_proof_node_coq ~depth fmt = function
   | Open _ -> raise Open_proof
   | Proof (step, state, branches) ->
-    let pretty, pp = step.print lang in
+    let pretty, pp = step.print Coq in
     Format.fprintf fmt "@[<hov 2>%a@]" pp state;
-    print_array ~depth ~lang ~pretty fmt branches
+    print_array_coq ~depth ~pretty fmt branches
 
-and print_node ~depth ~lang fmt { proof; _ } =
-  print_proof_node ~depth ~lang fmt proof
+and print_node_coq ~depth fmt { proof; _ } =
+  print_proof_node_coq ~depth fmt proof
+
+let print_coq fmt p = print_node_coq ~depth:0 fmt p
+
+(* Printing proofs *)
+(* ************************************************************************ *)
 
 let print ~lang fmt = function
-  | [| p |] -> print_node ~lang ~depth:0 fmt p
+  | [| p |] ->
+    begin match lang with
+      | Dot -> print_dot fmt p
+      | Coq -> print_coq fmt p
+    end
   | _ -> assert false
 
 (* Inspecting proofs *)
@@ -436,7 +512,7 @@ let apply =
       Format.fprintf fmt "%s %a."
         (if n = 0 then "exact" else "apply") Coq.Print.term f
     ) in
-  mk_step ~prelude ~coq ~compute ~elaborate
+  mk_step ~prelude ~coq ~compute ~elaborate "apply"
 
 let intro =
   let prelude _ = [] in
@@ -462,7 +538,7 @@ let intro =
   let coq = Last_but_not_least, (fun fmt p ->
       Format.fprintf fmt "intro %a." Coq.Print.id p)
   in
-  mk_step ~prelude ~coq ~compute ~elaborate
+  mk_step ~prelude ~coq ~compute ~elaborate "intro"
 
 let letin =
   let prelude _ = [] in
@@ -479,7 +555,7 @@ let letin =
       Format.fprintf fmt "@[<hv 2>pose proof (@,%a@;<0,-2>) as %a.@]"
         Coq.Print.term t Coq.Print.id id
     ) in
-  mk_step ~prelude ~coq ~compute ~elaborate
+  mk_step ~prelude ~coq ~compute ~elaborate "letin"
 
 let cut =
   let prelude _ = [] in
@@ -497,5 +573,5 @@ let cut =
       Format.fprintf fmt "assert (%a:@ @[<hov>%a@])."
         Coq.Print.id id Coq.Print.term id.Expr.id_type
     ) in
-  mk_step ~prelude ~coq ~compute ~elaborate
+  mk_step ~prelude ~coq ~compute ~elaborate "cut"
 

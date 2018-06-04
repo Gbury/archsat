@@ -184,7 +184,7 @@ let trivial pos =
     false
 
 (** Find a contradiction in an environment using the given proposition. *)
-let find_absurd env atom =
+let find_absurd seq env atom =
   match Proof.Env.find env atom with
   | p ->
     (* First, try and see wether [neg atom] is in the env *)
@@ -206,21 +206,21 @@ let find_absurd env atom =
           | Proof.Env.Not_introduced _ ->
             Util.warn ~section
               "Couldn't find an absurd situation in env:@ %a" Proof.Env.print env;
-            assert false
+            raise (Proof.Failure ("Logic.absurd", seq))
         end
     end
   | exception Proof.Env.Not_introduced _ ->
     Util.warn ~section
       "Trivial tactic failed because it couldn't find@ %a in env:@ %a"
       Term.print atom Proof.Env.print env;
-    assert false
+    raise (Proof.Failure ("Logic.absurd", seq))
 
 (** Given a goal of the form Gamma |- False,
     and a term, find its negation in the env, and close the branch *)
 let absurd atom pos =
   let ctx = extract_open pos in
   let env = Proof.env ctx in
-  pos |> exfalso |> exact (find_absurd env atom) []
+  pos |> exfalso |> exact (find_absurd ctx env atom) []
 
 
 (* Logical connective elimination *)

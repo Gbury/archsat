@@ -7,7 +7,7 @@ module S = Expr.Subst
 
 (** {2 Terms} *)
 
-type binder = private
+type binder =
   | Lambda  (** Function binder *)
   | Forall  (** Universal quantification *)
   | Exists  (** Existencial quantification *)
