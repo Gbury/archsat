@@ -294,7 +294,7 @@ and hash t =
 
 (* Unification *)
 (* ************************************************************************ *)
-
+(*
 let rec follow subst = function
   | { term = Id v } as t ->
     begin match S.Id.get v subst with
@@ -319,6 +319,7 @@ let rec unif_aux subst s t =
   let s = follow subst s in
   let t = follow subst t in
   match s, t with
+   (* TODO/WARNING: check that v is a variable *)
   | ({ term = Id v } as m), u
   | u, ({ term = Id v } as m) ->
     if equal m u then subst
@@ -341,6 +342,7 @@ let unif s t =
   let res = unif_aux S.empty s t in
   let fv = merge (free_vars s) (free_vars t) in
   S.filter (fun v _ -> S.Id.mem v fv) res
+*)
 
 (* Shorthands for constructors *)
 (* ************************************************************************ *)
@@ -561,14 +563,20 @@ let print_typed fmt t =
 
 let rec match_aux subst pat t =
   match pat, t with
-  | { term = Id v }, _ ->
+  | { term = Id v }, _ when is_var v ->
     begin match S.Id.get v subst with
       | exception Not_found -> S.Id.bind subst v t
       | t' ->
         if equal t t' then subst
         else raise (Match_Impossible (pat, t))
     end
-  | { term = Type }, { term = Type } -> subst
+  | { term = Type },
+    { term = Type } ->
+    subst
+  | { term = Id v },
+    { term = Id v' } ->
+    if Expr.Id.equal v v' then subst
+    else raise (Match_Impossible (pat, t))
   | { term = App (f, f_arg) },
     { term = App (g, g_arg) } ->
     match_aux (match_aux subst f g) f_arg g_arg
@@ -581,7 +589,7 @@ let rec match_aux subst pat t =
   | _ -> raise (Match_Impossible (pat, t))
 
 let pmatch ~pat t =
-  Util.debug ~section "@[<hv 2>pattern match:@ %a@ ~~~@ %a" print pat print t;
+  (* Util.debug ~section "@[<hv 2>pattern match:@ %a@ ~~~@ %a" print pat print t; *)
   let s = match_aux S.empty (reduce pat) (reduce t) in
   let fv = free_vars pat in
   S.filter (fun v _ -> S.Id.mem v fv) s
@@ -623,17 +631,17 @@ let trap_term key v =
 
 (* Id translation *)
 let of_id_aux mk tr ?callback id =
-  Util.debug ~section "translate id: %a" Expr.Print.id id;
+  (* Util.debug ~section "translate id: %a" Expr.Print.id id; *)
   match Expr.Id.get_tag id tr_tag with
   | Some v ->
-    Util.debug ~section "cached value: %a" Expr.Print.id v;
+    (* Util.debug ~section "cached value: %a" Expr.Print.id v; *)
     v
   | None ->
     let ty = tr ?callback id.Expr.id_type in
     let v = mk id.Expr.id_name ty in
     let () = Expr.Id.tag id tr_tag v in
     let () = match callback with Some f -> f v | None -> () in
-    Util.debug ~section "new cached id: %a" Expr.Print.id v;
+    (* Util.debug ~section "new cached id: %a" Expr.Print.id v; *)
     v
 
 let of_id mk tr ?callback v = id (of_id_aux var tr ?callback v)
@@ -669,7 +677,7 @@ let rec of_ty_aux ?callback = function
     apply f' l'
 
 and of_ty ?callback ty =
-  Util.debug ~section "translate ty: %a" Expr.Print.ty ty;
+  (* Util.debug ~section "translate ty: %a" Expr.Print.ty ty; *)
   match Hty.find ty_cache ty with
   | res ->
     Util.debug ~section "cached value: %a" print res;
@@ -693,28 +701,28 @@ let rec of_term_aux ?callback = function
     apply (apply f' tys') args'
 
 and of_term ?callback t =
-  Util.debug ~section "translate term: %a" Expr.Print.term t;
+  (* Util.debug ~section "translate term: %a" Expr.Print.term t; *)
   match Hterm.find term_cache t with
   | res ->
-    Util.debug ~section "cached result: %a" print res;
+    (* Util.debug ~section "cached result: %a" print res; *)
     res
   | exception Not_found ->
     let res = of_term_aux ?callback t in
     let () = Hterm.add term_cache t res in
-    Util.debug ~section "new cached term: %a" print res;
+    (* Util.debug ~section "new cached term: %a" print res; *)
     res
 
 (* Formula translation *)
 let rec of_formula ?callback f =
-  Util.debug ~section "translate formula: %a" Expr.Print.formula f;
+  (* Util.debug ~section "translate formula: %a" Expr.Print.formula f; *)
   match Expr.Formula.get_tag f f_tag with
   | Some t ->
-    Util.debug ~section "cached result: %a" print t;
+    (* Util.debug ~section "cached result: %a" print t; *)
     t
   | None ->
     let t = of_formula_aux ?callback f in
     Expr.Formula.tag f f_tag t;
-    Util.debug ~section "new cached formula: %a" print t;
+    (* Util.debug ~section "new cached formula: %a" print t; *)
     t
 
 and of_formula_aux ?callback f =
