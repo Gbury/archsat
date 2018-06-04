@@ -67,6 +67,9 @@ val print : Format.formatter -> t -> unit
 val print_typed : Format.formatter -> t -> unit
 (** Print a term (quite verbose). *)
 
+val is_var : id -> bool
+(** Is the given identifier a variable ? or a constant ?. *)
+
 val reduce : t -> t
 (** Compute the beta-normal form of the term. *)
 
@@ -79,6 +82,9 @@ val occurs : id -> t -> bool
 
 
 (** {2 Id creation} *)
+
+val var : string -> t -> id
+(** [var name ty] creates a new variable of type [ty]. *)
 
 val declare : string -> t -> id
 (** [delcare name ty] declare a new symbol of type [ty]. *)
@@ -96,7 +102,7 @@ val _Prop : t
 val _Prop_id : id
 (** The term for the type of propositions. *)
 
-val const : id -> t
+val id : id -> t
 (** reate a term from an identifier. *)
 
 val app : t -> t -> t
@@ -173,9 +179,9 @@ val of_formula : Expr.formula translator
 (** Translating expressions into terms. *)
 
 val of_id :
-  'a translator -> 'a Expr.id translator
+  (string -> t -> id) -> 'a translator -> 'a Expr.id translator
 val of_id_aux :
-  'a translator -> ?callback:callback -> 'a Expr.id -> id
+  (string -> t -> id) -> 'a translator -> ?callback:callback -> 'a Expr.id -> id
 val of_function_descr :
   'a translator -> 'b translator -> ('a, 'b) Expr.function_descr translator
 (** Translating functions *)

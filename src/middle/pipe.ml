@@ -77,7 +77,7 @@ let parse opt =
   let opt', g =
     match Options.(opt.input.file) with
     | `Stdin ->
-      let l, gen = In.parse_input
+      let l, gen, _ = In.parse_input
           ?language:Options.(opt.input.format) (`Stdin In.Smtlib) in
       Options.({ opt with input = { opt.input with format = Some l } }), gen
     | `File f ->
@@ -134,7 +134,10 @@ let expand (opt, c) =
       match In.find ?language ~dir f with
       | None -> raise (Options.File_not_found f)
       | Some file ->
-        let l, gen = In.parse_input ?language (`File file) in
+        (* TODO: cleanup files after having read them ?
+           only useful if there happens to be a very long long
+           (i.e. at least a few thousands) chain of nested includes) *)
+        let l, gen, _ = In.parse_input ?language (`File file) in
         let opt' = Options.({
             opt with input = {
             opt.input with format = Some l;

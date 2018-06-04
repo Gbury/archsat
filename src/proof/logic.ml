@@ -13,27 +13,27 @@ let classical =
 (* ************************************************************************ *)
 
 let exfalso_id =
-  let p = Term.declare "P" Term._Prop in
+  let p = Term.var "P" Term._Prop in
   Term.declare "exfalso" (Term.forall p (
-      Term.arrow Term.false_term (Term.const p)))
+      Term.arrow Term.false_term (Term.id p)))
 
 let nnpp_id =
-  let p = Term.declare "P" Term._Prop in
-  let p_t = Term.const p in
+  let p = Term.var "P" Term._Prop in
+  let p_t = Term.id p in
   let nnp = Term.app Term.not_term (Term.app Term.not_term p_t) in
   Term.declare "NNPP" (Term.forall p (Term.arrow nnp p_t))
 
 let and_elim_id, and_elim_alias =
-  let a = Term.declare "A" Term._Prop in
-  let b = Term.declare "B" Term._Prop in
-  let p = Term.declare "P" Term._Prop in
-  let a_t = Term.const a in
-  let b_t = Term.const b in
-  let p_t = Term.const p in
+  let a = Term.var "A" Term._Prop in
+  let b = Term.var "B" Term._Prop in
+  let p = Term.var "P" Term._Prop in
+  let a_t = Term.id a in
+  let b_t = Term.id b in
+  let p_t = Term.id p in
   let a_and_b = Term.(apply and_term [a_t; b_t]) in
   let a_to_b_to_p = Term.arrows [a_t; b_t] p_t in
-  let o = Term.declare "o" a_and_b in
-  let f = Term.declare "f" a_to_b_to_p in
+  let o = Term.var "o" a_and_b in
+  let f = Term.var "f" a_to_b_to_p in
   let and_ind =
     Term.declare "and_ind"
       (Term.foralls [a; b; p] (
@@ -43,24 +43,24 @@ let and_elim_id, and_elim_alias =
       ) in
   let t =
     Term.lambdas [a; b; p; o; f] (
-      Term.(apply (const and_ind) [a_t; b_t; p_t; const f; const o])
+      Term.(apply (id and_ind) [a_t; b_t; p_t; id f; id o])
     ) in
   let id = Term.define "and_elim" t in
   id, Proof.Prelude.alias id t
 
 let or_elim_id, or_elim_alias =
-  let a = Term.declare "A" Term._Prop in
-  let b = Term.declare "B" Term._Prop in
-  let p = Term.declare "P" Term._Prop in
-  let a_t = Term.const a in
-  let b_t = Term.const b in
-  let p_t = Term.const p in
+  let a = Term.var "A" Term._Prop in
+  let b = Term.var "B" Term._Prop in
+  let p = Term.var "P" Term._Prop in
+  let a_t = Term.id a in
+  let b_t = Term.id b in
+  let p_t = Term.id p in
   let a_or_b = Term.(apply or_term [a_t; b_t]) in
   let a_to_p = Term.arrow a_t p_t in
   let b_to_p = Term.arrow b_t p_t in
-  let o = Term.declare "o" a_or_b in
-  let f = Term.declare "f" a_to_p in
-  let g = Term.declare "g" b_to_p in
+  let o = Term.var "o" a_or_b in
+  let f = Term.var "f" a_to_p in
+  let g = Term.var "g" b_to_p in
   let or_ind =
     Term.declare "or_ind"
       (Term.foralls [a; b; p] (
@@ -70,15 +70,15 @@ let or_elim_id, or_elim_alias =
       ) in
   let t =
     Term.lambdas [a; b; p; o; f; g] (
-      Term.(apply (const or_ind) [a_t; b_t; p_t; const f; const g; const o])
+      Term.(apply (id or_ind) [a_t; b_t; p_t; id f; id g; id o])
     ) in
   let id = Term.define "or_elim" t in
   id, Proof.Prelude.alias id t
 
-let nnpp_term = Term.const nnpp_id
-let exfalso_term = Term.const exfalso_id
-let or_elim_term = Term.const or_elim_id
-let and_elim_term = Term.const and_elim_id
+let nnpp_term = Term.id nnpp_id
+let exfalso_term = Term.id exfalso_id
+let or_elim_term = Term.id or_elim_id
+let and_elim_term = Term.id and_elim_id
 
 
 (* Some generic tactic manipulations *)
@@ -178,7 +178,7 @@ let trivial pos =
   let g = Proof.goal ctx in
   match Proof.Env.find env g with
   | id ->
-    let () = exact (Term.const id) [] pos in
+    let () = exact (Term.id id) [] pos in
     true
   | exception Proof.Env.Not_introduced _ ->
     false
@@ -189,15 +189,15 @@ let find_absurd env atom =
   | p ->
     (* First, try and see wether [neg atom] is in the env *)
     begin match Proof.Env.find env (Term.app Term.not_term atom) with
-      | np -> (Term.app (Term.const np) (Term.const p))
+      | np -> (Term.app (Term.id np) (Term.id p))
       | exception Proof.Env.Not_introduced _ ->
         (* Try and see if [atom = neg q] with q in the context. *)
         begin try
-            let q_v = Term.declare "q" Term._Prop in
-            let pat = Term.app Term.not_term (Term.const q_v) in
+            let q_v = Term.var "q" Term._Prop in
+            let pat = Term.app Term.not_term (Term.id q_v) in
             let s = Term.pmatch ~pat atom in
             let q = Proof.Env.find env (Term.S.Id.get q_v s) in
-            (Term.app (Term.const p) (Term.const q))
+            (Term.app (Term.id p) (Term.id q))
           with
           | Not_found ->
             Util.warn ~section "Internal error in pattern matching";
@@ -226,9 +226,9 @@ let absurd atom pos =
 (* Logical connective elimination *)
 (* ************************************************************************ *)
 
-let or_left = Term.declare "a" Term._Prop
-let or_right = Term.declare "b" Term._Prop
-let or_elim_pat = Term.(apply or_term [const or_left; const or_right])
+let or_left = Term.var "a" Term._Prop
+let or_right = Term.var "b" Term._Prop
+let or_elim_pat = Term.(apply or_term [id or_left; id or_right])
 
 let rec or_elim ~f id pos =
   let ctx = extract_open pos in
@@ -237,27 +237,27 @@ let rec or_elim ~f id pos =
     let s = Term.pmatch ~pat:or_elim_pat id.Expr.id_type in
     let left_term = Term.S.Id.get or_left s in
     let right_term = Term.S.Id.get or_right s in
-    let t' = Term.apply or_elim_term [left_term; right_term; goal; Term.const id] in
+    let t' = Term.apply or_elim_term [left_term; right_term; goal; Term.id id] in
     apply2 t' [or_elim_alias] pos |> split
       ~left:(fun p -> p |> intro "O" |> find left_term (or_elim ~f))
       ~right:(fun p -> p |> intro "O" |> find right_term (or_elim ~f))
   with Term.Match_Impossible _ ->
     f id.Expr.id_type pos
 
-let and_left = Term.declare "a" Term._Prop
-let and_right = Term.declare "b" Term._Prop
-let and_elim_pat = Term.(apply and_term [const or_left; const or_right])
+let and_left = Term.var "a" Term._Prop
+let and_right = Term.var "b" Term._Prop
+let and_elim_pat = Term.(apply and_term [id or_left; id or_right])
 
 let rec and_elim t pos =
   let ctx = extract_open pos in
   let goal = Proof.goal ctx in
   let env = Proof.env ctx in
-  let id = Proof.Env.find env t in
+  let v = Proof.Env.find env t in
   try
-    let s = Term.pmatch ~pat:and_elim_pat id.Expr.id_type in
+    let s = Term.pmatch ~pat:and_elim_pat v.Expr.id_type in
     let left_term = Term.S.Id.get and_left s in
     let right_term = Term.S.Id.get and_right s in
-    let t' = Term.apply and_elim_term [left_term; right_term; goal; Term.const id] in
+    let t' = Term.apply and_elim_term [left_term; right_term; goal; Term.id v] in
     apply1 t' [and_elim_alias] pos
     |> intro "A" |> intro "A"
     |> and_elim left_term
@@ -276,12 +276,12 @@ let resolve_clause_aux c1 c2 res pos =
   let n = List.length res in
   pos
   |> iter (intro "L") n
-  |> apply (Term.const c1) []
+  |> apply (Term.id c1) []
   |> Array.iter (fun p ->
       if not (trivial p) then begin
         p
         |> intro "x"
-        |> apply (Term.const c2) []
+        |> apply (Term.id c2) []
         |> Array.iter (fun p' ->
             if not (trivial p') then begin
               let a = Proof.goal (extract_open p') in
@@ -316,8 +316,8 @@ let nnpp pos =
     begin try
         (* If the goal is a negation, directly use an intro,
            to stay intuitionistic as much as possible *)
-        let p = Term.declare "p" Term._Prop in
-        let pat = Term.app Term.not_term @@ Term.const p in
+        let p = Term.var "p" Term._Prop in
+        let pat = Term.app Term.not_term @@ Term.id p in
         let _ = Term.pmatch ~pat goal in
         pos |> intro "G"
       with Term.Match_Impossible _ ->

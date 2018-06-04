@@ -73,6 +73,17 @@ let rec pp fmt t =
 (* Id creation *)
 (* ************************************************************************ *)
 
+let var_tag = Tag.create ()
+
+let is_var v =
+  match Expr.Id.get_tag v var_tag with
+  | None -> false
+  | Some () -> true
+
+let var s ty =
+  let tags = Tag.add Tag.empty var_tag () in
+  Expr.Id.mk_new ~tags s ty
+
 let declare s ty = Expr.Id.mk_new s ty
 
 type Expr.builtin += Defined of t
@@ -109,7 +120,7 @@ let occurs v t = S.Id.mem v (free_vars t)
 let mk ty term =
   { ty; term; hash = -1; free = None; reduced = None; }
 
-let const v = mk v.Expr.id_type (Id v)
+let id v = mk v.Expr.id_type (Id v)
 
 let rec _Type = {
   ty      = _Type;
@@ -119,8 +130,8 @@ let rec _Type = {
   reduced = Some _Type;
 }
 
-let _Prop_id = Expr.Id.mk_new "Prop" _Type
-let _Prop = const _Prop_id
+let _Prop_id = declare "Prop" _Type
+let _Prop = id _Prop_id
 
 (* Reduction and comparison *)
 (* ************************************************************************ *)
@@ -149,10 +160,12 @@ and app t arg =
   mk res_ty (App (t, arg))
 
 and letin v e body =
+  assert (is_var v);
   _assert e v.Expr.id_type;
   mk body.ty (Let (v, e, body))
 
 and bind b v body =
+  assert (is_var v);
   match b with
   | Lambda ->
     let res_ty = bind Forall v body.ty in
@@ -174,8 +187,8 @@ and subst s t =
     let v', s'' =
       if equal e.ty e'.ty then v, s'
       else
-        let v' = Expr.Id.mk_new v.Expr.id_name e'.ty in
-        v', S.Id.bind s' v (const v')
+        let v' = var v.Expr.id_name e'.ty in
+        v', S.Id.bind s' v (id v')
     in
     let body' = subst s'' body in
     if v == v' && e == e' && body == body' then t
@@ -187,8 +200,8 @@ and subst s t =
     let v', s'' =
       if equal ty ty' then v, s'
       else
-        let v' = Expr.Id.mk_new v.Expr.id_name ty' in
-        v', S.Id.bind s' v (const v')
+        let v' = var v.Expr.id_name ty' in
+        v', S.Id.bind s' v (id v')
     in
     let body' = subst s'' body in
     if v == v' && body == body' then t
@@ -319,7 +332,7 @@ let rec unif_aux subst s t =
   | { term = Binder (b, v, body) },
     { term = Binder (b', v', body') } ->
     if b = b' then
-      unif_aux (S.Id.bind subst v (const v')) body body'
+      unif_aux (S.Id.bind subst v (id v')) body body'
     else
       raise (Unif_Impossible (s, t))
   | _ -> raise (Unif_Impossible (s, t))
@@ -343,7 +356,7 @@ let rec apply_left f = function
 let lambda v body = bind Lambda v body
 let lambdas l body = List.fold_right lambda l body
 
-let arrow ty ret = bind Forall (Expr.Id.mk_new "_" ty) ret
+let arrow ty ret = bind Forall (var "_" ty) ret
 let arrows l ret = List.fold_right arrow l ret
 
 let forall v body = bind Forall v body
@@ -356,49 +369,48 @@ let exists l body = List.fold_right exist l body
 (* ************************************************************************ *)
 
 let true_id = declare "true" _Prop
-let true_term = const true_id
+let true_term = id true_id
 
 let false_id = declare "false" _Prop
-let false_term = const false_id
+let false_term = id false_id
 
 let imply_id =
-  let a = declare "A" _Prop in
-  let b = declare "B" _Prop in
-  let x = declare "_" (const a) in
-  let t = lambda a (lambda b (forall x (const b))) in
+  let a = var "A" _Prop in
+  let b = var "B" _Prop in
+  let t = lambda a (lambda b (arrow (id a) (id b))) in
   define "imply" t
 
-let imply_term = const imply_id
+let imply_term = id imply_id
 
 let not_id =
-  let a = declare "A" _Prop in
-  let t = lambda a (apply imply_term [const a; false_term]) in
+  let a = var "A" _Prop in
+  let t = lambda a (apply imply_term [id a; false_term]) in
   define "not" t
 
-let not_term = const not_id
+let not_term = id not_id
 
 let equal_id =
-  let a_id = Expr.Id.mk_new "a" _Type in
-  let a_type = const a_id in
-  Expr.Id.mk_new "==" (forall a_id (arrows [a_type; a_type] _Prop))
+  let a_id = var "a" _Type in
+  let a_type = id a_id in
+  declare "==" (forall a_id (arrows [a_type; a_type] _Prop))
 
-let equal_term = const equal_id
+let equal_term = id equal_id
 
 let or_id =
-  Expr.Id.mk_new "||" (arrows [_Prop; _Prop] _Prop)
+  declare "||" (arrows [_Prop; _Prop] _Prop)
 
-let or_term = const or_id
+let or_term = id or_id
 
 let and_id =
-  Expr.Id.mk_new "&&" (arrows [_Prop; _Prop] _Prop)
+  declare "&&" (arrows [_Prop; _Prop] _Prop)
 
-let and_term = const and_id
+let and_term = id and_id
 
 let equiv_id =
-  let a = declare "A" _Prop in
-  let b = declare "B" _Prop in
-  let t_a = const a in
-  let t_b = const b in
+  let a = var "A" _Prop in
+  let b = var "B" _Prop in
+  let t_a = id a in
+  let t_b = id b in
   let t = lambda a (lambda b (
       apply and_term [
         apply imply_term [t_a; t_b];
@@ -407,7 +419,7 @@ let equiv_id =
     )) in
   define "iff" t
 
-let equiv_term = const equiv_id
+let equiv_term = id equiv_id
 
 (* Printing helpers *)
 (* ************************************************************************ *)
@@ -563,7 +575,7 @@ let rec match_aux subst pat t =
   | { term = Binder (b, v, body) },
     { term = Binder (b', v', body') } ->
     if b = b' then
-      match_aux (S.Id.bind subst v (const v')) body body'
+      match_aux (S.Id.bind subst v (id v')) body body'
     else
       raise (Match_Impossible (pat, t))
   | _ -> raise (Match_Impossible (pat, t))
@@ -610,7 +622,7 @@ let trap_term key v =
   Hterm.add term_cache key v
 
 (* Id translation *)
-let of_id_aux tr ?callback id =
+let of_id_aux mk tr ?callback id =
   Util.debug ~section "translate id: %a" Expr.Print.id id;
   match Expr.Id.get_tag id tr_tag with
   | Some v ->
@@ -618,18 +630,18 @@ let of_id_aux tr ?callback id =
     v
   | None ->
     let ty = tr ?callback id.Expr.id_type in
-    let v = Expr.Id.mk_new id.Expr.id_name ty in
+    let v = mk id.Expr.id_name ty in
     let () = Expr.Id.tag id tr_tag v in
     let () = match callback with Some f -> f v | None -> () in
     Util.debug ~section "new cached id: %a" Expr.Print.id v;
     v
 
-let of_id tr ?callback id = const (of_id_aux tr ?callback id)
+let of_id mk tr ?callback v = id (of_id_aux var tr ?callback v)
 
 let of_function_descr tr tr' ?callback fd =
   let rec aux_vars body = function
     | [] -> body
-    | v :: r -> aux_vars (forall (of_id_aux ?callback tr v) body) r
+    | v :: r -> aux_vars (forall (of_id_aux ?callback var tr v) body) r
   and aux_args vars body = function
     | [] -> aux_vars body vars
     | ty :: r -> aux_args vars (arrow (tr' ?callback ty) body) r
@@ -649,10 +661,10 @@ let rec of_ty_aux ?callback = function
   | ty when Expr.Ty.equal Expr.Ty.prop ty ->
     (* TODO: emit implicit declaration of $o *)
     _Prop
-  | { Expr.ty = Expr.TyVar v } -> of_id ?callback of_ttype v
+  | { Expr.ty = Expr.TyVar v } -> of_id var ?callback of_ttype v
   | { Expr.ty = Expr.TyMeta m } -> of_ty Synth.ty
   | { Expr.ty = Expr.TyApp (f, l) } ->
-    let f' = of_id ?callback (of_function_descr of_unit of_ttype) f in
+    let f' = of_id declare ?callback (of_function_descr of_unit of_ttype) f in
     let l' = List.map of_ty l in
     apply f' l'
 
@@ -671,11 +683,11 @@ and of_ty ?callback ty =
 (* Term translation *)
 let rec of_term_aux ?callback = function
   | { Expr.term = Expr.Var v } ->
-    of_id ?callback of_ty v
+    of_id var ?callback of_ty v
   | { Expr.term = Expr.Meta m } ->
     of_term ?callback (Synth.term Expr.(m.meta_id.id_type))
   | { Expr.term = Expr.App (f, tys, args) } ->
-    let f' = of_id ?callback (of_function_descr of_ttype of_ty) f in
+    let f' = of_id declare ?callback (of_function_descr of_ttype of_ty) f in
     let tys' = List.map (of_ty ?callback) tys in
     let args' = List.map (of_term ?callback) args in
     apply (apply f' tys') args'
@@ -737,11 +749,11 @@ and of_formula_aux ?callback f =
     of_tree ?callback and_term order
 
   | Expr.All ((tys, ts), _, body) ->
-    foralls (List.map (of_id_aux ?callback of_ttype) tys) @@
-    foralls (List.map (of_id_aux ?callback of_ty) ts) (of_formula ?callback body)
+    foralls (List.map (of_id_aux var ?callback of_ttype) tys) @@
+    foralls (List.map (of_id_aux var ?callback of_ty) ts) (of_formula ?callback body)
   | Expr.Ex ((tys, ts), _, body) ->
-    exists (List.map (of_id_aux ?callback of_ttype) tys) @@
-    exists (List.map (of_id_aux ?callback of_ty) ts) (of_formula ?callback body)
+    exists (List.map (of_id_aux var ?callback of_ttype) tys) @@
+    exists (List.map (of_id_aux var ?callback of_ty) ts) (of_formula ?callback body)
 
 and of_tree ?callback t = function
   | Expr.F f -> of_formula ?callback f

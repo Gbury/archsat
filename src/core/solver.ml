@@ -54,14 +54,6 @@ type id = int
 
 let hyp_table : (Term.id option, _) CCVector.t = CCVector.create ()
 
-let mk_term s l =
-  let t = match l with
-    | [] -> assert false
-    | [f] -> Term.of_formula f
-    | _ -> Term.of_formula (Expr.Formula.f_or l)
-  in
-  Term.declare s t
-
 let new_hyp () =
   let n = CCVector.length hyp_table in
   let () = CCVector.push hyp_table None in
