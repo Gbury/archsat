@@ -91,7 +91,7 @@ let rec add ?(fragile=false) t any status name =
       add_failure ~fragile t any status name r
 
 and add_success t any status name =
-  Util.debug ~section "Adding %a" pp_assign (any, status, name);
+  (* Util.debug ~section "Adding %a" pp_assign (any, status, name); *)
   let () = H.add t.table any (status, name) in
   let () = Hashtbl.add t.names name any in
   name
@@ -129,14 +129,18 @@ let id t fmt id =
 let dolmen t fmt id =
   Format.fprintf fmt "%s" (escape t (Any.Dolmen id))
 
-let tagged_name ?(tag=Expr.Print.name) = function
-  | Any.Dolmen id ->
-    Normal (Dolmen.Id.full_name id)
-  | Any.Id id ->
+let rec tagged_name_aux id = function
+  | [] -> Normal (id.Expr.id_name)
+  | tag :: r ->
     begin match Expr.Id.get_tag id tag with
       | Some s -> Exact s
-      | None -> Normal (id.Expr.id_name)
+      | None -> tagged_name_aux id r
     end
+
+let tagged_name ?(tags=[Expr.Print.name]) = function
+  | Any.Dolmen id ->
+    Normal (Dolmen.Id.full_name id)
+  | Any.Id id -> tagged_name_aux id tags
 
 (* Unicode wrapper *)
 (* ************************************************************************ *)

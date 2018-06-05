@@ -43,6 +43,9 @@ module Env : sig
   val add : t -> Term.id -> t
   (** Add the given identifier to the environment. *)
 
+  val declare : t -> Term.id -> t
+  (** Add the given global identifier to the environment. *)
+
 end
 
 (** {2 Proof prelude} *)

@@ -33,7 +33,7 @@ module Print = struct
     ]
 
   let t =
-    let name = Escape.tagged_name ~tag:name in
+    let name = Escape.tagged_name ~tags:[name] in
     let rename = Escape.rename ~sep:'_' in
     let escape = Escape.umap (fun i -> function
         | None -> [ Uchar.of_char '_' ]

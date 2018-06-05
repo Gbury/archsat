@@ -43,7 +43,7 @@ type name =
     while names declared inside the source code can ask to be exact (for instance,
     qualified names using module paths should *not* be escaped, etc...) *)
 
-val tagged_name : ?tag:Pretty.name Expr.tag -> Any.t -> name
+val tagged_name : ?tags:Pretty.name Expr.tag list -> Any.t -> name
 (** Extract the name of an id using a pretty tag. If the pretty tag exists,
     the name is considered as exact, else it is normal. *)
 

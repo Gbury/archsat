@@ -26,7 +26,8 @@ module Env = struct
   module Ms = Map.Make(String)
 
   type t = {
-    (** Map between terms and term ids *)
+    global : Term.id Mt.t;
+    (** Map between terms and term ids, for local bindings *)
     names : Term.id Mt.t;
     (** Options for nice names *)
     prefix : string;  (** current prefix *)
@@ -34,15 +35,19 @@ module Env = struct
   }
 
   let print_aux fmt (t, id) =
-    Format.fprintf fmt "%a: @[<hov>%a@]" Expr.Print.id id Term.print t
+    Format.fprintf fmt "%a (%d): @[<hov>%a@]" Expr.Print.id id (Term.hash t) Term.print t
 
   let print fmt t =
     let l = Mt.bindings t.names in
     let l = List.sort (fun (_, x) (_, y) ->
         compare x.Expr.id_name y.Expr.id_name) l in
-    CCFormat.(list ~sep:(return "@ ") print_aux) fmt l
+    let l' = Mt.bindings t.global in
+    let l' = List.sort (fun (_, x) (_, y) ->
+        compare x.Expr.id_name y.Expr.id_name) l' in
+    CCFormat.(vbox @@ list ~sep:(return "@ ") print_aux) fmt (l @ l')
 
   let empty = {
+    global = Mt.empty;
     names = Mt.empty;
     prefix = "";
     count = Ms.empty;
@@ -56,7 +61,12 @@ module Env = struct
 
   let find t f =
     try Mt.find f t.names
-    with Not_found -> raise (Not_introduced f)
+    with Not_found ->
+      begin try
+          Mt.find f t.global
+        with Not_found ->
+          raise (Not_introduced f)
+      end
 
   let count t s =
     try Ms.find s t.count with Not_found -> 0
@@ -79,6 +89,9 @@ module Env = struct
         names = Mt.add f id t.names;
         count = Ms.add t.prefix (n + 1) t.count;
       }
+
+  let declare t id =
+    { t with global = Mt.add id.Expr.id_type id t.global }
 
   let list t = Mt.bindings t.names
 
@@ -208,7 +221,7 @@ and proof_node =
   | Proof : (_, 'state) step * 'state * node array -> proof_node
 
 (* Alias for proof *)
-type proof = node array
+type proof = sequent * node array
 (** Simpler option would be a node ref, but it would complexify functions
     and positions neddlessly. *)
 
@@ -290,7 +303,8 @@ let mk_branches n f =
   done;
   res
 
-let mk sequent = mk_branches 1 (fun _ -> Open sequent)
+let mk sequent =
+  sequent, mk_branches 1 (fun _ -> Open sequent)
 
 let apply_step pos step input =
   match (get pos).proof with
@@ -310,11 +324,11 @@ let print_hyp_dot fmt (t, v) =
   Format.fprintf fmt "<TD>%a</TD><TD>%a</TD>"
     Dot.Print.Proof.id v (Dot.box Dot.Print.Proof.term) t
 
-let print_sequent_dot fmt s =
+let print_sequent_dot fmt (s, seq) =
   Format.fprintf fmt "<TR><TD BGCOLOR=\"YELLOW\" colspan=\"3\">%a</TD></TR>"
-    (Dot.box Dot.Print.Proof.term) (goal s);
-  match Env.list (env s) with
-  | [] -> Format.fprintf fmt "<TR><TD BGCOLOR=\"RED\" colspan=\"3\">OPEN</TD></TR>"
+    (Dot.box Dot.Print.Proof.term) (goal seq);
+  match Env.list (env seq) with
+  | [] -> Format.fprintf fmt "<TR><TD BGCOLOR=\"RED\" colspan=\"3\">%s</TD></TR>" s
   | h :: r ->
     Format.fprintf fmt
       "<TR><TD BGCOLOR=\"RED\" rowspan=\"%d\">OPEN</TD>%a</TR>"
@@ -346,7 +360,7 @@ let rec print_node_dot fmt node =
       "%a [shape=plaintext, label=<<TABLE %a>%a</TABLE>>];@\n"
       print_dot_id node
       print_table_options "LIGHTBLUE"
-      print_sequent_dot s
+      print_sequent_dot ("OPEN", s)
   | Proof (s, st, br) ->
     Format.fprintf fmt
       "%a [shape=plaintext, label=<<TABLE %a>%a</TABLE>>];@\n"
@@ -356,8 +370,16 @@ let rec print_node_dot fmt node =
     let () = print_edges node fmt br in
     Array.iter (print_node_dot fmt) br
 
-let print_dot fmt node =
-  Format.fprintf fmt "digraph proof {@\n%a}@." print_node_dot node
+let print_root fmt (seq, node) =
+  Format.fprintf fmt
+    "root [shape=plaintext, label=<<TABLE %a>%a</TABLE>>];@\n"
+    print_table_options "LIGHTBLUE"
+    print_sequent_dot ("ROOT", seq);
+  Format.fprintf fmt "root -> %a;@\n" print_dot_id node;
+  print_node_dot fmt node
+
+let print_dot fmt root =
+  Format.fprintf fmt "digraph proof {@\n%a}@." print_root root
 
 (* Printing Coq proofs *)
 (* ************************************************************************ *)
@@ -408,16 +430,16 @@ and print_proof_node_coq ~depth fmt = function
 and print_node_coq ~depth fmt { proof; _ } =
   print_proof_node_coq ~depth fmt proof
 
-let print_coq fmt p = print_node_coq ~depth:0 fmt p
+let print_coq fmt (_, p) = print_node_coq ~depth:0 fmt p
 
 (* Printing proofs *)
 (* ************************************************************************ *)
 
 let print ~lang fmt = function
-  | [| p |] ->
+  | seq, [| p |] ->
     begin match lang with
-      | Dot -> print_dot fmt p
-      | Coq -> print_coq fmt p
+      | Dot -> print_dot fmt (seq, p)
+      | Coq -> print_coq fmt (seq, p)
     end
   | _ -> assert false
 
@@ -425,7 +447,7 @@ let print ~lang fmt = function
 (* ************************************************************************ *)
 
 let root = function
-  | [| p |] -> p
+  | _, [| p |] -> p
   | _ -> assert false
 
 let pos { pos; _ } = pos
@@ -460,7 +482,7 @@ and elaborate_node k { proof; _ } =
   elaborate_proof_node k proof
 
 let elaborate = function
-  | [| p |] -> elaborate_node (fun x -> x) p
+  | _, [| p |] -> elaborate_node (fun x -> x) p
   | _ -> assert false
 
 (* Match an arrow type *)
@@ -512,7 +534,10 @@ let apply =
       Format.fprintf fmt "%s %a."
         (if n = 0 then "exact" else "apply") Coq.Print.term f
     ) in
-  mk_step ~prelude ~coq ~compute ~elaborate "apply"
+  let dot = Branching, Dot.box (fun fmt (f, n, _) ->
+      Format.fprintf fmt "%a" Dot.Print.Proof.term f
+    ) in
+  mk_step ~prelude ~dot ~coq ~compute ~elaborate "apply"
 
 let intro =
   let prelude _ = [] in
@@ -536,9 +561,13 @@ let intro =
     | _ -> assert false
   in
   let coq = Last_but_not_least, (fun fmt p ->
-      Format.fprintf fmt "intro %a." Coq.Print.id p)
-  in
-  mk_step ~prelude ~coq ~compute ~elaborate "intro"
+      Format.fprintf fmt "intro %a." Coq.Print.id p
+    ) in
+  let dot = Branching, Dot.box (fun fmt p ->
+      Format.fprintf fmt "%a: @[<hov>%a@]"
+        Dot.Print.Proof.id p Dot.Print.Proof.term p.Expr.id_type
+    ) in
+  mk_step ~prelude ~dot ~coq ~compute ~elaborate "intro"
 
 let letin =
   let prelude _ = [] in
@@ -555,7 +584,11 @@ let letin =
       Format.fprintf fmt "@[<hv 2>pose proof (@,%a@;<0,-2>) as %a.@]"
         Coq.Print.term t Coq.Print.id id
     ) in
-  mk_step ~prelude ~coq ~compute ~elaborate "letin"
+  let dot = Branching, Dot.box (fun fmt (id, t) ->
+      Format.fprintf fmt "%a = @[<hov>%a@]"
+        Dot.Print.Proof.id id Dot.Print.Proof.term t
+    ) in
+  mk_step ~prelude ~dot ~coq ~compute ~elaborate "letin"
 
 let cut =
   let prelude _ = [] in
@@ -573,5 +606,9 @@ let cut =
       Format.fprintf fmt "assert (%a:@ @[<hov>%a@])."
         Coq.Print.id id Coq.Print.term id.Expr.id_type
     ) in
-  mk_step ~prelude ~coq ~compute ~elaborate "cut"
+  let dot = Branching, Dot.box (fun fmt id ->
+      Format.fprintf fmt "%a = @[<hov>%a@]"
+        Dot.Print.Proof.id id Dot.Print.Proof.term id.Expr.id_type
+    ) in
+  mk_step ~prelude ~dot ~coq ~compute ~elaborate "cut"
 

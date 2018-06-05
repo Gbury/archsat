@@ -25,7 +25,14 @@ let init opt () =
 
 module H = Hashtbl.Make(Dolmen.Id)
 
-(* mutable state *)
+(* hyps *)
+let hyps = ref []
+
+let add_hyp id = hyps := id :: !hyps
+
+let get_hyps () = !hyps
+
+(* goals *)
 let goals = ref []
 
 let add_goal id =
@@ -110,6 +117,7 @@ let declare_hyp opt id f =
   let implicit, t = wrapper f Term.of_formula in
   let p = Term.declare (Dolmen.Id.full_name id) t in
   let () = declare_implicits opt implicit in
+  let () = add_hyp p in
   if Options.(opt.context) then declare_hyp_aux opt p;
   p
 
@@ -159,6 +167,8 @@ let compute_aux pos node =
     let l = List.map (fun a ->
         Term.of_formula a.P.St.lit
       ) (P.to_list node.P.conclusion) in
+    Util.debug ~section "clause_list: @[<v>%a@]"
+      CCFormat.(list ~sep:(return "@ ") (hovbox Term.print)) l;
     introduce_hyp id l pos
   | _ -> pos
 
@@ -171,7 +181,8 @@ let compute opt p =
       let aux a b = Term.apply Term.or_term [a; b.Expr.id_type] in
       List.fold_left aux h.Expr.id_type  r
   in
-  let seq = Proof.mk_sequent Proof.Env.empty g in
+  let env = List.fold_left Proof.Env.declare Proof.Env.empty (get_hyps ()) in
+  let seq = Proof.mk_sequent env g in
   let proof = Proof.mk seq in
   let () =
     let init = Proof.(pos (root proof)) in

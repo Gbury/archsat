@@ -125,7 +125,7 @@ let id v = mk v.Expr.id_type (Id v)
 let rec _Type = {
   ty      = _Type;
   term    = Type;
-  hash    = -1;
+  hash    = 13; (* TODO: better base hash ? *)
   free    = None;
   reduced = Some _Type;
 }
@@ -272,16 +272,18 @@ and compare t t' =
 and equal t t' =
   compare t t' = 0
 
+and hash_id id = hash id.Expr.id_type
+
 and hash_aux t =
   match t.term with
   | Type -> 0
-  | Id x -> Expr.Id.hash x
+  | Id x -> hash_id x
   | App (f, arg) ->
     Hashtbl.hash (hash f, hash arg)
   | Let (x, v, body) ->
-    Hashtbl.hash (Expr.Id.hash x, hash v, hash body)
+    Hashtbl.hash (hash_id x, hash v, hash body)
   | Binder (b, var, body) ->
-    Hashtbl.hash (Hashtbl.hash b, Expr.Id.hash var, hash body)
+    Hashtbl.hash (Hashtbl.hash b, hash_id var, hash body)
 
 and hash t =
   if t.hash > 0 then t.hash
@@ -447,11 +449,11 @@ let uncurry_app t =
 
 let rec uncurry_assoc_left f = function
   | [] -> assert false
-  | (x :: _) as l ->
+  | (x :: l) as res ->
     begin match uncurry_app x with
       | { term = Id f' }, l' when Expr.Id.equal f f' ->
         uncurry_assoc_left f (l' @ l)
-      | _ -> l
+      | _ -> res
     end
 
 let rec uncurry_assoc_right f l =

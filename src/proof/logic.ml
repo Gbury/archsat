@@ -187,10 +187,13 @@ let trivial pos =
 let find_absurd seq env atom =
   match Proof.Env.find env atom with
   | p ->
+    let neg_atom = Term.app Term.not_term atom in
     (* First, try and see wether [neg atom] is in the env *)
-    begin match Proof.Env.find env (Term.app Term.not_term atom) with
+    begin match Proof.Env.find env neg_atom with
       | np -> (Term.app (Term.id np) (Term.id p))
       | exception Proof.Env.Not_introduced _ ->
+        Util.debug ~section "@[<hv>Couldn't find in env (%d):@ %a@]"
+          (Term.hash neg_atom) Term.print neg_atom;
         (* Try and see if [atom = neg q] with q in the context. *)
         begin try
             let q_v = Term.var "q" Term._Prop in
@@ -205,13 +208,14 @@ let find_absurd seq env atom =
           | Term.Match_Impossible _
           | Proof.Env.Not_introduced _ ->
             Util.warn ~section
-              "Couldn't find an absurd situation in env:@ %a" Proof.Env.print env;
+              "@[<hv>Couldn't find an absurd situation using@ @[<hov>%a@]@ in env:@ %a@]"
+              Term.print atom Proof.Env.print env;
             raise (Proof.Failure ("Logic.absurd", seq))
         end
     end
   | exception Proof.Env.Not_introduced _ ->
     Util.warn ~section
-      "Trivial tactic failed because it couldn't find@ %a in env:@ %a"
+      "@[<hv>Trivial tactic failed because it couldn't find@ %a@ in env:@ %a@]"
       Term.print atom Proof.Env.print env;
     raise (Proof.Failure ("Logic.absurd", seq))
 
@@ -269,8 +273,11 @@ let rec and_elim t pos =
 (* ************************************************************************ *)
 
 let clause_type l =
-  List.fold_right (fun l c ->
-      Term.arrow (Term.app Term.not_term l) c) l Term.false_term
+  List.fold_right (fun lit acc ->
+      let res = Term.arrow (Term.app Term.not_term lit) acc in
+      Util.debug ~section "acc: %a" Term.print res;
+      res
+    ) l Term.false_term
 
 let resolve_clause_aux c1 c2 res pos =
   let n = List.length res in
