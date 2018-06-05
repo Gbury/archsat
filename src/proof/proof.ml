@@ -84,13 +84,14 @@ module Env = struct
     | exception Not_found ->
       let n = count t t.prefix in
       let name = Format.sprintf "%s%d" t.prefix n in
-      let id = Term.declare name f in
+      let id = Term.var name f in
       { t with
         names = Mt.add f id t.names;
         count = Ms.add t.prefix (n + 1) t.count;
       }
 
   let declare t id =
+    assert (not (Term.is_var id));
     { t with global = Mt.add id.Expr.id_type id t.global }
 
   let list t = Mt.bindings t.names
@@ -324,6 +325,9 @@ let print_hyp_dot fmt (t, v) =
   Format.fprintf fmt "<TD>%a</TD><TD>%a</TD>"
     Dot.Print.Proof.id v (Dot.box Dot.Print.Proof.term) t
 
+let print_hyp_line fmt (t, v) =
+  Format.fprintf fmt "<TR>%a</TR>" print_hyp_dot (t, v)
+
 let print_sequent_dot fmt (s, seq) =
   Format.fprintf fmt "<TR><TD BGCOLOR=\"YELLOW\" colspan=\"3\">%a</TD></TR>"
     (Dot.box Dot.Print.Proof.term) (goal seq);
@@ -333,7 +337,7 @@ let print_sequent_dot fmt (s, seq) =
     Format.fprintf fmt
       "<TR><TD BGCOLOR=\"RED\" rowspan=\"%d\">OPEN</TD>%a</TR>"
       (List.length r + 1) print_hyp_dot h;
-    List.iter (print_hyp_dot fmt) r
+    List.iter (print_hyp_line fmt) r
 
 let print_step_dot fmt (s, st) =
   let _, pp = s.print Dot in
