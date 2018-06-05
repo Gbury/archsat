@@ -102,7 +102,8 @@ let print_exn opt fmt = function
       Expr.Print.term t Expr.Print.ty ty1 Expr.Print.ty ty2
   | Term.Function_expected t ->
     Format.fprintf Format.std_formatter
-      "Proof term@ %a@ was expected to be a function" Term.print t
+      "@[<hv>Proof term@ %a :@ %a@ was expected to be a function@]"
+      Term.print t Term.print t.Term.ty
   | Term.Type_mismatch (t, ty) ->
     Format.fprintf Format.std_formatter
       "Proof term@ %a@ was expected to have type@ %a@ but has type@ %a"

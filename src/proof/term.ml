@@ -137,13 +137,13 @@ let _Prop = id _Prop_id
 (* ************************************************************************ *)
 
 (* get a function type *)
-let extract_fun_ty t =
-  match t.ty with
+let rec extract_fun_ty t =
+  match reduce t.ty with
   | { term = Binder (Forall, v, ty) } -> v, ty
   | _ -> raise (Function_expected t)
 
 (* function application *)
-let rec _assert t ty =
+and _assert t ty =
   if not (equal t.ty ty) then begin
     Util.error
       "@[<hv>Proof term@ %a@ has type@ %a@ but was expected of type@ %a"
@@ -243,6 +243,13 @@ and reduce t =
     t.reduced <- Some t';
     t'
 
+and compare_id_type v v' =
+  compare v.Expr.id_type v'.Expr.id_type
+
+and compare_body (v, t) (v', t') =
+  let s = Expr.Subst.Id.bind Expr.Subst.empty v' (id v) in
+  compare_aux t (subst s t')
+
 and compare_rec t t' =
   match t.term, t'.term with
   | Type, Type -> 0
@@ -250,14 +257,12 @@ and compare_rec t t' =
   | App (f, arg), App (f', arg') ->
     CCOrd.Infix.(compare_aux f f'
                  <?> (compare_aux, arg, arg'))
-  | Let (x, v, body), Let (x', v', body') ->
-    CCOrd.Infix.(Expr.Id.compare x x'
-                 <?> (compare_aux, v, v')
-                 <?> (compare_aux, body, body'))
   | Binder (b, v, body), Binder (b', v', body') ->
     CCOrd.Infix.(Pervasives.compare b b'
-                 <?> (Expr.Id.compare, v, v')
-                 <?> (compare_aux, body, body'))
+                 <?> (compare_id_type, v, v')
+                 <?> (compare_body, (v, body), (v', body')))
+  | Let _, _
+  | _, Let _ -> assert false
   | u, v -> Pervasives.compare (_descr u) (_descr v)
 
 and compare_aux t t' =
