@@ -115,9 +115,9 @@ let introN prefix n = iter (intro prefix) n
 (** Cut *)
 let cut ~f s t pos =
   match Proof.apply_step pos Proof.cut (s, t) with
-  | _, [| aux ; main |] ->
+  | id, [| aux ; main |] ->
     let () = f aux in
-    main
+    id, main
   | _ -> assert false
 
 (** Fixed arity applications *)
@@ -274,9 +274,7 @@ let rec and_elim t pos =
 
 let clause_type l =
   List.fold_right (fun lit acc ->
-      let res = Term.arrow (Term.app Term.not_term lit) acc in
-      Util.debug ~section "acc: %a" Term.print res;
-      res
+      Term.arrow (Term.app Term.not_term lit) acc
     ) l Term.false_term
 
 let resolve_clause_aux c1 c2 res pos =

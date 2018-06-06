@@ -136,21 +136,34 @@ let declare_goal opt id f =
 (* Resolution helpers *)
 (* ************************************************************************ *)
 
-let resolve =
-  let coq = Proof.Last_but_not_least, (fun fmt st ->
-      ()
+let resolve_step =
+  let coq = Proof.Last_but_not_least, (fun fmt (id, t) ->
+      Format.fprintf fmt "@[<hv 2>pose proof (@,%a@;<0,-2>) as %a.@]"
+        Coq.Print.term t Coq.Print.id id
     ) in
-  let compute seq () =
-    (), [| |]
+  let compute seq (c, c', res) =
+    let t = Logic.resolve_clause c c' res in
+    let e = Proof.env seq in
+    let e' = Proof.Env.prefix e "R" in
+    let e'' = Proof.Env.intro e' t in
+    (Proof.Env.find e'' t, t), [| Proof.mk_sequent e'' (Proof.goal seq) |]
   in
-  let elaborate st args = assert false in
-  Proof.mk_step ~coq ~compute ~elaborate
+  let elaborate (id, t) = function
+    | [| body |] -> Term.letin id t body
+    | _ -> assert false
+  in
+  Proof.mk_step ~coq ~compute ~elaborate "resolve"
+
+let resolve pos c c' res =
+  match Proof.apply_step pos resolve_step (c, c', res) with
+  | (id, _), [| pos' |] -> id, pos'
+  | _ -> assert false
 
 (* Computing a full resolution proof *)
 (* ************************************************************************ *)
 
 type _ Dispatcher.msg +=
-  | Lemma : Dispatcher.lemma_info -> Proof.proof Dispatcher.msg
+  | Lemma : Dispatcher.lemma_info -> (Proof.pos, unit) Proof.tactic Dispatcher.msg
 
 let introduce_hyp id l pos =
   pos
@@ -159,20 +172,45 @@ let introduce_hyp id l pos =
                  |> Logic.introN "Ax" (List.length l)
                  |> Logic.or_elim id ~f:Logic.absurd)
 
-let compute_aux pos node =
-  match node.P.step with
-  | P.Hypothesis ->
-    Util.debug ~section "Introducing clause: %a" P.St.print_clause node.P.conclusion;
-    let id = Solver.hyp_proof node.P.conclusion in
-    let l = List.map (fun a ->
-        Term.of_formula a.P.St.lit
-      ) (P.to_list node.P.conclusion) in
-    Util.debug ~section "clause_list: @[<v>%a@]"
-      CCFormat.(list ~sep:(return "@ ") (hovbox Term.print)) l;
-    introduce_hyp id l pos
-  | _ -> pos
+let introduce_lemma f l pos =
+  pos |> Logic.cut "L" (Logic.clause_type l) ~f
+
+let compute_aux h pos node =
+  let l = List.map (fun a ->
+      Term.of_formula a.P.St.lit
+    ) (P.to_list node.P.conclusion) in
+  let id, pos' =
+    match node.P.step with
+    | P.Assumption -> assert false
+    | P.Hypothesis ->
+      Util.debug ~section "Introducing clause: %a" P.St.print_clause node.P.conclusion;
+      let id = Solver.hyp_proof node.P.conclusion in
+      introduce_hyp id l pos
+    | P.Lemma lemma ->
+      Util.debug ~section "Proving lemma: %a" P.St.print_clause node.P.conclusion;
+      let f =
+        match Dispatcher.(ask lemma.plugin_name (Lemma lemma.proof_info)) with
+        | Some f -> f
+        | None -> (fun _ -> ())
+      in
+      introduce_lemma f l pos
+    | P.Resolution (left, right, _) ->
+      let left_proof = P.expand left in
+      let right_proof = P.expand right in
+      Util.debug ~section "Performing resolution between: %s-%s -> %s"
+        left_proof.P.conclusion.P.St.name right_proof.P.conclusion.P.St.name
+        node.P.conclusion.P.St.name;
+      let left_id = P.H.find h (P.expand left).P.conclusion in
+      let right_id = P.H.find h (P.expand right).P.conclusion in
+      resolve pos left_id right_id l
+    | _ ->
+      raise (Proof.Failure ("incomplete resolution proof reconstruction", Logic.extract_open pos))
+  in
+  let () = P.H.add h node.P.conclusion id in
+  pos'
 
 let compute opt p =
+  let h = P.H.create 4013 in
   let g =
     match get_goals () with
     | [] -> Term.false_term
@@ -187,7 +225,7 @@ let compute opt p =
   let () =
     let init = Proof.(pos (root proof)) in
     try
-      let final = P.fold compute_aux init p in
+      let final = P.fold (compute_aux h) init p in
       if not (Logic.trivial final) then begin
         Util.error ~section "Proof incomplete";
       end

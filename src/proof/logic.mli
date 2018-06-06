@@ -7,6 +7,11 @@
 
 open Proof
 
+(** {2 Convenience functions} *)
+
+val extract_open : Proof.pos -> Proof.sequent
+(** Extract the sequent from an open proof position. *)
+
 (** {2 Preludes} *)
 
 val classical : Prelude.t
@@ -20,7 +25,7 @@ val introN : string -> int -> (pos, pos) tactic
 (** Introduction tactic. The string given is used as prefix
     for the name of the newly introduced hypothesis. *)
 
-val cut : f:((pos, unit) tactic) -> string -> Term.t -> (pos, pos) tactic
+val cut : f:((pos, unit) tactic) -> string -> Term.t -> (pos, Term.id * pos) tactic
 (** Cut/assert a given term (using the string as prefix for the env),
     and use the given function to prove the asserted term. *)
 
@@ -78,4 +83,6 @@ val clause_type : Term.t list -> Term.t
 (** Computes the weak clause encoding of the given list of terms,
     i.e. [~ l_1 -> ... -> ~ l_n -> False]. *)
 
+val resolve_clause : Term.id -> Term.id -> Term.t list -> Term.t
+(** Compute the resolution of two clauses. *)
 
