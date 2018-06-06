@@ -103,7 +103,7 @@ let rec free_vars t =
     let res =
       match t.term with
       | Type -> S.empty
-      | Id v -> S.Id.bind S.empty v ()
+      | Id v -> if is_var v then S.Id.bind S.empty v () else S.empty
       | App (f, arg) -> merge (free_vars f) (free_vars arg)
       | Binder (_, v, body) -> S.Id.remove v (free_vars body)
       | Let (v, e, body) -> S.Id.remove v (merge (free_vars e) (free_vars body))
