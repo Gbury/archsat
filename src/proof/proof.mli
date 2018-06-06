@@ -28,7 +28,7 @@ module Env : sig
   (** Change the prefix of the environment. THe prefix is used
       when introducing new formulas. *)
 
-  val mem : t -> Term.t -> bool
+  val mem : t -> Term.id -> bool
   (** Does the Term belong to the environment ? *)
 
   val find : t -> Term.t -> Term.id
@@ -165,11 +165,12 @@ val letin : (string * Term.t, Term.id * Term.t) step
     generate a new id and bind it to the given term for the
     remainder of the proof. *)
 
-val cut : (string * Term.t, Term.id) step
+val cut : (bool * string * Term.t, Term.id) step
 (** Cut/assertion in proofs. Generate two branch,
     the first one in which the given term has to be proven,
     and a second one where the proven term has been bound
-    to the returned id. *)
+    to the returned id. The first boolean parameter determines whether
+    the current env should be kept when proving the given term. *)
 
 
 (** {2 Proof inspection} *)

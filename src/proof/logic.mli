@@ -25,10 +25,14 @@ val introN : string -> int -> (pos, pos) tactic
 (** Introduction tactic. The string given is used as prefix
     for the name of the newly introduced hypothesis. *)
 
-val cut : f:((pos, unit) tactic) -> string -> Term.t -> (pos, Term.id * pos) tactic
+val cut :
+  ?weak:bool ->
+  f:((pos, unit) tactic) ->
+  string -> Term.t -> (pos, Term.id * pos) tactic
 (** Cut/assert a given term (using the string as prefix for the env),
     and use the given function to prove the asserted term. *)
 
+val exact  : Term.t -> Prelude.t list -> (pos, unit) tactic
 val apply1 : Term.t -> Prelude.t list -> (pos, pos) tactic
 val apply2 : Term.t -> Prelude.t list -> (pos, pos * pos) tactic
 val apply3 : Term.t -> Prelude.t list -> (pos, pos * pos * pos) tactic

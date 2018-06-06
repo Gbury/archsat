@@ -26,9 +26,11 @@ module Env = struct
   module Ms = Map.Make(String)
 
   type t = {
-    global : Term.id Mt.t;
-    (** Map between terms and term ids, for local bindings *)
-    names : Term.id Mt.t;
+    (** Bindings *)
+    names : Term.id Mt.t; (** local bindings *)
+    global : Term.id Mt.t; (** global bindings *)
+    reverse : (Term.id, unit) Term.S.t; (** Set of ids present that are bound *)
+
     (** Options for nice names *)
     prefix : string;  (** current prefix *)
     count : int Ms.t; (** use count for each prefix *)
@@ -37,18 +39,22 @@ module Env = struct
   let print_aux fmt (t, id) =
     Format.fprintf fmt "%a (%d): @[<hov>%a@]" Expr.Print.id id (Term.hash t) Term.print t
 
-  let print fmt t =
+  let bindings t =
     let l = Mt.bindings t.names in
     let l = List.sort (fun (_, x) (_, y) ->
         compare x.Expr.id_name y.Expr.id_name) l in
     let l' = Mt.bindings t.global in
     let l' = List.sort (fun (_, x) (_, y) ->
         compare x.Expr.id_name y.Expr.id_name) l' in
-    CCFormat.(vbox @@ list ~sep:(return "@ ") print_aux) fmt (l @ l')
+    l @ l'
+
+  let print fmt t =
+    CCFormat.(vbox @@ list ~sep:(return "@ ") print_aux) fmt (bindings t)
 
   let empty = {
-    global = Mt.empty;
     names = Mt.empty;
+    global = Mt.empty;
+    reverse = Term.S.empty;
     prefix = "";
     count = Ms.empty;
   }
@@ -56,8 +62,7 @@ module Env = struct
   let prefix t s =
     { t with prefix = s }
 
-  let mem t f =
-    Mt.mem f t.names
+  let mem t id = Term.S.Id.mem id t.reverse
 
   let find t f =
     try Mt.find f t.names
@@ -68,7 +73,7 @@ module Env = struct
           raise (Not_introduced f)
       end
 
-  let count t s =
+  let local_count t s =
     try Ms.find s t.count with Not_found -> 0
 
   let add t id =
@@ -76,27 +81,28 @@ module Env = struct
     match Mt.find f t.names with
     | name -> raise (Added_twice f)
     | exception Not_found ->
-      { t with names = Mt.add f id t.names; }
+      { t with names = Mt.add f id t.names;
+               reverse = Term.S.Id.bind t.reverse id (); }
 
   let intro t f =
     match Mt.find f t.names with
     | name -> raise (Added_twice f)
     | exception Not_found ->
-      let n = count t t.prefix in
+      let n = local_count t t.prefix in
       let name = Format.sprintf "%s%d" t.prefix n in
       let id = Term.var name f in
-      { t with
-        names = Mt.add f id t.names;
-        count = Ms.add t.prefix (n + 1) t.count;
-      }
+      { t with names = Mt.add f id t.names;
+               count = Ms.add t.prefix (n + 1) t.count;
+               reverse = Term.S.Id.bind t.reverse id (); }
 
   let declare t id =
     assert (not (Term.is_var id));
-    { t with global = Mt.add id.Expr.id_type id t.global }
+    { t with global = Mt.add id.Expr.id_type id t.global;
+             reverse = Term.S.Id.bind t.reverse id (); }
 
-  let list t = Mt.bindings t.names
+  let count t = Mt.cardinal t.names + Mt.cardinal t.global
 
-  let count t = Mt.cardinal t.names
+  let strip t = { empty with global = t.global }
 
 end
 
@@ -328,15 +334,15 @@ let print_hyp_dot fmt (t, v) =
 let print_hyp_line fmt (t, v) =
   Format.fprintf fmt "<TR>%a</TR>" print_hyp_dot (t, v)
 
-let print_sequent_dot fmt (s, seq) =
+let print_sequent_dot fmt (s, color, seq) =
   Format.fprintf fmt "<TR><TD BGCOLOR=\"YELLOW\" colspan=\"3\">%a</TD></TR>"
     (Dot.box Dot.Print.Proof.term) (goal seq);
-  match Env.list (env seq) with
-  | [] -> Format.fprintf fmt "<TR><TD BGCOLOR=\"RED\" colspan=\"3\">%s</TD></TR>" s
+  match Env.bindings (env seq) with
+  | [] -> Format.fprintf fmt "<TR><TD BGCOLOR=\"%s\" colspan=\"3\">%s</TD></TR>" color s
   | h :: r ->
     Format.fprintf fmt
-      "<TR><TD BGCOLOR=\"RED\" rowspan=\"%d\">OPEN</TD>%a</TR>"
-      (List.length r + 1) print_hyp_dot h;
+      "<TR><TD BGCOLOR=\"%s\" rowspan=\"%d\">%s</TD>%a</TR>"
+      color (List.length r + 1) s print_hyp_dot h;
     List.iter (print_hyp_line fmt) r
 
 let print_step_dot fmt (s, st) =
@@ -364,7 +370,7 @@ let rec print_node_dot fmt node =
       "%a [shape=plaintext, label=<<TABLE %a>%a</TABLE>>];@\n"
       print_dot_id node
       print_table_options "LIGHTBLUE"
-      print_sequent_dot ("OPEN", s)
+      print_sequent_dot ("OPEN", "RED", s)
   | Proof (s, st, br) ->
     Format.fprintf fmt
       "%a [shape=plaintext, label=<<TABLE %a>%a</TABLE>>];@\n"
@@ -378,7 +384,7 @@ let print_root fmt (seq, node) =
   Format.fprintf fmt
     "root [shape=plaintext, label=<<TABLE %a>%a</TABLE>>];@\n"
     print_table_options "LIGHTBLUE"
-    print_sequent_dot ("ROOT", seq);
+    print_sequent_dot ("ROOT", "PURPLE", seq);
   Format.fprintf fmt "root -> %a;@\n" print_dot_id node;
   print_node_dot fmt node
 
@@ -529,12 +535,25 @@ let apply =
         Term.print f.Term.ty;
       assert false
     | Some (l, ret) ->
+      (** Ceck that the application proves the current goal *)
       if not (Term.equal ret g) then
         raise (Failure (
             Format.asprintf "@[<hv>Couldn't apply@ %a:@  @[<hov>%a@]@]"
               Term.print f Term.print f.Term.ty, ctx));
       let e = env ctx in
-      (f, n, prelude), Array.map (fun g' -> mk_sequent e g') (Array.of_list l)
+      (** Check that the term used in closed in the current environment *)
+      let unbound_vars = Term.S.fold (fun id () acc ->
+          if not (Env.mem e id) then id :: acc else acc
+        ) (Term.free_vars f) [] in
+      begin match unbound_vars with
+      | [] -> (* Everything is good, let's proceed *)
+        (f, n, prelude), Array.map (fun g' -> mk_sequent e g') (Array.of_list l)
+      | l -> (** Some variables are unbound, complain about them loudly *)
+        raise (Failure (
+            Format.asprintf
+              "@[<hv>The variables@ @[<hov>[%a]@]@ are free in@ %a@ this is not allowed"
+              CCFormat.(list ~sep:(return ";@ ") Expr.Id.print) l Term.print f, ctx))
+      end
   in
   let elaborate (f, _, _) args = Term.apply f (Array.to_list args) in
   let coq = Branching, (fun fmt (f, n, _) ->
@@ -599,11 +618,12 @@ let letin =
 
 let cut =
   let prelude _ = [] in
-  let compute ctx (prefix, t) =
+  let compute ctx (keep_env, prefix, t) =
     let e = env ctx in
     let e' = Env.prefix e prefix in
     let e'' = Env.intro e' t in
-    Env.find e'' t, [| mk_sequent e t ; mk_sequent e'' (goal ctx) |]
+    let e_cut = if keep_env then e else Env.strip e in
+    Env.find e'' t, [| mk_sequent e_cut t ; mk_sequent e'' (goal ctx) |]
   in
   let elaborate id = function
     | [| t; body |] -> Term.letin id t body

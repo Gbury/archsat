@@ -171,7 +171,8 @@ and bind b v body =
     let res_ty = bind Forall v body.ty in
     mk res_ty (Binder (Lambda, v, body))
   | Forall | Exists ->
-    mk _Prop (Binder (b, v, body))
+    (* TODO: check the type of a forall / see typical PT ? *)
+    mk body.ty (Binder (b, v, body))
 
 and subst s t =
   match t.term with

@@ -159,6 +159,13 @@ let dot_info = function
 
 (*
 let coq_proof = function
+  | True -> (* prove: ~ True -> False *)
+    (fun p -> p
+              |> Logic.intro "Ax"
+              |> Logic.apply1 (
+*)
+(*
+let coq_proof = function
   | True ->
     Coq.tactic ~prefix:"X" (fun fmt ctx ->
             Coq.exact fmt "%a I" (Proof.Ctx.named ctx) (Expr.Formula.f_false)

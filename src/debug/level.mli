@@ -18,9 +18,6 @@ val compare : t -> t -> int
 val max : t -> t -> t
 (** Compute the max of two debug levels *)
 
-val color : t -> string
-(** Color for log messages *)
-
 val prefix : Format.formatter -> t -> unit
 (** Return a color for printing messages of this level *)
 

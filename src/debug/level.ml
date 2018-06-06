@@ -29,10 +29,6 @@ let debug = Debug
 (* Colors for logging *)
 (* ************************************************************************ *)
 
-let color = function
-  | Error | Warn -> "White"
-  | _ -> "reset"
-
 let prefix fmt = function
   | Error -> CCFormat.with_colorf "Red" fmt "[ERROR] "
   | Warn -> CCFormat.with_colorf "Magenta" fmt "[WARNING] "

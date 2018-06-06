@@ -62,10 +62,9 @@ let pp_aux ~section ~lvl format =
   if !need_cleanup then
     Format.fprintf Format.std_formatter "\r";
   Format.fprintf Format.std_formatter
-    ("%a%a@[<hov>@{<%s>" ^^ format ^^ "@}@]@.")
+    ("%a%a@[<hov>" ^^ format ^^ "@]@.")
     (pp_time ~lvl) section
     Level.prefix lvl
-    (Level.color lvl)
 
 let aux ?(section=Section.root) lvl format =
   let cur_lvl = Section.cur_level section in

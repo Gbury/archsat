@@ -9,7 +9,7 @@ all: $(BIN)
 	@cd logic && $(MAKE) --no-print-directory
 	@cd equality && $(MAKE) --no-print-directory
 	@cd quant && $(MAKE) --no-print-directory
-	@cd rewr && $(MAKE) --no-print-directory
+#	@cd rewr && $(MAKE) --no-print-directory
 
 clean:
 	rm -rf $(BIN)

@@ -137,27 +137,53 @@ let declare_goal opt id f =
 (* ************************************************************************ *)
 
 let resolve_step =
-  let coq = Proof.Last_but_not_least, (fun fmt (id, t) ->
-      Format.fprintf fmt "@[<hv 2>pose proof (@,%a@;<0,-2>) as %a.@]"
-        Coq.Print.term t Coq.Print.id id
-    ) in
   let compute seq (c, c', res) =
     let t = Logic.resolve_clause c c' res in
     let e = Proof.env seq in
     let e' = Proof.Env.prefix e "R" in
-    let e'' = Proof.Env.intro e' t in
-    (Proof.Env.find e'' t, t), [| Proof.mk_sequent e'' (Proof.goal seq) |]
+    let e'' = Proof.Env.intro e' t.Term.ty in
+    (c, c', Proof.Env.find e'' t.Term.ty, t), [| Proof.mk_sequent e'' (Proof.goal seq) |]
   in
-  let elaborate (id, t) = function
+  let elaborate (_, _, id, t) = function
     | [| body |] -> Term.letin id t body
     | _ -> assert false
   in
-  Proof.mk_step ~coq ~compute ~elaborate "resolve"
+  let coq = Proof.Last_but_not_least, (fun fmt (_, _, id, t) ->
+      Format.fprintf fmt "@[<hv 2>pose proof (@,%a@;<0,-2>) as %a.@]"
+        Coq.Print.term t Coq.Print.id id
+    ) in
+  let dot = Proof.Branching, (fun fmt (c, c', id, _) ->
+      Format.fprintf fmt "%a = %a:%a"
+        Dot.Print.Proof.id id
+        Dot.Print.Proof.id c
+        Dot.Print.Proof.id c'
+    ) in
+  Proof.mk_step ~coq ~dot ~compute ~elaborate "resolve"
 
 let resolve pos c c' res =
   match Proof.apply_step pos resolve_step (c, c', res) with
-  | (id, _), [| pos' |] -> id, pos'
+  | (_, _, id, _), [| pos' |] -> id, pos'
   | _ -> assert false
+
+(* Incremental dot printing *)
+(* ************************************************************************ *)
+
+let h = Hashtbl.create 13
+
+let print_incr_dot_aux file proof =
+  let out = open_out file in
+  let fmt = Format.formatter_of_out_channel out in
+  let () = Proof.print ~lang:Proof.Dot fmt proof in
+  close_out out
+
+let print_incr_dot opt proof =
+  match Options.(opt.incr_dot) with
+  | None -> ()
+  | Some prefix ->
+    let n = try Hashtbl.find h prefix with Not_found -> 0 in
+    let () = Hashtbl.add h prefix (n + 1) in
+    let file = Format.asprintf "%s.%03d.gv" prefix n in
+    print_incr_dot_aux file proof
 
 (* Computing a full resolution proof *)
 (* ************************************************************************ *)
@@ -167,18 +193,23 @@ type _ Dispatcher.msg +=
 
 let introduce_hyp id l pos =
   pos
-  |> Logic.cut "C" (Logic.clause_type l)
+  |> Logic.cut ~weak:true "C" (Logic.clause_type l)
     ~f:(fun p -> p
                  |> Logic.introN "Ax" (List.length l)
                  |> Logic.or_elim id ~f:Logic.absurd)
 
 let introduce_lemma f l pos =
-  pos |> Logic.cut "L" (Logic.clause_type l) ~f
+  pos |> Logic.cut ~weak:true "L" (Logic.clause_type l) ~f
+
+let term_of_atom a =
+  let lit = P.St.(a.var.pa.lit) in
+  let pos = P.St.(a.var.pa == a) in
+  let t = Term.of_formula lit in
+  if pos then t
+  else Term.app Term.not_term t
 
 let compute_aux h pos node =
-  let l = List.map (fun a ->
-      Term.of_formula a.P.St.lit
-    ) (P.to_list node.P.conclusion) in
+  let l = List.map term_of_atom (P.to_list node.P.conclusion) in
   let id, pos' =
     match node.P.step with
     | P.Assumption -> assert false
@@ -206,6 +237,7 @@ let compute_aux h pos node =
     | _ ->
       raise (Proof.Failure ("incomplete resolution proof reconstruction", Logic.extract_open pos))
   in
+  Util.debug ~section "%s -> %a" node.P.conclusion.P.St.name Expr.Id.print id;
   let () = P.H.add h node.P.conclusion id in
   pos'
 
@@ -225,7 +257,10 @@ let compute opt p =
   let () =
     let init = Proof.(pos (root proof)) in
     try
-      let final = P.fold (compute_aux h) init p in
+      let final = P.fold (fun acc node ->
+          print_incr_dot opt proof;
+          compute_aux h acc node
+        ) init p in
       if not (Logic.trivial final) then begin
         Util.error ~section "Proof incomplete";
       end

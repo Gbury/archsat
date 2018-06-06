@@ -12,6 +12,12 @@ let classical =
 (* Useful constants *)
 (* ************************************************************************ *)
 
+let true_proof_id =
+  Term.declare "I" Term.true_term
+
+let true_proof =
+  Term.id true_proof_id
+
 let exfalso_id =
   let p = Term.var "P" Term._Prop in
   Term.declare "exfalso" (Term.forall p (
@@ -113,8 +119,8 @@ let intro prefix pos =
 let introN prefix n = iter (intro prefix) n
 
 (** Cut *)
-let cut ~f s t pos =
-  match Proof.apply_step pos Proof.cut (s, t) with
+let cut ?(weak=false) ~f s t pos =
+  match Proof.apply_step pos Proof.cut (not weak, s, t) with
   | id, [| aux ; main |] ->
     let () = f aux in
     id, main
@@ -215,7 +221,7 @@ let find_absurd seq env atom =
     end
   | exception Proof.Env.Not_introduced _ ->
     Util.warn ~section
-      "@[<hv>Trivial tactic failed because it couldn't find@ %a@ in env:@ %a@]"
+      "@[<hv>Trivial tactic failed because it couldn't find@ @[<hov>%a@]@ in env:@ %a@]"
       Term.print atom Proof.Env.print env;
     raise (Proof.Failure ("Logic.absurd", seq))
 
