@@ -230,8 +230,8 @@ let compute opt p =
         Util.error ~section "Proof incomplete";
       end
     with Proof.Failure (msg, _) ->
-      Util.warn ~section "@[<hv>Error during proof building:@ %s@\n%s"
-        msg "Try and look at the full-dot output to see the incomplete proof"
+      Util.warn ~section "Error during proof building:@.%s" msg;
+      Util.warn "Try and look at the full-dot output to see the incomplete proof"
   in
   proof
 

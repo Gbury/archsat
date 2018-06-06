@@ -529,7 +529,10 @@ let apply =
         Term.print f.Term.ty;
       assert false
     | Some (l, ret) ->
-      assert (Term.equal ret g);
+      if not (Term.equal ret g) then
+        raise (Failure (
+            Format.asprintf "@[<hv>Couldn't apply@ %a:@  @[<hov>%a@]@]"
+              Term.print f Term.print f.Term.ty, ctx));
       let e = env ctx in
       (f, n, prelude), Array.map (fun g' -> mk_sequent e g') (Array.of_list l)
   in
