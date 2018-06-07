@@ -29,6 +29,25 @@ let nnpp_id =
   let nnp = Term.app Term.not_term (Term.app Term.not_term p_t) in
   Term.declare "NNPP" (Term.forall p (Term.arrow nnp p_t))
 
+let and_ind =
+  let a = Term.var "A" Term._Prop in
+  let b = Term.var "B" Term._Prop in
+  let p = Term.var "P" Term._Prop in
+  let () = Term.coq_implicit a in
+  let () = Term.coq_implicit b in
+  let () = Term.coq_implicit p in
+  let a_t = Term.id a in
+  let b_t = Term.id b in
+  let p_t = Term.id p in
+  let a_and_b = Term.(apply and_term [a_t; b_t]) in
+  let a_to_b_to_p = Term.arrows [a_t; b_t] p_t in
+  Term.declare "and_ind"
+    (Term.foralls [a; b; p] (
+        Term.arrows [a_to_b_to_p; a_and_b]
+          p_t
+      )
+    )
+
 let and_elim_id, and_elim_alias =
   let a = Term.var "A" Term._Prop in
   let b = Term.var "B" Term._Prop in
@@ -40,13 +59,6 @@ let and_elim_id, and_elim_alias =
   let a_to_b_to_p = Term.arrows [a_t; b_t] p_t in
   let o = Term.var "o" a_and_b in
   let f = Term.var "f" a_to_b_to_p in
-  let and_ind =
-    Term.declare "and_ind"
-      (Term.foralls [a; b; p] (
-          Term.arrows [a_to_b_to_p; a_and_b]
-            p_t
-        )
-      ) in
   let t =
     Term.lambdas [a; b; p; o; f] (
       Term.(apply (id and_ind) [a_t; b_t; p_t; id f; id o])
@@ -95,11 +107,15 @@ let extract_open pos =
   | Proof.Open sequent -> sequent
   | Proof.Proof _ -> assert false
 
+let ctx f pos =
+  let seq = extract_open pos in
+  f seq pos
+
 let find t f pos =
   let seq = extract_open pos in
   let env = Proof.env seq in
   let id = Proof.Env.find env t in
-  f id pos
+  f (Term.id id) pos
 
 (** Iterate a tactic n times *)
 let rec iter tactic n pos =
@@ -130,27 +146,27 @@ let cut ?(weak=false) ~f s t pos =
 let applyN t n preludes pos =
   snd @@ Proof.apply_step pos Proof.apply (t, n, preludes)
 
-let exact t preludes pos =
+let exact preludes t pos =
   match applyN t 0 preludes pos with
   | [| |] -> ()
   | _ -> assert false
 
-let apply1 t preludes pos =
+let apply1 preludes t pos =
   match applyN t 1 preludes pos with
   | [| res |] -> res
   | _ -> assert false
 
-let apply2 t preludes pos =
+let apply2 preludes t pos =
   match applyN t 2 preludes pos with
   | [| res1; res2 |] -> res1, res2
   | _ -> assert false
 
-let apply3 t preludes pos =
+let apply3 preludes t pos =
   match applyN t 3 preludes pos with
   | [| res1; res2; res3 |] -> res1, res2, res3
   | _ -> assert false
 
-let apply t preludes pos =
+let apply preludes t pos =
   let l, _ = Proof.match_arrows t.Term.ty in
   applyN t (List.length l) preludes pos
 
@@ -175,7 +191,7 @@ let exfalso pos =
     let _ = Term.pmatch ~pat:(Term.false_term) g in
     pos
   with Term.Match_Impossible _ ->
-    apply1 (Term.app exfalso_term g) [] pos
+    apply1 [] (Term.app exfalso_term g) pos
 
 (** Triviality: the goal is already present in the env *)
 let trivial pos =
@@ -184,53 +200,60 @@ let trivial pos =
   let g = Proof.goal ctx in
   match Proof.Env.find env g with
   | id ->
-    let () = exact (Term.id id) [] pos in
+    let () = exact [] (Term.id id) pos in
     true
   | exception Proof.Env.Not_introduced _ ->
     false
 
 (** Find a contradiction in an environment using the given proposition. *)
 let find_absurd seq env atom =
-  match Proof.Env.find env atom with
-  | p ->
-    let neg_atom = Term.app Term.not_term atom in
-    (* First, try and see wether [neg atom] is in the env *)
-    begin match Proof.Env.find env neg_atom with
-      | np -> (Term.app (Term.id np) (Term.id p))
-      | exception Proof.Env.Not_introduced _ ->
-        Util.debug ~section "@[<hv>Couldn't find in env (%d):@ %a@]"
-          (Term.hash neg_atom) Term.print neg_atom;
-        (* Try and see if [atom = neg q] with q in the context. *)
-        begin try
-            let q_v = Term.var "q" Term._Prop in
-            let pat = Term.app Term.not_term (Term.id q_v) in
-            let s = Term.pmatch ~pat atom in
-            let q = Proof.Env.find env (Term.S.Id.get q_v s) in
-            (Term.app (Term.id p) (Term.id q))
-          with
-          | Not_found ->
-            Util.warn ~section "Internal error in pattern matching";
-            assert false
-          | Term.Match_Impossible _
-          | Proof.Env.Not_introduced _ ->
-            Util.warn ~section
-              "@[<hv>Couldn't find an absurd situation using@ @[<hov>%a@]@ in env:@ %a@]"
-              Term.print atom Proof.Env.print env;
-            raise (Proof.Failure ("Logic.absurd", seq))
-        end
-    end
+  (** Using [true/false] with absurd is a little bit complicated because
+      [~true] and [false] aren't convertible... so just check whether false
+      is present. *)
+  match Proof.Env.find env Term.false_term with
+  | res -> Term.id res
   | exception Proof.Env.Not_introduced _ ->
-    Util.warn ~section
-      "@[<hv>Trivial tactic failed because it couldn't find@ @[<hov>%a@]@ in env:@ %a@]"
-      Term.print atom Proof.Env.print env;
-    raise (Proof.Failure ("Logic.absurd", seq))
+    begin match Proof.Env.find env atom with
+      | p ->
+        let neg_atom = Term.app Term.not_term atom in
+        (* First, try and see wether [neg atom] is in the env *)
+        begin match Proof.Env.find env neg_atom with
+          | np -> (Term.app (Term.id np) (Term.id p))
+          | exception Proof.Env.Not_introduced _ ->
+            Util.debug ~section "@[<hv>Couldn't find in env (%d):@ %a@]"
+              (Term.hash neg_atom) Term.print neg_atom;
+            (* Try and see if [atom = neg q] with q in the context. *)
+            begin try
+                let q_v = Term.var "q" Term._Prop in
+                let pat = Term.app Term.not_term (Term.id q_v) in
+                let s = Term.pmatch ~pat atom in
+                let q = Proof.Env.find env (Term.S.Id.get q_v s) in
+                (Term.app (Term.id p) (Term.id q))
+              with
+              | Not_found ->
+                Util.warn ~section "Internal error in pattern matching";
+                assert false
+              | Term.Match_Impossible _
+              | Proof.Env.Not_introduced _ ->
+                Util.warn ~section
+                  "@[<hv>Couldn't find an absurd situation using@ @[<hov>%a@]@ in env:@ %a@]"
+                  Term.print atom Proof.Env.print env;
+                raise (Proof.Failure ("Logic.absurd", seq))
+            end
+        end
+      | exception Proof.Env.Not_introduced _ ->
+        Util.warn ~section
+          "@[<hv>Trivial tactic failed because it couldn't find@ @[<hov>%a@]@ in env:@ %a@]"
+          Term.print atom Proof.Env.print env;
+        raise (Proof.Failure ("Logic.absurd", seq))
+    end
 
 (** Given a goal of the form Gamma |- False,
     and a term, find its negation in the env, and close the branch *)
 let absurd atom pos =
   let ctx = extract_open pos in
   let env = Proof.env ctx in
-  pos |> exfalso |> exact (find_absurd ctx env atom) []
+  pos |> exfalso |> exact [] (find_absurd ctx env atom)
 
 
 (* Logical connective elimination *)
@@ -240,23 +263,27 @@ let or_left = Term.var "a" Term._Prop
 let or_right = Term.var "b" Term._Prop
 let or_elim_pat = Term.(apply or_term [id or_left; id or_right])
 
-let rec or_elim ~f id pos =
+let rec or_elim ~f t pos =
   let ctx = extract_open pos in
   let goal = Proof.goal ctx in
   try
-    let s = Term.pmatch ~pat:or_elim_pat id.Expr.id_type in
+    let s = Term.pmatch ~pat:or_elim_pat t.Term.ty in
     let left_term = Term.S.Id.get or_left s in
     let right_term = Term.S.Id.get or_right s in
-    let t' = Term.apply or_elim_term [left_term; right_term; goal; Term.id id] in
-    apply2 t' [or_elim_alias] pos |> split
+    let t' = Term.apply or_elim_term [left_term; right_term; goal; t] in
+    apply2 [or_elim_alias] t' pos |> split
       ~left:(fun p -> p |> intro "O" |> find left_term (or_elim ~f))
       ~right:(fun p -> p |> intro "O" |> find right_term (or_elim ~f))
-  with Term.Match_Impossible _ ->
-    f id.Expr.id_type pos
+  with
+  | Term.Match_Impossible _ -> f t pos
+  | Not_found ->
+    Util.error ~section "Absent binding after pattern matching";
+    assert false
+
 
 let and_left = Term.var "a" Term._Prop
 let and_right = Term.var "b" Term._Prop
-let and_elim_pat = Term.(apply and_term [id or_left; id or_right])
+let and_elim_pat = Term.(apply and_term [id and_left; id and_right])
 
 let rec and_elim t pos =
   let ctx = extract_open pos in
@@ -268,12 +295,35 @@ let rec and_elim t pos =
     let left_term = Term.S.Id.get and_left s in
     let right_term = Term.S.Id.get and_right s in
     let t' = Term.apply and_elim_term [left_term; right_term; goal; Term.id v] in
-    apply1 t' [and_elim_alias] pos
-    |> intro "A" |> intro "A"
+    apply1 [and_elim_alias] t' pos
+    |> introN "A" 2
     |> and_elim left_term
     |> and_elim right_term
-  with Term.Match_Impossible _ -> pos
+  with
+  | Term.Match_Impossible _ -> pos
+  | Not_found ->
+    Util.error ~section "Absent binding after pattern matching";
+    assert false
 
+(** Eliminate double negations when the goal is [False] *)
+let not_not_elim prefix t pos =
+  let seq = extract_open pos in
+  if not (Term.equal Term.false_term (Proof.goal seq)) then
+    raise (Proof.Failure ("Doulbe negation elimination is only possible whne the goal is [False]", seq));
+  pos
+  |> ctx (fun seq ->
+      apply1 [] (Term.id @@ Proof.Env.find (Proof.env seq)
+                   (Term.app Term.not_term (Term.app Term.not_term t))))
+  |> intro prefix
+
+(** Eliminate double negation if necessary. *)
+let normalize prefix t pos =
+  let seq = extract_open pos in
+  try
+    let _ = Proof.Env.find (Proof.env seq) t in
+    pos
+  with Proof.Env.Not_introduced _ ->
+    not_not_elim prefix t pos
 
 (* Resolution tactics *)
 (* ************************************************************************ *)
@@ -287,12 +337,12 @@ let resolve_clause_aux c1 c2 res pos =
   let n = List.length res in
   pos
   |> iter (intro "L") n
-  |> apply (Term.id c1) []
+  |> apply [] (Term.id c1)
   |> Array.iter (fun p ->
       if not (trivial p) then begin
         p
         |> intro "x"
-        |> apply (Term.id c2) []
+        |> apply [] (Term.id c2)
         |> Array.iter (fun p' ->
             if not (trivial p') then begin
               let a = Proof.goal (extract_open p') in
@@ -310,6 +360,35 @@ let resolve_clause c1 c2 res =
   let p = Proof.mk (Proof.mk_sequent e goal) in
   let () = resolve_clause_aux c1 c2 res (Proof.pos @@ Proof.root p) in
   Proof.elaborate p
+
+let resolve_step =
+  let compute seq (c, c', res) =
+    let t = resolve_clause c c' res in
+    let e = Proof.env seq in
+    let e' = Proof.Env.prefix e "R" in
+    let e'' = Proof.Env.intro e' t.Term.ty in
+    (c, c', Proof.Env.find e'' t.Term.ty, t), [| Proof.mk_sequent e'' (Proof.goal seq) |]
+  in
+  let elaborate (_, _, id, t) = function
+    | [| body |] -> Term.letin id t body
+    | _ -> assert false
+  in
+  let coq = Proof.Last_but_not_least, (fun fmt (_, _, id, t) ->
+      Format.fprintf fmt "@[<hv 2>pose proof (@,%a@;<0 -2>) as %a.@]"
+        Coq.Print.term t Coq.Print.id id
+    ) in
+  let dot = Proof.Branching, (fun fmt (c, c', id, _) ->
+      Format.fprintf fmt "%a = %a:%a"
+        Dot.Print.Proof.id id
+        Dot.Print.Proof.id c
+        Dot.Print.Proof.id c'
+    ) in
+  Proof.mk_step ~coq ~dot ~compute ~elaborate "resolve"
+
+let resolve c c' res pos =
+  match Proof.apply_step pos resolve_step (c, c', res) with
+  | (_, _, id, _), [| pos' |] -> id, pos'
+  | _ -> assert false
 
 (* Classical tactics *)
 (* ************************************************************************ *)
@@ -335,7 +414,7 @@ let nnpp pos =
         (* Else, apply NNPP, then intro to get the negation of the original goal
            as an hypothesis in the context *)
         pos
-        |> apply1 (Term.app nnpp_term goal) [classical]
+        |> apply1 [classical] (Term.app nnpp_term goal)
         |> intro "G"
     end
 

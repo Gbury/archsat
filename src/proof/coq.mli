@@ -38,4 +38,9 @@ val declare_hyp : Format.formatter -> Term.id -> unit
 val declare_goal : Format.formatter -> Term.id -> unit
 (** Declare a new hypothesis, with the correct type. *)
 
+val proof_context :
+  (Format.formatter -> 'a -> unit) ->
+  Format.formatter -> 'a -> unit
+(** Wraps a printer to make it print inside a proof context. *)
+
 

@@ -111,6 +111,8 @@ end
 
 module Prelude = struct
 
+  (** Standard definitions *)
+
   let section = Section.make ~parent:section "prelude"
 
   module Aux = struct
@@ -152,6 +154,21 @@ module Prelude = struct
 
   include Aux
 
+  (** Prelude printing *)
+
+  let dot _ _ = ()
+
+  let coq fmt = function
+    | Require id ->
+      Format.fprintf fmt "Require Import %a." Coq.Print.id id
+    | Alias (id, t) ->
+      Util.debug ~section "%a : %a" Expr.Id.print id Term.print id.Expr.id_type;
+      Format.fprintf fmt "@[<hv>Definition %a :@ @[<hov>%a@] :=@ @[<hov>%a@]@]."
+        Coq.Print.id id Coq.Print.term id.Expr.id_type Coq.Print.term t
+
+
+  (** Prelude dependencies *)
+
   module S = Set.Make(Aux)
   module G = Graph.Imperative.Digraph.Concrete(Aux)
   module T = Graph.Topological.Make_stable(G)
@@ -166,8 +183,12 @@ module Prelude = struct
         G.add_edge dep_graph x t) deps in
     t
 
-  let require ?(deps=[]) s = mk ~deps (Require s)
-  let alias ?(deps=[]) id t = mk ~deps (Alias (id, t))
+  let require ?(deps=[]) s =
+    mk ~deps (Require s)
+
+  let alias ?(deps=[]) id t =
+    assert (Term.equal id.Expr.id_type t.Term.ty);
+    mk ~deps (Alias (id, t))
 
   let topo l iter =
     let s = List.fold_left (fun s x -> S.add x s) S.empty l in
@@ -243,6 +264,11 @@ type ('a, 'b) tactic = 'a -> 'b
     - a single [pos] it it does not create multple branches
     - a tuple, list or array of [pos] if it branches
 *)
+
+type _ Dispatcher.msg +=
+  | Lemma : Dispatcher.lemma_info -> (pos, unit) tactic Dispatcher.msg (**)
+(** Dispatcher message for theories to return proofs. *)
+
 
 exception Open_proof
 (** Raised by functions that encounter an unexpected open proof. *)
@@ -324,6 +350,26 @@ let apply_step pos step input =
     let () = set pos step state branches in
     state, Array.map (fun { pos; _} -> pos) branches
 
+(* Proof preludes *)
+(* ************************************************************************ *)
+
+let rec preludes_node acc n =
+  preludes_proof_node acc n.proof
+
+and preludes_proof_node acc = function
+  | Open _ -> acc
+  | Proof (step, state, branches) ->
+    let l = step.prelude state in
+    preludes_array (l @ acc) branches 0
+
+and preludes_array acc a i =
+  if i >= Array.length a then acc
+  else if i = Array.length a - 1 then preludes_node acc a.(i)
+  else preludes_array (preludes_node acc a.(i)) a (i + 1)
+
+let preludes (_, a) =
+  preludes_array [] a 0
+
 (* Printing Dot proofs *)
 (* ************************************************************************ *)
 
@@ -388,8 +434,7 @@ let print_root fmt (seq, node) =
   Format.fprintf fmt "root -> %a;@\n" print_dot_id node;
   print_node_dot fmt node
 
-let print_dot fmt root =
-  Format.fprintf fmt "digraph proof {@\n%a}@." print_root root
+let print_dot fmt root = print_root fmt root
 
 (* Printing Coq proofs *)
 (* ************************************************************************ *)
@@ -416,15 +461,17 @@ and print_lbnl_coq ~depth fmt t =
 and print_array_coq ~depth ~pretty fmt a =
   match a with
   | [| |] -> ()
-  | [| x |] -> print_node_coq ~depth fmt x
+  | [| x |] ->
+    Format.fprintf fmt "@\n";
+    print_node_coq ~depth fmt x
   | _ ->
     begin match pretty with
       | Branching ->
-        Format.fprintf fmt "@[<v>%a@]"
+        Format.fprintf fmt "@\n@[<v>%a@]"
           CCFormat.(array ~sep:(return "@ ") (print_branching_coq ~depth)) a
       | Last_but_not_least ->
         let a' = Array.sub a 0 (Array.length a - 1) in
-        Format.fprintf fmt "@[<v>%a@ @]"
+        Format.fprintf fmt "@\n@[<v>%a@]@\n"
           CCFormat.(array ~sep:(return "@ ") (print_bracketed_coq ~depth)) a';
         (* separate call to ensure tail call, useful for long proofs *)
         print_lbnl_coq ~depth fmt a.(Array.length a - 1)
@@ -445,12 +492,26 @@ let print_coq fmt (_, p) = print_node_coq ~depth:0 fmt p
 (* Printing proofs *)
 (* ************************************************************************ *)
 
+let print_aux = function
+  | Dot -> print_dot
+  | Coq -> print_coq
+
+let print_prelude = function
+  | Dot -> Prelude.dot
+  | Coq -> Prelude.coq
+
+let print_preludes_aux ~lang fmt l =
+  Prelude.topo l (fun p ->
+      Format.fprintf fmt "%a@ " (print_prelude lang) p
+    )
+
+let print_preludes ~lang fmt l =
+  Format.fprintf fmt "@[<v>%a@]" (print_preludes_aux ~lang) l
+
 let print ~lang fmt = function
-  | seq, [| p |] ->
-    begin match lang with
-      | Dot -> print_dot fmt (seq, p)
-      | Coq -> print_coq fmt (seq, p)
-    end
+  | (seq, [| p |]) as proof ->
+    print_preludes ~lang fmt (preludes proof);
+    print_aux lang fmt (seq, p)
   | _ -> assert false
 
 (* Inspecting proofs *)
@@ -551,7 +612,7 @@ let apply =
       | l -> (** Some variables are unbound, complain about them loudly *)
         raise (Failure (
             Format.asprintf
-              "@[<hv>The variables@ @[<hov>[%a]@]@ are free in@ %a@ this is not allowed"
+              "@[<hv>The variables@ @[<hov>[%a]@]@ are free in@ @[<hov>%a@]"
               CCFormat.(list ~sep:(return ";@ ") Expr.Id.print) l Term.print f, ctx))
       end
   in
@@ -607,7 +668,7 @@ let letin =
     | _ -> assert false
   in
   let coq = Last_but_not_least, (fun fmt (id, t) ->
-      Format.fprintf fmt "@[<hv 2>pose proof (@,%a@;<0,-2>) as %a.@]"
+      Format.fprintf fmt "@[<hv 2>pose proof (@,%a@;<0 -2>) as %a.@]"
         Coq.Print.term t Coq.Print.id id
     ) in
   let dot = Branching, Dot.box (fun fmt (id, t) ->
@@ -630,7 +691,7 @@ let cut =
     | _ -> assert false
   in
   let coq = Last_but_not_least, (fun fmt id ->
-      Format.fprintf fmt "assert (%a:@ @[<hov>%a@])."
+      Format.fprintf fmt "assert (%a: @[<hov>%a@])."
         Coq.Print.id id Coq.Print.term id.Expr.id_type
     ) in
   let dot = Branching, Dot.box (fun fmt id ->

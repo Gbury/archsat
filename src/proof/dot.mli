@@ -5,6 +5,7 @@
    representing unsat proofs.
 *)
 
+
 (** {2 Dispatcher messages} *)
 
 type _ Dispatcher.msg +=
@@ -12,6 +13,7 @@ type _ Dispatcher.msg +=
     (string option * ((Format.formatter -> unit -> unit) list)) Dispatcher.msg (**)
 (** Sent to the extension that produced a proof, asks for an optional color,
     and a list of custom formatters to print additional information about the lemma. *)
+
 
 (** {2 Printing expressions} *)
 
@@ -36,6 +38,7 @@ module Print : sig
 
 end
 
+
 (** {2 Main} *)
 
 val print : Format.formatter -> Solver.proof -> unit
@@ -44,4 +47,8 @@ val print : Format.formatter -> Solver.proof -> unit
 val init_full : Format.formatter -> Options.opts -> unit
 (** Initializer for full formal dot output *)
 
+val proof_context :
+  (Format.formatter -> 'a -> unit) ->
+  Format.formatter -> 'a -> unit
+(** Print a dot proof inside the correct context. *)
 

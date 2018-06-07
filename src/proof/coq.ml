@@ -15,6 +15,8 @@ module Print = struct
 
   let () =
     List.iter (function Any (id, tag, v) -> Expr.Id.tag id tag v) [
+      Any (Term.equal_id, name, "=");
+      Any (Term.equal_id, pos, Pretty.Infix);
       Any (Term._Prop_id, name, "Prop");
       Any (Term.true_id,  name, "True");
       Any (Term.false_id, name, "False");
@@ -26,10 +28,10 @@ module Print = struct
       Any (Term.equiv_id, pos, Pretty.Infix);
       Any (Term.or_id,    name, {|\/|});
       Any (Term.or_id,    pos, Pretty.Infix);
-      Any (Term.or_id,    assoc, Pretty.Left);
+      Any (Term.or_id,    assoc, Pretty.Right);
       Any (Term.and_id,   name, {|/\|});
       Any (Term.and_id,   pos, Pretty.Infix);
-      Any (Term.and_id,   assoc, Pretty.Left);
+      Any (Term.and_id,   assoc, Pretty.Right);
     ]
 
   let t =
@@ -48,8 +50,6 @@ module Print = struct
 
   let id fmt v = Escape.id t fmt v
 
-  let is_equal = Term.equal Term.equal_term
-
   let get_status = function
     | { Term.term = Term.Id f } ->
       Expr.Id.get_tag f pos
@@ -65,43 +65,46 @@ module Print = struct
     | Term.Forall
     | Term.Exists -> ","
 
+  let rec elim_implicits t args =
+    match t.Term.term with
+    | Term.Binder (Term.Forall, v, body) when Term.is_coq_implicit v ->
+      elim_implicits body (List.tl args)
+    | _ -> args
+
   let rec term fmt t =
     match t.Term.term with
     | Term.Type -> Format.fprintf fmt "Type"
     | Term.Id v -> id fmt v
     | Term.App _ ->
       let f, args = Term.uncurry ~assoc t in
+      let args = elim_implicits f.Term.ty args in
       begin match get_status f with
-        | _ when is_equal f ->
-          begin match args with
-            | [_; a; b] ->
-              Format.fprintf fmt "@[<hov>%a@ = %a@]" term a term b
-            | _ -> assert false
-          end
         | None ->
-          Format.fprintf fmt "@[<hov>(%a %a)" term f
+          Format.fprintf fmt "@[<hov>(%a %a)@]" term f
             CCFormat.(list ~sep:(return "@ ") term) args
         | Some Pretty.Prefix ->
-          Format.fprintf fmt "@[<hov>%a %a" term f
+          Format.fprintf fmt "@[<hov>%a %a@]" term f
             CCFormat.(list ~sep:(return "@ ") term) args
         | Some Pretty.Infix ->
           let sep fmt () = Format.fprintf fmt "@ %a " term f in
           Format.fprintf fmt "@[<hov>(%a)@]" CCFormat.(list ~sep term) args
       end
     | Term.Let (v, e, body) ->
-      Format.fprintf fmt "@[<v>@[<hv>let %a := @[<hov>%a@]@ in@]@ %a"
+      Format.fprintf fmt "@[<v>@[<hv>let %a := @[<hov>%a@]@ in@]@ %a@]"
         id v term e term body
-    | Term.Binder (Term.Forall as b, v, body) when not (Term.occurs v body) ->
-      let vars, body = Term.flatten_binder false b t in
-      let tys = List.map (fun id -> id.Expr.id_type) vars in
-      Format.fprintf fmt "@[<hov>%a@ ->%a@]"
-        CCFormat.(list ~sep:(return "@ -> ") term) tys term body
-    | Term.Binder (b, _, _) ->
-      let vars, body = Term.flatten_binder true b t in
-      let l = Term.concat_vars vars in
-      Format.fprintf fmt "(@[<hov 2>%s@[<hov>%a@]%s@ %a@])"
-        (binder_name b) var_lists l
-        (binder_sep b) term body
+    | Term.Binder _ ->
+      let kind, vars, body = Term.flatten_binder t in
+      begin match kind with
+        | `Arrow ->
+          let tys = List.map (fun id -> id.Expr.id_type) vars in
+          Format.fprintf fmt "(@[<hov>%a ->@ %a@])"
+            CCFormat.(list ~sep:(return "@ -> ") term) tys term body
+        | `Binder b ->
+          let l = Term.concat_vars vars in
+          Format.fprintf fmt "(@[<hov 2>%s@[<hov>%a@]%s@ %a@])"
+            (binder_name b) var_lists l
+            (binder_sep b) term body
+      end
 
   and var_list fmt (ty, l) =
     assert (l <> []);
@@ -131,8 +134,11 @@ let declare_hyp fmt id =
     Print.id id Print.term id.Expr.id_type
 
 let declare_goal fmt id =
-  Format.fprintf fmt "Theorem %a : %a.@."
+  Format.fprintf fmt "@\nTheorem %a : %a.@."
     Print.id id Print.term id.Expr.id_type
+
+let proof_context pp fmt x =
+  Format.fprintf fmt "@[<hov 2>Proof.@\n%a@]@\nQed.@." pp x
 
 (*
 (* Coq tactic helpers *)

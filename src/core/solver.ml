@@ -215,6 +215,8 @@ let add_atom = S.new_atom
 (* Proof manipulation *)
 (* ************************************************************************ *)
 
+let proof_section = Section.make "proof"
+
 module Proof = S.Proof
 
 (* Model manipulation *)

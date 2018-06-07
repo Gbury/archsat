@@ -18,7 +18,16 @@ val classical : Prelude.t
 (** The prelude requiring classical logic *)
 
 
+(** {2 Some terms} *)
+
+val true_proof : Term.t
+(** The term proving [true]. *)
+
 (** {2 Simple tactics} *)
+
+val ctx : (Proof.sequent -> (pos, 'a) tactic) -> (pos, 'a) tactic
+(** Wrapper around tactics to access environment (and use it to compute
+    parameters for the tactic). *)
 
 val intro : string -> (pos, pos) tactic
 val introN : string -> int -> (pos, pos) tactic
@@ -32,10 +41,10 @@ val cut :
 (** Cut/assert a given term (using the string as prefix for the env),
     and use the given function to prove the asserted term. *)
 
-val exact  : Term.t -> Prelude.t list -> (pos, unit) tactic
-val apply1 : Term.t -> Prelude.t list -> (pos, pos) tactic
-val apply2 : Term.t -> Prelude.t list -> (pos, pos * pos) tactic
-val apply3 : Term.t -> Prelude.t list -> (pos, pos * pos * pos) tactic
+val exact  : Prelude.t list -> Term.t -> (pos, unit) tactic
+val apply1 : Prelude.t list -> Term.t -> (pos, pos) tactic
+val apply2 : Prelude.t list -> Term.t -> (pos, pos * pos) tactic
+val apply3 : Prelude.t list -> Term.t -> (pos, pos * pos * pos) tactic
 (** Fixed arity applications. *)
 
 val split :
@@ -66,11 +75,21 @@ val absurd : Term.t -> (pos, unit) tactic
 (** Given a term [t], find [t] and its negation in the environment
     in order to close the branch, possibly applying exfalso if needed. *)
 
-val or_elim : f:(Term.t -> (pos, unit) tactic) -> Term.id -> (pos, unit) tactic
+val or_elim :
+  f:(Term.t -> (pos, unit) tactic) ->
+  Term.t -> (pos, unit) tactic
 (** Eliminate a disjunction present in the environment. *)
 
 val and_elim : Term.t -> (pos, pos) tactic
 (** Eliminate a conjunction, introducing its individual terms in the env. *)
+
+val not_not_elim : string -> Term.t -> (pos, pos) tactic
+(** Given a goal of the form [False], and with [~ ~ t] in the env,
+    introduce [t] in the environment. *)
+
+val normalize : string -> Term.t -> (pos, pos) tactic
+(** Try and apply doulbe negation elimination to introduce the given term,
+    if it is not already present. *)
 
 
 (** {2 Classical tactics} *)
@@ -89,4 +108,7 @@ val clause_type : Term.t list -> Term.t
 
 val resolve_clause : Term.id -> Term.id -> Term.t list -> Term.t
 (** Compute the resolution of two clauses. *)
+
+val resolve : Term.id -> Term.id -> Term.t list -> (pos, Term.id * pos) tactic
+(** Resolution of clauses *)
 

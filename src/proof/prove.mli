@@ -4,6 +4,8 @@
     Wrappers for proof type-defs, definitions, axioms,
     and general global state. *)
 
+(** {2 Managings proof state} *)
+
 val init : Options.opts -> unit -> unit
 (** Initialize the formatters for proof output. *)
 

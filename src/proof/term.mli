@@ -52,7 +52,10 @@ exception Match_Impossible of t * t
 (** Raised during pattern matching when incompatible terms
     are being matched. *)
 
+
 (** {2 Term inspection} *)
+
+(** {4 Standard functions} *)
 
 val hash : t -> int
 (** standard hash function *)
@@ -67,11 +70,14 @@ val print : Format.formatter -> t -> unit
 val print_typed : Format.formatter -> t -> unit
 (** Print a term (quite verbose). *)
 
-val is_var : id -> bool
-(** Is the given identifier a variable ? or a constant ?. *)
-
 val reduce : t -> t
 (** Compute the beta-normal form of the term. *)
+
+
+(** {4 Variables} *)
+
+val is_var : id -> bool
+(** Is the given identifier a variable ? or a constant ?. *)
 
 val free_vars : t -> (id, unit) S.t
 (** Computes the set of free variable sin a term. *)
@@ -79,6 +85,10 @@ val free_vars : t -> (id, unit) S.t
 val occurs : id -> t -> bool
 (** Does the variable occurs in the set of free variables of
     the given term. *)
+
+val coq_implicit : id -> unit
+val is_coq_implicit : id -> bool
+(** Mark.recognize coq implicit arguments. *)
 
 
 (** {2 Id creation} *)
@@ -215,9 +225,10 @@ val uncurry_assoc_left : id -> t list -> t list
 val uncurry_assoc_right : id -> t list -> t list
 (** Uncurry a left (or right) associative symbol in a term. *)
 
-val flatten_binder : bool -> binder -> t -> id list * t
-(** [flatten_binder o b t] returns the list of all consecutive variables bound by the
-    same binder, and with the same occurence truth value as [o] in a term. *)
+val flatten_binder : t -> [ `Arrow | `Binder of binder ] * id list * t
+(** [flatten_binder t] returns the list of all consecutive variables bound by the
+    same binder, correctly identifying arrow terms (i.e foralls where the variable
+    does not occur in the body). *)
 
 val concat_vars : id list -> (t * id list) list
 (** Groups variables by types. *)

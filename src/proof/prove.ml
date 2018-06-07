@@ -1,5 +1,5 @@
 
-let section = Section.make "proving"
+let section = Section.make ~parent:Solver.proof_section "proving"
 
 module P = Solver.Proof
 
@@ -11,14 +11,6 @@ let pp_opt pp o x =
   match o with
   | None -> ()
   | Some fmt -> pp fmt x
-
-(* Proof introduction *)
-(* ************************************************************************ *)
-
-let init opt () =
-  pp_opt Coq.init Options.(opt.proof.coq) opt;
-  pp_opt Dot.init_full Options.(opt.proof.full_dot) opt;
-  ()
 
 (* Proof hyps *)
 (* ************************************************************************ *)
@@ -33,20 +25,21 @@ let add_hyp id = hyps := id :: !hyps
 let get_hyps () = !hyps
 
 (* goals *)
-let goals = ref []
+let goal = ref None
 
 let add_goal id =
-  begin match !goals with
-    | [] -> ()
-    | _ -> Util.warn ~section "%s%s"
-             "Multiple goals are not very well supported,@ "
-             "please consider having a single goal at any time"
-  end;
-  goals := id :: !goals
+  match !goal with
+  | None ->
+    goal := Some id
+  | Some _ ->
+    Util.error ~section "%s%s"
+      "Multiple goals are not supported in proof output,@ "
+      "please consider having a single goal at any time"
 
-let get_goals () = !goals
-
-let clear_goals () = goals := []
+let get_goal () =
+  let res = !goal in
+  goal := None;
+  res
 
 (* Some wrappers *)
 (* ************************************************************************ *)
@@ -54,7 +47,11 @@ let clear_goals () = goals := []
 (* Wrapper to get implicitly typed identifiers. *)
 let wrapper t tr =
   let l = ref [] in
-  let callback = Some (function id -> l := id :: !l) in
+  let callback = Some (fun id ->
+    Util.debug ~section "Found implicitly typed constant: %a"
+      Expr.Id.print id;
+    l := id :: !l
+    ) in
   let res = tr ?callback t in
   !l, res
 
@@ -81,11 +78,10 @@ let declare_implicits opt l =
 (* Identifier declarations *)
 (* ************************************************************************ *)
 
-
 (* Print type declarations for ids *)
 let declare_id opt implicit v ty =
   Util.debug ~section "Declaring %a" Expr.Print.id v;
-  let id = Expr.Id.mk_new v.Expr.id_name ty in
+  let id = Term.declare v.Expr.id_name ty in
   let () = Term.trap_id v id in
   let () = declare_implicits opt implicit in
   if Options.(opt.context) then declare_id_aux opt id
@@ -106,7 +102,15 @@ let declare_term opt v =
   in
   declare_id opt implicit v ty
 
-(* Hyp&Goal declarations *)
+(* Proof initialization *)
+(* ************************************************************************ *)
+
+let init opt () =
+  pp_opt Coq.init Options.(opt.proof.coq) opt;
+  pp_opt Dot.init_full Options.(opt.proof.full_dot) opt;
+  ()
+
+(* Hyp declarations *)
 (* ************************************************************************ *)
 
 let declare_hyp_aux opt id =
@@ -121,6 +125,9 @@ let declare_hyp opt id f =
   if Options.(opt.context) then declare_hyp_aux opt p;
   p
 
+(* Goal declarations *)
+(* ************************************************************************ *)
+
 let declare_goal_aux opt id =
   pp_opt Coq.declare_goal Options.(opt.coq) id;
   ()
@@ -133,147 +140,23 @@ let declare_goal opt id f =
   if Options.(opt.context) then declare_goal_aux opt p;
   p
 
-(* Resolution helpers *)
-(* ************************************************************************ *)
-
-let resolve_step =
-  let compute seq (c, c', res) =
-    let t = Logic.resolve_clause c c' res in
-    let e = Proof.env seq in
-    let e' = Proof.Env.prefix e "R" in
-    let e'' = Proof.Env.intro e' t.Term.ty in
-    (c, c', Proof.Env.find e'' t.Term.ty, t), [| Proof.mk_sequent e'' (Proof.goal seq) |]
-  in
-  let elaborate (_, _, id, t) = function
-    | [| body |] -> Term.letin id t body
-    | _ -> assert false
-  in
-  let coq = Proof.Last_but_not_least, (fun fmt (_, _, id, t) ->
-      Format.fprintf fmt "@[<hv 2>pose proof (@,%a@;<0,-2>) as %a.@]"
-        Coq.Print.term t Coq.Print.id id
-    ) in
-  let dot = Proof.Branching, (fun fmt (c, c', id, _) ->
-      Format.fprintf fmt "%a = %a:%a"
-        Dot.Print.Proof.id id
-        Dot.Print.Proof.id c
-        Dot.Print.Proof.id c'
-    ) in
-  Proof.mk_step ~coq ~dot ~compute ~elaborate "resolve"
-
-let resolve pos c c' res =
-  match Proof.apply_step pos resolve_step (c, c', res) with
-  | (_, _, id, _), [| pos' |] -> id, pos'
-  | _ -> assert false
-
-(* Incremental dot printing *)
-(* ************************************************************************ *)
-
-let h = Hashtbl.create 13
-
-let print_incr_dot_aux file proof =
-  let out = open_out file in
-  let fmt = Format.formatter_of_out_channel out in
-  let () = Proof.print ~lang:Proof.Dot fmt proof in
-  close_out out
-
-let print_incr_dot opt proof =
-  match Options.(opt.incr_dot) with
-  | None -> ()
-  | Some prefix ->
-    let n = try Hashtbl.find h prefix with Not_found -> 0 in
-    let () = Hashtbl.add h prefix (n + 1) in
-    let file = Format.asprintf "%s.%03d.gv" prefix n in
-    print_incr_dot_aux file proof
-
-(* Computing a full resolution proof *)
-(* ************************************************************************ *)
-
-type _ Dispatcher.msg +=
-  | Lemma : Dispatcher.lemma_info -> (Proof.pos, unit) Proof.tactic Dispatcher.msg
-
-let introduce_hyp id l pos =
-  pos
-  |> Logic.cut ~weak:true "C" (Logic.clause_type l)
-    ~f:(fun p -> p
-                 |> Logic.introN "Ax" (List.length l)
-                 |> Logic.or_elim id ~f:Logic.absurd)
-
-let introduce_lemma f l pos =
-  pos |> Logic.cut ~weak:true "L" (Logic.clause_type l) ~f
-
-let term_of_atom a =
-  let lit = P.St.(a.var.pa.lit) in
-  let pos = P.St.(a.var.pa == a) in
-  let t = Term.of_formula lit in
-  if pos then t
-  else Term.app Term.not_term t
-
-let compute_aux h pos node =
-  let l = List.map term_of_atom (P.to_list node.P.conclusion) in
-  let id, pos' =
-    match node.P.step with
-    | P.Assumption -> assert false
-    | P.Hypothesis ->
-      Util.debug ~section "Introducing clause: %a" P.St.print_clause node.P.conclusion;
-      let id = Solver.hyp_proof node.P.conclusion in
-      introduce_hyp id l pos
-    | P.Lemma lemma ->
-      Util.debug ~section "Proving lemma: %a" P.St.print_clause node.P.conclusion;
-      let f =
-        match Dispatcher.(ask lemma.plugin_name (Lemma lemma.proof_info)) with
-        | Some f -> f
-        | None -> (fun _ -> ())
-      in
-      introduce_lemma f l pos
-    | P.Resolution (left, right, _) ->
-      let left_proof = P.expand left in
-      let right_proof = P.expand right in
-      Util.debug ~section "Performing resolution between: %s-%s -> %s"
-        left_proof.P.conclusion.P.St.name right_proof.P.conclusion.P.St.name
-        node.P.conclusion.P.St.name;
-      let left_id = P.H.find h (P.expand left).P.conclusion in
-      let right_id = P.H.find h (P.expand right).P.conclusion in
-      resolve pos left_id right_id l
-    | _ ->
-      raise (Proof.Failure ("incomplete resolution proof reconstruction", Logic.extract_open pos))
-  in
-  Util.debug ~section "%s -> %a" node.P.conclusion.P.St.name Expr.Id.print id;
-  let () = P.H.add h node.P.conclusion id in
-  pos'
-
-let compute opt p =
-  let h = P.H.create 4013 in
-  let g =
-    match get_goals () with
-    | [] -> Term.false_term
-    | [ g ] -> g.Expr.id_type
-    | h :: r ->
-      let aux a b = Term.apply Term.or_term [a; b.Expr.id_type] in
-      List.fold_left aux h.Expr.id_type  r
-  in
-  let env = List.fold_left Proof.Env.declare Proof.Env.empty (get_hyps ()) in
-  let seq = Proof.mk_sequent env g in
-  let proof = Proof.mk seq in
-  let () =
-    let init = Proof.(pos (root proof)) in
-    try
-      let final = P.fold (fun acc node ->
-          print_incr_dot opt proof;
-          compute_aux h acc node
-        ) init p in
-      if not (Logic.trivial final) then begin
-        Util.error ~section "Proof incomplete";
-      end
-    with Proof.Failure (msg, _) ->
-      Util.warn ~section "Error during proof building:@.%s" msg;
-      Util.warn "Try and look at the full-dot output to see the incomplete proof"
-  in
-  proof
+let implicit_goal opt =
+  let p = Term.declare "implicit_goal" Term.false_term in
+  if not Options.(opt.context) then
+    Util.warn ~section "Using an implicit goal with context, this might be a problem"
+  else begin
+    declare_goal_aux opt p
+  end;
+  p
 
 (* Output proofs *)
 (* ************************************************************************ *)
 
-let pp_proof_lazy lang pp o x =
+let print_context context proof_context print fmt proof =
+  let pp = if context then proof_context print else print in
+  pp fmt proof
+
+let pp_proof_lazy lang o x pp =
   match o with
   | None -> ()
   | Some fmt ->
@@ -284,11 +167,30 @@ let pp_proof_lazy lang pp o x =
     end
 
 let output_proof opt p =
+  (* Simple proofs *)
   let () = pp_opt Unsat_core.print Options.(opt.unsat_core) p in
   let () = pp_opt Dot.print Options.(opt.res_dot) p in
-  let p' = lazy (compute opt p) in
-  let () = pp_proof_lazy "coq" (Proof.print ~lang:Proof.Coq) Options.(opt.coq) p' in
-  let () = pp_proof_lazy "full-dot" (Proof.print ~lang:Proof.Dot) Options.(opt.full_dot) p' in
+  (* More complex proofs *)
+  let g = (* get the current goal *)
+    let p =
+      match get_goal () with
+      | None -> implicit_goal opt
+      | Some g -> g
+    in
+    p.Expr.id_type
+  in
+  (* Lazily compute the proof *)
+  let p' = lazy (
+    let hyps = get_hyps () in
+    let env = List.fold_left Proof.Env.declare Proof.Env.empty hyps in
+    let seq = Proof.mk_sequent env g in
+    Resolution.compute opt seq p
+  ) in
+  (* Print the lazy proof in each language. *)
+  let () = pp_proof_lazy "coq" Options.(opt.coq) p'
+      (print_context opt.Options.context Coq.proof_context (Proof.print ~lang:Proof.Coq)) in
+  let () = pp_proof_lazy "full-dot" Options.(opt.full_dot) p'
+      (print_context true Dot.proof_context (Proof.print ~lang:Proof.Dot)) in
   ()
 
 

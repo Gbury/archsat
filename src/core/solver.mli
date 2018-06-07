@@ -7,6 +7,9 @@
 
 (** {2 Proofs & Models} *)
 
+val proof_section : Section.t
+(** Section for proof-related modules. *)
+
 module Proof : Msat.Res.S with module St = Dispatcher.SolverTypes
 (** Msat proof module *)
 

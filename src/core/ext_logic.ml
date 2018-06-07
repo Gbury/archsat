@@ -157,20 +157,29 @@ let dot_info = function
   | Not_equiv (f, _, _) ->
     Some "LIGHTBLUE", [CCFormat.const Dot.Print.formula f]
 
-(*
 let coq_proof = function
   | True -> (* prove: ~ True -> False *)
     (fun p -> p
               |> Logic.intro "Ax"
-              |> Logic.apply1 (
-*)
+              |> Logic.ctx (fun seq ->
+                  Logic.exact [] (
+                    let not_true = Proof.Env.find (Proof.env seq)
+                        (Term.app Term.not_term Term.true_term) in
+                    Term.app (Term.id not_true) Logic.true_proof)
+                )
+    )
+  | And (init, res) -> (* prove: ~ ~ init -> ~ res -> False,
+                          with init a conjunction including res *)
+    (fun p -> p
+              |> Logic.introN "Ax" 2
+              |> Logic.not_not_elim "Ax" (Term.of_formula init)
+              |> Logic.and_elim (Term.of_formula init)
+              |> Logic.absurd (Term.of_formula res))
+  | _ -> (fun _ -> ())
+
+
 (*
 let coq_proof = function
-  | True ->
-    Coq.tactic ~prefix:"X" (fun fmt ctx ->
-            Coq.exact fmt "%a I" (Proof.Ctx.named ctx) (Expr.Formula.f_false)
-          )
-
   | And (init, res) ->
     Coq.tactic ~prefix:"A" ~normalize:(Coq.Mem [init]) (fun fmt ctx ->
             let order = CCOpt.get_exn (Expr.Formula.get_tag init Expr.f_order) in
@@ -277,7 +286,7 @@ let coq_proof = function
 
 let handle : type ret. ret Dispatcher.msg -> ret option = function
   | Dot.Info Logic info -> Some (dot_info info)
-  (* | Coq.Tactic Logic info -> Some (coq_proof info) *)
+  | Proof.Lemma Logic info -> Some (coq_proof info)
   | _ -> None
 
 let register () =

@@ -215,6 +215,9 @@ type ('a, 'b) tactic = 'a -> 'b
     - a tuple, list or array of [pos] if it branches
 *)
 
+type _ Dispatcher.msg +=
+  | Lemma : Dispatcher.lemma_info -> (pos, unit) tactic Dispatcher.msg (**)
+(** Dispatcher message for theories to return proofs. *)
 
 val match_arrow : Term.t -> (Term.t * Term.t) option
 (** Try ad match the given term with an arrow type, is succesful returns

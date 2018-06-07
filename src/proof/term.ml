@@ -67,8 +67,8 @@ let rec pp fmt t =
     Format.fprintf fmt "@[<v>let %a = %a in@ @]%a"
       Expr.Id.print v pp e pp body
   | Binder (b, v, body) ->
-    Format.fprintf fmt "@[<hv 2>%s %a.@ %a@]"
-      (binder_name b) Expr.Id.print v pp body
+    Format.fprintf fmt "@[<hv 2>%s (%a : %a).@ %a@]"
+      (binder_name b) Expr.Id.print v pp v.Expr.id_type pp body
 
 (* Id creation *)
 (* ************************************************************************ *)
@@ -91,6 +91,19 @@ type Expr.builtin += Defined of t
 let define s def =
   Expr.Id.mk_new ~builtin:(Defined def) s def.ty
 
+(* Implicit arguments for Coq *)
+(* ************************************************************************ *)
+
+let coq_implicit_tag = Tag.create ()
+
+let coq_implicit v =
+  Expr.Id.tag v coq_implicit_tag ()
+
+let is_coq_implicit v =
+  match Expr.Id.get_tag v coq_implicit_tag with
+  | None -> false
+  | Some () -> true
+
 (* Free variables *)
 (* ************************************************************************ *)
 
@@ -103,15 +116,21 @@ let rec free_vars t =
     let res =
       match t.term with
       | Type -> S.empty
-      | Id v -> if is_var v then S.Id.bind S.empty v () else S.empty
-      | App (f, arg) -> merge (free_vars f) (free_vars arg)
-      | Binder (_, v, body) -> S.Id.remove v (free_vars body)
-      | Let (v, e, body) -> S.Id.remove v (merge (free_vars e) (free_vars body))
+      | Id v ->
+        let s = free_vars v.Expr.id_type in
+        if is_var v then S.Id.bind s v () else s
+      | App (f, arg) ->
+        merge (free_vars f) (free_vars arg)
+      | Binder (_, v, body) ->
+        S.Id.remove v (merge (free_vars v.Expr.id_type) (free_vars body))
+      | Let (v, e, body) ->
+        S.Id.remove v (merge (free_vars e) (free_vars body))
     in
     t.free <- Some res;
     res
 
 let occurs v t = S.Id.mem v (free_vars t)
+let not_occurs v t = not (occurs v t)
 
 (* Simple Term creation *)
 (* ************************************************************************ *)
@@ -126,7 +145,7 @@ let rec _Type = {
   ty      = _Type;
   term    = Type;
   hash    = 13; (* TODO: better base hash ? *)
-  free    = None;
+  free    = Some S.empty;
   reduced = Some _Type;
 }
 
@@ -401,6 +420,7 @@ let not_term = id not_id
 
 let equal_id =
   let a_id = var "a" _Type in
+  let () = coq_implicit a_id in
   let a_type = id a_id in
   declare "==" (forall a_id (arrows [a_type; a_type] _Prop))
 
@@ -487,13 +507,26 @@ let uncurry ?assoc t =
 (* Binder concatenation *)
 (* ************************************************************************ *)
 
-let flatten_binder o b t =
+let flatten_binder_aux cond b t =
   let rec aux b acc = function
-    | { term = Binder (b', v, body) } when (b = b') && o = occurs v body ->
+    | { term = Binder (b', v, body) } when (b = b') && (cond v body) ->
       aux b (v :: acc) body
     | t -> List.rev acc, t
   in
   aux b [] t
+
+let flatten_binder t =
+  let f, b, res =
+    match t.term with
+    | Binder (Forall, v, body) ->
+      if occurs v body
+      then occurs, Forall, `Binder Forall
+      else not_occurs, Forall, `Arrow
+    | Binder (b, _, _) -> (fun _ _ -> true), b, `Binder b
+    | _ -> assert false
+  in
+  let l, body = flatten_binder_aux f b t in
+  res, l, body
 
 let concat_aux ty l acc =
   match l with
@@ -521,17 +554,16 @@ let print_id fmt v =
   Expr.Id.print fmt v
 
 let rec print_app fmt t =
-  let f, l = uncurry_app t in
-  assert (l <> []);
+  let f, args = uncurry_app t in
+  assert (args <> []);
   Format.fprintf fmt "(%a@ %a)"
-    print f CCFormat.(list ~sep:(return "@ ") print) l
+    print f CCFormat.(list ~sep:(return "@ ") print) args
 
 and print_let fmt v e body =
   Format.fprintf fmt "@[<v>@[<hov>let %a =@ %a in@]@ %a@]"
     print_id v print e print body
 
-and print_arrow fmt t =
-  let l, body = flatten_binder false Forall t in
+and print_arrow fmt (l, body) =
   let l' = List.map (fun v -> v.Expr.id_type) l in
   let sep fmt () = Format.fprintf fmt " ->@ " in
   Format.fprintf fmt "(@[<hov>%a ->@ %a@])"
@@ -545,10 +577,9 @@ and print_var_list fmt (ty, l) =
 and print_var_lists fmt l =
   CCFormat.(list ~sep:(return "@ ") print_var_list) fmt l
 
-and print_binder fmt b t =
-  let l, body = flatten_binder true b t in
+and print_binder fmt (b, l, body) =
   let l' = concat_vars l in
-  Format.fprintf fmt "(@[<hov 2>%s@[<hov>%a@]%s@ %a@])"
+  Format.fprintf fmt "( @[<hov 2>%s @[<hov>%a@]%s@ %a@] )"
     (binder_name b) print_var_lists l'
     (binder_sep b) print body
 
@@ -558,8 +589,12 @@ and print fmt t =
   | Id v -> print_id fmt v
   | App _ -> print_app fmt t
   | Let (v, e, body) -> print_let fmt v e body
-  | Binder (Forall, v, body) -> print_arrow fmt t
-  | Binder (b, _, _) -> print_binder fmt b t
+  | Binder (_, _, _) ->
+    let kind, l, body = flatten_binder t in
+    begin match kind with
+      | `Arrow -> print_arrow fmt (l, body)
+      | `Binder b -> print_binder fmt (b, l, body)
+    end
 
 let print_typed fmt t =
   Format.fprintf fmt "@[<hv 2>%a :@ %a@]" print t print t.ty
@@ -650,7 +685,7 @@ let of_id_aux mk tr ?callback id =
     (* Util.debug ~section "new cached id: %a" Expr.Print.id v; *)
     v
 
-let of_id mk tr ?callback v = id (of_id_aux var tr ?callback v)
+let of_id mk tr ?callback v = id (of_id_aux mk tr ?callback v)
 
 let of_function_descr tr tr' ?callback fd =
   let rec aux_vars body = function
@@ -686,12 +721,12 @@ and of_ty ?callback ty =
   (* Util.debug ~section "translate ty: %a" Expr.Print.ty ty; *)
   match Hty.find ty_cache ty with
   | res ->
-    Util.debug ~section "cached value: %a" print res;
+    (* Util.debug ~section "cached value: %a" print res; *)
     res
   | exception Not_found ->
     let res = of_ty_aux ?callback ty in
     let () = Hty.add ty_cache ty res in
-    Util.debug ~section "new cached ty: %a" print res;
+    (* Util.debug ~section "new cached ty: %a" print res; *)
     res
 
 (* Term translation *)
