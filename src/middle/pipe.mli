@@ -56,6 +56,7 @@ type solved      = [ executed | type_defs | type_decls | sequent | result ]
 type +'a stmt = {
   id          : Dolmen.Id.t;
   contents    : 'a;
+  loc         : Dolmen.ParseLocation.t option;
 }
 (** Wrapper around statements. It records implicit type declarations. *)
 

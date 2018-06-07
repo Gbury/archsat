@@ -59,9 +59,10 @@ type solved      = [ executed | type_defs | type_decls | sequent | result ]
 type +'a stmt = {
   id : Dolmen.Id.t;
   contents  : 'a;
+  loc : Dolmen.ParseLocation.t option;
 }
 
-let simple id contents = { id; contents; }
+let simple id loc contents = { id; loc; contents; }
 
 (* Parsing *)
 (* ************************************************************************ *)
@@ -199,38 +200,38 @@ let typecheck (opt, c) : typechecked stmt =
     start_section ~section:Type.section Util.debug "Definition";
     let env = type_wrap opt in
     let ret = Type.new_def env t ?attr:c.S.attr id in
-    (simple (def_id c) ret :> typechecked stmt)
+    (simple (def_id c) c.S.loc ret :> typechecked stmt)
   | { S.descr = S.Decl (id, t) } ->
     start_section ~section:Type.section Util.debug "Declaration typing";
     let env = type_wrap opt in
     let ret = Type.new_decl env t ?attr:c.S.attr id in
-    (simple (decl_id c) ret :> typechecked stmt)
+    (simple (decl_id c) c.S.loc ret :> typechecked stmt)
   (** Hyps and goal statements *)
   | { S.descr = S.Prove } ->
-    simple (prove_id c) `Solve
+    simple (prove_id c) c.S.loc `Solve
   | { S.descr = S.Clause l } ->
     start_section ~section:Type.section Util.debug "Clause typing";
     let env = type_wrap opt in
     let res = List.map (Type.new_formula env) l in
-    (simple (hyp_id c) (`Clause res) :> typechecked stmt)
+    (simple (hyp_id c) c.S.loc (`Clause res) :> typechecked stmt)
   | { S.descr = S.Antecedent t } ->
     start_section ~section:Type.section Util.debug "Hypothesis typing";
     let env = type_wrap opt in
     let ret = Type.new_formula env t in
-    (simple (hyp_id c) (`Hyp ret) :> typechecked stmt)
+    (simple (hyp_id c) c.S.loc (`Hyp ret) :> typechecked stmt)
   | { S.descr = S.Consequent t } ->
     start_section ~section:Type.section Util.debug "Goal typing";
     let env = type_wrap ~goal:true opt in
     let ret = Type.new_formula env t in
-    (simple (goal_id c) (`Goal ret) :> typechecked stmt)
+    (simple (goal_id c) c.S.loc (`Goal ret) :> typechecked stmt)
   (** We can safely ignore set-logic "dimacs", as it only gives the number of atoms
       and clauses of the dimacs problem, which is of no interest. *)
   | { S.descr = S.Set_logic "dimacs" } ->
-    simple none `Executed
+    simple none c.S.loc `Executed
   (** Other set_logics should check whether corresponding plugins are activated ? *)
-  | { S.descr = S.Set_logic _ } -> simple none `Executed
+  | { S.descr = S.Set_logic _ } -> simple none c.S.loc `Executed
   (** Set info can always be ignored. *)
-  | { S.descr = S.Set_info _ } -> simple none `Executed
+  | { S.descr = S.Set_info _ } -> simple none c.S.loc `Executed
 
   (** Other untreated statements *)
   | _ -> raise (Options.Stmt_not_implemented c)
@@ -250,16 +251,16 @@ let solve (opt, (c : typechecked stmt)) : solved stmt =
     start_section ~section:Dispatcher.section Util.debug "Assume clause";
     let id = Solver.assume ~solve:Options.(opt.solve) l in
     let f = Expr.Formula.f_or l in
-    (simple res.id (`Left (id, f)) :> solved stmt)
+    (simple res.id res.loc (`Left (id, f)) :> solved stmt)
   | ({ contents = `Hyp f; _ } as res) ->
     start_section ~section:Dispatcher.section Util.debug "Assume hyp";
     let id = Solver.assume ~solve:Options.(opt.solve) [f] in
-    (simple res.id (`Left (id, f)) :> solved stmt)
+    (simple res.id res.loc (`Left (id, f)) :> solved stmt)
   | ({ contents = `Goal f; _ } as res) ->
     start_section ~section:Dispatcher.section Util.info "Assume goal";
     let id = Solver.assume ~solve:Options.(opt.solve)
         [Expr.Formula.neg ~status:Expr.Status.goal f] in
-    (simple res.id (`Right (id, f)) :> solved stmt)
+    (simple res.id res.loc (`Right (id, f)) :> solved stmt)
   | { contents = `Solve; _ } ->
     let ret =
       if opt.Options.solve then begin
