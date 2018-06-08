@@ -373,8 +373,10 @@ let resolve_step =
     | [| body |] -> Term.letin id t body
     | _ -> assert false
   in
-  let coq = Proof.Last_but_not_least, (fun fmt (_, _, id, t) ->
-      Format.fprintf fmt "@[<hv 2>pose proof (@,%a@;<0 -2>) as %a.@]"
+  let coq = Proof.Last_but_not_least, (fun fmt (l, r, id, t) ->
+      Format.fprintf fmt
+        "(* Resolution %a/%a -> %a *)@\n@[<hv 2>pose proof (@,%a@;<0 -2>) as %a.@]"
+        Coq.Print.id l Coq.Print.id r Coq.Print.id id
         Coq.Print.term t Coq.Print.id id
     ) in
   let dot = Proof.Branching, (fun fmt (c, c', id, _) ->
