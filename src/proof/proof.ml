@@ -436,6 +436,16 @@ let print_root fmt (seq, node) =
 
 let print_dot fmt root = print_root fmt root
 
+let print_dot_term fmt (seq, t) =
+  Format.fprintf fmt
+    "root [shape=plaintext, label=<<TABLE %a>%a</TABLE>>];@\n"
+    print_table_options "LIGHTBLUE"
+    print_sequent_dot ("ROOT", "PURPLE", seq);
+  Format.fprintf fmt "root -> term;@\n";
+  Format.fprintf fmt
+    "term [shape=plaintext, label=<<TABLE %a>%a</TABLE>>];@\n"
+      print_table_options "LIGHTBLUE" Dot.Print.Proof.term t
+
 (* Printing Coq proofs *)
 (* ************************************************************************ *)
 
@@ -492,30 +502,10 @@ let print_coq fmt (_, p) =
     "(* PROOF START *)@\n%a@\n(* PROOF END *)@."
     (print_node_coq ~depth:0) p
 
-(* Printing proofs *)
-(* ************************************************************************ *)
-
-let print_aux = function
-  | Dot -> print_dot
-  | Coq -> print_coq
-
-let print_prelude = function
-  | Dot -> Prelude.dot
-  | Coq -> Prelude.coq
-
-let print_preludes_aux ~lang fmt l =
-  Prelude.topo l (fun p ->
-      Format.fprintf fmt "%a@ " (print_prelude lang) p
-    )
-
-let print_preludes ~lang fmt l =
-  Format.fprintf fmt "@[<v>%a@]" (print_preludes_aux ~lang) l
-
-let print ~lang fmt = function
-  | (seq, [| p |]) as proof ->
-    print_preludes ~lang fmt (preludes proof);
-    print_aux lang fmt (seq, p)
-  | _ -> assert false
+let print_coq_term fmt (_, t) =
+  Format.fprintf fmt
+    "(* PROOF START *)@\n@[<hov 2>refine (@,%a@,).@]@\n(* PROOF END *)@."
+    Coq.Print.term t
 
 (* Inspecting proofs *)
 (* ************************************************************************ *)
@@ -557,6 +547,41 @@ and elaborate_node k { proof; _ } =
 
 let elaborate = function
   | _, [| p |] -> elaborate_node (fun x -> x) p
+  | _ -> assert false
+
+(* Printing proofs *)
+(* ************************************************************************ *)
+
+let print_aux = function
+  | Dot -> print_dot
+  | Coq -> print_coq
+
+let print_prelude = function
+  | Dot -> Prelude.dot
+  | Coq -> Prelude.coq
+
+let print_term_aux = function
+  | Dot -> print_dot_term
+  | Coq -> print_coq_term
+
+let print_preludes_aux ~lang fmt l =
+  Prelude.topo l (fun p ->
+      Format.fprintf fmt "%a@ " (print_prelude lang) p
+    )
+
+let print_preludes ~lang fmt l =
+  Format.fprintf fmt "@[<v>%a@]" (print_preludes_aux ~lang) l
+
+let print ~lang fmt = function
+  | (seq, [| p |]) as proof ->
+    print_preludes ~lang fmt (preludes proof);
+    print_aux lang fmt (seq, p)
+  | _ -> assert false
+
+let print_term ~lang fmt = function
+  | (seq, [| p |]) as proof ->
+    print_preludes ~lang fmt (preludes proof);
+    print_term_aux lang fmt (seq, elaborate proof)
   | _ -> assert false
 
 (* Match an arrow type *)

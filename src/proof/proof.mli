@@ -115,6 +115,9 @@ val mk : sequent -> proof
 val print : lang:lang -> Format.formatter -> proof -> unit
 (** Print the proof in the given language. *)
 
+val print_term : lang:lang -> Format.formatter -> proof -> unit
+(** Print the proof term corresponding t the proof in the given language. *)
+
 val elaborate : proof -> Term.t
 (** Elaborate the given proof into a proof term. *)
 

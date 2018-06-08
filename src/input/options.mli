@@ -71,6 +71,7 @@ type proof_options = {
   full_dot    : Format.formatter option;
   unsat_core  : Format.formatter option;
   coq         : Format.formatter option;
+  coqterm     : Format.formatter option;
 }
 
 type model_options = {

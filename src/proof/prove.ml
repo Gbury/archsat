@@ -62,6 +62,7 @@ let print_id_typed fmt id =
 (* Declare identifiers *)
 let declare_id_aux ?loc opt id =
   pp_opt (Coq.declare_id ?loc) Options.(opt.coq) id;
+  pp_opt (Coq.declare_id ?loc) Options.(opt.coqterm) id;
   ()
 
 let declare_implicits opt = function
@@ -107,6 +108,7 @@ let declare_term ?loc opt v =
 
 let init opt () =
   pp_opt Coq.init Options.(opt.proof.coq) opt;
+  pp_opt Coq.init Options.(opt.proof.coqterm) opt;
   pp_opt Dot.init_full Options.(opt.proof.full_dot) opt;
   ()
 
@@ -115,6 +117,7 @@ let init opt () =
 
 let declare_hyp_aux ?loc opt id =
   pp_opt (Coq.declare_hyp ?loc) Options.(opt.coq) id;
+  pp_opt (Coq.declare_hyp ?loc) Options.(opt.coqterm) id;
   ()
 
 let declare_hyp ?loc opt id f =
@@ -130,6 +133,7 @@ let declare_hyp ?loc opt id f =
 
 let declare_goal_aux ?loc opt id =
   pp_opt (Coq.declare_goal ?loc) Options.(opt.coq) id;
+  pp_opt (Coq.declare_goal ?loc) Options.(opt.coqterm) id;
   ()
 
 let declare_goal ?loc opt id f =
@@ -156,7 +160,7 @@ let print_context context proof_context print fmt proof =
   let pp = if context then proof_context print else print in
   pp fmt proof
 
-let pp_proof_lazy lang o x pp =
+let pp_lazy lang o x pp =
   match o with
   | None -> ()
   | Some fmt ->
@@ -180,16 +184,18 @@ let output_proof opt p =
     p.Expr.id_type
   in
   (* Lazily compute the proof *)
-  let p' = lazy (
+  let proof = lazy (
     let hyps = get_hyps () in
     let env = List.fold_left Proof.Env.declare Proof.Env.empty hyps in
     let seq = Proof.mk_sequent env g in
     Resolution.compute opt seq p
   ) in
   (* Print the lazy proof in each language. *)
-  let () = pp_proof_lazy "coq" Options.(opt.coq) p'
+  let () = pp_lazy "coq" Options.(opt.coq) proof
       (print_context opt.Options.context Coq.proof_context (Proof.print ~lang:Proof.Coq)) in
-  let () = pp_proof_lazy "full-dot" Options.(opt.full_dot) p'
+  let () = pp_lazy "coq" Options.(opt.coqterm) proof
+      (print_context opt.Options.context Coq.proof_context (Proof.print_term ~lang:Proof.Coq)) in
+  let () = pp_lazy "full-dot" Options.(opt.full_dot) proof
       (print_context true Dot.proof_context (Proof.print ~lang:Proof.Dot)) in
   ()
 

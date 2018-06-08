@@ -67,6 +67,7 @@ type proof_options = {
   full_dot    : Format.formatter option;
   unsat_core  : Format.formatter option;
   coq         : Format.formatter option;
+  coqterm     : Format.formatter option;
 }
 
 type model_options = {
@@ -163,20 +164,22 @@ let profile_opts enable max_depth sections out =
 let stats_opts enabled =
   { enabled; }
 
-let proof_opts prove no_context res_dot incr_dot full_dot unsat_core coq =
+let proof_opts prove no_context res_dot incr_dot full_dot unsat_core coq coqterm =
   let context = not no_context in
   let res_dot = formatter_of_out_descr res_dot in
   let full_dot = formatter_of_out_descr full_dot in
   let unsat_core = formatter_of_out_descr unsat_core in
   let coq = formatter_of_out_descr coq in
+  let coqterm = formatter_of_out_descr coqterm in
   let active = prove
                || res_dot <> None
                || incr_dot <> None
                || full_dot <> None
                || unsat_core <> None
                || coq <> None
+               || coqterm <> None
   in
-  { active; context; res_dot; incr_dot; full_dot; unsat_core; coq; }
+  { active; context; res_dot; incr_dot; full_dot; unsat_core; coq; coqterm; }
 
 let model_opts active assign = {
   active;
@@ -562,11 +565,16 @@ let proof_t =
     Arg.(value & opt out_descr `None & info ["unsat-core"] ~docs ~doc)
   in
   let coq =
-    let doc = "Set the file to which the program should output a coq proof.
+    let doc = "Set the file to which the program should output a coq proof script.
                A special 'stdout' value can be used to use standard output" in
     Arg.(value & opt out_descr `None & info ["coq"] ~docs ~doc)
   in
-  Term.(const proof_opts $ check_proof $ no_context $ res_dot $ incr_dot $ full_dot $ unsat_core $ coq)
+  let coqterm =
+    let doc = "Set the file to which the program should output a coq proof term.
+               A special 'stdout' value can be used to use standard output" in
+    Arg.(value & opt out_descr `None & info ["coqterm"] ~docs ~doc)
+  in
+  Term.(const proof_opts $ check_proof $ no_context $ res_dot $ incr_dot $ full_dot $ unsat_core $ coq $ coqterm)
 
 let model_t =
   let docs = model_sect in
