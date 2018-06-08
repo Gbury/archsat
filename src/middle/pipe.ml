@@ -334,14 +334,14 @@ let print_proof (opt, (c : solved stmt)) =
 
   (* Interesting parts *)
   | { contents = `Type_decl f; _ } ->
-    Prove.declare_ty Options.(opt.proof) f
+    Prove.declare_ty ?loc:c.loc Options.(opt.proof) f
   | { contents = `Term_decl f; _ } ->
-    Prove.declare_term Options.(opt.proof) f
+    Prove.declare_term ?loc:c.loc Options.(opt.proof) f
   | { contents = `Left (hyp_id, f) ; id; _ } ->
-    let t = Prove.declare_hyp Options.(opt.proof) id f in
+    let t = Prove.declare_hyp ?loc:c.loc Options.(opt.proof) id f in
     Solver.register_hyp hyp_id t
   | { contents = `Right (hyp_id, f); id; _ } ->
-    let _ = Prove.declare_goal Options.(opt.proof) id f in
+    let _ = Prove.declare_goal ?loc:c.loc Options.(opt.proof) id f in
     ()
   | { contents = `Proof p; _ } ->
     Util.info "Proof size: %a" Util.print_size (Util.size p);

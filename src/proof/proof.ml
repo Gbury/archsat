@@ -160,10 +160,10 @@ module Prelude = struct
 
   let coq fmt = function
     | Require id ->
-      Format.fprintf fmt "Require Import %a." Coq.Print.id id
+      Format.fprintf fmt "(* Prelude: Module import *)@\nRequire Import %a.@\n" Coq.Print.id id
     | Alias (id, t) ->
       Util.debug ~section "%a : %a" Expr.Id.print id Term.print id.Expr.id_type;
-      Format.fprintf fmt "@[<hv>Definition %a :@ @[<hov>%a@] :=@ @[<hov>%a@]@]."
+      Format.fprintf fmt "(* @[<hov>Prelude: Alias@] *)@\n@[<hv>Definition %a :@ @[<hov>%a@] :=@ @[<hov>%a@]@].@\n"
         Coq.Print.id id Coq.Print.term id.Expr.id_type Coq.Print.term t
 
 
@@ -487,7 +487,10 @@ and print_proof_node_coq ~depth fmt = function
 and print_node_coq ~depth fmt { proof; _ } =
   print_proof_node_coq ~depth fmt proof
 
-let print_coq fmt (_, p) = print_node_coq ~depth:0 fmt p
+let print_coq fmt (_, p) =
+  Format.fprintf fmt
+    "(* PROOF START *)@\n%a@\n(* PROOF END *)@."
+    (print_node_coq ~depth:0) p
 
 (* Printing proofs *)
 (* ************************************************************************ *)

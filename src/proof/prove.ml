@@ -60,47 +60,47 @@ let print_id_typed fmt id =
     Expr.Print.id id Term.print id.Expr.id_type
 
 (* Declare identifiers *)
-let declare_id_aux opt id =
-  pp_opt Coq.declare_id Options.(opt.coq) id;
+let declare_id_aux ?loc opt id =
+  pp_opt (Coq.declare_id ?loc) Options.(opt.coq) id;
   ()
 
-let declare_implicits opt l =
-  if Options.(opt.context) then begin
-    List.iter (declare_id_aux opt) (List.rev l)
-  end else begin match l with
-    | [] -> ()
-    | _ ->
+let declare_implicits opt = function
+  | [] -> ()
+  | l ->
+    if Options.(opt.context) then begin
+      List.iter (declare_id_aux opt) (List.rev l)
+    end else begin
       Util.warn ~section
         "@[<hv 2>The following identifiers are implicitly typed:@ @[<v>%a@]@]"
         CCFormat.(list ~sep:(return "@ ") print_id_typed) l
-  end
+    end
 
 (* Identifier declarations *)
 (* ************************************************************************ *)
 
 (* Print type declarations for ids *)
-let declare_id opt implicit v ty =
+let declare_id ?loc opt implicit v ty =
   Util.debug ~section "Declaring %a" Expr.Print.id v;
   let id = Term.declare v.Expr.id_name ty in
   let () = Term.trap_id v id in
   let () = declare_implicits opt implicit in
-  if Options.(opt.context) then declare_id_aux opt id
+  if Options.(opt.context) then declare_id_aux ?loc opt id
 
 (* Declare type consructors *)
-let declare_ty opt v =
+let declare_ty ?loc opt v =
   Util.debug ~section "Translating %a" Expr.Print.id v;
   let implicit, ty = wrapper v.Expr.id_type
       (Term.of_function_descr Term.of_unit Term.of_ttype)
   in
-  declare_id opt implicit v ty
+  declare_id ?loc opt implicit v ty
 
 (* Declare term constants *)
-let declare_term opt v =
+let declare_term ?loc opt v =
   Util.debug ~section "Translating %a" Expr.Print.id v;
   let implicit, ty = wrapper v.Expr.id_type
       (Term.of_function_descr Term.of_ttype Term.of_ty)
   in
-  declare_id opt implicit v ty
+  declare_id ?loc opt implicit v ty
 
 (* Proof initialization *)
 (* ************************************************************************ *)
@@ -113,37 +113,37 @@ let init opt () =
 (* Hyp declarations *)
 (* ************************************************************************ *)
 
-let declare_hyp_aux opt id =
-  pp_opt Coq.declare_hyp Options.(opt.coq) id;
+let declare_hyp_aux ?loc opt id =
+  pp_opt (Coq.declare_hyp ?loc) Options.(opt.coq) id;
   ()
 
-let declare_hyp opt id f =
+let declare_hyp ?loc opt id f =
   let implicit, t = wrapper f Term.of_formula in
   let p = Term.declare (Dolmen.Id.full_name id) t in
   let () = declare_implicits opt implicit in
   let () = add_hyp p in
-  if Options.(opt.context) then declare_hyp_aux opt p;
+  if Options.(opt.context) then declare_hyp_aux ?loc opt p;
   p
 
 (* Goal declarations *)
 (* ************************************************************************ *)
 
-let declare_goal_aux opt id =
-  pp_opt Coq.declare_goal Options.(opt.coq) id;
+let declare_goal_aux ?loc opt id =
+  pp_opt (Coq.declare_goal ?loc) Options.(opt.coq) id;
   ()
 
-let declare_goal opt id f =
+let declare_goal ?loc opt id f =
   let implicit, t = wrapper f Term.of_formula in
   let p = Term.declare (Dolmen.Id.full_name id) t in
   let () = declare_implicits opt implicit in
   let () = add_goal p in
-  if Options.(opt.context) then declare_goal_aux opt p;
+  if Options.(opt.context) then declare_goal_aux ?loc opt p;
   p
 
 let implicit_goal opt =
   let p = Term.declare "implicit_goal" Term.false_term in
   if not Options.(opt.context) then
-    Util.warn ~section "Using an implicit goal with context, this might be a problem"
+    Util.warn ~section "Using an implicit goal without context, this might be a problem"
   else begin
     declare_goal_aux opt p
   end;
