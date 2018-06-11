@@ -41,7 +41,16 @@ val declare_goal :
   ?loc:Dolmen.ParseLocation.t -> Format.formatter -> Term.id -> unit
 (** Declare a new hypothesis, with the correct type. *)
 
+val declare_goal_term :
+  ?loc:Dolmen.ParseLocation.t -> Format.formatter -> Term.id -> unit
+(** Declare a new hypothesis, with the correct type. *)
+
 val proof_context :
+  (Format.formatter -> 'a -> unit) ->
+  Format.formatter -> 'a -> unit
+(** Wraps a printer to make it print inside a proof context. *)
+
+val proof_term_context :
   (Format.formatter -> 'a -> unit) ->
   Format.formatter -> 'a -> unit
 (** Wraps a printer to make it print inside a proof context. *)

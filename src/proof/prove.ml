@@ -133,7 +133,7 @@ let declare_hyp ?loc opt id f =
 
 let declare_goal_aux ?loc opt id =
   pp_opt (Coq.declare_goal ?loc) Options.(opt.coq) id;
-  pp_opt (Coq.declare_goal ?loc) Options.(opt.coqterm) id;
+  pp_opt (Coq.declare_goal_term ?loc) Options.(opt.coqterm) id;
   ()
 
 let declare_goal ?loc opt id f =
@@ -193,8 +193,8 @@ let output_proof opt p =
   (* Print the lazy proof in each language. *)
   let () = pp_lazy "coq" Options.(opt.coq) proof
       (print_context opt.Options.context Coq.proof_context (Proof.print ~lang:Proof.Coq)) in
-  let () = pp_lazy "coq" Options.(opt.coqterm) proof
-      (print_context opt.Options.context Coq.proof_context (Proof.print_term ~lang:Proof.Coq)) in
+  let () = pp_lazy "coqterm" Options.(opt.coqterm) proof
+      (print_context opt.Options.context Coq.proof_term_context (Proof.print_term ~lang:Proof.Coq)) in
   let () = pp_lazy "full-dot" Options.(opt.full_dot) proof
       (print_context true Dot.proof_context (Proof.print ~lang:Proof.Dot)) in
   ()

@@ -143,8 +143,15 @@ let declare_goal ?loc fmt id =
   Format.fprintf fmt "%a@\nTheorem %a : %a.@."
     declare_loc loc Print.id id Print.term id.Expr.id_type
 
+let declare_goal_term ?loc fmt id =
+  Format.fprintf fmt "%a@\n@[<hv 2>Definition %a :@ %a :=@ "
+    declare_loc loc Print.id id Print.term id.Expr.id_type
+
 let proof_context pp fmt x =
   Format.fprintf fmt "@[<hov 2>Proof.@\n%a@]@\nQed.@." pp x
+
+let proof_term_context pp fmt x =
+  Format.fprintf fmt "%a@]@\n." pp x
 
 (*
 (* Coq tactic helpers *)

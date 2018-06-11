@@ -504,7 +504,7 @@ let print_coq fmt (_, p) =
 
 let print_coq_term fmt (_, t) =
   Format.fprintf fmt
-    "(* PROOF START *)@\n@[<hov 2>refine (@,%a@,).@]@\n(* PROOF END *)@."
+    "(* PROOF START *)@\n@[<hov 2>%a@]@\n(* PROOF END *)@."
     Coq.Print.term t
 
 (* Inspecting proofs *)
