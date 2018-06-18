@@ -606,7 +606,8 @@ let rec match_aux subst pat t =
   match pat, t with
   | { term = Id v }, _ when is_var v ->
     begin match S.Id.get v subst with
-      | exception Not_found -> S.Id.bind subst v t
+      | exception Not_found ->
+        S.Id.bind (match_aux subst v.Expr.id_type t.ty) v t
       | t' ->
         if equal t t' then subst
         else raise (Match_Impossible (pat, t))
@@ -623,14 +624,14 @@ let rec match_aux subst pat t =
     match_aux (match_aux subst f g) f_arg g_arg
   | { term = Binder (b, v, body) },
     { term = Binder (b', v', body') } ->
-    if b = b' then
-      match_aux (S.Id.bind subst v (id v')) body body'
-    else
+    if b = b' then begin
+      let tmp = match_aux subst v.Expr.id_type v'.Expr.id_type in
+      match_aux (S.Id.bind tmp v (id v')) body body'
+    end else
       raise (Match_Impossible (pat, t))
   | _ -> raise (Match_Impossible (pat, t))
 
 let pmatch ~pat t =
-  (* Util.debug ~section "@[<hv 2>pattern match:@ %a@ ~~~@ %a" print pat print t; *)
   let s = match_aux S.empty (reduce pat) (reduce t) in
   let fv = free_vars pat in
   S.filter (fun v _ -> S.Id.mem v fv) s

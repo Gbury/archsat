@@ -65,7 +65,8 @@ let compute_aux h pos node =
     | P.Assumption -> assert false
     | P.Hypothesis ->
       Util.debug ~section "Introducing clause: %a" P.St.print_clause node.P.conclusion;
-      let t = (Solver.hyp_proof node.P.conclusion).Expr.id_type in
+      let t = Term.id (Solver.hyp_proof node.P.conclusion) in
+      Util.debug ~section "  using %a" Term.print t;
       introduce_hyp t l pos
     | P.Lemma lemma ->
       Util.debug ~section "Proving lemma: %a" P.St.print_clause node.P.conclusion;

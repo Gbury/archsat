@@ -66,6 +66,26 @@ let and_elim_id, and_elim_alias =
   let id = Term.define "and_elim" t in
   id, Proof.Prelude.alias id t
 
+let or_ind =
+  let a = Term.var "A" Term._Prop in
+  let b = Term.var "B" Term._Prop in
+  let p = Term.var "P" Term._Prop in
+  let () = Term.coq_implicit a in
+  let () = Term.coq_implicit b in
+  let () = Term.coq_implicit p in
+  let a_t = Term.id a in
+  let b_t = Term.id b in
+  let p_t = Term.id p in
+  let a_or_b = Term.(apply or_term [a_t; b_t]) in
+  let a_to_p = Term.arrows [a_t] p_t in
+  let b_to_p = Term.arrows [b_t] p_t in
+  Term.declare "or_ind"
+    (Term.foralls [a; b; p] (
+        Term.arrows [a_to_p; b_to_p; a_or_b]
+          p_t
+      )
+    )
+
 let or_elim_id, or_elim_alias =
   let a = Term.var "A" Term._Prop in
   let b = Term.var "B" Term._Prop in
@@ -79,13 +99,6 @@ let or_elim_id, or_elim_alias =
   let o = Term.var "o" a_or_b in
   let f = Term.var "f" a_to_p in
   let g = Term.var "g" b_to_p in
-  let or_ind =
-    Term.declare "or_ind"
-      (Term.foralls [a; b; p] (
-          Term.arrows [a_to_p; b_to_p; a_or_b]
-            p_t
-        )
-      ) in
   let t =
     Term.lambdas [a; b; p; o; f; g] (
       Term.(apply (id or_ind) [a_t; b_t; p_t; id f; id g; id o])
@@ -275,7 +288,9 @@ let rec or_elim ~f t pos =
       ~left:(fun p -> p |> intro "O" |> find left_term (or_elim ~f))
       ~right:(fun p -> p |> intro "O" |> find right_term (or_elim ~f))
   with
-  | Term.Match_Impossible _ -> f t pos
+  | Term.Match_Impossible _ ->
+    Util.debug ~section "Couldn't split %a: %a" Term.print t Term.print t.Term.ty;
+    f t.Term.ty pos
   | Not_found ->
     Util.error ~section "Absent binding after pattern matching";
     assert false
@@ -309,7 +324,7 @@ let rec and_elim t pos =
 let not_not_elim prefix t pos =
   let seq = extract_open pos in
   if not (Term.equal Term.false_term (Proof.goal seq)) then
-    raise (Proof.Failure ("Doulbe negation elimination is only possible whne the goal is [False]", seq));
+    raise (Proof.Failure ("Double negation elimination is only possible when the goal is [False]", seq));
   pos
   |> ctx (fun seq ->
       apply1 [] (Term.id @@ Proof.Env.find (Proof.env seq)
@@ -327,6 +342,24 @@ let normalize prefix t pos =
 
 (* Resolution tactics *)
 (* ************************************************************************ *)
+
+let match_not_not =
+  let x = Term.var "x" Term._Prop in
+  let pat = Term.app Term.not_term (Term.app Term.not_term (Term.id x)) in
+  (fun t ->
+     try
+       Util.debug ~section "Match: %a / %a"
+         Term.print pat Term.print t;
+       let s = Term.pmatch ~pat t in
+       Util.debug ~section " -> %a"
+         (Term.S.print Expr.Id.print Term.print) s;
+       Some (Term.S.Id.get x s)
+     with
+     | Not_found -> assert false
+     | Term.Match_Impossible _ -> None)
+
+let shortcut_not_not t =
+  match match_not_not t with Some t' -> t' | None -> t
 
 let clause_type l =
   List.fold_right (fun lit acc ->
@@ -346,7 +379,7 @@ let resolve_clause_aux c1 c2 res pos =
         |> Array.iter (fun p' ->
             if not (trivial p') then begin
               let a = Proof.goal (extract_open p') in
-              p' |> intro "y" |> absurd a
+              p' |> intro "y" |> absurd (shortcut_not_not a)
             end
           )
       end

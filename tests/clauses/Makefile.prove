@@ -1,0 +1,8 @@
+
+BIN=../archsat
+OPT=
+NAME=prove/cnf
+TESTS= $(patsubst %,%.coq,$(shell find . -name '*.cnf' | sort -n))
+
+include ../Makefile.shared
+
