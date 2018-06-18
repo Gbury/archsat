@@ -8,6 +8,7 @@ module Env = struct
 
   exception Added_twice of Term.t
   exception Not_introduced of Term.t
+  exception Conflict of Term.id * Term.id
 
   let () =
     Printexc.register_printer (function
@@ -29,7 +30,7 @@ module Env = struct
     (** Bindings *)
     names : Term.id Mt.t; (** local bindings *)
     global : Term.id Mt.t; (** global bindings *)
-    reverse : (Term.id, unit) Term.S.t; (** Set of ids present that are bound *)
+    reverse : Term.id Ms.t; (** Set of ids present that are bound *)
 
     (** Options for nice names *)
     prefix : string;  (** current prefix *)
@@ -54,7 +55,7 @@ module Env = struct
   let empty = {
     names = Mt.empty;
     global = Mt.empty;
-    reverse = Term.S.empty;
+    reverse = Ms.empty;
     prefix = "";
     count = Ms.empty;
   }
@@ -62,7 +63,7 @@ module Env = struct
   let prefix t s =
     { t with prefix = s }
 
-  let mem t id = Term.S.Id.mem id t.reverse
+  let mem t id = Ms.mem id.Expr.id_name t.reverse
 
   let find t f =
     try Mt.find f t.names
@@ -82,23 +83,34 @@ module Env = struct
     | name -> raise (Added_twice f)
     | exception Not_found ->
       { t with names = Mt.add f id t.names;
-               reverse = Term.S.Id.bind t.reverse id (); }
+               reverse = Ms.add id.Expr.id_name id t.reverse; }
+
+  (** Find a name not already used (guaranteed to terminate, since
+      the 'reverse' map is finite. *)
+  let rec intro_aux t f prefix n =
+      let name = Format.sprintf "%s%d" prefix n in
+      if Ms.mem name t.reverse then
+        intro_aux t f prefix (n + 1)
+      else begin
+        let id = Term.var name f in
+        { t with names = Mt.add f id t.names;
+                 count = Ms.add prefix (n + 1) t.count;
+                 reverse = Ms.add name id t.reverse; }
+      end
 
   let intro t f =
     match Mt.find f t.names with
     | name -> raise (Added_twice f)
-    | exception Not_found ->
-      let n = local_count t t.prefix in
-      let name = Format.sprintf "%s%d" t.prefix n in
-      let id = Term.var name f in
-      { t with names = Mt.add f id t.names;
-               count = Ms.add t.prefix (n + 1) t.count;
-               reverse = Term.S.Id.bind t.reverse id (); }
+    | exception Not_found -> intro_aux t f t.prefix (local_count t t.prefix)
 
   let declare t id =
     assert (not (Term.is_var id));
-    { t with global = Mt.add id.Expr.id_type id t.global;
-             reverse = Term.S.Id.bind t.reverse id (); }
+    try
+      let id' = Ms.find id.Expr.id_name t.reverse in
+      raise (Conflict (id', id))
+    with Not_found ->
+      { t with global = Mt.add id.Expr.id_type id t.global;
+               reverse = Ms.add id.Expr.id_name id t.reverse; }
 
   let count t = Mt.cardinal t.names + Mt.cardinal t.global
 

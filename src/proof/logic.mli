@@ -29,6 +29,9 @@ val ctx : (Proof.sequent -> (pos, 'a) tactic) -> (pos, 'a) tactic
 (** Wrapper around tactics to access environment (and use it to compute
     parameters for the tactic). *)
 
+val ensure : (pos, bool) tactic -> (pos, unit) tactic
+(** Ensures the bool-returning tactic succeeds in closing the proof. *)
+
 val intro : string -> (pos, pos) tactic
 val introN : string -> int -> (pos, pos) tactic
 (** Introduction tactic. The string given is used as prefix
@@ -79,6 +82,15 @@ val or_elim :
   f:(Term.t -> (pos, unit) tactic) ->
   Term.t -> (pos, unit) tactic
 (** Eliminate a disjunction present in the environment. *)
+
+val and_intro :
+  f:(Term.t -> (pos, unit) tactic) -> (pos, unit) tactic
+(** Introduce a conjunction.
+    TODO: some more doc. *)
+
+val or_intro : Term.t -> (pos, pos) tactic
+(** Introduce a dijunction.
+    TODO: some more doc *)
 
 val and_elim : Term.t -> (pos, pos) tactic
 (** Eliminate a conjunction, introducing its individual terms in the env. *)

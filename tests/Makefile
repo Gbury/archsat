@@ -11,7 +11,7 @@ all: $(BIN)
 	@cd quant && $(MAKE) -f Makefile.solve --no-print-directory
 #	@cd rewr && $(MAKE) --no-print-directory
 	@cd clauses && $(MAKE) -f Makefile.prove --no-print-directory
-#	@cd logic && $(MAKE) -f Makefile.prove --no-print-directory
+	@cd logic && $(MAKE) -f Makefile.prove --no-print-directory
 #	@cd equality && $(MAKE) -f Makefile.prove --no-print-directory
 #	@cd quant && $(MAKE) -f Makefile.prove --no-print-directory
 #	@cd rewr && $(MAKE) -f Makefile.prove --no-print-directory

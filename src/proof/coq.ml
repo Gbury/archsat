@@ -78,14 +78,16 @@ module Print = struct
     | Term.App _ ->
       let f, args = Term.uncurry ~assoc t in
       let args = elim_implicits f.Term.ty args in
-      begin match get_status f with
-        | None ->
+      begin match get_status f, args with
+        | None, [] ->
+          Format.fprintf fmt "@[<hov>%a@]" term f
+        | None, _ ->
           Format.fprintf fmt "@[<hov>(%a %a)@]" term f
             CCFormat.(list ~sep:(return "@ ") term) args
-        | Some Pretty.Prefix ->
+        | Some Pretty.Prefix, _ ->
           Format.fprintf fmt "@[<hov>%a %a@]" term f
             CCFormat.(list ~sep:(return "@ ") term) args
-        | Some Pretty.Infix ->
+        | Some Pretty.Infix, _ ->
           let sep fmt () = Format.fprintf fmt "@ %a " term f in
           Format.fprintf fmt "@[<hov>(%a)@]" CCFormat.(list ~sep term) args
       end

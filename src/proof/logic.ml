@@ -29,6 +29,17 @@ let nnpp_id =
   let nnp = Term.app Term.not_term (Term.app Term.not_term p_t) in
   Term.declare "NNPP" (Term.forall p (Term.arrow nnp p_t))
 
+let and_intro_id =
+  let a = Term.var "A" Term._Prop in
+  let b = Term.var "B" Term._Prop in
+  let () = Term.coq_implicit a in
+  let () = Term.coq_implicit b in
+  let a_t = Term.id a in
+  let b_t = Term.id b in
+  let a_and_b = Term.(apply and_term [a_t; b_t]) in
+  Term.declare "conj"
+    (Term.foralls [a; b] (Term.arrows [a_t; b_t] a_and_b))
+
 let and_ind =
   let a = Term.var "A" Term._Prop in
   let b = Term.var "B" Term._Prop in
@@ -65,6 +76,28 @@ let and_elim_id, and_elim_alias =
     ) in
   let id = Term.define "and_elim" t in
   id, Proof.Prelude.alias id t
+
+let or_introl_id =
+  let a = Term.var "A" Term._Prop in
+  let b = Term.var "B" Term._Prop in
+  let () = Term.coq_implicit a in
+  let () = Term.coq_implicit b in
+  let a_t = Term.id a in
+  let b_t = Term.id b in
+  let a_or_b = Term.apply Term.or_term [a_t; b_t] in
+  Term.declare "or_introl"
+    (Term.foralls [a; b] (Term.arrow a_t a_or_b))
+
+let or_intror_id =
+  let a = Term.var "A" Term._Prop in
+  let b = Term.var "B" Term._Prop in
+  let () = Term.coq_implicit a in
+  let () = Term.coq_implicit b in
+  let a_t = Term.id a in
+  let b_t = Term.id b in
+  let a_or_b = Term.apply Term.or_term [a_t; b_t] in
+  Term.declare "or_intror"
+    (Term.foralls [a; b] (Term.arrow b_t a_or_b))
 
 let or_ind =
   let a = Term.var "A" Term._Prop in
@@ -110,7 +143,9 @@ let nnpp_term = Term.id nnpp_id
 let exfalso_term = Term.id exfalso_id
 let or_elim_term = Term.id or_elim_id
 let and_elim_term = Term.id and_elim_id
-
+let or_introl_term = Term.id or_introl_id
+let or_intror_term = Term.id or_intror_id
+let and_intro_term = Term.id and_intro_id
 
 (* Some generic tactic manipulations *)
 (* ************************************************************************ *)
@@ -129,6 +164,13 @@ let find t f pos =
   let env = Proof.env seq in
   let id = Proof.Env.find env t in
   f (Term.id id) pos
+
+(* Ensure a bool-returning tactic succeeeds *)
+let ensure tactic pos =
+  let b = tactic pos in
+  if not b then
+    let seq = extract_open pos in
+    raise (Proof.Failure ("Tactic didn't close the proof as expected", seq))
 
 (** Iterate a tactic n times *)
 let rec iter tactic n pos =
@@ -268,57 +310,114 @@ let absurd atom pos =
   let env = Proof.env ctx in
   pos |> exfalso |> exact [] (find_absurd ctx env atom)
 
-
-(* Logical connective elimination *)
+(* Logical connectives patterns *)
 (* ************************************************************************ *)
 
 let or_left = Term.var "a" Term._Prop
 let or_right = Term.var "b" Term._Prop
-let or_elim_pat = Term.(apply or_term [id or_left; id or_right])
+let or_pat = Term.(apply or_term [id or_left; id or_right])
 
-let rec or_elim ~f t pos =
-  let ctx = extract_open pos in
-  let goal = Proof.goal ctx in
+let match_or t =
   try
-    let s = Term.pmatch ~pat:or_elim_pat t.Term.ty in
+    let s = Term.pmatch ~pat:or_pat t in
     let left_term = Term.S.Id.get or_left s in
     let right_term = Term.S.Id.get or_right s in
-    let t' = Term.apply or_elim_term [left_term; right_term; goal; t] in
-    apply2 [or_elim_alias] t' pos |> split
-      ~left:(fun p -> p |> intro "O" |> find left_term (or_elim ~f))
-      ~right:(fun p -> p |> intro "O" |> find right_term (or_elim ~f))
+    Some (left_term, right_term)
   with
-  | Term.Match_Impossible _ ->
-    Util.debug ~section "Couldn't split %a: %a" Term.print t Term.print t.Term.ty;
-    f t.Term.ty pos
+  | Term.Match_Impossible _ -> None
   | Not_found ->
     Util.error ~section "Absent binding after pattern matching";
     assert false
 
-
 let and_left = Term.var "a" Term._Prop
 let and_right = Term.var "b" Term._Prop
-let and_elim_pat = Term.(apply and_term [id and_left; id and_right])
+let and_pat = Term.(apply and_term [id and_left; id and_right])
+
+let match_and t =
+  try
+    let s = Term.pmatch ~pat:and_pat t in
+    let left_term = Term.S.Id.get and_left s in
+    let right_term = Term.S.Id.get and_right s in
+    Some (left_term, right_term)
+  with
+  | Term.Match_Impossible _ -> None
+  | Not_found ->
+    Util.error ~section "Absent binding after pattern matching";
+    assert false
+
+(* Logical connective creation *)
+(* ************************************************************************ *)
+
+let rec and_intro ~f pos =
+  let ctx = extract_open pos in
+  let goal = Proof.goal ctx in
+  match match_and goal with
+  | None -> f goal pos
+  | Some (left, right) ->
+    let t' = Term.apply and_intro_term [left; right] in
+    apply2 [] t' pos |> split ~left:(and_intro ~f) ~right:(and_intro ~f)
+
+let rec find_or x t =
+  if Term.equal x t then Some []
+  else match match_or t with
+    | None -> None
+    | Some (left, right) ->
+      begin match find_or x left with
+        | Some path -> Some ((`Left, left, right) :: path)
+        | None ->
+          begin match find_or x right with
+            | Some path -> Some ((`Right, left, right) :: path)
+            | None -> None
+          end
+      end
+
+let rec or_intro_aux l pos =
+  match l with
+  | [] -> pos
+  | (`Left, left, right) :: r ->
+    let t = Term.apply or_introl_term [left; right] in
+    pos |> apply1 [] t |> or_intro_aux r
+  | (`Right, left, right) :: r ->
+    let t = Term.apply or_intror_term [left; right] in
+    pos |> apply1 [] t |> or_intro_aux r
+
+let or_intro t pos =
+  let ctx = extract_open pos in
+  let goal = Proof.goal ctx in
+  match find_or t goal with
+  | Some path -> or_intro_aux path pos
+  | None ->
+    raise (Proof.Failure ("Couldn't find the given atom in disjunction", ctx))
+
+(* Logical connective elimination *)
+(* ************************************************************************ *)
+
+let rec or_elim ~f t pos =
+  let ctx = extract_open pos in
+  let goal = Proof.goal ctx in
+  match match_or t.Term.ty with
+  | None ->
+    Util.debug ~section "Couldn't split %a: %a" Term.print t Term.print t.Term.ty;
+    f t.Term.ty pos
+  | Some (left_term, right_term) ->
+    let t' = Term.apply or_elim_term [left_term; right_term; goal; t] in
+    apply2 [or_elim_alias] t' pos |> split
+      ~left:(fun p -> p |> intro "O" |> find left_term (or_elim ~f))
+      ~right:(fun p -> p |> intro "O" |> find right_term (or_elim ~f))
 
 let rec and_elim t pos =
   let ctx = extract_open pos in
   let goal = Proof.goal ctx in
   let env = Proof.env ctx in
   let v = Proof.Env.find env t in
-  try
-    let s = Term.pmatch ~pat:and_elim_pat v.Expr.id_type in
-    let left_term = Term.S.Id.get and_left s in
-    let right_term = Term.S.Id.get and_right s in
+  match match_and v.Expr.id_type with
+  | None -> pos
+  | Some (left_term, right_term) ->
     let t' = Term.apply and_elim_term [left_term; right_term; goal; Term.id v] in
     apply1 [and_elim_alias] t' pos
     |> introN "A" 2
     |> and_elim left_term
     |> and_elim right_term
-  with
-  | Term.Match_Impossible _ -> pos
-  | Not_found ->
-    Util.error ~section "Absent binding after pattern matching";
-    assert false
 
 (** Eliminate double negations when the goal is [False] *)
 let not_not_elim prefix t pos =
@@ -369,7 +468,7 @@ let clause_type l =
 let resolve_clause_aux c1 c2 res pos =
   let n = List.length res in
   pos
-  |> iter (intro "L") n
+  |> iter (intro "l") n
   |> apply [] (Term.id c1)
   |> Array.iter (fun p ->
       if not (trivial p) then begin

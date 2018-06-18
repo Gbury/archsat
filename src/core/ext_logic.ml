@@ -175,27 +175,25 @@ let coq_proof = function
               |> Logic.not_not_elim "Ax" (Term.of_formula init)
               |> Logic.and_elim (Term.of_formula init)
               |> Logic.absurd (Term.of_formula res))
+
+  | Not_or (init, res) -> (* prove ~ init -> ~ ~ res -> False,
+                             with init a disjunction that includes res *)
+    (fun p -> p
+              |> Logic.introN "Ax" 2
+              |> Logic.not_not_elim "Ax" (Term.of_formula res)
+              |> Logic.ctx (fun seq ->
+                  Logic.apply1 [] (Term.id (
+                      Proof.Env.find (Proof.env seq)
+                        (Term.app Term.not_term (Term.of_formula init)))))
+              |> Logic.or_intro (Term.of_formula res)
+              |> Logic.ensure Logic.trivial
+    )
+
   | _ -> (fun _ -> ())
 
 
 (*
 let coq_proof = function
-  | And (init, res) ->
-    Coq.tactic ~prefix:"A" ~normalize:(Coq.Mem [init]) (fun fmt ctx ->
-            let order = CCOpt.get_exn (Expr.Formula.get_tag init Expr.f_order) in
-            Format.fprintf fmt "destruct %a as %a.@ "
-              (Proof.Ctx.named ctx) init
-              (Coq.Print.pattern_and (fun fmt f ->
-                   if Expr.Formula.equal f res
-                   then Proof.Ctx.intro ctx fmt f
-                   else Format.fprintf fmt "_")) order;
-            if Expr.Formula.equal res Expr.Formula.f_false then
-              Coq.exact fmt "%a" (Proof.Ctx.named ctx) res
-            else
-              Coq.exact fmt "%a %a"
-                (Proof.Ctx.named ctx) (Expr.Formula.neg res)
-                (Proof.Ctx.named ctx) res
-          )
   | Not_or (init, res) ->
     Coq.tactic ~prefix:"O" ~normalize:Coq.All (fun fmt ctx ->
             let order = CCOpt.get_exn (Expr.Formula.get_tag init Expr.f_order) in
