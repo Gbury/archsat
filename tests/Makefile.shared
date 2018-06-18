@@ -1,0 +1,37 @@
+
+PROOF_FILE=proof.v
+
+all: $(TESTS)
+	@echo -e "\e[32m[OK]\e[0m [$(NAME)]"
+
+%.res: % $(BIN)
+	@if ! $(BIN) $(OPT) $< > /dev/null; then 							\
+			echo -e "\e[31m[KO]\e[0m [$(NAME)] $<";			\
+			exit 1;																			\
+		fi
+
+%.sat: % $(BIN)
+	@if ! $(BIN) $(OPT) $< | grep Unsat > /dev/null; then 							\
+			echo -e "\e[31m[KO]\e[0m [$(NAME)] $<";			\
+			exit 1;																			\
+		fi
+
+%.unsat: % $(BIN)
+	@if ! $(BIN) $(OPT) $< | grep Unsat > /dev/null; then 	\
+			echo -e "\e[31m[KO]\e[0m [$(NAME)] $<";							\
+			exit 1;																							\
+		fi
+
+%.coq: % $(BIN)
+	@if ! $(BIN) $(OPT) --coq $(PROOF_FILE) $< > /dev/null; then 		\
+			echo -e "\e[31m[KO]\e[0m [$(NAME)] $<";											\
+			exit 1;																											\
+		fi
+	@if ! coq $(PROOF_FILE) > /dev/null; then												\
+			echo -e "\e[31m[FAIL]\e[0m [$(NAME)] $<";										\
+			exit 1;																											\
+		fi
+
+clean:
+	rm -rf *.res *.sat *.unsat *.coq $(PROOF_FILE)
+
