@@ -408,16 +408,14 @@ let rec or_elim ~f t pos =
 let rec and_elim t pos =
   let ctx = extract_open pos in
   let goal = Proof.goal ctx in
-  let env = Proof.env ctx in
-  let v = Proof.Env.find env t in
-  match match_and v.Expr.id_type with
+  match match_and t.Term.ty with
   | None -> pos
   | Some (left_term, right_term) ->
-    let t' = Term.apply and_elim_term [left_term; right_term; goal; Term.id v] in
+    let t' = Term.apply and_elim_term [left_term; right_term; goal; t] in
     apply1 [and_elim_alias] t' pos
     |> introN "A" 2
-    |> and_elim left_term
-    |> and_elim right_term
+    |> find left_term and_elim
+    |> find right_term and_elim
 
 (** Eliminate double negations when the goal is [False] *)
 let not_not_elim prefix t pos =

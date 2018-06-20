@@ -96,7 +96,7 @@ let compute opt seq p =
   let h = P.H.create 4013 in
   let proof = Proof.mk seq in
   let () =
-    let init = Proof.(pos (root proof)) in
+    let init = Logic.nnpp @@ Proof.(pos (root proof)) in
     try
       let final = P.fold (fun acc node ->
           print_incr_dot opt proof;

@@ -25,6 +25,10 @@ val true_proof : Term.t
 
 (** {2 Simple tactics} *)
 
+val find : Term.t -> (Term.t -> (pos, 'a) tactic) -> (pos, 'a) tactic
+(** Wraps a tactic that expects a term. Finds the given term in the env,
+    and give its id to the wrapped strategy. *)
+
 val ctx : (Proof.sequent -> (pos, 'a) tactic) -> (pos, 'a) tactic
 (** Wrapper around tactics to access environment (and use it to compute
     parameters for the tactic). *)

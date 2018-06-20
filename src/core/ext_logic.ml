@@ -173,7 +173,7 @@ let coq_proof = function
     (fun p -> p
               |> Logic.introN "Ax" 2
               |> Logic.not_not_elim "Ax" (Term.of_formula init)
-              |> Logic.and_elim (Term.of_formula init)
+              |> Logic.find (Term.of_formula init) Logic.and_elim
               |> Logic.absurd (Term.of_formula res))
 
   | Not_or (init, res) -> (* prove ~ init -> ~ ~ res -> False,
@@ -181,27 +181,32 @@ let coq_proof = function
     (fun p -> p
               |> Logic.introN "Ax" 2
               |> Logic.not_not_elim "Ax" (Term.of_formula res)
-              |> Logic.ctx (fun seq ->
-                  Logic.apply1 [] (Term.id (
-                      Proof.Env.find (Proof.env seq)
-                        (Term.app Term.not_term (Term.of_formula init)))))
+              |> Logic.find
+                (Term.app Term.not_term (Term.of_formula init)) (Logic.apply1 [])
               |> Logic.or_intro (Term.of_formula res)
-              |> Logic.ensure Logic.trivial
-    )
+              |> Logic.ensure Logic.trivial)
+
+  | Equiv_right (init, res) -> (* prove ~ ~ init -> ~ res -> False,
+                                  with init a equivalence [p <-> q],
+                                  and res an implication [p -> q] *)
+    (fun p -> p
+              |> Logic.introN "Ax" 2
+              |> Logic.not_not_elim "Ax" (Term.of_formula init)
+              |> Logic.find (Term.of_formula init) Logic.and_elim
+              |> Logic.absurd (Term.of_formula res))
 
   | _ -> (fun _ -> ())
 
 
 (*
 let coq_proof = function
-  | Not_or (init, res) ->
-    Coq.tactic ~prefix:"O" ~normalize:Coq.All (fun fmt ctx ->
-            let order = CCOpt.get_exn (Expr.Formula.get_tag init Expr.f_order) in
-            Format.fprintf fmt "apply %a.@ %a. exact %a."
-              (Proof.Ctx.named ctx) (Expr.Formula.neg init)
-              Coq.Print.path_to (res, order) (Proof.Ctx.named ctx) res
-          )
-
+  | Equiv_right (init, res)
+  | Equiv_left (init, res) ->
+    Coq.tactic ~prefix:"E" (fun fmt ctx ->
+        Format.fprintf fmt "apply %a.@ rewrite %a.@ exact (fun x => x)."
+          (Proof.Ctx.named ctx) (Expr.Formula.neg res)
+          (Proof.Ctx.named ctx) init
+      )
   | Or (init, l) ->
     Coq.tactic ~prefix:"O" ~normalize:(Coq.Mem [init]) (fun fmt ctx ->
             let order = CCOpt.get_exn (Expr.Formula.get_tag init Expr.f_order) in
@@ -262,13 +267,6 @@ let coq_proof = function
           (Proof.Ctx.named ctx) res
       )
 
-  | Equiv_right (init, res)
-  | Equiv_left (init, res) ->
-    Coq.tactic ~prefix:"E" (fun fmt ctx ->
-        Format.fprintf fmt "apply %a.@ rewrite %a.@ exact (fun x => x)."
-          (Proof.Ctx.named ctx) (Expr.Formula.neg res)
-          (Proof.Ctx.named ctx) init
-      )
 
   | Not_equiv (init, pq, qp) ->
     Coq.tactic ~prefix:"I" (fun fmt ctx ->

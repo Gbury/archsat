@@ -341,8 +341,8 @@ let print_proof (opt, (c : solved stmt)) =
     let t = Prove.declare_hyp ?loc:c.loc Options.(opt.proof) id f in
     Solver.register_hyp hyp_id t
   | { contents = `Right (hyp_id, f); id; _ } ->
-    let _ = Prove.declare_goal ?loc:c.loc Options.(opt.proof) id f in
-    ()
+    let t = Prove.declare_goal ?loc:c.loc Options.(opt.proof) id f in
+    Solver.register_hyp hyp_id t
   | { contents = `Proof p; _ } ->
     Util.info "Proof size: %a" Util.print_size (Util.size p);
     Prove.output_proof Options.(opt.proof) p
