@@ -34,11 +34,13 @@ PKG spelll
 PKG qcheck
 PKG dolmen
 PKG zarith
-PKG oclock
 PKG cmdliner
 PKG sequence
 PKG ocamlgraph
 PKG containers
 PKG containers.data
+PKG mtime
+PKG mtime.clock
+PKG mtime.clock.os
 
 FLG -w @K@Y@X

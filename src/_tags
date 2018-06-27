@@ -39,7 +39,8 @@ true: inline(100), optimize(3), unbox_closures, unbox_closures_factor(20)
         package(cmdliner), package(ocamlgraph),             \
         package(containers), package(containers.data),      \
         package(dolmen), package(sequence),                 \
-        package(gen), package(oclock),                      \
+        package(gen), package(mtime),                       \
+        package(mtime.clock), package(mtime.clock.os),      \
         package(spelll), package(uucp), package(uutf)
 
 <test/*>: package(qcheck)

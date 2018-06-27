@@ -14,7 +14,7 @@ let prelude_space opt =
 (* ************************************************************************ *)
 
 let print_status opt fmt status =
-  Format.fprintf fmt "%s (%.3f)" status (Time.get_total_time ())
+  Format.fprintf fmt "%s (%a)" status Mtime.Span.pp (Mtime_clock.elapsed ())
 
 let print_sat fmt opt = print_status opt fmt "Sat"
 let print_unsat fmt opt = print_status opt fmt "Unsat"

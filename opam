@@ -35,7 +35,7 @@ depends: [
   "zarith"
   "ocamlgraph"
   "gen"
-  "oclock"
+  "mtime"
   "sequence"
   "spelll"
   "uucp"

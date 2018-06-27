@@ -14,8 +14,8 @@ type t = {
 
   mutable profile : bool; (* should this section be profiled *)
   mutable prof_in : bool; (* are we currently inside the profiler of this section *)
-  mutable prof_enter : Int64.t; (* time of last entry of the profiler *)
-  mutable prof_total : Int64.t; (* total time elasped inside the profiler *)
+  mutable prof_total : Mtime.span; (* total time elasped inside the profiler *)
+  mutable prof_enter : Mtime_clock.counter option; (* time of last entry of the profiler *)
 
   mutable nb_calls : int;
   mutable full_name : string;
@@ -112,8 +112,8 @@ let root = {
   stats = Array.make max_stats 0;
   profile = false;
   prof_in = false;
-  prof_enter = 0L;
-  prof_total = 0L;
+  prof_total = Mtime.Span.zero;
+  prof_enter = None;
   nb_calls = 0;
   full_name = "";
 }
@@ -126,8 +126,8 @@ let make ?(parent=root) ?(inheriting=[]) name =
     stats = Array.make max_stats 0;
     profile = false;
     prof_in = false;
-    prof_enter = 0L;
-    prof_total = 0L;
+    prof_total = Mtime.Span.zero;
+    prof_enter = None;
     nb_calls= 0;
     full_name="";
   } in
@@ -160,13 +160,14 @@ let iter yield =
    of all its subsections, even if the sections were not explicitly entered.
 *)
 let prof_enter s =
-  s.prof_enter <- Time.get_total_clock ();
+  assert (s.prof_enter = None);
+  s.prof_enter <- Some (Mtime_clock.counter ());
   s.nb_calls <- s.nb_calls + 1;
   s.prof_in <- true
 
 let rec prof_exit_aux s time =
   if not s.prof_in then begin
-    s.prof_total <- Int64.add s.prof_total time;
+    s.prof_total <- Mtime.Span.add s.prof_total time;
     begin match s.descr with
       | Root -> true
       | Sub (_, s', _) -> prof_exit_aux s' time
@@ -175,11 +176,14 @@ let rec prof_exit_aux s time =
     false
 
 let prof_exit s =
-  let time = Time.get_total_clock () in
   if s.prof_in then begin
-    let increment = Int64.sub time s.prof_enter in
-    s.prof_in <- false;
-    prof_exit_aux s increment
+    match s.prof_enter with
+    | Some c ->
+      let increment = Mtime_clock.count c in
+      s.prof_enter <- None;
+      s.prof_in <- false;
+      prof_exit_aux s increment
+    | _ -> assert false
   end else
     true
 
@@ -263,7 +267,7 @@ let rec section_tree test s =
   else begin
     let l = !(get_children s) in
     let l' = List.sort (fun s' s'' ->
-        Int64.compare s''.prof_total s'.prof_total
+        Mtime.Span.compare s''.prof_total s'.prof_total
       ) l in
     `Tree(s , List.map (section_tree test) l')
   end
@@ -277,23 +281,23 @@ let rec map_tree f = function
   | `Tree (x, l) -> `Tree (f x, List.map (map_tree f) l)
 
 let print_profiling_info () =
-  let total_time = Int64.to_float @@ Time.get_total_clock () in
+  let total_time = Mtime_clock.elapsed () in
   let s_tree = section_tree (fun s ->
-      Int64.to_float s.prof_total > (Int64.to_float @@ parent_time s) /. 100.
+      Mtime.Span.to_ns s.prof_total > (Mtime.Span.to_ns @@ parent_time s) /. 100.
     ) root in
   let tree_box = PrintBox.(
       Simple.to_box (map_tree (fun s -> `Text (short_name s)) s_tree)) in
   let call_box = PrintBox.(vlist ~bars:false (flatten (
       map_tree (fun s -> text (Format.sprintf "%10d" s.nb_calls)) s_tree))) in
   let time_box = PrintBox.(vlist ~bars:false (flatten (
-      map_tree (fun s -> text (Format.sprintf "%13.3f" (Int64.to_float s.prof_total /. (10. ** 9.)))) s_tree))) in
+      map_tree (fun s -> text (Format.asprintf "%a" Mtime.Span.pp s.prof_total)) s_tree))) in
   let rate_box = PrintBox.(vlist ~bars:false (flatten (
       map_tree (fun s -> text (Format.sprintf "%6.2f%%" (
-          (Int64.to_float s.prof_total) /. total_time *. 100.))) s_tree))) in
+          (Mtime.Span.to_ns s.prof_total) /. ((Mtime.Span.to_ns total_time) *. 100.)))) s_tree))) in
   let b = PrintBox.(
       grid ~pad:(hpad 3) ~bars:true [|
         [| text "Section name"; text "Time profiled"; text "Profiled rate"; text "Calls" |];
-        [| text "Total Time"; text (Format.sprintf "%13.3f" (total_time /. (10. ** 9.))); text "100.00%"; text "N/A" |];
+        [| text "Total Time"; text (Format.asprintf "%a" Mtime.Span.pp total_time); text "100.00%"; text "N/A" |];
         [| tree_box; time_box; rate_box; call_box |];
       |]) in
   print_newline ();
@@ -303,7 +307,7 @@ let csv_prof_data fmt =
   let tree = section_tree (fun _ -> true) root in
   List.iter (fun s ->
       let name = match full_name s with "" -> "root" | s -> s in
-      Format.fprintf fmt "%s,%f@." name (Int64.to_float s.prof_total)
+      Format.fprintf fmt "%s,%f@." name (Mtime.Span.to_ns s.prof_total)
     ) (flatten tree)
 
 
