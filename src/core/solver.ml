@@ -1,6 +1,8 @@
 
 let section = Dispatcher.solver_section
 
+let proof_section = Section.make "proof"
+
 (* Module instanciation *)
 (* ************************************************************************ *)
 
@@ -186,20 +188,14 @@ let rec solve_aux
     Unsat proof
 
 let solve ?check_model ?check_proof ?export () =
-  Util.enter_prof section;
-  let res =
-    try
-      solve_aux ?check_model ?check_proof ?export ()
-    with
-    | Extension.Abort (ext, msg) ->
-      Util.warn ~section "Extension '%s' aborted proof search with message:@\n%s" ext msg;
-      Unknown
-  in
-  Util.exit_prof section;
-  res
+  try
+    solve_aux ?check_model ?check_proof ?export ()
+  with
+  | Extension.Abort (ext, msg) ->
+    Util.warn ~section "Extension '%s' aborted proof search with message:@\n%s" ext msg;
+    Unknown
 
 let assume ~solve l =
-  Util.enter_prof section;
   let tag = new_hyp () in
   if solve then begin
     let l' = List.map Dispatcher.pre_process l in
@@ -207,15 +203,12 @@ let assume ~solve l =
       CCFormat.((hovbox (list ~sep:(return " ||@ ") Expr.Print.formula))) l';
     S.assume ~tag [l']
   end;
-  Util.exit_prof section;
   tag
 
 let add_atom = S.new_atom
 
 (* Proof manipulation *)
 (* ************************************************************************ *)
-
-let proof_section = Section.make "proof"
 
 module Proof = S.Proof
 

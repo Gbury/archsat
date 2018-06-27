@@ -194,53 +194,60 @@ let type_wrap ?(goal=false) opt =
 let run_typecheck opt = Options.(opt.typing.typing)
 
 let typecheck (opt, c) : typechecked stmt =
-  match c with
-  (** Declarations and definitions *)
-  | { S.descr = S.Def (id, t) } ->
-    start_section ~section:Type.section Util.debug "Definition";
-    let env = type_wrap opt in
-    let ret = Type.new_def env t ?attr:c.S.attr id in
-    (simple (def_id c) c.S.loc ret :> typechecked stmt)
-  | { S.descr = S.Decl (id, t) } ->
-    start_section ~section:Type.section Util.debug "Declaration typing";
-    let env = type_wrap opt in
-    let ret = Type.new_decl env t ?attr:c.S.attr id in
-    (simple (decl_id c) c.S.loc ret :> typechecked stmt)
-  (** Hyps and goal statements *)
-  | { S.descr = S.Prove } ->
-    simple (prove_id c) c.S.loc `Solve
-  | { S.descr = S.Clause l } ->
-    start_section ~section:Type.section Util.debug "Clause typing";
-    let env = type_wrap opt in
-    let res = List.map (Type.new_formula env) l in
-    (simple (hyp_id c) c.S.loc (`Clause res) :> typechecked stmt)
-  | { S.descr = S.Antecedent t } ->
-    start_section ~section:Type.section Util.debug "Hypothesis typing";
-    let env = type_wrap opt in
-    let ret = Type.new_formula env t in
-    (simple (hyp_id c) c.S.loc (`Hyp ret) :> typechecked stmt)
-  | { S.descr = S.Consequent t } ->
-    start_section ~section:Type.section Util.debug "Goal typing";
-    let env = type_wrap ~goal:true opt in
-    let ret = Type.new_formula env t in
-    (simple (goal_id c) c.S.loc (`Goal ret) :> typechecked stmt)
-  (** We can safely ignore set-logic "dimacs", as it only gives the number of atoms
-      and clauses of the dimacs problem, which is of no interest. *)
-  | { S.descr = S.Set_logic "dimacs" } ->
-    simple none c.S.loc `Executed
-  (** Other set_logics should check whether corresponding plugins are activated ? *)
-  | { S.descr = S.Set_logic _ } -> simple none c.S.loc `Executed
-  (** Set info can always be ignored. *)
-  | { S.descr = S.Set_info _ } -> simple none c.S.loc `Executed
+  Util.enter_prof Type.section;
+  let res =
+    match c with
+    (** Declarations and definitions *)
+    | { S.descr = S.Def (id, t) } ->
+      start_section ~section:Type.section Util.debug "Definition";
+      let env = type_wrap opt in
+      let ret = Type.new_def env t ?attr:c.S.attr id in
+      (simple (def_id c) c.S.loc ret :> typechecked stmt)
+    | { S.descr = S.Decl (id, t) } ->
+      start_section ~section:Type.section Util.debug "Declaration typing";
+      let env = type_wrap opt in
+      let ret = Type.new_decl env t ?attr:c.S.attr id in
+      (simple (decl_id c) c.S.loc ret :> typechecked stmt)
+    (** Hyps and goal statements *)
+    | { S.descr = S.Prove } ->
+      simple (prove_id c) c.S.loc `Solve
+    | { S.descr = S.Clause l } ->
+      start_section ~section:Type.section Util.debug "Clause typing";
+      let env = type_wrap opt in
+      let res = List.map (Type.new_formula env) l in
+      (simple (hyp_id c) c.S.loc (`Clause res) :> typechecked stmt)
+    | { S.descr = S.Antecedent t } ->
+      start_section ~section:Type.section Util.debug "Hypothesis typing";
+      let env = type_wrap opt in
+      let ret = Type.new_formula env t in
+      (simple (hyp_id c) c.S.loc (`Hyp ret) :> typechecked stmt)
+    | { S.descr = S.Consequent t } ->
+      start_section ~section:Type.section Util.debug "Goal typing";
+      let env = type_wrap ~goal:true opt in
+      let ret = Type.new_formula env t in
+      (simple (goal_id c) c.S.loc (`Goal ret) :> typechecked stmt)
+    (** We can safely ignore set-logic "dimacs", as it only gives the number of atoms
+        and clauses of the dimacs problem, which is of no interest. *)
+    | { S.descr = S.Set_logic "dimacs" } ->
+      simple none c.S.loc `Executed
+    (** Other set_logics should check whether corresponding plugins are activated ? *)
+    | { S.descr = S.Set_logic _ } -> simple none c.S.loc `Executed
+    (** Set info can always be ignored. *)
+    | { S.descr = S.Set_info _ } -> simple none c.S.loc `Executed
 
-  (** Other untreated statements *)
-  | _ -> raise (Options.Stmt_not_implemented c)
+    (** Other untreated statements *)
+    | _ -> raise (Options.Stmt_not_implemented c)
+  in
+  Util.exit_prof Type.section;
+  res
 
 (* Solving *)
 (* ************************************************************************ *)
 
 let solve (opt, (c : typechecked stmt)) : solved stmt =
-  match c with
+  Util.enter_prof Solver.section;
+  let res =
+    match c with
   | ({contents = `Executed; _ } as res)
   | ({ contents = `Type_def _; _ } as res)
   | ({ contents = `Term_def _; _ } as res)
@@ -277,6 +284,9 @@ let solve (opt, (c : typechecked stmt)) : solved stmt =
         `Unknown
     in
     { c with contents = ret }
+  in
+  Util.exit_prof Solver.section;
+  res
 
 (* Printing results *)
 (* ************************************************************************ *)
@@ -301,6 +311,7 @@ let print_res (opt, (c : solved stmt)) =
 (* Export information *)
 (* ************************************************************************ *)
 
+(* TODO: export section *)
 let export (opt, (c : solved stmt)) =
   match c with
   | { contents = `Executed; _ }
@@ -320,32 +331,35 @@ let export (opt, (c : solved stmt)) =
 (* ************************************************************************ *)
 
 let print_proof (opt, (c : solved stmt)) =
-  match c with
-  (* Not much to do with these... *)
-  | { contents = `Executed; _ }
-  | { contents = `Type_def _; _ }
-  | { contents = `Term_def _; _ } -> ()
-  | { contents = `Model _; _ } ->
-    if Options.(opt.proof.active) then
-      Util.warn "Proof check/output activated, but a model was found"
-  | { contents = `Unknown; _ } ->
-    if Options.(opt.proof.active) then
-      Util.warn "Proof check/output activated, but no proof was found"
+  Util.enter_prof Solver.proof_section;
+  begin match c with
+    (* Not much to do with these... *)
+    | { contents = `Executed; _ }
+    | { contents = `Type_def _; _ }
+    | { contents = `Term_def _; _ } -> ()
+    | { contents = `Model _; _ } ->
+      if Options.(opt.proof.active) then
+        Util.warn "Proof check/output activated, but a model was found"
+    | { contents = `Unknown; _ } ->
+      if Options.(opt.proof.active) then
+        Util.warn "Proof check/output activated, but no proof was found"
 
-  (* Interesting parts *)
-  | { contents = `Type_decl f; _ } ->
-    Prove.declare_ty ?loc:c.loc Options.(opt.proof) f
-  | { contents = `Term_decl f; _ } ->
-    Prove.declare_term ?loc:c.loc Options.(opt.proof) f
-  | { contents = `Left (hyp_id, f) ; id; _ } ->
-    let t = Prove.declare_hyp ?loc:c.loc Options.(opt.proof) id f in
-    Solver.register_hyp hyp_id t
-  | { contents = `Right (hyp_id, f); id; _ } ->
-    let t = Prove.declare_goal ?loc:c.loc Options.(opt.proof) id f in
-    Solver.register_hyp hyp_id t
-  | { contents = `Proof p; _ } ->
-    Util.info "Proof size: %a" Util.print_size (Util.size p);
-    Prove.output_proof Options.(opt.proof) p
+    (* Interesting parts *)
+    | { contents = `Type_decl f; _ } ->
+      Prove.declare_ty ?loc:c.loc Options.(opt.proof) f
+    | { contents = `Term_decl f; _ } ->
+      Prove.declare_term ?loc:c.loc Options.(opt.proof) f
+    | { contents = `Left (hyp_id, f) ; id; _ } ->
+      let t = Prove.declare_hyp ?loc:c.loc Options.(opt.proof) id f in
+      Solver.register_hyp hyp_id t
+    | { contents = `Right (hyp_id, f); id; _ } ->
+      let t = Prove.declare_goal ?loc:c.loc Options.(opt.proof) id f in
+      Solver.register_hyp hyp_id t
+    | { contents = `Proof p; _ } ->
+      Util.info "Proof size: %a" Util.print_size (Util.size p);
+      Prove.output_proof Options.(opt.proof) p
+  end;
+  Util.exit_prof Solver.proof_section
 
 (* Printing models *)
 (* ************************************************************************ *)

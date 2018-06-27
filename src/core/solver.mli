@@ -47,6 +47,9 @@ type res =
 
 (** {2 Core solver} *)
 
+val section : Section.t
+(** Main section for solving. *)
+
 val assume : solve:bool -> Expr.formula list -> id
 (** Add a clause to the current problem, and return the corresponding proof id.
     @solve determine wether to really add the clause to the solver, else

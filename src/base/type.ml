@@ -1014,7 +1014,6 @@ let rec parse_fun ty_args t_args env = function
 (* ************************************************************************ *)
 
 let new_decl env t ?attr id =
-  Util.enter_prof section;
   Util.debug ~section "Typing declaration:@ @[<hov>%a :@ %a@]"
     Id.print id Ast.print t;
   let aux acc (Any (tag, v)) = Tag.add acc tag v in
@@ -1024,40 +1023,28 @@ let new_decl env t ?attr id =
         let l = parse_attr_and env a in
         List.fold_left aux Tag.empty l) attr
   in
-  let res =
-    match parse_sig env t with
-    | `Ty_cstr n ->
-      let c = Expr.Id.ty_fun ?tags (Id.full_name id) n in
-      decl_ty_cstr id c (Declared (get_loc t));
-      `Type_decl c
-    | `Fun_ty (vars, args, ret) ->
-      let f = Expr.Id.term_fun ?tags (Id.full_name id) vars args ret in
-      decl_term id f (Declared (get_loc t));
-      `Term_decl f
-  in
-  Util.exit_prof section;
-  res
+  match parse_sig env t with
+  | `Ty_cstr n ->
+    let c = Expr.Id.ty_fun ?tags (Id.full_name id) n in
+    decl_ty_cstr id c (Declared (get_loc t));
+    `Type_decl c
+  | `Fun_ty (vars, args, ret) ->
+    let f = Expr.Id.term_fun ?tags (Id.full_name id) vars args ret in
+    decl_term id f (Declared (get_loc t));
+    `Term_decl f
 
 let new_def env t ?attr id =
-  Util.enter_prof section;
   Util.debug ~section "Typing definition:@ @[<hov>%a =@ %a@]"
     Id.print id Ast.print t;
-  let res =
-    match parse_fun [] [] env t with
-    | `Ty (ty_args, body) ->
-      def_ty id ty_args body;
-      `Type_def (id, ty_args, body)
-    | `Term (ty_args, t_args, body) ->
-      def_term id ty_args t_args body;
-      `Term_def (id, ty_args, t_args, body)
-  in
-  Util.exit_prof section;
-  res
+  match parse_fun [] [] env t with
+  | `Ty (ty_args, body) ->
+    def_ty id ty_args body;
+    `Type_def (id, ty_args, body)
+  | `Term (ty_args, t_args, body) ->
+    def_term id ty_args t_args body;
+    `Term_def (id, ty_args, t_args, body)
 
 let new_formula env t =
-  Util.enter_prof section;
   Util.debug ~section "Typing top-level formula:@ %a" Ast.print t;
-  let res = parse_formula env t in
-  Util.exit_prof section;
-  res
+  parse_formula env t
 

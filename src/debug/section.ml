@@ -15,7 +15,7 @@ type t = {
   mutable profile : bool; (* should this section be profiled *)
   mutable prof_in : bool; (* are we currently inside the profiler of this section *)
   mutable prof_total : Mtime.span; (* total time elasped inside the profiler *)
-  mutable prof_enter : Mtime_clock.counter option; (* time of last entry of the profiler *)
+  mutable prof_enter : Mtime_clock.counter; (* time of last entry of the profiler *)
 
   mutable nb_calls : int;
   mutable full_name : string;
@@ -113,7 +113,7 @@ let root = {
   profile = false;
   prof_in = false;
   prof_total = Mtime.Span.zero;
-  prof_enter = None;
+  prof_enter = Mtime_clock.counter ();
   nb_calls = 0;
   full_name = "";
 }
@@ -127,7 +127,7 @@ let make ?(parent=root) ?(inheriting=[]) name =
     profile = false;
     prof_in = false;
     prof_total = Mtime.Span.zero;
-    prof_enter = None;
+  prof_enter = Mtime_clock.counter ();
     nb_calls= 0;
     full_name="";
   } in
@@ -160,8 +160,7 @@ let iter yield =
    of all its subsections, even if the sections were not explicitly entered.
 *)
 let prof_enter s =
-  assert (s.prof_enter = None);
-  s.prof_enter <- Some (Mtime_clock.counter ());
+  s.prof_enter <- Mtime_clock.counter ();
   s.nb_calls <- s.nb_calls + 1;
   s.prof_in <- true
 
@@ -177,13 +176,10 @@ let rec prof_exit_aux s time =
 
 let prof_exit s =
   if s.prof_in then begin
-    match s.prof_enter with
-    | Some c ->
-      let increment = Mtime_clock.count c in
-      s.prof_enter <- None;
-      s.prof_in <- false;
-      prof_exit_aux s increment
-    | _ -> assert false
+    let increment = Mtime_clock.count s.prof_enter in
+    s.prof_enter <- Mtime_clock.counter (); (* just in case, avoid double timing *)
+    s.prof_in <- false;
+    prof_exit_aux s increment
   end else
     true
 
@@ -283,7 +279,7 @@ let rec map_tree f = function
 let print_profiling_info () =
   let total_time = Mtime_clock.elapsed () in
   let s_tree = section_tree (fun s ->
-      Mtime.Span.to_ns s.prof_total > (Mtime.Span.to_ns @@ parent_time s) /. 100.
+      (Mtime.Span.to_ns s.prof_total) > ((Mtime.Span.to_ns @@ parent_time s) /. 100.)
     ) root in
   let tree_box = PrintBox.(
       Simple.to_box (map_tree (fun s -> `Text (short_name s)) s_tree)) in
@@ -293,7 +289,7 @@ let print_profiling_info () =
       map_tree (fun s -> text (Format.asprintf "%a" Mtime.Span.pp s.prof_total)) s_tree))) in
   let rate_box = PrintBox.(vlist ~bars:false (flatten (
       map_tree (fun s -> text (Format.sprintf "%6.2f%%" (
-          (Mtime.Span.to_ns s.prof_total) /. ((Mtime.Span.to_ns total_time) *. 100.)))) s_tree))) in
+          (Mtime.Span.to_ms s.prof_total) /. (Mtime.Span.to_ms total_time) *. 100.))) s_tree))) in
   let b = PrintBox.(
       grid ~pad:(hpad 3) ~bars:true [|
         [| text "Section name"; text "Time profiled"; text "Profiled rate"; text "Calls" |];
