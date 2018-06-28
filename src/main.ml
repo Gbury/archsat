@@ -62,7 +62,8 @@ let () =
       Util.log "plugins: @[<hov>%a@]"
         CCFormat.(list string) (Dispatcher.Plugin.active ());
 
-      (* Initialize proof outputs *)
+      (* Initialize outputs *)
+      Export.init opt ();
       Prove.init opt ();
 
       (* Return the parsor generator *)
@@ -102,7 +103,8 @@ let () =
               @>|> (f_map ~name:"typecheck" ~test:Pipe.run_typecheck Pipe.typecheck)
               @>|> (f_map ~name:"solve" Pipe.solve)
               @>|> (iter_ ~name:"print_res" Pipe.print_res)
-              @>>> (iter_ ~name:"export" Pipe.export)
+              @>>> (f_map ~name:"translate" Pipe.translate)
+              @>|> (iter_ ~name:"export" Pipe.export)
               @>>> (iter_ ~name:"print_proof" Pipe.print_proof)
               @>>> (iter_ ~name:"print_model" Pipe.print_model)
               @>>> (apply fst) @>>> _end)

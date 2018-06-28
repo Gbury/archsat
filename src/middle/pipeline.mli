@@ -43,7 +43,7 @@ val (@>>>) : ('a, 'b) op -> ('b, 'c) t -> ('a, 'c) t
 (** Add an operator at the beginning of a pipeline. *)
 
 val (@>|>) : ('a, ('b, 'c) cont) op -> ('b, 'c) t -> ('a, 'c) t
-(** Add a continuation operator,a llowing to stop evaluation of the
+(** Add a continuation operator, allowing to stop evaluation of the
     pipeline early. *)
 
 val (@|||) : ('a, 'b) t -> ('b, 'c) t -> ('a, 'c) t

@@ -17,6 +17,19 @@ let pp_opt pp o x =
 (* Types used in Pipes *)
 (* ************************************************************************ *)
 
+(* Used for representing typed statements *)
+type +'a stmt = {
+  id : Dolmen.Id.t;
+  contents  : 'a;
+  loc : Dolmen.ParseLocation.t option;
+}
+
+(* Used for wrapping translated contents wiht implicit declarations *)
+type 'a tr_stmt = {
+  contents : 'a;
+  implicit : Term.id list;
+}
+
 (* Typechecked statements *)
 type executed = [ `Executed ]
 
@@ -25,9 +38,17 @@ type type_defs = [
   | `Term_def of Dolmen.Id.t * Expr.ttype Expr.id list * Expr.ty Expr.id list * Expr.term
 ]
 
+type def = [
+  | `Def of (Dolmen.Id.t * Term.t) tr_stmt
+]
+
 type type_decls = [
   | `Type_decl of Expr.Id.TyCstr.t
   | `Term_decl of Expr.Id.Const.t
+]
+
+type decl = [
+  `Decl of Term.id tr_stmt
 ]
 
 type assume = [
@@ -36,9 +57,14 @@ type assume = [
   | `Clause of Expr.formula list
 ]
 
-type sequent = [
+type solve_sequent = [
   | `Left of Solver.id * Expr.formula
   | `Right of Solver.id * Expr.formula
+]
+
+type proof_sequent = [
+  | `Left of Term.id tr_stmt
+  | `Right of Term.id tr_stmt
 ]
 
 type solve = [
@@ -53,15 +79,11 @@ type result = [
 
 (* Agregate types *)
 type typechecked = [ executed | type_defs | type_decls | assume | solve ]
-type solved      = [ executed | type_defs | type_decls | sequent | result ]
+type solved      = [ executed | type_defs | type_decls | solve_sequent | result ]
+type translated  = [ executed | decl | def | proof_sequent | result ]
 
-(* Used for represneting typed statements *)
-type +'a stmt = {
-  id : Dolmen.Id.t;
-  contents  : 'a;
-  loc : Dolmen.ParseLocation.t option;
-}
-
+(* Simple constructor *)
+let tr implicit contents = { implicit; contents; }
 let simple id loc contents = { id; loc; contents; }
 
 (* Parsing *)
@@ -308,21 +330,85 @@ let print_res (opt, (c : solved stmt)) =
   | { contents = `Unknown; _ } ->
     Util.printf "%a@." Out.print_unknown opt
 
+(* Translate terms to proof terms *)
+(* ************************************************************************ *)
+
+(* Wrapper to get implicitly typed identifiers. *)
+let mk_callback () =
+  let l = ref [] in
+  let callback id =
+    Util.debug "Found implicitly typed constant: %a"
+      Expr.Id.print id;
+    l := id :: !l
+  in
+  (fun () -> List.rev !l), callback
+
+let translate (opt, (c : solved stmt)) =
+  match c with
+  | ({ contents = `Executed; _ } as res)
+  | ({ contents = `Unknown; _ } as res)
+  | ({ contents = `Model _; _ } as res)
+  | ({ contents = `Proof _; _ } as res) ->
+    (res :> translated stmt)
+
+  | { contents = `Type_def (id, vars, res); _ } ->
+    let get, callback = mk_callback () in
+    let t_vars = List.map (Term.of_id_aux ~callback Term.var Term.of_ttype) vars in
+    let t = Term.lambdas t_vars (Term.of_ty ~callback res) in
+    (simple c.id c.loc @@ `Def (tr (get ()) (id, t)) :> translated stmt)
+
+  | { contents = `Term_def (id, vars, args, res); _ } ->
+    let get, callback = mk_callback () in
+    let t_vars = List.map (Term.of_id_aux ~callback Term.var Term.of_ttype) vars in
+    let t_args = List.map (Term.of_id_aux ~callback Term.var Term.of_ty) args in
+    let t = Term.lambdas (t_vars @ t_args) (Term.of_term ~callback res) in
+    (simple c.id c.loc @@ `Def (tr (get ()) (id, t)) :> translated stmt)
+
+  | { contents = `Type_decl f; _ } ->
+    let get, callback = mk_callback () in
+    let id = Term.of_id_aux ~callback Term.declare
+        (Term.of_function_descr Term.of_unit Term.of_ttype) f
+    in
+    (simple c.id c.loc @@ `Decl (tr (get ()) id) :> translated stmt)
+
+  | { contents = `Term_decl f; _ } ->
+    let get, callback = mk_callback () in
+    let id = Term.of_id_aux ~callback Term.declare
+        (Term.of_function_descr Term.of_ttype Term.of_ty) f
+    in
+    (simple c.id c.loc @@ `Decl (tr (get ()) id) :> translated stmt)
+
+  | { contents = `Left (sid, f); id; _ } ->
+    let get, callback = mk_callback () in
+    let t = Term.of_formula ~callback f in
+    let p = Term.declare (Dolmen.Id.full_name id) t in
+    let () = Solver.register_hyp sid p in
+    (simple c.id c.loc @@ `Left (tr (get ()) p) :> translated stmt)
+
+  | { contents = `Right (sid, f); id; _ } ->
+    let get, callback = mk_callback () in
+    let t = Term.of_formula ~callback f in
+    let p = Term.declare (Dolmen.Id.full_name id) t in
+    let () = Solver.register_hyp sid p in
+    (simple c.id c.loc @@ `Right (tr (get ()) p) :> translated stmt)
+
+
 (* Export information *)
 (* ************************************************************************ *)
 
 (* TODO: export section *)
-let export (opt, (c : solved stmt)) =
+let export (opt, (c : translated stmt)) =
   match c with
   | { contents = `Executed; _ }
-  | { contents = `Type_def _; _ }
-  | { contents = `Term_def _; _ }
-  | { contents = `Type_decl _; _ }
-  | { contents = `Term_decl _; _ }
-  | { contents = `Left _; _ }
-  | { contents = `Right _; _ }
+  | { contents = `Def _; _ }
   | { contents = `Unknown; _ } ->
     ()
+  | { contents = `Decl { contents = id ; implicit }; _ } ->
+    Export.declare_id ?loc:c.loc opt implicit (c.id, id)
+  | { contents = `Left { contents = id; implicit }; _ } ->
+    Export.declare_hyp ?loc:c.loc opt implicit id
+  | { contents = `Right { contents = id; implicit }; _ } ->
+    Export.declare_hyp ?loc:c.loc opt implicit id
   | { contents = `Model _; _ }
   | { contents = `Proof _; _ } ->
     pp_opt Solver.export_dimacs Options.(opt.output.dimacs) ()
@@ -330,13 +416,12 @@ let export (opt, (c : solved stmt)) =
 (* Printing proofs *)
 (* ************************************************************************ *)
 
-let print_proof (opt, (c : solved stmt)) =
+let print_proof (opt, (c : translated stmt)) =
   Util.enter_prof Solver.proof_section;
   begin match c with
     (* Not much to do with these... *)
     | { contents = `Executed; _ }
-    | { contents = `Type_def _; _ }
-    | { contents = `Term_def _; _ } -> ()
+    | { contents = `Def _; _ } -> ()
     | { contents = `Model _; _ } ->
       if Options.(opt.proof.active) then
         Util.warn "Proof check/output activated, but a model was found"
@@ -345,16 +430,12 @@ let print_proof (opt, (c : solved stmt)) =
         Util.warn "Proof check/output activated, but no proof was found"
 
     (* Interesting parts *)
-    | { contents = `Type_decl f; _ } ->
-      Prove.declare_ty ?loc:c.loc Options.(opt.proof) f
-    | { contents = `Term_decl f; _ } ->
-      Prove.declare_term ?loc:c.loc Options.(opt.proof) f
-    | { contents = `Left (hyp_id, f) ; id; _ } ->
-      let t = Prove.declare_hyp ?loc:c.loc Options.(opt.proof) id f in
-      Solver.register_hyp hyp_id t
-    | { contents = `Right (hyp_id, f); id; _ } ->
-      let t = Prove.declare_goal ?loc:c.loc Options.(opt.proof) id f in
-      Solver.register_hyp hyp_id t
+    | { contents = `Decl { implicit; contents; }; _ } ->
+      Prove.declare_id ?loc:c.loc Options.(opt.proof) implicit contents
+    | { contents = `Left { implicit; contents = p }; id; _ } ->
+      Prove.declare_hyp ?loc:c.loc Options.(opt.proof) id implicit p
+    | { contents = `Right { implicit; contents = p }; id; _ } ->
+      Prove.declare_goal ?loc:c.loc Options.(opt.proof) id implicit p
     | { contents = `Proof p; _ } ->
       Util.info "Proof size: %a" Util.print_size (Util.size p);
       Prove.output_proof Options.(opt.proof) p
@@ -364,20 +445,18 @@ let print_proof (opt, (c : solved stmt)) =
 (* Printing models *)
 (* ************************************************************************ *)
 
-let print_model (opt, (c : solved stmt)) =
+let print_model (opt, (c : translated stmt)) =
   match c with
   | { contents = `Executed; _ }
-  | { contents = `Type_def _; _ }
-  | { contents = `Term_def _; _ }
-  | { contents = `Type_decl _; _ }
-  | { contents = `Term_decl _; _ }
+  | { contents = `Def _; _ }
+  | { contents = `Decl _; _ }
   | { contents = `Left _; _ }
   | { contents = `Right _ } -> ()
   | { contents = `Proof _; _ } ->
     if Options.(opt.model.active) then
       Util.warn "Model check/output activated, but a proof was found"
   | { contents = `Unknown; _ } ->
-    if Options.(opt.model.active) then
+  if Options.(opt.model.active) then
       Util.warn "Model check/output activated, but no model was found"
 
   (* Interesting parts *)

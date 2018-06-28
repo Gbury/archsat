@@ -44,6 +44,7 @@ type output_options = {
   format  : output;
   icnf    : Format.formatter option;
   dimacs  : Format.formatter option;
+  tptp    : Format.formatter option;
 }
 
 type typing_options = {

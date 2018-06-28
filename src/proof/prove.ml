@@ -69,7 +69,7 @@ let declare_implicits opt = function
   | [] -> ()
   | l ->
     if Options.(opt.context) then begin
-      List.iter (declare_id_aux opt) (List.rev l)
+      List.iter (declare_id_aux opt) l
     end else begin
       Util.warn ~section
         "@[<hv 2>The following identifiers are implicitly typed:@ @[<v>%a@]@]"
@@ -80,28 +80,10 @@ let declare_implicits opt = function
 (* ************************************************************************ *)
 
 (* Print type declarations for ids *)
-let declare_id ?loc opt implicit v ty =
-  Util.debug ~section "Declaring %a" Expr.Print.id v;
-  let id = Term.declare v.Expr.id_name ty in
-  let () = Term.trap_id v id in
+let declare_id ?loc opt implicit id =
+  Util.debug ~section "Declaring %a" Expr.Print.id id;
   let () = declare_implicits opt implicit in
   if Options.(opt.context) then declare_id_aux ?loc opt id
-
-(* Declare type consructors *)
-let declare_ty ?loc opt v =
-  Util.debug ~section "Translating %a" Expr.Print.id v;
-  let implicit, ty = wrapper v.Expr.id_type
-      (Term.of_function_descr Term.of_unit Term.of_ttype)
-  in
-  declare_id ?loc opt implicit v ty
-
-(* Declare term constants *)
-let declare_term ?loc opt v =
-  Util.debug ~section "Translating %a" Expr.Print.id v;
-  let implicit, ty = wrapper v.Expr.id_type
-      (Term.of_function_descr Term.of_ttype Term.of_ty)
-  in
-  declare_id ?loc opt implicit v ty
 
 (* Proof initialization *)
 (* ************************************************************************ *)
@@ -120,13 +102,10 @@ let declare_hyp_aux ?loc opt id =
   pp_opt (Coq.declare_hyp ?loc) Options.(opt.coqterm) id;
   ()
 
-let declare_hyp ?loc opt id f =
-  let implicit, t = wrapper f Term.of_formula in
-  let p = Term.declare (Dolmen.Id.full_name id) t in
+let declare_hyp ?loc opt id implicit p =
   let () = declare_implicits opt implicit in
   let () = add_hyp p in
-  if Options.(opt.context) then declare_hyp_aux ?loc opt p;
-  p
+  if Options.(opt.context) then declare_hyp_aux ?loc opt p
 
 (* Goal declarations *)
 (* ************************************************************************ *)
@@ -136,13 +115,10 @@ let declare_goal_aux ?loc opt id =
   pp_opt (Coq.declare_goal_term ?loc) Options.(opt.coqterm) id;
   ()
 
-let declare_goal ?loc opt id f =
-  let implicit, t = wrapper f Term.of_formula in
-  let p = Term.declare (Dolmen.Id.full_name id) t in
+let declare_goal ?loc opt id implicit p =
   let () = declare_implicits opt implicit in
   let () = add_goal p in
-  if Options.(opt.context) then declare_goal_aux ?loc opt p;
-  p
+  if Options.(opt.context) then declare_goal_aux ?loc opt p
 
 let implicit_goal opt =
   let p = Term.declare "implicit_goal" Term.false_term in

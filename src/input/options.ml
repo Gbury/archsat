@@ -40,6 +40,7 @@ type output_options = {
   format  : output;
   icnf    : Format.formatter option;
   dimacs  : Format.formatter option;
+  tptp    : Format.formatter option;
 }
 
 type typing_options = {
@@ -143,10 +144,11 @@ let input_opts fd format debug =
   | `Stdin, true ->
     `Error (false, "Cannot read stdin and use debug mode")
 
-let output_opts format export_dimacs export_icnf =
+let output_opts format export_dimacs export_icnf export_tptp =
   let dimacs = formatter_of_out_descr export_dimacs in
   let icnf = formatter_of_out_descr export_icnf in
-  { format; dimacs; icnf; }
+  let tptp = formatter_of_out_descr export_tptp in
+  { format; dimacs; icnf; tptp; }
 
 let typing_opts infer no_typing explain =
   { infer; explain; typing = not no_typing; }
@@ -494,13 +496,17 @@ let output_t =
   in
   let export_dimacs =
     let doc = "Export the full SAT problem to dimacs format in the given file" in
-    Arg.(value & opt out_descr `None & info ["export-dimacs"] ~docs ~doc)
+    Arg.(value & opt out_descr `None & info ["dimacs"] ~docs ~doc)
   in
   let export_icnf =
     let doc = "Export the full SAT problem to icnf format in the given file" in
-    Arg.(value & opt out_descr `None & info ["export-icnf"] ~docs ~doc)
+    Arg.(value & opt out_descr `None & info ["icnf"] ~docs ~doc)
   in
-  Term.(const output_opts $ format $ export_dimacs $ export_icnf)
+  let export_tptp =
+    let doc = "Export the full problem to tptp format in the given file" in
+    Arg.(value & opt out_descr `None & info ["tptp"] ~docs ~doc)
+  in
+  Term.(const output_opts $ format $ export_dimacs $ export_icnf $ export_tptp)
 
 let profile_t =
   let docs = prof_sect in

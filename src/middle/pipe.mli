@@ -6,6 +6,19 @@
 
 (** {2 Types} *)
 
+type 'a tr_stmt = {
+  contents : 'a;
+  implicit : Term.id list;
+}
+(* Used for wrapping translated contents with implicit declarations *)
+
+type +'a stmt = {
+  id          : Dolmen.Id.t;
+  contents    : 'a;
+  loc         : Dolmen.ParseLocation.t option;
+}
+(** Wrapper around statements. It records implicit type declarations. *)
+
 type executed = [
   | `Executed
 ]
@@ -16,11 +29,21 @@ type type_decls = [
 ]
 (** The type of top-level type declarations. *)
 
+type decl = [
+  `Decl of Term.id tr_stmt
+]
+(** The type of proof id declaration. *)
+
 type type_defs = [
   | `Type_def of Dolmen.Id.t * Expr.ttype Expr.id list * Expr.ty
   | `Term_def of Dolmen.Id.t * Expr.ttype Expr.id list * Expr.ty Expr.id list * Expr.term
 ]
 (** The type of top-level type definitions. *)
+
+type def = [
+  | `Def of (Dolmen.Id.t * Term.t) tr_stmt
+]
+(** The type of id definition. *)
 
 type assume = [
   | `Hyp of Expr.formula
@@ -29,11 +52,16 @@ type assume = [
 ]
 (** The type of top-level assertion statements *)
 
-type sequent = [
+type solve_sequent = [
   | `Left of Solver.id * Expr.formula
   | `Right of Solver.id * Expr.formula
 ]
 (** The type of sequent components (for proof output). *)
+
+type proof_sequent = [
+  | `Left of Term.id tr_stmt
+  | `Right of Term.id tr_stmt
+]
 
 type solve = [
   | `Solve
@@ -50,15 +78,11 @@ type result = [
 type typechecked = [ executed | type_defs | type_decls | assume | solve ]
 (** The type of statements after typechecking *)
 
-type solved      = [ executed | type_defs | type_decls | sequent | result ]
+type solved      = [ executed | type_defs | type_decls | solve_sequent | result ]
 (** The type of solved statement *)
 
-type +'a stmt = {
-  id          : Dolmen.Id.t;
-  contents    : 'a;
-  loc         : Dolmen.ParseLocation.t option;
-}
-(** Wrapper around statements. It records implicit type declarations. *)
+type translated  = [ executed | decl | def | proof_sequent | result ]
+(** The type of translated statements *)
 
 
 (** {2 Pipes} *)
@@ -93,12 +117,15 @@ val solve : Options.opts * typechecked stmt -> solved stmt
 val print_res : Options.opts * solved stmt -> unit
 (** Print the results of solved statements *)
 
-val export : Options.opts * solved stmt -> unit
+val translate : Options.opts * solved stmt -> translated stmt
+(** Translate statements into proof statements *)
+
+val export : Options.opts * translated stmt -> unit
 (** Export various information; usually for debugging purposes. *)
 
-val print_proof : Options.opts * solved stmt -> unit
+val print_proof : Options.opts * translated stmt -> unit
 (** Print the proof according to the options *)
 
-val print_model : Options.opts * solved stmt -> unit
+val print_model : Options.opts * translated stmt -> unit
 (** Print the proof according to the options *)
 

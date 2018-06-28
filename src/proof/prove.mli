@@ -9,20 +9,19 @@
 val init : Options.opts -> unit -> unit
 (** Initialize the formatters for proof output. *)
 
-val declare_ty :
-  ?loc:Dolmen.ParseLocation.t -> Options.proof_options -> Expr.Id.TyCstr.t -> unit
+val declare_id :
+  ?loc:Dolmen.ParseLocation.t -> Options.proof_options ->
+  Term.id list -> Term.id -> unit
 (** Declare a type constructor. *)
 
-val declare_term :
-  ?loc:Dolmen.ParseLocation.t -> Options.proof_options -> Expr.Id.Const.t -> unit
-(** Declare a new constant symbol. *)
-
 val declare_hyp :
-  ?loc:Dolmen.ParseLocation.t -> Options.proof_options -> Dolmen.Id.t -> Expr.formula -> Term.id
+  ?loc:Dolmen.ParseLocation.t -> Options.proof_options ->
+  Dolmen.Id.t -> Term.id list -> Term.id -> unit
 (** Declare a new hyp. *)
 
 val declare_goal :
-  ?loc:Dolmen.ParseLocation.t -> Options.proof_options -> Dolmen.Id.t -> Expr.formula -> Term.id
+  ?loc:Dolmen.ParseLocation.t -> Options.proof_options ->
+  Dolmen.Id.t -> Term.id list -> Term.id -> unit
 (** Declare a goal. *)
 
 val output_proof : Options.proof_options -> Solver.proof -> unit
