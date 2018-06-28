@@ -152,19 +152,30 @@ let declare_id ?loc fmt (name, id) =
   if Term.equal (Term.id id) (Term.of_ty Expr.Ty.base) then ()
   (* Regular declarations *)
   else begin
-    Format.fprintf fmt "%a@\n%s(@[<v>%a, type, (@ @[<hov>%a : %a ) )@]@].@\n@."
+    Format.fprintf fmt "%a@\n%s(@[<hv>%a, type, (@ @[<hov>%a : %a ) )@]@].@\n@."
       declare_loc loc (kind @@ ho_id id)
       Print.dolmen name
       Print.id id Print.term id.Expr.id_type
   end
 
 let declare_hyp ?loc fmt id =
-  Format.fprintf fmt "%a@\n%s(@[<v>%a, axiom,@ @[<hov>%a)@]@].@\n@."
+  Format.fprintf fmt "%a@\n%s(@[<hv>%a, axiom,@ @[<hov>%a)@]@].@\n@."
     declare_loc loc (kind @@ ho_id id)
     Print.id id Print.term id.Expr.id_type
 
+let goal_declared = ref false
+
 let declare_goal ?loc fmt id =
-  Format.fprintf fmt "%a@\n%s(@[<v>%a, conjecture,@ @[<hov>%a)@]@].@\n@."
-    declare_loc loc (kind @@ ho_id id)
-    Print.id id Print.term id.Expr.id_type
+  if !goal_declared then
+    Util.error ~section "Multiple goals are not supported in tptp files."
+  else begin
+    let () = goal_declared := true in
+    Format.fprintf fmt "%a@\n%s(@[<hv>%a, conjecture,@ @[<hov>%a)@]@].@\n@."
+      declare_loc loc (kind @@ ho_id id)
+      Print.id id Print.term id.Expr.id_type
+  end
+
+let declare_solve ?loc fmt () =
+  if !goal_declared then ()
+  else declare_goal ?loc fmt (Term.declare "implicit_goal" Term.false_term)
 

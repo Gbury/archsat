@@ -21,4 +21,5 @@ val declare_goal :
   ?loc:Dolmen.ParseLocation.t -> Options.opts ->
   Term.id list -> Term.id -> unit
 
-
+val declare_solve :
+  ?loc:Dolmen.ParseLocation.t -> Options.opts -> unit -> unit

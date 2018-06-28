@@ -69,6 +69,7 @@ type solve = [
 (** Top-level solve instruction *)
 
 type result = [
+  | `Skipped
   | `Unknown
   | `Proof of Solver.proof
   | `Model of Solver.model

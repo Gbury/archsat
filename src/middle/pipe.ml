@@ -72,6 +72,7 @@ type solve = [
 ]
 
 type result = [
+  | `Skipped
   | `Unknown
   | `Proof of Solver.proof
   | `Model of Solver.model
@@ -321,7 +322,8 @@ let print_res (opt, (c : solved stmt)) =
   | { contents = `Type_decl _; _ }
   | { contents = `Term_decl _; _ }
   | { contents = `Left _; _ }
-  | { contents = `Right _; _ } ->
+  | { contents = `Right _; _ }
+  | { contents = `Skipped; _ } ->
     ()
   | { contents = `Model _; _ } ->
     Util.printf "%a@." Out.print_sat opt
@@ -346,6 +348,7 @@ let mk_callback () =
 let translate (opt, (c : solved stmt)) =
   match c with
   | ({ contents = `Executed; _ } as res)
+  | ({ contents = `Skipped; _ } as res)
   | ({ contents = `Unknown; _ } as res)
   | ({ contents = `Model _; _ } as res)
   | ({ contents = `Proof _; _ } as res) ->
@@ -400,8 +403,7 @@ let translate (opt, (c : solved stmt)) =
 let export (opt, (c : translated stmt)) =
   match c with
   | { contents = `Executed; _ }
-  | { contents = `Def _; _ }
-  | { contents = `Unknown; _ } ->
+  | { contents = `Def _; _ } ->
     ()
   | { contents = `Decl { contents = id ; implicit }; _ } ->
     Export.declare_id ?loc:c.loc opt implicit (c.id, id)
@@ -409,9 +411,13 @@ let export (opt, (c : translated stmt)) =
     Export.declare_hyp ?loc:c.loc opt implicit id
   | { contents = `Right { contents = id; implicit }; _ } ->
     Export.declare_hyp ?loc:c.loc opt implicit id
+  | { contents = `Skipped; _ } ->
+    Export.declare_solve ?loc:c.loc opt ()
+  | { contents = `Unknown; _ }
   | { contents = `Model _; _ }
   | { contents = `Proof _; _ } ->
-    pp_opt Solver.export_dimacs Options.(opt.output.dimacs) ()
+    pp_opt Solver.export_dimacs Options.(opt.output.dimacs) ();
+    Export.declare_solve ?loc:c.loc opt ()
 
 (* Printing proofs *)
 (* ************************************************************************ *)
@@ -422,6 +428,9 @@ let print_proof (opt, (c : translated stmt)) =
     (* Not much to do with these... *)
     | { contents = `Executed; _ }
     | { contents = `Def _; _ } -> ()
+    | { contents = `Skipped; _ } ->
+      if Options.(opt.proof.active) then
+        Util.warn "Proof check/output activated, but solving is deactivated"
     | { contents = `Model _; _ } ->
       if Options.(opt.proof.active) then
         Util.warn "Proof check/output activated, but a model was found"
@@ -452,6 +461,9 @@ let print_model (opt, (c : translated stmt)) =
   | { contents = `Decl _; _ }
   | { contents = `Left _; _ }
   | { contents = `Right _ } -> ()
+    | { contents = `Skipped; _ } ->
+      if Options.(opt.proof.active) then
+        Util.warn "Model check/output activated, but solving is deactivated"
   | { contents = `Proof _; _ } ->
     if Options.(opt.model.active) then
       Util.warn "Model check/output activated, but a proof was found"

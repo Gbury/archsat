@@ -41,3 +41,6 @@ val declare_goal :
   ?loc:Dolmen.ParseLocation.t -> Format.formatter -> Term.id -> unit
 (** Declare a new hypothesis, with the correct type. *)
 
+val declare_solve :
+  ?loc:Dolmen.ParseLocation.t -> Format.formatter -> unit -> unit
+
