@@ -26,10 +26,10 @@ module Print = struct
       Any (Term.equiv_id, pos, Pretty.Infix);
       Any (Term.or_id,    name, "|");
       Any (Term.or_id,    pos, Pretty.Infix);
-      Any (Term.or_id,    assoc, Pretty.Right);
+      Any (Term.or_id,    assoc, Pretty.Left);
       Any (Term.and_id,   name, "&");
       Any (Term.and_id,   pos, Pretty.Infix);
-      Any (Term.and_id,   assoc, Pretty.Right);
+      Any (Term.and_id,   assoc, Pretty.Left);
     ]
 
   let is_dollar c = Uchar.equal c (Uchar.of_char '$')
@@ -82,10 +82,12 @@ module Print = struct
       begin match get_status f, args with
         | None, [] ->
           Format.fprintf fmt "@[<hov>%a@]" term f
-        | None, _
-        | Some Pretty.Prefix, _ ->
-          Format.fprintf fmt "@[<hov>(%a@ %@%a)@]" term f
+        | None, _ ->
+          Format.fprintf fmt "@[<hov>(%a@ %@ %a)@]" term f
             CCFormat.(list ~sep:(return "@ %@ ") term) args
+        | Some Pretty.Prefix, _ ->
+          Format.fprintf fmt "@[<hov>(%a@ %a)@]" term f
+            CCFormat.(list ~sep:(return "@ ") term) args
         | Some Pretty.Infix, _ ->
           let sep fmt () = Format.fprintf fmt "@ %a " term f in
           Format.fprintf fmt "@[<hov>(%a)@]" CCFormat.(list ~sep term) args
@@ -123,8 +125,7 @@ and ho_term t =
   match t.Term.term with
   | Term.Type -> false
   | Term.Id v -> ho_id v
-  | Term.App ({ Term.term = Term.Id f }, arg) -> ho_id f || ho_term arg
-  | Term.App _ -> true
+  | Term.App (f, arg) -> ho_term f || ho_term arg
   | Term.Let (v, e, body) -> ho_id v || ho_term e || ho_term body
   | Term.Binder (Term.Lambda, _, _) -> true
   | Term.Binder (_, v, body) -> ho_id v || ho_term body
@@ -158,12 +159,12 @@ let declare_id ?loc fmt (name, id) =
   end
 
 let declare_hyp ?loc fmt id =
-  Format.fprintf fmt "%a@\n%s(@[<v>%a, axiom,@ @[<hov>%a )@]@].@\n@."
+  Format.fprintf fmt "%a@\n%s(@[<v>%a, axiom,@ @[<hov>%a)@]@].@\n@."
     declare_loc loc (kind @@ ho_id id)
     Print.id id Print.term id.Expr.id_type
 
 let declare_goal ?loc fmt id =
-  Format.fprintf fmt "%a@\n%s(@[<v>%a, conjecture,@ @[<hov>%a )@]@].@\n@."
+  Format.fprintf fmt "%a@\n%s(@[<v>%a, conjecture,@ @[<hov>%a)@]@].@\n@."
     declare_loc loc (kind @@ ho_id id)
     Print.id id Print.term id.Expr.id_type
 
