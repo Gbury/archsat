@@ -88,7 +88,7 @@ let () =
                   (** Flushing *and* the break at the start of printing
                       are necessary in case the timeout or other signal interrupted
                       a logger. *)
-                  Format.pp_flush_formatter Format.std_formatter;
+                  Format.pp_print_flush Format.std_formatter ();
                   Format.printf "@ %a@." (Out.print_exn opt) exn;
                   opt
                 | _ ->
