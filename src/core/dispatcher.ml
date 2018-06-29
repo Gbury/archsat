@@ -597,10 +597,12 @@ module SolverTheory = struct
           "Expected to be able to assign symbol %a\nYou may have forgotten to activate an extension"
           Expr.Print.term t)
 
-  let rec iter_assign_aux f e = match Expr.(e.term) with
+  let rec iter_assign_aux f e =
+    match Expr.(e.term) with
     | Expr.Var _ -> assert false
     | Expr.App (p, _, l) ->
-      if Expr.Id.is_assignable p then f e;
+      if Expr.Id.is_assignable p &&
+         not (Expr.Ty.equal Expr.Ty.prop e.Expr.t_type) then f e;
       List.iter (iter_assign_aux f) l
     | _ -> f e
 

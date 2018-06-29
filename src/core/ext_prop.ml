@@ -16,8 +16,12 @@ let rec sat_eval = function
           Some (true, [b])
         else if Expr.Term.equal Builtin.Misc.p_false b then
           Some (false, [b])
-        else
+        else begin
+          Util.error ~section
+            "@[<hv>Term@ %a@ evaluates to@ %a@ which is not a bool value..."
+            Expr.Print.term t Expr.Print.term b;
           assert false
+        end
       with Dispatcher.Not_assigned _ ->
         None
     end
