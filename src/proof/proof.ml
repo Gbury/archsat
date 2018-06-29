@@ -659,8 +659,8 @@ let apply =
     match match_n_arrow [] n f.Term.ty with
     | None ->
       Util.warn ~section
-        "@[<hv 2>Expected a non-dependant product type but got:@ %a@]"
-        Term.print f.Term.ty;
+        "@[<hv 2>Expected a non-dependant product type but got:@ %a@ while applying:@ %a@]"
+        Term.print f.Term.ty Term.print f;
       assert false
     | Some (l, ret) ->
       (** Ceck that the application proves the current goal *)

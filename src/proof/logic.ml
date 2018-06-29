@@ -26,6 +26,9 @@ let exfalso_id =
   Term.declare "exfalso" (Term.forall p (
       Term.arrow Term.false_term (Term.id p)))
 
+let () =
+  Expr.Id.tag exfalso_id Coq.Print.name "False_ind"
+
 let nnpp_id =
   let p = Term.var "P" Term._Prop in
   let p_t = Term.id p in

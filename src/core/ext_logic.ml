@@ -180,11 +180,28 @@ let coq_proof = function
                              with init a disjunction that includes res *)
     (fun p -> p
               |> Logic.introN "Ax" 2
-              |> Logic.not_not_elim "Ax" (Term.of_formula res)
+              |> Logic.normalize "Ax" (Term.of_formula res)
               |> Logic.find
                 (Term.app Term.not_term (Term.of_formula init)) (Logic.apply1 [])
               |> Logic.or_intro (Term.of_formula res)
               |> Logic.ensure Logic.trivial)
+
+  | Or (init, l) -> (* prove ~ ~ init -> ~ l_1 -> .. -> ~ l_n -> False
+                       with init a disjunction [ \/ l_i ] and [ l = l_1; l_2, ...] *)
+    (fun p -> p
+              |> Logic.introN "Ax" (1 + List.length l)
+              |> Logic.not_not_elim "Ax" (Term.of_formula init)
+              |> Logic.find (Term.of_formula init) (Logic.or_elim ~f:Logic.absurd)
+    )
+
+  | Not_and (init, l) -> (* prove ~init -> ~ ~ l_1 -> .. -> ~ ~ l_n -> False
+                            with init a conjunction [/\ l_i] and [l = l_1;l_2...] *)
+    (fun p -> p
+              |> Logic.introN "Ax" (1 + List.length l)
+              |> Logic.fold (Logic.normalize "Ax") (List.map Term.of_formula l)
+              |> Logic.find (Term.of_formula (Expr.Formula.neg init)) (Logic.apply1 [])
+              |> Logic.and_intro ~f:(fun _ -> Logic.ensure Logic.trivial)
+    )
 
   | Equiv_left (init, res)
   | Equiv_right (init, res) -> (* prove ~ ~ init -> ~ res -> False,
@@ -195,6 +212,18 @@ let coq_proof = function
               |> Logic.not_not_elim "Ax" (Term.of_formula init)
               |> Logic.find (Term.of_formula init) Logic.and_elim
               |> Logic.absurd (Term.of_formula res))
+
+  | Not_equiv (init, pq, qp) -> (* prove ~ init -> ~ ~ pq -> ~ ~ qp -> False
+                                   with init an equivalence [p <-> q],
+                                        pq an implication [p -> q],
+                                        qp an implication [q -> p] *)
+    (fun p -> p
+              |> Logic.introN "Ax" 3
+              |> Logic.not_not_elim "Ax" (Term.of_formula pq)
+              |> Logic.not_not_elim "Ax" (Term.of_formula qp)
+              |> Logic.find (Term.of_formula (Expr.Formula.neg init)) @@ Logic.apply1 []
+              |> Logic.and_intro ~f:(fun _ -> Logic.ensure Logic.trivial)
+    )
 
   | Imply_chain (init, left, l, right, l') -> (** prove
                                           ~ ~ init ->
@@ -208,7 +237,7 @@ let coq_proof = function
        p
        |> Logic.introN "Ax" (1 + List.length l + List.length l')
        |> Logic.not_not_elim "Ax" (Term.of_formula init)
-       |> Logic.fold (Logic.not_not_elim "Ax") (
+       |> Logic.fold (Logic.normalize "Ax") (
          List.map (fun f -> Term.of_formula @@ Expr.Formula.neg f) l)
        |> Logic.ctx (fun seq ->
            Util.debug ~section "Building implication";
@@ -226,80 +255,25 @@ let coq_proof = function
          )
     )
 
-  | _ -> (fun _ -> ())
+  | Not_imply_left (init, p, q) -> (* prove ~ init -> ~ p -> False
+                                      with init an implication [p -> q] *)
+    (fun pos -> pos
+              |> Logic.introN "Ax" 2
+              |> Logic.find (Term.of_formula @@ Expr.Formula.neg init) (Logic.apply1 [])
+              |> Logic.intro "I"
+              |> Logic.absurd (Term.of_formula p)
+    )
 
+  | Not_imply_right (init, q) -> (* prove ~ init -> ~ ~ q -> False
+                                    with init an implication [p -> q] *)
+    (fun pos -> pos
+                |> Logic.introN "Ax" 2
+                |> Logic.normalize "Ax" (Term.of_formula q)
+                |> Logic.find (Term.of_formula @@ Expr.Formula.neg init) (Logic.apply1 [])
+                |> Logic.intro "I"
+                |> Logic.ensure Logic.trivial
+    )
 
-(*
-let coq_proof = function
-  | Or (init, l) ->
-    Coq.tactic ~prefix:"O" ~normalize:(Coq.Mem [init]) (fun fmt ctx ->
-            let order = CCOpt.get_exn (Expr.Formula.get_tag init Expr.f_order) in
-            Format.fprintf fmt "destruct %a as %a.@ @[<hv>%a@]"
-              (Proof.Ctx.named ctx) init
-              (Coq.Print.pattern_or (fun fmt f -> Format.fprintf fmt "F")) order
-              CCFormat.(list ~sep:(return "@ ") (fun fmt f ->
-                  Format.fprintf fmt "exact (%a F)."
-                    (Proof.Ctx.named ctx) (Expr.Formula.neg f)
-                )) l
-          )
-  | Not_and (init, l) ->
-    Coq.tactic ~prefix:"A" ~normalize:Coq.All (fun fmt ctx ->
-            let order = CCOpt.get_exn (Expr.Formula.get_tag init Expr.f_order) in
-            Format.fprintf fmt "exact (%a @[<hov>%a@])."
-              (Proof.Ctx.named ctx) (Expr.Formula.neg init)
-              (Coq.Print.pattern_intro_and (Proof.Ctx.named ctx)) order
-          )
-  | Imply_chain (init, left, l, q) ->
-    Coq.tactic ~prefix:"Ax"
-      ~normalize:(Coq.Mem (init :: (List.map Expr.Formula.neg l))) (fun fmt ctx ->
-        Format.fprintf fmt "specialize (%a @[<hov>%a@]).@ "
-          (Proof.Ctx.named ctx) init
-          CCFormat.(list ~sep:(return "@ ") (fun fmt f ->
-              Coq.Print.pattern_intro_and (Proof.Ctx.named ctx) fmt
-                (pattern_imply_left f)
-            )) left;
-        match Expr.Formula.get_tag q Expr.f_order with
-        | None ->
-          Coq.exact fmt "%a %a"
-            (Proof.Ctx.named ctx) (Expr.Formula.neg q)
-            (Proof.Ctx.named ctx) init
-        | Some o ->
-          Format.fprintf fmt "destruct %a as @[<hov>%a@].@ "
-            (Proof.Ctx.named ctx) init
-            (Coq.Print.pattern_or (Proof.Ctx.intro ctx)) o;
-          Coq.Print.pattern ~start:CCFormat.silent ~stop:CCFormat.silent
-            ~sep:(CCFormat.return "@ ") (fun fmt f ->
-                Coq.exact fmt "%a %a"
-                  (Proof.Ctx.named ctx) (Expr.Formula.neg f)
-                  (Proof.Ctx.named ctx) f
-              ) fmt o
-        )
-
-  | Not_imply_left (init, p, q) ->
-    Coq.tactic ~prefix:"Ax" ~normalize:(Coq.Mem []) (fun fmt ctx ->
-        Coq.exact fmt "%a (fun %a => False_ind %a (%a %a))"
-          (Proof.Ctx.named ctx) (Expr.Formula.neg init)
-          (Proof.Ctx.intro ctx) p
-          Coq.Print.formula q
-          (Proof.Ctx.named ctx) (Expr.Formula.neg p)
-          (Proof.Ctx.named ctx) p
-      )
-  | Not_imply_right (init, res) ->
-    Coq.tactic ~prefix:"Ax" (fun fmt ctx ->
-        Coq.exact fmt "%a (fun _ => %a)"
-          (Proof.Ctx.named ctx) (Expr.Formula.neg init)
-          (Proof.Ctx.named ctx) res
-      )
-
-
-  | Not_equiv (init, pq, qp) ->
-    Coq.tactic ~prefix:"I" (fun fmt ctx ->
-        Format.fprintf fmt "apply %a.@ split.@ exact (%a).@ exact (%a)."
-          (Proof.Ctx.named ctx) (Expr.Formula.neg init)
-          (Proof.Ctx.named ctx) pq
-          (Proof.Ctx.named ctx) qp
-      )
-   *)
 
 (* Handle & plugin registering *)
 (* ************************************************************************ *)

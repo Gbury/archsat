@@ -2,37 +2,41 @@
 PROOF_FILE=proof.v
 
 all: $(TESTS)
-	@echo -e "\e[32m[OK]\e[0m [$(NAME)]"
+	@echo -e "\033[2K\r\e[32m[OK]\e[0m [$(NAME)]"
 
 %.res: % $(BIN)
+	@echo -ne "\033[2K\r$(NAME) -- $<"
 	@if ! $(BIN) $(OPT) $< > /dev/null; then 							\
-			echo -e "\e[31m[KO]\e[0m [$(NAME)] $<";			\
+			echo -e "\033[2K\r\e[31m[KO]\e[0m [$(NAME)] $<";			\
 			echo -e "$(BIN) $(OPT) $<";									\
 			exit 1;																			\
 		fi
 
 %.sat: % $(BIN)
+	@echo -ne "\033[2K\r$(NAME) -- $<"
 	@if ! $(BIN) $(OPT) $< | grep Unsat > /dev/null; then 							\
-			echo -e "\e[31m[KO]\e[0m [$(NAME)] $<";			\
+			echo -e "\033[2K\r\e[31m[KO]\e[0m [$(NAME)] $<";			\
 			echo -e "$(BIN) $(OPT) $<";									\
 			exit 1;																			\
 		fi
 
 %.unsat: % $(BIN)
+	@echo -ne "\033[2K\r$(NAME) -- $<"
 	@if ! $(BIN) $(OPT) $< | grep Unsat > /dev/null; then 	\
-			echo -e "\e[31m[KO]\e[0m [$(NAME)] $<";							\
+			echo -e "\033[2K\r\e[31m[KO]\e[0m [$(NAME)] $<";							\
 			echo -e "$(BIN) $(OPT) $<";													\
 			exit 1;																							\
 		fi
 
 %.coq: % $(BIN)
+	@echo -ne "\033[2K\r$(NAME) -- $<"
 	@if ! $(BIN) $(OPT) --coq $(PROOF_FILE) $< > /dev/null; then 		\
-			echo -e "\e[31m[KO]\e[0m [$(NAME)] $<";											\
+			echo -e "\033[2K\r\e[31m[FAIL]\e[0m [$(NAME)] $<";											\
 			echo -e "$(BIN) $(OPT) --coq $(PROOF_FILE) $<";							\
 			exit 1;																											\
 		fi
 	@if ! coqc $(PROOF_FILE) &> /dev/null; then											\
-			echo -e "\e[31m[FAIL]\e[0m [$(NAME)] $<";										\
+			echo -e "\033[2K\r\e[31m[KO]\e[0m [$(NAME)] $<";										\
 			echo -e "$(BIN) $(OPT) --coq $(PROOF_FILE) $<";							\
 			exit 1;																											\
 		fi

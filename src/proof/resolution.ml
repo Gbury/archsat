@@ -16,7 +16,10 @@ let introduce_hyp t l pos =
   pos |> Logic.cut "C" (Logic.clause_type l)
     ~f:(fun p -> p
                  |> Logic.introN "Ax" (List.length l)
-                 |> Logic.or_elim t ~f:Logic.absurd)
+                 |> begin match l with
+                   | [ t' ] -> Logic.absurd t'
+                   | _ -> Logic.or_elim t ~f:Logic.absurd
+                 end)
 
 (* From mSAT lit to proof term *)
 (* ************************************************************************ *)
