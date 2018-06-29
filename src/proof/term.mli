@@ -189,9 +189,9 @@ val of_formula : Expr.formula translator
 (** Translating expressions into terms. *)
 
 val of_id :
-  (string -> t -> id) -> 'a translator -> 'a Expr.id translator
+  kind:[`Var | `Declared | `Cst] -> 'a translator -> 'a Expr.id translator
 val of_id_aux :
-  (string -> t -> id) -> 'a translator -> ?callback:callback -> 'a Expr.id -> id
+  kind:[`Var | `Declared | `Cst] -> 'a translator -> ?callback:callback -> 'a Expr.id -> id
 val of_function_descr :
   'a translator -> 'b translator -> ('a, 'b) Expr.function_descr translator
 (** Translating functions *)

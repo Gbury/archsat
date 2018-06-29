@@ -83,8 +83,8 @@ module Print = struct
         | None, [] ->
           Format.fprintf fmt "@[<hov>%a@]" term f
         | None, _ ->
-          Format.fprintf fmt "@[<hov>(%a@ %@ %a)@]" term f
-            CCFormat.(list ~sep:(return "@ %@ ") term) args
+          Format.fprintf fmt "@[<hov>%a(%a)@]" term f
+            CCFormat.(list ~sep:(return ",@ ") term) args
         | Some Pretty.Prefix, _ ->
           Format.fprintf fmt "@[<hov>(%a@ %a)@]" term f
             CCFormat.(list ~sep:(return "@ ") term) args

@@ -356,27 +356,27 @@ let translate (opt, (c : solved stmt)) =
 
   | { contents = `Type_def (id, vars, res); _ } ->
     let get, callback = mk_callback () in
-    let t_vars = List.map (Term.of_id_aux ~callback Term.var Term.of_ttype) vars in
+    let t_vars = List.map (Term.of_id_aux ~kind:`Var ~callback Term.of_ttype) vars in
     let t = Term.lambdas t_vars (Term.of_ty ~callback res) in
     (simple c.id c.loc @@ `Def (tr (get ()) (id, t)) :> translated stmt)
 
   | { contents = `Term_def (id, vars, args, res); _ } ->
     let get, callback = mk_callback () in
-    let t_vars = List.map (Term.of_id_aux ~callback Term.var Term.of_ttype) vars in
-    let t_args = List.map (Term.of_id_aux ~callback Term.var Term.of_ty) args in
+    let t_vars = List.map (Term.of_id_aux ~kind:`Var ~callback Term.of_ttype) vars in
+    let t_args = List.map (Term.of_id_aux ~kind:`Var ~callback Term.of_ty) args in
     let t = Term.lambdas (t_vars @ t_args) (Term.of_term ~callback res) in
     (simple c.id c.loc @@ `Def (tr (get ()) (id, t)) :> translated stmt)
 
   | { contents = `Type_decl f; _ } ->
     let get, callback = mk_callback () in
-    let id = Term.of_id_aux ~callback Term.declare
+    let id = Term.of_id_aux ~kind:`Declared ~callback
         (Term.of_function_descr Term.of_unit Term.of_ttype) f
     in
     (simple c.id c.loc @@ `Decl (tr (get ()) id) :> translated stmt)
 
   | { contents = `Term_decl f; _ } ->
     let get, callback = mk_callback () in
-    let id = Term.of_id_aux ~callback Term.declare
+    let id = Term.of_id_aux ~kind:`Declared ~callback
         (Term.of_function_descr Term.of_ttype Term.of_ty) f
     in
     (simple c.id c.loc @@ `Decl (tr (get ()) id) :> translated stmt)
@@ -410,7 +410,7 @@ let export (opt, (c : translated stmt)) =
   | { contents = `Left { contents = id; implicit }; _ } ->
     Export.declare_hyp ?loc:c.loc opt implicit id
   | { contents = `Right { contents = id; implicit }; _ } ->
-    Export.declare_hyp ?loc:c.loc opt implicit id
+    Export.declare_goal ?loc:c.loc opt implicit id
   | { contents = `Skipped; _ } ->
     Export.declare_solve ?loc:c.loc opt ()
   | { contents = `Unknown; _ }

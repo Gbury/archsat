@@ -80,10 +80,11 @@ let is_var v =
   | None -> false
   | Some () -> true
 
-let var s ty =
+let mk_var s ty =
   let tags = Tag.add Tag.empty var_tag () in
   Expr.Id.mk_new ~tags s ty
 
+let var s ty = mk_var s ty
 let declare s ty = Expr.Id.mk_new s ty
 
 type Expr.builtin += Defined of t
@@ -672,7 +673,7 @@ let trap_term key v =
   Hterm.add term_cache key v
 
 (* Id translation *)
-let of_id_aux mk tr ?callback id =
+let of_id_aux ~kind tr ?callback id =
   (* Util.debug ~section "translate id: %a" Expr.Print.id id; *)
   match Expr.Id.get_tag id tr_tag with
   | Some v ->
@@ -680,18 +681,22 @@ let of_id_aux mk tr ?callback id =
     v
   | None ->
     let ty = tr ?callback id.Expr.id_type in
+    let mk = match kind with
+      | `Var -> mk_var
+      | `Declared | `Cst -> declare
+    in
     let v = mk id.Expr.id_name ty in
     let () = Expr.Id.tag id tr_tag v in
-    let () = match callback with Some f -> f v | None -> () in
+    let () = if kind = `Cst then match callback with Some f -> f v | None -> () in
     (* Util.debug ~section "new cached id: %a" Expr.Print.id v; *)
     v
 
-let of_id mk tr ?callback v = id (of_id_aux mk tr ?callback v)
+let of_id ~kind tr ?callback v = id (of_id_aux ~kind tr ?callback v)
 
 let of_function_descr tr tr' ?callback fd =
   let rec aux_vars body = function
     | [] -> body
-    | v :: r -> aux_vars (forall (of_id_aux ?callback var tr v) body) r
+    | v :: r -> aux_vars (forall (of_id_aux ~kind:`Var ?callback tr v) body) r
   and aux_args vars body = function
     | [] -> aux_vars body vars
     | ty :: r -> aux_args vars (arrow (tr' ?callback ty) body) r
@@ -711,10 +716,10 @@ let rec of_ty_aux ?callback = function
   | ty when Expr.Ty.equal Expr.Ty.prop ty ->
     (* TODO: emit implicit declaration of $o *)
     _Prop
-  | { Expr.ty = Expr.TyVar v } -> of_id var ?callback of_ttype v
+  | { Expr.ty = Expr.TyVar v } -> of_id ~kind:`Var ?callback of_ttype v
   | { Expr.ty = Expr.TyMeta m } -> of_ty Synth.ty
   | { Expr.ty = Expr.TyApp (f, l) } ->
-    let f' = of_id declare ?callback (of_function_descr of_unit of_ttype) f in
+    let f' = of_id ~kind:`Cst ?callback (of_function_descr of_unit of_ttype) f in
     let l' = List.map of_ty l in
     apply f' l'
 
@@ -733,11 +738,11 @@ and of_ty ?callback ty =
 (* Term translation *)
 let rec of_term_aux ?callback = function
   | { Expr.term = Expr.Var v } ->
-    of_id var ?callback of_ty v
+    of_id ~kind:`Var ?callback of_ty v
   | { Expr.term = Expr.Meta m } ->
     of_term ?callback (Synth.term Expr.(m.meta_id.id_type))
   | { Expr.term = Expr.App (f, tys, args) } ->
-    let f' = of_id declare ?callback (of_function_descr of_ttype of_ty) f in
+    let f' = of_id ~kind:`Cst ?callback (of_function_descr of_ttype of_ty) f in
     let tys' = List.map (of_ty ?callback) tys in
     let args' = List.map (of_term ?callback) args in
     apply (apply f' tys') args'
@@ -799,11 +804,11 @@ and of_formula_aux ?callback f =
     of_tree ?callback and_term order
 
   | Expr.All ((tys, ts), _, body) ->
-    foralls (List.map (of_id_aux var ?callback of_ttype) tys) @@
-    foralls (List.map (of_id_aux var ?callback of_ty) ts) (of_formula ?callback body)
+    foralls (List.map (of_id_aux ~kind:`Var ?callback of_ttype) tys) @@
+    foralls (List.map (of_id_aux ~kind:`Var ?callback of_ty) ts) (of_formula ?callback body)
   | Expr.Ex ((tys, ts), _, body) ->
-    exists (List.map (of_id_aux var ?callback of_ttype) tys) @@
-    exists (List.map (of_id_aux var ?callback of_ty) ts) (of_formula ?callback body)
+    exists (List.map (of_id_aux ~kind:`Var ?callback of_ttype) tys) @@
+    exists (List.map (of_id_aux ~kind:`Var ?callback of_ty) ts) (of_formula ?callback body)
 
 and of_tree ?callback t = function
   | Expr.F f -> of_formula ?callback f
