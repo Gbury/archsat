@@ -6,7 +6,7 @@
 *)
 
 val compute :
-  Options.proof_options -> Proof.sequent -> Solver.Proof.proof -> Proof.proof
+  Options.proof_options -> Proof.sequent -> (Solver.id option * Solver.Proof.proof) -> Proof.proof
 (** Compute the formal proof from a starting sequent and a resolution proof. *)
 
 

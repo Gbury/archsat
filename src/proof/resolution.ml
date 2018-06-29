@@ -7,13 +7,13 @@ module P = Solver.Proof
 (* ************************************************************************ *)
 
 let introduce_lemma f l pos =
-  pos |> Logic.cut ~weak:true "L" (Logic.clause_type l) ~f
+  pos |> Logic.cut "L" (Logic.clause_type l) ~f
 
 (* Introducing hyp as weak clauses *)
 (* ************************************************************************ *)
 
 let introduce_hyp t l pos =
-  pos |> Logic.cut ~weak:true "C" (Logic.clause_type l)
+  pos |> Logic.cut "C" (Logic.clause_type l)
     ~f:(fun p -> p
                  |> Logic.introN "Ax" (List.length l)
                  |> Logic.or_elim t ~f:Logic.absurd)
@@ -86,27 +86,47 @@ let compute_aux h pos node =
       let right_id = P.H.find h (P.expand right).P.conclusion in
       Logic.resolve left_id right_id l pos
     | _ ->
-      raise (Proof.Failure ("incomplete resolution proof reconstruction", Logic.extract_open pos))
+      raise (Proof.Failure ("incomplete resolution proof reconstruction", pos))
   in
   Util.debug ~section "%s -> %a" node.P.conclusion.P.St.name Expr.Id.print id;
   let () = P.H.add h node.P.conclusion id in
   pos'
 
-let compute opt seq p =
+let compute_final h pos proof =
+  let node = P.expand proof in
+  let id = P.H.find h node.P.conclusion in
+  Logic.exact [] (Term.id id) pos
+
+let compute opt seq (sid, p) =
   let h = P.H.create 4013 in
   let proof = Proof.mk seq in
   let () =
-    let init = Logic.nnpp @@ Proof.(pos (root proof)) in
+    let handle id =
+       match sid with
+         | Some sid -> Solver.register_hyp sid id
+         | None ->
+           Util.error ~section "No solver_id provided for binding to goal introduction"
+    in
+    let init = Logic.nnpp ~handle @@ Proof.(pos (root proof)) in
     try
       let final = P.fold (fun acc node ->
           print_incr_dot opt proof;
           compute_aux h acc node
         ) init p in
-      if not (Logic.trivial final) then begin
-        Util.error ~section "Proof incomplete";
-      end
-    with Proof.Failure (msg, _) ->
-      Util.warn ~section "Error during proof building:@.%s" msg;
+      compute_final h final p;
+    with
+    | Proof.Failure (msg, pos) ->
+      if Printexc.backtrace_status () then
+        Printexc.print_backtrace stdout;
+      Util.warn ~section "At proof position %a:@.%s" Proof.pp_pos pos msg
+    | Proof.Env.Conflict (v, v') ->
+      if Printexc.backtrace_status () then
+        Printexc.print_backtrace stdout;
+      Util.warn ~section "Conflict between two ids: %a <> %a" Expr.Print.id v Expr.Print.id v'
+    | Proof.Env.Not_introduced t ->
+      if Printexc.backtrace_status () then
+        Printexc.print_backtrace stdout;
+      Util.warn ~section "@[<hv>Formula was not introduced:@ %a@]" Term.print t
   in
   proof
 

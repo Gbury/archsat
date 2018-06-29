@@ -18,7 +18,7 @@ type info =
   | Imply_chain of Expr.formula *
                    Expr.formula list *
                    Expr.formula list *
-                   Expr.formula
+                   Expr.formula * Expr.formula list
 
   | Not_imply_right of Expr.formula * Expr.formula
   | Not_imply_left of Expr.formula * Expr.formula * Expr.formula
@@ -109,7 +109,7 @@ let tab = function
   (* 'Imply' traduction *)
   | { Expr.formula = Expr.Imply (p, q) } as r ->
     let l, left, s, right = imply_chain [] [] r in
-    push "imply" (Imply_chain (r, l, left, s)) (Expr.Formula.neg r :: (left @ right))
+    push "imply" (Imply_chain (r, l, left, s, right)) (Expr.Formula.neg r :: (left @ right))
   | { Expr.formula = Expr.Not ({ Expr.formula = Expr.Imply (p, q) } as r )  } ->
     push "not-imply_l" (Not_imply_left (r, p, q)) [r; p];
     push "not-imply_r" (Not_imply_right (r, q)) [r; Expr.Formula.neg q]
@@ -149,7 +149,7 @@ let dot_info = function
 
   | Or (f, _)
   | Not_and (f, _)
-  | Imply_chain (f, _, _, _)
+  | Imply_chain (f, _, _, _, _)
   | Not_imply_left (f, _, _)
   | Not_imply_right (f, _)
   | Equiv_right (f, _)
@@ -186,27 +186,51 @@ let coq_proof = function
               |> Logic.or_intro (Term.of_formula res)
               |> Logic.ensure Logic.trivial)
 
+  | Equiv_left (init, res)
   | Equiv_right (init, res) -> (* prove ~ ~ init -> ~ res -> False,
                                   with init a equivalence [p <-> q],
-                                  and res an implication [p -> q] *)
+                                  and res an implication [p -> q] or [q -> p] *)
     (fun p -> p
               |> Logic.introN "Ax" 2
               |> Logic.not_not_elim "Ax" (Term.of_formula init)
               |> Logic.find (Term.of_formula init) Logic.and_elim
               |> Logic.absurd (Term.of_formula res))
 
+  | Imply_chain (init, left, l, right, l') -> (** prove
+                                          ~ ~ init ->
+                                          {~ ~ x}_{x in l} ->
+                                          {~ y}_{y in l'} -> False,
+                                          where init is an implication
+                                          [l_1 -> (l_2 /\ l_3) -> ... -> q]
+                                          and right a disjunction of formulas in l'. *)
+    (fun p ->
+       Util.debug ~section "Proving translation for@ %a" Expr.Formula.print init;
+       p
+       |> Logic.introN "Ax" (1 + List.length l + List.length l')
+       |> Logic.not_not_elim "Ax" (Term.of_formula init)
+       |> Logic.fold (Logic.not_not_elim "Ax") (
+         List.map (fun f -> Term.of_formula @@ Expr.Formula.neg f) l)
+       |> Logic.ctx (fun seq ->
+           Util.debug ~section "Building implication";
+           let env = Proof.env seq in
+           let imply = Proof.Env.find env (Term.of_formula init) in
+           let args = List.map (fun x ->
+               Util.debug ~section "And-intro for@ %a" Expr.Formula.print x;
+               let t = Term.of_formula x in
+               let p = Proof.mk (Proof.mk_sequent env t) in
+               let pos = Proof.pos @@ Proof.root p in
+               let () = Logic.and_intro ~f:(fun _ -> Logic.(ensure trivial)) pos in
+               Proof.elaborate p
+             ) left in
+           Logic.or_elim ~f:Logic.absurd (Term.apply (Term.id imply) args)
+         )
+    )
+
   | _ -> (fun _ -> ())
 
 
 (*
 let coq_proof = function
-  | Equiv_right (init, res)
-  | Equiv_left (init, res) ->
-    Coq.tactic ~prefix:"E" (fun fmt ctx ->
-        Format.fprintf fmt "apply %a.@ rewrite %a.@ exact (fun x => x)."
-          (Proof.Ctx.named ctx) (Expr.Formula.neg res)
-          (Proof.Ctx.named ctx) init
-      )
   | Or (init, l) ->
     Coq.tactic ~prefix:"O" ~normalize:(Coq.Mem [init]) (fun fmt ctx ->
             let order = CCOpt.get_exn (Expr.Formula.get_tag init Expr.f_order) in

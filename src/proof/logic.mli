@@ -33,6 +33,9 @@ val ctx : (Proof.sequent -> (pos, 'a) tactic) -> (pos, 'a) tactic
 (** Wrapper around tactics to access environment (and use it to compute
     parameters for the tactic). *)
 
+val fold : ('a -> (pos, pos) tactic) -> 'a list -> (pos, pos) tactic
+(** Fold unary tactis over a list of arguments. *)
+
 val ensure : (pos, bool) tactic -> (pos, unit) tactic
 (** Ensures the bool-returning tactic succeeds in closing the proof. *)
 
@@ -42,7 +45,6 @@ val introN : string -> int -> (pos, pos) tactic
     for the name of the newly introduced hypothesis. *)
 
 val cut :
-  ?weak:bool ->
   f:((pos, unit) tactic) ->
   string -> Term.t -> (pos, Term.id * pos) tactic
 (** Cut/assert a given term (using the string as prefix for the env),
@@ -110,7 +112,7 @@ val normalize : string -> Term.t -> (pos, pos) tactic
 
 (** {2 Classical tactics} *)
 
-val nnpp : (pos, pos) tactic
+val nnpp : ?handle:(Term.id -> unit) -> (pos, pos) tactic
 (** Applies nnpp *only if necessary*, to get at the end a
     pos to a sequent of the form Gamma |- False.
     The resulting proof may, or may *not* be classical. *)

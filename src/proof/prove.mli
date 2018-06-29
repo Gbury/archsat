@@ -21,7 +21,7 @@ val declare_hyp :
 
 val declare_goal :
   ?loc:Dolmen.ParseLocation.t -> Options.proof_options ->
-  Dolmen.Id.t -> Term.id list -> Term.id -> unit
+  Dolmen.Id.t -> Term.id list -> (Solver.id * Term.id) -> unit
 (** Declare a goal. *)
 
 val output_proof : Options.proof_options -> Solver.proof -> unit

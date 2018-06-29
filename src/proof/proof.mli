@@ -11,8 +11,8 @@ val section : Section.t
 
 module Env : sig
 
-  exception Added_twice of Term.t
   exception Not_introduced of Term.t
+  exception Conflict of Term.id * Term.id
 
   type t
   (** The type of environments, i.e bijective maps
@@ -24,19 +24,18 @@ module Env : sig
   val empty : t
   (** The empty environment. *)
 
-  val prefix : t -> string -> t
-  (** Change the prefix of the environment. THe prefix is used
-      when introducing new formulas. *)
+  val exists : t -> Term.id -> bool
+  (** Does the id belong to the environment ? *)
 
-  val mem : t -> Term.id -> bool
-  (** Does the Term belong to the environment ? *)
+  val mem : t -> Term.t -> bool
+  (** Does the term exists in the environment ? *)
 
   val find : t -> Term.t -> Term.id
   (** Find the id associetd with a given term [t]. The returned id
       has type [t].
       @raise Not_introduced if term was not found *)
 
-  val intro : t -> Term.t -> t
+  val intro : ?hide:bool -> t -> string -> Term.t -> Term.id * t
   (** Introduce the given term, automatically choosing a term for it,
       using the prefix of the environment. *)
 
@@ -112,6 +111,9 @@ type pos
 val mk : sequent -> proof
 (** Create an empty proof with the given goal and environent. *)
 
+val pp_pos : Format.formatter -> pos -> unit
+(** Print a proof position. *)
+
 val print : lang:lang -> Format.formatter -> proof -> unit
 (** Print the proof in the given language. *)
 
@@ -125,7 +127,7 @@ val elaborate : proof -> Term.t
 
 (** {2 Proof steps} *)
 
-exception Failure of string * sequent
+exception Failure of string * pos
 (** Exception designed to be raised by steps that fail. *)
 
 type ('input, 'state) step
@@ -168,7 +170,7 @@ val letin : (string * Term.t, Term.id * Term.t) step
     generate a new id and bind it to the given term for the
     remainder of the proof. *)
 
-val cut : (bool * string * Term.t, Term.id) step
+val cut : (string * Term.t, Term.id) step
 (** Cut/assertion in proofs. Generate two branch,
     the first one in which the given term has to be proven,
     and a second one where the proven term has been bound

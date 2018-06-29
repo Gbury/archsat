@@ -27,10 +27,10 @@ let get_hyps () = !hyps
 (* goals *)
 let goal = ref None
 
-let add_goal id =
+let add_goal x =
   match !goal with
   | None ->
-    goal := Some id
+    goal := Some x
   | Some _ ->
     Util.error ~section "%s%s"
       "Multiple goals are not supported in proof output,@ "
@@ -43,17 +43,6 @@ let get_goal () =
 
 (* Some wrappers *)
 (* ************************************************************************ *)
-
-(* Wrapper to get implicitly typed identifiers. *)
-let wrapper t tr =
-  let l = ref [] in
-  let callback = Some (fun id ->
-    Util.debug ~section "Found implicitly typed constant: %a"
-      Expr.Id.print id;
-    l := id :: !l
-    ) in
-  let res = tr ?callback t in
-  !l, res
 
 let print_id_typed fmt id =
   Format.fprintf fmt "%a: @[<hov>%a@]"
@@ -115,9 +104,9 @@ let declare_goal_aux ?loc opt id =
   pp_opt (Coq.declare_goal_term ?loc) Options.(opt.coqterm) id;
   ()
 
-let declare_goal ?loc opt id implicit p =
+let declare_goal ?loc opt id implicit (solver_id, p) =
   let () = declare_implicits opt implicit in
-  let () = add_goal p in
+  let () = add_goal (solver_id, p) in
   if Options.(opt.context) then declare_goal_aux ?loc opt p
 
 let implicit_goal opt =
@@ -151,20 +140,20 @@ let output_proof opt p =
   let () = pp_opt Unsat_core.print Options.(opt.unsat_core) p in
   let () = pp_opt Dot.print Options.(opt.res_dot) p in
   (* More complex proofs *)
-  let g = (* get the current goal *)
-    let p =
+  let sid, g = (* get the current goal *)
+    let sid, p =
       match get_goal () with
-      | None -> implicit_goal opt
-      | Some g -> g
+      | None -> None, implicit_goal opt
+      | Some (sid, g) -> Some sid, g
     in
-    p.Expr.id_type
+    sid, p.Expr.id_type
   in
   (* Lazily compute the proof *)
   let proof = lazy (
     let hyps = get_hyps () in
     let env = List.fold_left Proof.Env.declare Proof.Env.empty hyps in
     let seq = Proof.mk_sequent env g in
-    Resolution.compute opt seq p
+    Resolution.compute opt seq (sid, p)
   ) in
   (* Print the lazy proof in each language. *)
   let () = pp_lazy "coq" Options.(opt.coq) proof

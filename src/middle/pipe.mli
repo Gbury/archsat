@@ -60,7 +60,7 @@ type solve_sequent = [
 
 type proof_sequent = [
   | `Left of Term.id tr_stmt
-  | `Right of Term.id tr_stmt
+  | `Right of (Solver.id * Term.id) tr_stmt
 ]
 
 type solve = [

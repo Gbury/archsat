@@ -64,7 +64,7 @@ type solve_sequent = [
 
 type proof_sequent = [
   | `Left of Term.id tr_stmt
-  | `Right of Term.id tr_stmt
+  | `Right of (Solver.id * Term.id) tr_stmt
 ]
 
 type solve = [
@@ -392,8 +392,7 @@ let translate (opt, (c : solved stmt)) =
     let get, callback = mk_callback () in
     let t = Term.of_formula ~callback f in
     let p = Term.declare (Dolmen.Id.full_name id) t in
-    let () = Solver.register_hyp sid p in
-    (simple c.id c.loc @@ `Right (tr (get ()) p) :> translated stmt)
+    (simple c.id c.loc @@ `Right (tr (get ()) (sid, p)) :> translated stmt)
 
 
 (* Export information *)
@@ -409,7 +408,7 @@ let export (opt, (c : translated stmt)) =
     Export.declare_id ?loc:c.loc opt implicit (c.id, id)
   | { contents = `Left { contents = id; implicit }; _ } ->
     Export.declare_hyp ?loc:c.loc opt implicit id
-  | { contents = `Right { contents = id; implicit }; _ } ->
+  | { contents = `Right { contents = (_, id); implicit }; _ } ->
     Export.declare_goal ?loc:c.loc opt implicit id
   | { contents = `Skipped; _ } ->
     Export.declare_solve ?loc:c.loc opt ()
@@ -443,8 +442,8 @@ let print_proof (opt, (c : translated stmt)) =
       Prove.declare_id ?loc:c.loc Options.(opt.proof) implicit contents
     | { contents = `Left { implicit; contents = p }; id; _ } ->
       Prove.declare_hyp ?loc:c.loc Options.(opt.proof) id implicit p
-    | { contents = `Right { implicit; contents = p }; id; _ } ->
-      Prove.declare_goal ?loc:c.loc Options.(opt.proof) id implicit p
+    | { contents = `Right { implicit; contents = (sid, p) }; id; _ } ->
+      Prove.declare_goal ?loc:c.loc Options.(opt.proof) id implicit (sid, p)
     | { contents = `Proof p; _ } ->
       Util.info "Proof size: %a" Util.print_size (Util.size p);
       Prove.output_proof Options.(opt.proof) p

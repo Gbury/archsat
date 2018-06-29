@@ -4,10 +4,13 @@ let section = Section.make ~parent:Proof.section "logic"
 (* Logic preludes *)
 (* ************************************************************************ *)
 
-(* TODO: dispatch system for language-specific printing *)
-let classical =
-  Proof.Prelude.require (Expr.Id.mk_new "classical" ())
-(* -> Coq.Logic.Classical *)
+let classical_id = Expr.Id.mk_new "classical" ()
+let classical = Proof.Prelude.require classical_id
+
+let () =
+  Expr.Id.tag classical_id Coq.Print.pos Pretty.Prefix;
+  Expr.Id.tag classical_id Coq.Print.name "Coq.Logic.Classical";
+  ()
 
 (* Useful constants *)
 (* ************************************************************************ *)
@@ -169,13 +172,17 @@ let find t f pos =
 let ensure tactic pos =
   let b = tactic pos in
   if not b then
-    let seq = extract_open pos in
-    raise (Proof.Failure ("Tactic didn't close the proof as expected", seq))
+    raise (Proof.Failure ("Tactic didn't close the proof as expected", pos))
 
 (** Iterate a tactic n times *)
 let rec iter tactic n pos =
   if n <= 0 then pos
   else iter tactic (n - 1) (tactic pos)
+
+let rec fold tactic l pos =
+  match l with
+  | [] -> pos
+  | x :: r -> fold tactic r (tactic x pos)
 
 (* Standard tactics *)
 (* ************************************************************************ *)
@@ -189,9 +196,20 @@ let intro prefix pos =
 
 let introN prefix n = iter (intro prefix) n
 
+let name prefix pos =
+  match Proof.apply_step pos Proof.intro prefix with
+  | id, [| res |] -> id, res
+  | _ -> assert false
+
+(** Letin *)
+let letin prefix t pos =
+  match Proof.apply_step pos Proof.letin (prefix, t) with
+  | _, [| res |] -> res
+  | _ -> assert false
+
 (** Cut *)
-let cut ?(weak=false) ~f s t pos =
-  match Proof.apply_step pos Proof.cut (not weak, s, t) with
+let cut ~f s t pos =
+  match Proof.apply_step pos Proof.cut (s, t) with
   | id, [| aux ; main |] ->
     let () = f aux in
     id, main
@@ -261,7 +279,7 @@ let trivial pos =
     false
 
 (** Find a contradiction in an environment using the given proposition. *)
-let find_absurd seq env atom =
+let find_absurd pos env atom =
   (** Using [true/false] with absurd is a little bit complicated because
       [~true] and [false] aren't convertible... so just check whether false
       is present. *)
@@ -293,14 +311,14 @@ let find_absurd seq env atom =
                 Util.warn ~section
                   "@[<hv>Couldn't find an absurd situation using@ @[<hov>%a@]@ in env:@ %a@]"
                   Term.print atom Proof.Env.print env;
-                raise (Proof.Failure ("Logic.absurd", seq))
+                raise (Proof.Failure ("Logic.absurd", pos))
             end
         end
       | exception Proof.Env.Not_introduced _ ->
         Util.warn ~section
           "@[<hv>Trivial tactic failed because it couldn't find@ @[<hov>%a@]@ in env:@ %a@]"
           Term.print atom Proof.Env.print env;
-        raise (Proof.Failure ("Logic.absurd", seq))
+        raise (Proof.Failure ("Logic.absurd", pos))
     end
 
 (** Given a goal of the form Gamma |- False,
@@ -308,7 +326,7 @@ let find_absurd seq env atom =
 let absurd atom pos =
   let ctx = extract_open pos in
   let env = Proof.env ctx in
-  pos |> exfalso |> exact [] (find_absurd ctx env atom)
+  pos |> exfalso |> (fun pos -> exact [] (find_absurd pos env atom) pos)
 
 (* Logical connectives patterns *)
 (* ************************************************************************ *)
@@ -387,23 +405,30 @@ let or_intro t pos =
   match find_or t goal with
   | Some path -> or_intro_aux path pos
   | None ->
-    raise (Proof.Failure ("Couldn't find the given atom in disjunction", ctx))
+    raise (Proof.Failure ("Couldn't find the given atom in disjunction", pos))
 
 (* Logical connective elimination *)
 (* ************************************************************************ *)
 
-let rec or_elim ~f t pos =
+let rec or_elim_aux ~shallow ~f t pos =
   let ctx = extract_open pos in
   let goal = Proof.goal ctx in
   match match_or t.Term.ty with
   | None ->
+    let pos' =
+      if shallow && not (Proof.Env.mem (Proof.env ctx) t.Term.ty)
+      then letin "O" t pos
+      else pos
+    in
     Util.debug ~section "Couldn't split %a: %a" Term.print t Term.print t.Term.ty;
-    f t.Term.ty pos
+    f t.Term.ty pos'
   | Some (left_term, right_term) ->
     let t' = Term.apply or_elim_term [left_term; right_term; goal; t] in
     apply2 [or_elim_alias] t' pos |> split
-      ~left:(fun p -> p |> intro "O" |> find left_term (or_elim ~f))
-      ~right:(fun p -> p |> intro "O" |> find right_term (or_elim ~f))
+      ~left:(fun p -> p |> intro "O" |> find left_term (or_elim_aux ~shallow:false ~f))
+      ~right:(fun p -> p |> intro "O" |> find right_term (or_elim_aux ~shallow:false ~f))
+
+let or_elim = or_elim_aux ~shallow:true
 
 let rec and_elim t pos =
   let ctx = extract_open pos in
@@ -421,7 +446,7 @@ let rec and_elim t pos =
 let not_not_elim prefix t pos =
   let seq = extract_open pos in
   if not (Term.equal Term.false_term (Proof.goal seq)) then
-    raise (Proof.Failure ("Double negation elimination is only possible when the goal is [False]", seq));
+    raise (Proof.Failure ("Double negation elimination is only possible when the goal is [False]", pos));
   pos
   |> ctx (fun seq ->
       apply1 [] (Term.id @@ Proof.Env.find (Proof.env seq)
@@ -494,10 +519,8 @@ let resolve_clause c1 c2 res =
 let resolve_step =
   let compute seq (c, c', res) =
     let t = resolve_clause c c' res in
-    let e = Proof.env seq in
-    let e' = Proof.Env.prefix e "R" in
-    let e'' = Proof.Env.intro e' t.Term.ty in
-    (c, c', Proof.Env.find e'' t.Term.ty, t), [| Proof.mk_sequent e'' (Proof.goal seq) |]
+    let id, e = Proof.Env.intro ~hide:true (Proof.env seq) "R" t.Term.ty in
+    (c, c', id, t), [| Proof.mk_sequent e (Proof.goal seq) |]
   in
   let elaborate (_, _, id, t) = function
     | [| body |] -> Term.letin id t body
@@ -527,7 +550,7 @@ let resolve c c' res pos =
 
 (** Apply NNPP if needed, in order to turn any sequent
     Gamma |- F, into a sequent of the form Gamma' |- False. *)
-let nnpp pos =
+let nnpp ?(handle=(fun _ -> ())) pos =
   let ctx = extract_open pos in
   let goal = Proof.goal ctx in
   try
@@ -535,19 +558,22 @@ let nnpp pos =
     let _ = Term.pmatch ~pat:Term.false_term goal in
     pos
   with Term.Match_Impossible _ ->
-    begin try
+    let id, res =
+      try
         (* If the goal is a negation, directly use an intro,
            to stay intuitionistic as much as possible *)
         let p = Term.var "p" Term._Prop in
         let pat = Term.app Term.not_term @@ Term.id p in
         let _ = Term.pmatch ~pat goal in
-        pos |> intro "G"
+        pos |> name "G"
       with Term.Match_Impossible _ ->
         (* Else, apply NNPP, then intro to get the negation of the original goal
            as an hypothesis in the context *)
         pos
         |> apply1 [classical] (Term.app nnpp_term goal)
-        |> intro "G"
-    end
+        |> name "G"
+    in
+    handle id;
+    res
 
 

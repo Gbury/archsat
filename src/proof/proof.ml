@@ -6,16 +6,11 @@ let section = Section.make "proof"
 
 module Env = struct
 
-  exception Added_twice of Term.t
   exception Not_introduced of Term.t
   exception Conflict of Term.id * Term.id
 
   let () =
     Printexc.register_printer (function
-        | Added_twice f ->
-          Some (Format.asprintf
-                  "Following formula has been added twice to context:@ %a"
-                  Term.print f)
         | Not_introduced f ->
           Some (Format.asprintf
                   "Following formula is used in a context where it is not declared:@ %a"
@@ -30,10 +25,9 @@ module Env = struct
     (** Bindings *)
     names : Term.id Mt.t; (** local bindings *)
     global : Term.id Mt.t; (** global bindings *)
+    hidden : Term.id Mt.t; (** Hidden bindings *)
     reverse : Term.id Ms.t; (** Set of ids present that are bound *)
-
     (** Options for nice names *)
-    prefix : string;  (** current prefix *)
     count : int Ms.t; (** use count for each prefix *)
   }
 
@@ -55,15 +49,14 @@ module Env = struct
   let empty = {
     names = Mt.empty;
     global = Mt.empty;
+    hidden = Mt.empty;
     reverse = Ms.empty;
-    prefix = "";
     count = Ms.empty;
   }
 
-  let prefix t s =
-    { t with prefix = s }
+  let exists t id = Ms.mem id.Expr.id_name t.reverse
 
-  let mem t id = Ms.mem id.Expr.id_name t.reverse
+  let mem t f = Mt.mem f t.names || Mt.mem f t.global
 
   let find t f =
     try Mt.find f t.names
@@ -79,29 +72,32 @@ module Env = struct
 
   let add t id =
     let f = id.Expr.id_type in
-    match Mt.find f t.names with
-    | name -> raise (Added_twice f)
-    | exception Not_found ->
+    if exists t id then
+      raise (Conflict (id, Ms.find id.Expr.id_name t.reverse))
+    else
       { t with names = Mt.add f id t.names;
                reverse = Ms.add id.Expr.id_name id t.reverse; }
 
   (** Find a name not already used (guaranteed to terminate, since
       the 'reverse' map is finite. *)
-  let rec intro_aux t f prefix n =
+  let rec intro_aux hidden t f prefix n =
       let name = Format.sprintf "%s%d" prefix n in
       if Ms.mem name t.reverse then
-        intro_aux t f prefix (n + 1)
+        intro_aux hidden t f prefix (n + 1)
       else begin
         let id = Term.var name f in
-        { t with names = Mt.add f id t.names;
-                 count = Ms.add prefix (n + 1) t.count;
-                 reverse = Ms.add name id t.reverse; }
+        if hidden then
+          id, { t with hidden = Mt.add f id t.hidden;
+                       count = Ms.add prefix (n + 1) t.count;
+                       reverse = Ms.add name id t.reverse; }
+        else
+          id, { t with names = Mt.add f id t.names;
+                       count = Ms.add prefix (n + 1) t.count;
+                       reverse = Ms.add name id t.reverse; }
       end
 
-  let intro t f =
-    match Mt.find f t.names with
-    | name -> raise (Added_twice f)
-    | exception Not_found -> intro_aux t f t.prefix (local_count t t.prefix)
+  let intro ?(hide=false) t prefix f =
+    intro_aux hide t f prefix (local_count t prefix)
 
   let declare t id =
     assert (not (Term.is_var id));
@@ -113,8 +109,6 @@ module Env = struct
                reverse = Ms.add id.Expr.id_name id t.reverse; }
 
   let count t = Mt.cardinal t.names + Mt.cardinal t.global
-
-  let strip t = { empty with global = t.global }
 
 end
 
@@ -285,27 +279,24 @@ type _ Dispatcher.msg +=
 exception Open_proof
 (** Raised by functions that encounter an unexpected open proof. *)
 
+exception Fail of string * sequent
+(** Internal excpetion for proof steps that may fail. *)
+
+exception Failure of string * pos
+(** Exception raised when proof building encouters an unexpected (and wrong)
+    situation. *)
+
 (* Sequents *)
 (* ************************************************************************ *)
 
 let env { env; _ } = env
 let goal { goal; _ } = goal
-let mk_sequent env goal = Env.{ env; goal; }
+let mk_sequent env goal = { env; goal; }
 
 let print_sequent fmt sequent =
   Format.fprintf fmt
-    "@[<hv 2>sequent:@ @[<hv 2>env:@ @[<v>%a@]@] @[<hv 2>goal:@ @[<hov>%a@]@]@]"
+    "@[<hv 2>sequent:@ @[<hv 2>env:@ @[<v>%a@]@]@\n@[<hv 2>goal:@ @[<hov>%a@]@]@]"
     Env.print sequent.env Term.print sequent.goal
-
-(* Failure *)
-(* ************************************************************************ *)
-
-exception Failure of string * sequent
-
-let () = Printexc.register_printer (function
-    | Failure (msg, sequent) ->
-      Some (Format.asprintf "@[<hv>In context:@ %a@ %s@]" print_sequent sequent msg)
-    | _ -> None)
 
 (* Steps *)
 (* ************************************************************************ *)
@@ -357,10 +348,46 @@ let apply_step pos step input =
     Util.error ~section "Trying to apply reasonning step to an aleardy closed proof";
     assert false
   | Open sequent ->
-    let state, a = step.compute sequent input in
+    let state, a =
+      try
+        step.compute sequent input
+      with
+      | Fail (msg, _) ->
+        if Printexc.backtrace_status () then
+          Printexc.print_backtrace stdout;
+        raise (Failure (msg, pos))
+      | Env.Not_introduced t ->
+        if Printexc.backtrace_status () then
+          Printexc.print_backtrace stdout;
+        raise (Failure (
+            Format.asprintf "@[<hv>Formula was not introduced:@ %a@]" Term.print t, pos))
+      | Env.Conflict (v, v') ->
+        if Printexc.backtrace_status () then
+          Printexc.print_backtrace stdout;
+        raise (Failure (
+            Format.asprintf "Following ids conflict: %a <> %a" Expr.Print.id v Expr.Print.id v', pos))
+    in
     let branches = mk_branches (Array.length a) (fun i -> Open a.(i)) in
     let () = set pos step state branches in
     state, Array.map (fun { pos; _} -> pos) branches
+
+(* Failure *)
+(* ************************************************************************ *)
+
+let pp_pos fmt pos =
+  let node = get pos in
+  Format.fprintf fmt "%d" node.id
+
+let debug_pos fmt pos =
+  let node = get pos in
+  match node.proof with
+  | Open seq -> Format.fprintf fmt "%d: @[<hov>%a@]" node.id print_sequent seq
+  | Proof _ -> assert false
+
+let () = Printexc.register_printer (function
+    | Failure (msg, pos) ->
+      Some (Format.asprintf "@[<hv>In context:@ %a@ %s@]" debug_pos pos msg)
+    | _ -> None)
 
 (* Proof preludes *)
 (* ************************************************************************ *)
@@ -428,7 +455,7 @@ let rec print_node_dot fmt node =
       "%a [shape=plaintext, label=<<TABLE %a>%a</TABLE>>];@\n"
       print_dot_id node
       print_table_options "LIGHTBLUE"
-      print_sequent_dot ("OPEN", "RED", s)
+      print_sequent_dot (Format.asprintf "OPEN (%d)" node.id, "RED", s)
   | Proof (s, st, br) ->
     Format.fprintf fmt
       "%a [shape=plaintext, label=<<TABLE %a>%a</TABLE>>];@\n"
@@ -456,7 +483,7 @@ let print_dot_term fmt (seq, t) =
   Format.fprintf fmt "root -> term;@\n";
   Format.fprintf fmt
     "term [shape=plaintext, label=<<TABLE %a>%a</TABLE>>];@\n"
-      print_table_options "LIGHTBLUE" Dot.Print.Proof.term t
+    print_table_options "LIGHTBLUE" Dot.Print.Proof.term t
 
 (* Printing Coq proofs *)
 (* ************************************************************************ *)
@@ -638,22 +665,22 @@ let apply =
     | Some (l, ret) ->
       (** Ceck that the application proves the current goal *)
       if not (Term.equal ret g) then
-        raise (Failure (
+        raise (Fail (
             Format.asprintf "@[<hv>Couldn't apply@ %a:@  @[<hov>%a@]@]"
               Term.print f Term.print f.Term.ty, ctx));
       let e = env ctx in
       (** Check that the term used in closed in the current environment *)
       let unbound_vars = Term.S.fold (fun id () acc ->
-          if not (Env.mem e id) then id :: acc else acc
+          if not (Env.exists e id) then id :: acc else acc
         ) (Term.free_vars f) [] in
       begin match unbound_vars with
-      | [] -> (* Everything is good, let's proceed *)
-        (f, n, prelude), Array.map (fun g' -> mk_sequent e g') (Array.of_list l)
-      | l -> (** Some variables are unbound, complain about them loudly *)
-        raise (Failure (
-            Format.asprintf
-              "@[<hv>The variables@ @[<hov>[%a]@]@ are free in@ @[<hov>%a@]"
-              CCFormat.(list ~sep:(return ";@ ") Expr.Id.print) l Term.print f, ctx))
+        | [] -> (* Everything is good, let's proceed *)
+          (f, n, prelude), Array.map (fun g' -> mk_sequent e g') (Array.of_list l)
+        | l -> (** Some variables are unbound, complain about them loudly *)
+          raise (Fail (
+              Format.asprintf
+                "@[<hv>The variables@ @[<hov>[%a]@]@ are free in@ @[<hov>%a@]"
+                CCFormat.(list ~sep:(return ";@ ") Expr.Id.print) l Term.print f, ctx))
       end
   in
   let elaborate (f, _, _) args = Term.apply f (Array.to_list args) in
@@ -675,13 +702,13 @@ let intro =
         v, [| mk_sequent (env ctx) q |]
       end else begin
         let p = v.Expr.id_type in
-        let e = Env.intro (Env.prefix (env ctx) prefix) p in
-        Env.find e p, [| mk_sequent e q |]
+        let id, e = Env.intro (env ctx) prefix p in
+        id, [| mk_sequent e q |]
       end
     | t ->
       Util.warn ~section "Expected a universal quantification, but got: %a"
         Term.print t;
-      raise (Failure ("Can't introduce formula", ctx))
+      raise (Fail ("Can't introduce formula", ctx))
   in
   let elaborate id = function
     | [| body |] -> Term.lambda id body
@@ -699,9 +726,8 @@ let intro =
 let letin =
   let prelude _ = [] in
   let compute ctx (prefix, t) =
-    let e = Env.prefix (env ctx) prefix in
-    let e' = Env.intro e t.Term.ty in
-    (Env.find e' t, t), [| mk_sequent e' (goal ctx) |]
+    let id, e = Env.intro (env ctx) prefix t.Term.ty in
+    (id, t), [| mk_sequent e (goal ctx) |]
   in
   let elaborate (id, t) = function
     | [| body |] -> Term.letin id t body
@@ -719,12 +745,10 @@ let letin =
 
 let cut =
   let prelude _ = [] in
-  let compute ctx (keep_env, prefix, t) =
+  let compute ctx (prefix, t) =
     let e = env ctx in
-    let e' = Env.prefix e prefix in
-    let e'' = Env.intro e' t in
-    let e_cut = if keep_env then e else Env.strip e in
-    Env.find e'' t, [| mk_sequent e_cut t ; mk_sequent e'' (goal ctx) |]
+    let id, e' = Env.intro e prefix t in
+    id, [| mk_sequent e t ; mk_sequent e' (goal ctx) |]
   in
   let elaborate id = function
     | [| t; body |] -> Term.letin id t body
