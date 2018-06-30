@@ -91,7 +91,7 @@ let rec add ?(fragile=false) t any status name =
       add_failure ~fragile t any status name r
 
 and add_success t any status name =
-  (* Util.debug ~section "Adding %a" pp_assign (any, status, name); *)
+  Util.debug ~section "Adding %a" pp_assign (any, status, name);
   let () = H.add t.table any (status, name) in
   let () = Hashtbl.add t.names name any in
   name
@@ -179,6 +179,15 @@ let umap f s =
   in
   aux ()
 
+
+(* Print an Uchar *)
+(* ************************************************************************ *)
+
+let pp_uchar fmt c =
+  let b = Buffer.create 5 in
+  let () = Uutf.Buffer.add_utf_8 b c in
+  let s = Buffer.contents b in
+  Format.fprintf fmt "%s" s
 
 
 (* Renaming function *)

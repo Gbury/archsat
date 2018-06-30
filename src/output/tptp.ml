@@ -48,7 +48,9 @@ module Print = struct
         | None -> [ Uchar.of_char '_' ]
         | Some c ->
           begin match Uucp.Block.block c with
-            | `ASCII when is_alphanum c || (i = 0 && is_dollar c) ->
+            | `ASCII when i = 1 && is_underscore c ->
+              [Uchar.of_char 'e'; c]
+            | `ASCII when (i = 1 && is_dollar c) || is_alphanum c ->
               [ c ]
             | _ -> [ Uchar.of_char '_' ]
           end) in
@@ -100,8 +102,8 @@ module Print = struct
       begin match kind with
         | `Arrow ->
           let tys = List.map (fun id -> id.Expr.id_type) vars in
-          Format.fprintf fmt "(@[<hov>%a >@ %a@])"
-            CCFormat.(list ~sep:(return "@ > ") term) tys term body
+          Format.fprintf fmt "(@[<hov>( %a ) >@ %a@])"
+            CCFormat.(list ~sep:(return "@ * ") term) tys term body
         | `Binder b ->
           Format.fprintf fmt "(@[<hov 2>%s @[<hov>[%a]@]%s@ %a@])"
             (binder_name b) var_list vars

@@ -991,7 +991,7 @@ and parse_sig_args env l =
 
 and parse_sig_arg env = function
   | { Ast.term = Ast.App ({ Ast.term = Ast.Builtin Ast.Product}, l) } ->
-    List.map (fun x -> x, parse_expr env x) l
+    CCList.flat_map (parse_sig_arg env) l
   | t ->
     [t, parse_expr env t]
 

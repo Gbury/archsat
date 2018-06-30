@@ -69,3 +69,8 @@ val umap :
 (** [umap f] provides an equivalent of flat_map on unicode strings.
     [f] is given the position of the character in the string (starting from [1]),
     and a unicode character (or [None] is decoding failed for that byte). *)
+
+val pp_uchar : Format.formatter -> Uchar.t -> unit
+(** Prints an uchar *)
+
+
