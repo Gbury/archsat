@@ -13,7 +13,8 @@ module Print : sig
   val assoc : Pretty.assoc Expr.tag
   (** Pretty-printing tags. *)
 
-  val id : Format.formatter -> _ Expr.id -> unit
+  val var : Format.formatter -> _ Expr.id -> unit
+  val cst : Format.formatter -> _ Expr.id -> unit
   (** Print an identifier (using correct escape rules). *)
 
   val term : Format.formatter -> Term.t -> unit

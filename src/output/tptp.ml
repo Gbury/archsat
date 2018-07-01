@@ -41,7 +41,7 @@ module Print = struct
   (** Alphanumeric characters as defined by tptp (yes, it includes underscores, :p ) *)
   let is_alphanum c = is_alpha c || is_num c || is_underscore c
 
-  let t =
+  let var_escape =
     let name = Escape.tagged_name ~tags:[name] in
     let rename = Escape.rename ~sep:'_' in
     let escape = Escape.umap (fun i -> function
@@ -49,16 +49,41 @@ module Print = struct
         | Some c ->
           begin match Uucp.Block.block c with
             | `ASCII when i = 1 && is_underscore c ->
-              [Uchar.of_char 'e'; c]
+              [Uchar.of_char 'V'; c]
+            | `ASCII when i = 1 && Uucp.Case.is_lower c ->
+              begin match Uucp.Case.Map.to_upper c with
+                | `Self -> [ c ]
+                | `Uchars l -> l
+              end
             | `ASCII when (i = 1 && is_dollar c) || is_alphanum c ->
               [ c ]
             | _ -> [ Uchar.of_char '_' ]
           end) in
     Escape.mk ~lang:"tptp" ~name ~escape ~rename
 
-  let id fmt v = Escape.id t fmt v
+  let cst_escape =
+    let name = Escape.tagged_name ~tags:[name] in
+    let rename = Escape.rename ~sep:'_' in
+    let escape = Escape.umap (fun i -> function
+        | None -> [ Uchar.of_char '_' ]
+        | Some c ->
+          begin match Uucp.Block.block c with
+            | `ASCII when i = 1 && is_underscore c ->
+              [Uchar.of_char 'V'; c]
+            | `ASCII when i = 1 && Uucp.Case.is_upper c ->
+              begin match Uucp.Case.Map.to_lower c with
+                | `Self -> [ c ]
+                | `Uchars l -> l
+              end
+            | `ASCII when (i = 1 && is_dollar c) || is_alphanum c ->
+              [ c ]
+            | _ -> [ Uchar.of_char '_' ]
+          end) in
+    Escape.mk ~lang:"tptp" ~name ~escape ~rename
 
-  let dolmen fmt v = Escape.dolmen t fmt v
+  let var fmt v = Escape.id var_escape fmt v
+  let cst fmt v = Escape.id cst_escape fmt v
+  let dolmen fmt v = Escape.dolmen cst_escape fmt v
 
   let get_status = function
     | { Term.term = Term.Id f } ->
@@ -75,12 +100,19 @@ module Print = struct
     | Term.Forall
     | Term.Exists -> " :"
 
+  let rec elim_implicits t args =
+    match t.Term.term with
+    | Term.Binder (Term.Forall, v, body) when Term.is_tptp_implicit v ->
+      elim_implicits body (List.tl args)
+    | _ -> args
+
   let rec term fmt t =
     match t.Term.term with
     | Term.Type -> Format.fprintf fmt "$tType"
-    | Term.Id v -> id fmt v
+    | Term.Id v -> if Term.is_var v then var fmt v else cst fmt v
     | Term.App _ ->
       let f, args = Term.uncurry ~assoc t in
+      let args = elim_implicits f.Term.ty args in
       begin match get_status f, args with
         | None, [] ->
           Format.fprintf fmt "@[<hov>%a@]" term f
@@ -96,22 +128,31 @@ module Print = struct
       end
     | Term.Let (v, e, body) ->
       Format.fprintf fmt "@[<v>@[<hv>$let(%a :@ %a, %a :=@ @[<hov>%a@],@]@ %a)@]"
-        id v term v.Expr.id_type id v term e term body
+        cst v term v.Expr.id_type
+        cst v term e term body
     | Term.Binder _ ->
       let kind, vars, body = Term.flatten_binder t in
       begin match kind with
         | `Arrow ->
           let tys = List.map (fun id -> id.Expr.id_type) vars in
-          Format.fprintf fmt "(@[<hov>( %a ) >@ %a@])"
-            CCFormat.(list ~sep:(return "@ * ") term) tys term body
+          Format.fprintf fmt "(@[<hov>%a >@ %a@])" product_type tys term body
+        | `Binder (Term.Forall as b) when Term.equal Term._Type t.Term.ty ->
+          Format.fprintf fmt "(@[<hov 2>!> @[<hov>[%a]@]%s@ %a@])"
+            var_list vars (binder_sep b) term body
         | `Binder b ->
           Format.fprintf fmt "(@[<hov 2>%s @[<hov>[%a]@]%s@ %a@])"
-            (binder_name b) var_list vars
-            (binder_sep b) term body
+            (binder_name b) var_list vars (binder_sep b) term body
       end
 
+  and product_type fmt = function
+    | [] -> assert false
+    | [ t ] -> term fmt t
+    | l ->
+      Format.fprintf fmt "( %a )"
+        CCFormat.(list ~sep:(return "@ * ") term) l
+
   and var_typed fmt v =
-    Format.fprintf fmt "%a:@ %a" id v term v.Expr.id_type
+    Format.fprintf fmt "%a:@ %a" var v term v.Expr.id_type
 
   and var_list fmt l =
     CCFormat.(list ~sep:(return "@ , ") var_typed) fmt l
@@ -157,13 +198,13 @@ let declare_id ?loc fmt (name, id) =
     Format.fprintf fmt "%a@\n%s(@[<hv>%a, type, (@ @[<hov>%a : %a ) )@]@].@\n@."
       declare_loc loc (kind @@ ho_id id)
       Print.dolmen name
-      Print.id id Print.term id.Expr.id_type
+      Print.cst id Print.term id.Expr.id_type
   end
 
 let declare_hyp ?loc fmt id =
   Format.fprintf fmt "%a@\n%s(@[<hv>%a, axiom,@ @[<hov>%a)@]@].@\n@."
     declare_loc loc (kind @@ ho_id id)
-    Print.id id Print.term id.Expr.id_type
+    Print.cst id Print.term id.Expr.id_type
 
 let goal_declared = ref false
 
@@ -174,7 +215,7 @@ let declare_goal ?loc fmt id =
     let () = goal_declared := true in
     Format.fprintf fmt "%a@\n%s(@[<hv>%a, conjecture,@ @[<hov>%a)@]@].@\n@."
       declare_loc loc (kind @@ ho_id id)
-      Print.id id Print.term id.Expr.id_type
+      Print.cst id Print.term id.Expr.id_type
   end
 
 let declare_solve ?loc fmt () =

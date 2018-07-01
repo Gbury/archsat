@@ -95,15 +95,17 @@ let define s def =
 (* Implicit arguments for Coq *)
 (* ************************************************************************ *)
 
-let coq_implicit_tag = Tag.create ()
+let mk_implicit () =
+  let tag = Tag.create () in
+  (fun v -> Expr.Id.tag v tag ()),
+  (fun v ->
+     match Expr.Id.get_tag v tag with
+     | None -> false
+     | Some () -> true
+  )
 
-let coq_implicit v =
-  Expr.Id.tag v coq_implicit_tag ()
-
-let is_coq_implicit v =
-  match Expr.Id.get_tag v coq_implicit_tag with
-  | None -> false
-  | Some () -> true
+let coq_implicit, is_coq_implicit = mk_implicit ()
+let tptp_implicit, is_tptp_implicit = mk_implicit ()
 
 (* Free variables *)
 (* ************************************************************************ *)
@@ -421,6 +423,8 @@ let not_term = id not_id
 
 let equal_id =
   let a_id = var "a" _Type in
+  let () = coq_implicit a_id in
+  let () = tptp_implicit a_id in
   let () = coq_implicit a_id in
   let a_type = id a_id in
   declare "==" (forall a_id (arrows [a_type; a_type] _Prop))

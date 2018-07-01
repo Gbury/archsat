@@ -90,6 +90,10 @@ val coq_implicit : id -> unit
 val is_coq_implicit : id -> bool
 (** Mark.recognize coq implicit arguments. *)
 
+val tptp_implicit : id -> unit
+val is_tptp_implicit : id -> bool
+(** Mark.recognize coq implicit arguments. *)
+
 
 (** {2 Id creation} *)
 
