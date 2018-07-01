@@ -53,7 +53,7 @@ module Print = struct
             | `ASCII when i = 1 && Uucp.Case.is_lower c ->
               begin match Uucp.Case.Map.to_upper c with
                 | `Self -> [ c ]
-                | `Uchars l -> l
+                | `Uchars l -> l @ [Uchar.of_char '_']
               end
             | `ASCII when (i = 1 && is_dollar c) || is_alphanum c ->
               [ c ]
@@ -73,7 +73,7 @@ module Print = struct
             | `ASCII when i = 1 && Uucp.Case.is_upper c ->
               begin match Uucp.Case.Map.to_lower c with
                 | `Self -> [ c ]
-                | `Uchars l -> l
+                | `Uchars l -> l @ [Uchar.of_char '_']
               end
             | `ASCII when (i = 1 && is_dollar c) || is_alphanum c ->
               [ c ]
