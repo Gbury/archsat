@@ -135,9 +135,9 @@ module Print = struct
       begin match kind with
         | `Arrow ->
           let tys = List.map (fun id -> id.Expr.id_type) vars in
-          Format.fprintf fmt "(@[<hov>%a >@ %a@])" product_type tys term body
+          Format.fprintf fmt "@[<hov>%a >@ %a@]" product_type tys term body
         | `Binder (Term.Forall as b) when Term.equal Term._Type t.Term.ty ->
-          Format.fprintf fmt "(@[<hov 2>!> @[<hov>[%a]@]%s@ %a@])"
+          Format.fprintf fmt "(@[<hov 2>!> @[<hov>[%a]@]%s@ ( %a ) @])"
             var_list vars (binder_sep b) term body
         | `Binder b ->
           Format.fprintf fmt "(@[<hov 2>%s @[<hov>[%a]@]%s@ %a@])"
