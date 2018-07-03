@@ -162,6 +162,13 @@ val f_order : f_order Tag.t
 (** Tags containing information about the inital order of arfuments for the
     [And] and [Or] constructions. *)
 
+type valuation =
+  | Assign of (term -> term)
+  | Eval of (term -> term list * (unit -> unit)) (**)
+(** Terms can be given a value by two mutually exclusive process:
+    either a value can be assigned to the term, or the term can be evaluated
+    given the assignemtns of subterms. *)
+
 (** {3 Exceptions} *)
 
 exception Type_mismatch of term * ty * ty
@@ -171,8 +178,7 @@ exception Bad_arity of (ttype, ty) function_descr id * ty list * term list
 exception Bad_ty_arity of (unit, ttype) function_descr id * ty list
 (** Raised when trying to build an application with wrong arity *)
 
-exception Cannot_assign of term
-exception Cannot_interpret of term
+exception Cannot_valuate of term
 (** Raised when requesting an assigner/interpreter for a variable, but none has been set. *)
 
 (** {2 Printing} *)
@@ -285,19 +291,17 @@ module Id : sig
   val occurs_in_term : ty id -> term -> bool
   (** Returns [true] if the given variable occurs in the term. *)
 
-  val set_eval : 'a id -> int -> (term -> unit) -> unit
-  (** [set_eval v n f] sets f as the handler to call in order to
-      eval terms starting with the given variable, with priority [n]
-      (only the handler with highest priority is calledi). *)
+  val set_valuation : 'a id -> int -> valuation -> unit
+  (** [set_eval v n k] sets [k] as the valuation to call in order to
+      give a value to a term that has [v] as top-level symbol,
+      using priority [n].
+      (only the valuation with highest priority is called). *)
 
-  val set_assign : 'a id -> int -> (term -> term) -> unit
-  (** [set_assign v n f] sets f as the handler to call in order to
-      assign terms starting with the given variable, with priority [n]
-      (only the handler with highest priority is calledi). *)
+  val is_valuated : 'a id -> bool
+  (** Has the given id's valuation been set ? *)
 
   val is_assignable : 'a id -> bool
-  val is_interpreted : 'a id -> bool
-  (** Returns [true] if a handler has been set up for the given variable. *)
+  (** Has an assignment function been set for the given id ? *)
 
   val merge_fv :
     ttype id list * ty id list ->
@@ -508,20 +512,9 @@ module Term : sig
   val fm : term -> ttype meta list * ty meta list
   (** Return the list of free variables in the given term. *)
 
-  val eval : ?strict:bool -> term -> unit
-  (** Try and call the evaluation function associated with the term's
-      head symbol. Returns [true] if the function has been succesfully
-      found and called, and [false] else.
-      @param strict if set, raise an exception when no handler is found (default: [false])
-      @raise (Cannot_intepret t) if there is no evaluation handler,
-        and [strict] is [true]
-  *)
-
-  val assign : term -> term
-  (** Return a valid assignment for the given term using the handler of the
-      head symbol of the expression, see the Var module.
-      @raise (Cannot_assign t) if there is no assign handler
-  *)
+  val valuation : term -> valuation
+  (** Return a valuation for the given term
+      @raise (Cannot_valuate t) if there is no valuation *)
 
   val tag : term -> 'a tag -> 'a -> unit
   (** Insert a local type in the given type. Does not change the semantic

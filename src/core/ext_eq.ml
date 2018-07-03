@@ -194,7 +194,7 @@ let assume = function
 
 let set_handler_aux v =
   if not Expr.(Ty.equal v.id_type Ty.prop) then
-    Expr.Id.set_assign v 0 eq_assign
+    Expr.Id.set_valuation v 0 (Expr.Assign eq_assign)
 
 let rec set_handler t =
   if not Expr.(Ty.equal t.t_type Ty.prop) then
@@ -204,7 +204,7 @@ let rec set_handler t =
   | { Expr.term = Expr.Meta m } -> set_handler_aux Expr.(m.meta_id)
   | { Expr.term = Expr.App (f, _, l) } ->
     if not Expr.(Ty.equal f.id_type.fun_ret Ty.prop) then
-      Expr.Id.set_assign f 0 eq_assign;
+      Expr.Id.set_valuation f 0 (Expr.Assign eq_assign);
     List.iter set_handler l
 
 let rec peek = function

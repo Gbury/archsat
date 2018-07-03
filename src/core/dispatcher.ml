@@ -297,10 +297,8 @@ let do_push f =
 (* ************************************************************************ *)
 
 let check_var v =
-  if not (Expr.Id.is_interpreted v) && not (Expr.Id.is_assignable v) then
-    Util.warn ~section
-      "WARNING: Variable '%a' is neither interpreted nor assignable"
-      Expr.Print.id v
+  if not (Expr.Id.is_valuated v) then
+    Util.warn ~section "WARNING: Variable '%a' has no valuation" Expr.Print.id v
 
 let rec check_term = function
   | { Expr.term = Expr.Var v } -> check_var v
@@ -440,11 +438,14 @@ let new_job ?formula id k section watched not_watched f =
     job_done = - 1;
   }
 
-let watch ?formula ext_name k args f =
+let rec ensure_assign t =
+  ()
+
+and watch ?formula ext_name k args f =
   let plugin = Plugin.find ext_name in
   let section = Plugin.(plugin.ext.section) in
   let tag = Plugin.(plugin.id) in
-  List.iter Expr.Term.eval args;
+  List.iter ensure_assign args;
   assert (k > 0);
   let rec split assigned not_assigned i = function
     | l when i <= 0 ->
@@ -586,12 +587,16 @@ module SolverTheory = struct
     Util.debug ~section "Finding assignment for:@ @[<hov>%a@]"
       Expr.Print.term t;
     try
-      let res = Expr.Term.assign t in
+      let res =
+        match Expr.Term.valuation t with
+        | Expr.Assign f -> f t
+        | Expr.Eval _ -> raise (Expr.Cannot_valuate t)
+      in
       Util.debug ~section "%a ->@ @[<hov>%a@]"
         Expr.Print.term t Expr.Print.term res;
       Util.exit_prof section;
       res
-    with Expr.Cannot_assign _ ->
+    with Expr.Cannot_valuate _ ->
       _fail (
         Format.asprintf
           "Expected to be able to assign symbol %a\nYou may have forgotten to activate an extension"

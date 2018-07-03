@@ -104,6 +104,13 @@ and formula = {
   mutable f_vars : (ttype id list * ty id list) option;
 }
 
+(* Computing values for expressions *)
+(* ************************************************************************ *)
+
+type valuation =
+  | Assign of (term -> term)
+  | Eval of (term -> term list * (unit -> unit))
+
 (* Original order or expresisons *)
 (* ************************************************************************ *)
 
@@ -150,9 +157,7 @@ exception Type_mismatch of term * ty * ty
 exception Bad_arity of (ttype, ty) function_descr id * ty list * term list
 exception Bad_ty_arity of (unit, ttype) function_descr id * ty list
 
-exception Cannot_assign of term
-exception Cannot_interpret of term
-
+exception Cannot_valuate of term
 
 (* Status settings *)
 (* ************************************************************************ *)
@@ -486,19 +491,16 @@ module Id = struct
   end
 
   (* Internal state *)
-  let eval_vec = CCVector.create ()
-  let assign_vec = CCVector.create ()
+  let value_vec : (int * valuation) option CCVector.vector = CCVector.create ()
   let ty_skolems : (index, (unit, ttype) function_descr id) Hashtbl.t = Hashtbl.create 17
   let term_skolems : (index, (ttype, ty) function_descr id) Hashtbl.t = Hashtbl.create 1007
 
   (* Constructors *)
   let mk_new ?(builtin=Base) ?(tags=Tag.empty) id_name id_type =
-    assert (CCVector.length eval_vec = CCVector.length assign_vec);
     assert (id_name <> "");
-    let index = CCVector.length eval_vec in
+    let index = CCVector.length value_vec in
     let id_tags = tags in
-    CCVector.push eval_vec None;
-    CCVector.push assign_vec None;
+    CCVector.push value_vec None;
     { index; id_name; id_type; id_tags; builtin }
 
   let ttype ?builtin ?tags name = mk_new ?builtin ?tags name Type
@@ -567,38 +569,28 @@ module Id = struct
       List.exists (occurs_in_term var) args
 
   (* Evaluation *)
-  let is_interpreted f =
-    CCVector.get eval_vec f.index <> None
-
-  let interpreter v =
-    match CCVector.get eval_vec v.index with
-    | None -> (fun _ -> raise Exit)
-    | Some (_, f) -> f
-
-  let set_eval v (prio: int) (f: term -> unit) =
-    match CCVector.get eval_vec v.index with
+  let set_valuation id (prio: int) k =
+    match CCVector.get value_vec id.index with
     | None ->
-      CCVector.set eval_vec v.index (Some (prio, f))
+      CCVector.set value_vec id.index (Some (prio, k))
     | Some (i, _) when i < prio ->
-      CCVector.set eval_vec v.index (Some (prio, f))
+      CCVector.set value_vec id.index (Some (prio, k))
     | _ -> ()
 
-  (* Assignments *)
-  let is_assignable f =
-    CCVector.get assign_vec f.index <> None
-
-  let assigner v =
-    match CCVector.get assign_vec v.index with
+  let get_valuation id =
+    match CCVector.get value_vec id.index with
     | None -> raise Exit
-    | Some (_, f) -> f
+    | Some (_, v) -> v
 
-  let set_assign v (prio: int) f =
-    match CCVector.get assign_vec v.index with
-    | None ->
-      CCVector.set assign_vec v.index (Some (prio, f))
-    | Some (i, _) when i < prio ->
-      CCVector.set assign_vec v.index (Some (prio, f))
-    | _ -> ()
+  let is_valuated id =
+    match CCVector.get value_vec id.index with
+    | None -> false
+    | Some _ -> true
+
+  let is_assignable id =
+    match CCVector.get value_vec id.index with
+    | Some (_, Assign _) -> true
+    | _ -> false
 
   (* Skolems symbols *)
   let ty_skolem v = Hashtbl.find ty_skolems v.index
@@ -997,26 +989,17 @@ module Term = struct
   let fv = Id.free_term Id.null_fv
   let fm = Meta.free_term Meta.null_fm
 
-  (* Evaluation & Assignment
-     TODO: ids and metas should have no evaluators ?
-     (leafs should always be assigned).
-     TODO: assign based on the type rather than based on the parituclar id
-     *)
-  let eval ?(strict=false) t =
-    try
-      match t.term with
-      | Var v -> (Id.interpreter v) t
-      | Meta m -> (Id.interpreter m.meta_id) t
-      | App (f, _, _) -> (Id.interpreter f) t
-    with Exit ->
-      if strict then raise (Cannot_interpret t)
-
-  let assign t =
+  (* Valuation of terms *)
+  let valuation t =
     try match t.term with
-      | Var v -> (Id.assigner v) t
-      | Meta m -> (Id.assigner m.meta_id) t
-      | App (f, _, _) -> (Id.assigner f) t
-    with Exit -> raise (Cannot_assign t)
+      | Var v | Meta { meta_id = v; _ } ->
+        begin match Id.get_valuation v with
+          | (Assign _) as res -> res
+          (* evaluating vars/metas does not make sense *)
+          | Eval _ -> assert false
+        end
+      | App (f, _, _) -> Id.get_valuation f
+    with Exit -> raise (Cannot_valuate t)
 
 end
 
