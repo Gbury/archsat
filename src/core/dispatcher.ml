@@ -359,6 +359,12 @@ let get_truth = eval_f
 (* Evaluation/Watching functions *)
 (* ************************************************************************ *)
 
+(* Dummy extension used for evaluations *)
+let () =
+  Plugin.register "watch_eval"
+    ~descr:"simple extension used for evaluations"
+    (mk_ext ~section:(Section.make ~parent:section "watch") ())
+
 (* The current assignment map, term -> value *)
 let eval_map = B.create stack
 (* Map of terms watched by extensions *)
@@ -438,8 +444,45 @@ let new_job ?formula id k section watched not_watched f =
     job_done = - 1;
   }
 
+let rec assign_watch t = function
+  | [] -> Util.exit_prof section
+  | j :: r ->
+    begin
+      try
+        update_watch t j
+      with Absurd _ as e ->
+        List.iter (fun job -> add_job job t) r;
+        Util.exit_prof section;
+        raise e
+    end;
+    assign_watch t r
+
+and set_assign t v =
+  Util.enter_prof section;
+  try
+    let v' = B.find eval_map t in
+    Util.debug ~section "Assigned:@ @[<hov>%a ->@ %a@]@\nAssigning:@ @[<hov>%a ->@ %a@]"
+      Expr.Print.term t Expr.Print.term v'
+      Expr.Print.term t Expr.Print.term v;
+    if not (Expr.Term.equal v v') then
+      _fail "Incoherent assignments";
+    Util.exit_prof section
+  with Not_found ->
+    Util.debug ~section "Assign:@ @[<hov>%a ->@ %a@]"
+      Expr.Print.term t Expr.Print.term v;
+    B.add eval_map t v;
+    let l = try hpop watch_map t with Not_found -> [] in
+    Util.debug ~section "Found %d watchers" (List.length l);
+    assign_watch t l
+
+let ensure_assign_aux t f = (fun () -> set_assign t (f ()))
+
 let rec ensure_assign t =
-  ()
+  match Expr.Term.valuation t with
+  | Expr.Assign _ -> () (* Term will be assigned eventually *)
+  | Expr.Eval k ->
+    let to_watch, f = k t in
+    watch "watch_eval" 1 to_watch (ensure_assign_aux t f)
 
 and watch ?formula ext_name k args f =
   let plugin = Plugin.find ext_name in
@@ -475,36 +518,6 @@ and watch ?formula ext_name k args f =
   end else
     Util.debug ~section "Redundant watch"
 
-let rec assign_watch t = function
-  | [] -> Util.exit_prof section
-  | j :: r ->
-    begin
-      try
-        update_watch t j
-      with Absurd _ as e ->
-        List.iter (fun job -> add_job job t) r;
-        Util.exit_prof section;
-        raise e
-    end;
-    assign_watch t r
-
-and set_assign t v =
-  Util.enter_prof section;
-  try
-    let v' = B.find eval_map t in
-    Util.debug ~section "Assigned:@ @[<hov>%a ->@ %a@]@\nAssigning:@ @[<hov>%a ->@ %a@]"
-      Expr.Print.term t Expr.Print.term v'
-      Expr.Print.term t Expr.Print.term v;
-    if not (Expr.Term.equal v v') then
-      _fail "Incoherent assignments";
-    Util.exit_prof section
-  with Not_found ->
-    Util.debug ~section "Assign:@ @[<hov>%a ->@ %a@]"
-      Expr.Print.term t Expr.Print.term v;
-    B.add eval_map t v;
-    let l = try hpop watch_map t with Not_found -> [] in
-    Util.debug ~section "Found %d watchers" (List.length l);
-    assign_watch t l
 
 let model () = B.snapshot eval_map
 

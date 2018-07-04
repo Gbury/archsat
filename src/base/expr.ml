@@ -109,7 +109,7 @@ and formula = {
 
 type valuation =
   | Assign of (term -> term)
-  | Eval of (term -> term list * (unit -> unit))
+  | Eval of (term -> term list * (unit -> term))
 
 (* Original order or expresisons *)
 (* ************************************************************************ *)
@@ -568,12 +568,19 @@ module Id = struct
     | App (f, _, args) ->
       List.exists (occurs_in_term var) args
 
-  (* Evaluation *)
+  (* Evaluation
+     TODO: set a lock to prevent some ids from switching
+           valuation during solving ? *)
   let set_valuation id (prio: int) k =
     match CCVector.get value_vec id.index with
     | None ->
       CCVector.set value_vec id.index (Some (prio, k))
-    | Some (i, _) when i < prio ->
+    | Some (i, k') when i < prio ->
+      (** Check that a symbol does not change from beign evaluated to assigned *)
+      assert (match k, k' with
+          | Assign _, Assign _
+          | Eval _, Eval _ -> true
+          | _ -> false);
       CCVector.set value_vec id.index (Some (prio, k))
     | _ -> ()
 
