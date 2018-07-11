@@ -658,7 +658,7 @@ let assume f =
   in
   ()
 
-let peek = register_formula
+let set_watcher = register_formula
 
 let handle : type ret. ret Dispatcher.msg -> ret option = function
   | Dot.Info Rewrite info -> Some (dot_info info)
@@ -692,5 +692,5 @@ let register () =
   Ext_eq.register_callback name callback_merge;
   Dispatcher.Plugin.register name ~options ~prio:20
     ~descr:"Detects rewrite rules and instantiate them (similarly to triggers)"
-    (Dispatcher.mk_ext ~peek ~assume ~section ~handle:{Dispatcher.handle} ())
+    (Dispatcher.mk_ext ~set_watcher ~assume ~section ~handle:{Dispatcher.handle} ())
 

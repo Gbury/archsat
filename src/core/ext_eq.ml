@@ -196,29 +196,48 @@ let set_handler_aux v =
   if not Expr.(Ty.equal v.id_type Ty.prop) then
     Expr.Id.set_valuation v 0 (Expr.Assign eq_assign)
 
-let rec set_handler t =
+let rec set_handler_term = function
+  | { Expr.term = Expr.Var v } -> assert false
+  | { Expr.term = Expr.Meta m } -> set_handler_aux Expr.(m.meta_id)
+  | { Expr.term = Expr.App (f, _, l) } ->
+    if not Expr.(Ty.equal f.id_type.fun_ret Ty.prop) then begin
+      Util.debug ~section "setting handler for %a" Expr.Id.print f;
+      Expr.Id.set_valuation f 0 (Expr.Assign eq_assign)
+    end;
+    List.iter set_handler_term l
+
+let rec set_handler = function
+  | { Expr.formula = Expr.Equal (a, b) } when Expr.Term.equal a b ->
+    set_handler_term a
+  | { Expr.formula = Expr.Equal (a, b) } ->
+    set_handler_term a;
+    set_handler_term b
+  | { Expr.formula = Expr.Pred p } ->
+    set_handler_term p
+  | { Expr.formula = Expr.Not f } ->
+    set_handler f
+  | _ -> ()
+
+let rec set_watcher_term t =
   if not Expr.(Ty.equal t.t_type Ty.prop) then
     watch 1 [t] (tag t);
   match t with
-  | { Expr.term = Expr.Var v } -> set_handler_aux v
-  | { Expr.term = Expr.Meta m } -> set_handler_aux Expr.(m.meta_id)
-  | { Expr.term = Expr.App (f, _, l) } ->
-    if not Expr.(Ty.equal f.id_type.fun_ret Ty.prop) then
-      Expr.Id.set_valuation f 0 (Expr.Assign eq_assign);
-    List.iter set_handler l
+  | { Expr.term = Expr.Var v } -> assert false
+  | { Expr.term = Expr.Meta m } -> ()
+  | { Expr.term = Expr.App (f, _, l) } -> List.iter set_watcher_term l
 
-let rec peek = function
+let rec set_watcher = function
   | { Expr.formula = Expr.Equal (a, b) } as f when Expr.Term.equal a b ->
     D.push [f] (D.mk_proof name "trivial" (Eq (Trivial f)));
-    set_handler a
+    set_watcher_term a
   | { Expr.formula = Expr.Equal (a, b) } as f ->
     watch 1 [a; b] (f_eval f);
-    set_handler a;
-    set_handler b
+    set_watcher_term a;
+    set_watcher_term b
   | { Expr.formula = Expr.Pred p } ->
-    set_handler p
+    set_watcher_term p
   | { Expr.formula = Expr.Not f } ->
-    peek f
+    set_watcher f
   | _ -> ()
 
 (* Proof managament *)
@@ -274,5 +293,5 @@ let handle : type ret. ret D.msg -> ret option = function
 let register () =
   D.Plugin.register name
     ~descr:"Ensures consistency of assignment with regards to the equality predicates."
-    (D.mk_ext ~handle:{D.handle} ~section ~assume ~peek ~eval_pred ())
+    (D.mk_ext ~handle:{D.handle} ~section ~assume ~set_handler ~set_watcher ~eval_pred ())
 

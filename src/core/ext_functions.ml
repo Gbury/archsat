@@ -59,19 +59,21 @@ let set_interpretation t = fun () ->
       end
     | _ -> assert false
 
-let rec set_handler = function
+let rec set_watcher_term = function
   | { Expr.term = Expr.Var _ }
   | { Expr.term = Expr.Meta _ } -> ()
   | { Expr.term = Expr.App (f, _, l) } as t ->
     if l <> [] then Dispatcher.watch "uf" 1 (t :: l) (set_interpretation t);
-    List.iter set_handler l
+    List.iter set_watcher_term l
 
-let uf_pre = function
+let rec set_watcher = function
     | { Expr.formula = Expr.Equal (a, b) } ->
-      set_handler a;
-      set_handler b
+      set_watcher_term a;
+      set_watcher_term b
     | { Expr.formula = Expr.Pred p } ->
-      set_handler p
+      set_watcher_term p
+    | { Expr.formula = Expr.Not f } ->
+      set_watcher f
     | _ -> ()
 
 (* Proof management *)
@@ -114,5 +116,5 @@ let handle : type ret. ret Dispatcher.msg -> ret option = function
 let register () =
   Dispatcher.Plugin.register "uf"
     ~descr:"Ensures consistency of assignments for function applications."
-    (Dispatcher.mk_ext ~handle:{Dispatcher.handle} ~section ~peek:uf_pre ())
+    (Dispatcher.mk_ext ~handle:{Dispatcher.handle} ~section ~set_watcher ())
 

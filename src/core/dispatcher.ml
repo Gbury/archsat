@@ -107,8 +107,11 @@ type ext = {
   (* Section for the extension (used for profiling) *)
   section : Section.t;
 
-  (* Called once on each new formula *)
-  peek : (Expr.formula -> unit) option;
+  (* Setup handlers (called once on each formula) *)
+  set_handler : (Expr.formula -> unit) option;
+
+  (* Setup watches (called ocne on each formula) *)
+  set_watcher : (Expr.formula -> unit) option;
 
   (* Called on each formula that the solver assigns to true *)
   assume : (Expr.formula -> unit) option;
@@ -127,11 +130,12 @@ type ext = {
 
 let mk_ext
     ~section ?(handle: handle option)
-    ?peek ?assume ?eval_pred ?preprocess () =
+    ?set_handler ?set_watcher ?assume ?eval_pred ?preprocess () =
   Stats.attach section stats_group;
   {
     section;
-    peek = CCOpt.map (profile section) peek;
+    set_handler = CCOpt.map (profile section) set_handler;
+    set_watcher = CCOpt.map (profile section) set_watcher;
     assume = CCOpt.map (profile section) assume;
     eval_pred = CCOpt.map (profile section) eval_pred;
     preprocess = CCOpt.map (profile section) preprocess;
@@ -172,7 +176,8 @@ let merge_preprocess f p =
 let merge_exts ~high ~low =
   {
     section = dummy_section;
-    peek = merge_iter high.peek low.peek;
+    set_handler = merge_iter high.set_handler low.set_handler;
+    set_watcher = merge_iter high.set_watcher low.set_watcher;
     assume = merge_iter high.assume low.assume;
     eval_pred = merge_first high.eval_pred low.eval_pred;
     preprocess = merge_preprocess high.preprocess low.preprocess;
@@ -197,8 +202,15 @@ module Plugin = Extension.Make(struct
   end)
 
 let plugin_peek f =
-  match (Plugin.get_res ()).peek with
-  | Some peek -> peek f
+  Util.debug ~section "Setting up handlers...";
+  begin
+    match (Plugin.get_res ()).set_handler with
+    | Some h -> h f
+    | None -> ()
+  end;
+  Util.debug ~section "Setting up watchers...";
+  match (Plugin.get_res ()).set_watcher with
+  | Some w -> w f
   | None -> ()
 
 let plugin_preprocess f =
@@ -478,11 +490,12 @@ and set_assign t v =
 let ensure_assign_aux t f = (fun () -> set_assign t (f ()))
 
 let rec ensure_assign t =
-  match Expr.Term.valuation t with
-  | Expr.Assign _ -> () (* Term will be assigned eventually *)
-  | Expr.Eval k ->
-    let to_watch, f = k t in
-    watch "watch_eval" 1 to_watch (ensure_assign_aux t f)
+  if not Expr.(Ty.equal Ty.prop t.t_type) then
+    match Expr.Term.valuation t with
+    | Expr.Assign _ -> () (* Term will be assigned eventually *)
+    | Expr.Eval k ->
+      let to_watch, f = k t in
+      watch "watch_eval" 1 to_watch (ensure_assign_aux t f)
 
 and watch ?formula ext_name k args f =
   let plugin = Plugin.find ext_name in

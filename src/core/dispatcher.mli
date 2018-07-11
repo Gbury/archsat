@@ -76,7 +76,8 @@ type handle = { handle : 'ret. 'ret msg -> 'ret option; }
 val mk_ext :
   section:Section.t ->
   ?handle:handle ->
-  ?peek:(Expr.formula -> unit) ->
+  ?set_handler:(Expr.formula -> unit) ->
+  ?set_watcher:(Expr.formula -> unit) ->
   ?assume:(Expr.formula -> unit) ->
   ?eval_pred:(Expr.formula -> (bool * Expr.term list) option) ->
   ?preprocess:(Expr.formula -> (Expr.formula * lemma) option) ->
