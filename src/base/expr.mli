@@ -164,10 +164,10 @@ val f_order : f_order Tag.t
 
 type valuation =
   | Assign of (term -> term)
-  | Eval of (term -> term list * (unit -> term)) (**)
+  | Eval of (term -> string * term list * (unit -> term)) (**)
 (** Terms can be given a value by two mutually exclusive process:
     either a value can be assigned to the term, or the term can be evaluated
-    given the assignemtns of subterms. *)
+    given the assignments of subterms. *)
 
 (** {3 Exceptions} *)
 

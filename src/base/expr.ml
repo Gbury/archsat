@@ -109,7 +109,7 @@ and formula = {
 
 type valuation =
   | Assign of (term -> term)
-  | Eval of (term -> term list * (unit -> term))
+  | Eval of (term -> string * term list * (unit -> term))
 
 (* Original order or expresisons *)
 (* ************************************************************************ *)

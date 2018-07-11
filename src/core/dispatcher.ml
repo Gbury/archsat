@@ -371,14 +371,14 @@ let get_truth = eval_f
 (* Evaluation/Watching functions *)
 (* ************************************************************************ *)
 
-(* Dummy extension used for evaluations *)
-let () =
-  Plugin.register "watch_eval"
-    ~descr:"simple extension used for evaluations"
-    (mk_ext ~section:(Section.make ~parent:section "watch") ())
-
 (* The current assignment map, term -> value *)
 let eval_map = B.create stack
+(* Dependency map for assignments, term -> term list.
+   an empty list denotes no dependencies,
+   a non-empty list signifies that the term is actually evaluated
+   (and not assigned), but its vaue can be derived from the values
+   of the terms in the list. *)
+let eval_depends = B.create stack
 (* Map of terms watched by extensions *)
 let watchers = H.create 4096
 let watch_map = H.create 4096
@@ -397,6 +397,15 @@ let is_assigned t =
 
 let get_assign t =
   try B.find eval_map t with Not_found -> raise (Not_assigned t)
+
+let rec resolve_deps_aux t =
+  match B.find eval_depends t with
+  | [] -> [t]
+  | l -> resolve_deps l
+  | exception Not_found -> assert (is_assigned t); [t]
+
+and resolve_deps l =
+  CCList.flat_map resolve_deps_aux l
 
 let add_job job t =
   let l = try H.find watch_map t with Not_found -> [] in
@@ -487,15 +496,18 @@ and set_assign t v =
     Util.debug ~section "Found %d watchers" (List.length l);
     assign_watch t l
 
-let ensure_assign_aux t f = (fun () -> set_assign t (f ()))
+let ensure_assign_aux t l f = (fun () ->
+    set_assign t (f ());
+    B.add eval_depends t l
+  )
 
 let rec ensure_assign t =
   if not Expr.(Ty.equal Ty.prop t.t_type) then
     match Expr.Term.valuation t with
     | Expr.Assign _ -> () (* Term will be assigned eventually *)
     | Expr.Eval k ->
-      let to_watch, f = k t in
-      watch "watch_eval" 1 to_watch (ensure_assign_aux t f)
+      let ext_name, to_watch, f = k t in
+      watch ext_name 1 to_watch (ensure_assign_aux t to_watch f)
 
 and watch ?formula ext_name k args f =
   let plugin = Plugin.find ext_name in
@@ -625,7 +637,7 @@ module SolverTheory = struct
     with Expr.Cannot_valuate _ ->
       _fail (
         Format.asprintf
-          "Expected to be able to assign symbol %a\nYou may have forgotten to activate an extension"
+          "Expected to be able to assign term %a\nYou may have forgotten to activate an extension"
           Expr.Print.term t)
 
   let rec iter_assign_aux f e =
@@ -657,7 +669,7 @@ module SolverTheory = struct
   let eval_aux f =
     match plugin_eval_pred f with
     | None -> Msat.Plugin_intf.Unknown
-    | Some (b, l) -> Msat.Plugin_intf.Valued (b, l)
+    | Some (b, l) -> Msat.Plugin_intf.Valued (b, resolve_deps l)
 
   let eval formula =
     Util.enter_prof section;
