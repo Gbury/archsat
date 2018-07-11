@@ -166,8 +166,11 @@ type valuation =
   | Assign of (term -> term)
   | Eval of (term -> string * term list * (unit -> term)) (**)
 (** Terms can be given a value by two mutually exclusive process:
-    either a value can be assigned to the term, or the term can be evaluated
-    given the assignments of subterms. *)
+    - Assign provides a function that returns a suitable value for a given term
+    - Eval provides an evaluation function, i.e a function from terms to
+      triplets [(ext_name, subterms, f)] that contain the name of the extension
+      in charge of evaluation (see dispatcher), a list of subterms that once
+      assigned, allow to evaluate the term using the function [f]. *)
 
 (** {3 Exceptions} *)
 
