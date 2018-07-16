@@ -3,7 +3,7 @@
 perf record --call-graph=dwarf $@
 
 perf script \
-  | stackcollapse-perf --kernel \
+  | stackcollapse-perf.pl --kernel \
   | sed 's/caml//g' \
-  | flamegraph > perf.svg
+  | flamegraph.pl > perf.svg
 

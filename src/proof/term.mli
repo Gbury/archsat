@@ -229,7 +229,7 @@ val uncurry_assoc_left : id -> t list -> t list
 val uncurry_assoc_right : id -> t list -> t list
 (** Uncurry a left (or right) associative symbol in a term. *)
 
-val flatten_binder : t -> [ `Arrow | `Binder of binder ] * id list * t
+val flatten_binder : t -> [ `Pi | `Arrow | `Binder of binder ] * id list * t
 (** [flatten_binder t] returns the list of all consecutive variables bound by the
     same binder, correctly identifying arrow terms (i.e foralls where the variable
     does not occur in the body). *)

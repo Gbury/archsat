@@ -512,11 +512,19 @@ let uncurry ?assoc t =
 (* Binder concatenation *)
 (* ************************************************************************ *)
 
+let is_type_var v _ = equal _Type v.Expr.id_type
+let not_type_var v _ = not (is_type_var v ())
+
 let flatten_binder_aux cond b t =
   let rec aux b acc = function
     | { term = Binder (b', v, body) } when (b = b') && (cond v body) ->
       aux b (v :: acc) body
-    | t -> List.rev acc, t
+    | t ->
+      if acc =  [] then begin
+        Util.error "wrong flatten in: %a" pp t;
+        assert false
+      end else
+        List.rev acc, t
   in
   aux b [] t
 
@@ -524,9 +532,10 @@ let flatten_binder t =
   let f, b, res =
     match t.term with
     | Binder (Forall, v, body) ->
-      if occurs v body
-      then occurs, Forall, `Binder Forall
-      else not_occurs, Forall, `Arrow
+      if is_type_var v () then is_type_var, Forall, `Pi
+      else if occurs v body then occurs, Forall, `Binder Forall
+      else if equal _Type t.ty then not_occurs, Forall, `Arrow
+      else not_type_var, Forall, `Binder Forall
     | Binder (b, _, _) -> (fun _ _ -> true), b, `Binder b
     | _ -> assert false
   in
@@ -594,11 +603,11 @@ and print fmt t =
   | Id v -> print_id fmt v
   | App _ -> print_app fmt t
   | Let (v, e, body) -> print_let fmt v e body
-  | Binder (_, _, _) ->
+  | Binder (b, _, _) ->
     let kind, l, body = flatten_binder t in
     begin match kind with
       | `Arrow -> print_arrow fmt (l, body)
-      | `Binder b -> print_binder fmt (b, l, body)
+      | `Pi | `Binder _ -> print_binder fmt (b, l, body)
     end
 
 let print_typed fmt t =

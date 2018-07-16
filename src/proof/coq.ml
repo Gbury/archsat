@@ -94,14 +94,14 @@ module Print = struct
     | Term.Let (v, e, body) ->
       Format.fprintf fmt "@[<v>@[<hv>let %a := @[<hov>%a@]@ in@]@ %a@]"
         id v term e term body
-    | Term.Binder _ ->
+    | Term.Binder (b, _, _) ->
       let kind, vars, body = Term.flatten_binder t in
       begin match kind with
         | `Arrow ->
           let tys = List.map (fun id -> id.Expr.id_type) vars in
           Format.fprintf fmt "(@[<hov>%a ->@ %a@])"
             CCFormat.(list ~sep:(return "@ -> ") term) tys term body
-        | `Binder b ->
+        | `Pi | `Binder _ ->
           let l = Term.concat_vars vars in
           Format.fprintf fmt "(@[<hov 2>%s @[<hov>%a@]%s@ %a@])"
             (binder_name b) var_lists l
