@@ -483,6 +483,15 @@ let rec ensure_assign t =
       let ext_name, to_watch, f = k t in
       watch ext_name 1 to_watch (ensure_assign_aux t to_watch f)
 
+(* TODO: protect watch against raised exceptions during job calling.
+         -> the "watch" function can actually raise Absurd since it can
+            call the job if conditions are met, but since thre are recursive
+            calls to it (due to ensure_assign),
+            1) some watches may be lost becasue of the exception
+            2) it may raise outside of the "assume" exception trap,
+               particularly during the set_watchers phase, which would be problematic
+*)
+
 and watch ?formula ext_name k args f =
   let plugin = Plugin.find ext_name in
   let section = Plugin.(plugin.ext.section) in
