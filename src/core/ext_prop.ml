@@ -1,5 +1,6 @@
 
-let section = Section.make ~parent:Dispatcher.section "prop"
+let ext_name = "prop"
+let section = Section.make ~parent:Dispatcher.section ext_name
 
 let sat_assume = function
   | { Expr.formula = Expr.Pred ({Expr.term = Expr.App (p, _, _)} as t)} ->
@@ -9,7 +10,7 @@ let sat_assume = function
   | _ -> ()
 
 let rec sat_eval = function
-  | { Expr.formula = Expr.Pred ({Expr.term = Expr.App (p, _, _)} as t)} ->
+  | { Expr.formula = Expr.Pred t} ->
     begin try
         let b = Dispatcher.get_assign t in
         if Expr.Term.equal Builtin.Misc.p_true b then
@@ -18,7 +19,7 @@ let rec sat_eval = function
           Some (false, [b])
         else begin
           Util.error ~section
-            "@[<hv>Term@ %a@ evaluates to@ %a@ which is not a bool value..."
+            "@[<hv>Term@ %a@ evaluates to@ %a@ which is not a boolean constant"
             Expr.Print.term t Expr.Print.term b;
           assert false
         end
@@ -29,10 +30,25 @@ let rec sat_eval = function
     CCOpt.map (fun (b, l) -> (not b, l)) (sat_eval f)
   | _ -> None
 
+let watcher t () =
+  match sat_eval t with
+  | Some (b, l) ->
+    let f = if b then t else Expr.Formula.neg t in
+    Dispatcher.propagate f l
+  | None ->
+    (* this function is called by the watcher, which ensures that t is assigned. *)
+    assert false
+
+let set_watcher = function
+  | ({ Expr.formula = Expr.Pred t } as f)
+  | { Expr.formula = Expr.Not ({ Expr.formula = Expr.Pred t } as f) } ->
+    Dispatcher.watch ext_name 1 [t] (watcher f)
+  | _ -> ()
+
 let descr =
   "Handles consitency of assignments with regards to predicates (i.e functions which returns a Prop)."
 
 let register () =
-  Dispatcher.Plugin.register "prop" ~descr
+  Dispatcher.Plugin.register ext_name ~descr
     (Dispatcher.mk_ext ~section ~assume:sat_assume ~eval_pred:sat_eval ())
 

@@ -262,48 +262,20 @@ let mk_proof =
      { id = !r; plugin_name; proof_name; proof_info; }
   )
 
-(* Delayed propagation *)
-(* ************************************************************************ *)
+(** Evaluation at level 0,
+    TODO: implement proof generation (using rewriting ?),
+          CAUTION: dependency problems for proofs (the handle
+          should catch Proof.Lemma, but Proof depends on th dispatcher
+          because it defines a new message, :/ ) *)
+type lemma_info += Eval0
 
-let push_stack = Stack.create ()
-let propagate_stack = Stack.create ()
-
-let push clause p =
-  if List.exists (Expr.Formula.equal Expr.Formula.f_true) clause then
-    Util.debug ~section:slice_section "Ignoring trivial new clause (%s):@ @[<hov>%a@]"
-      p.proof_name
-      CCFormat.(list ~sep:(return " ||@ ") Expr.Print.formula) clause
-  else begin
-    Util.debug ~section:slice_section "New clause to push (%s):@ @[<hov>%a@]"
-      p.proof_name
-      CCFormat.(list ~sep:(return " ||@ ") Expr.Print.formula) clause;
-    Stack.push (clause, p) push_stack
-  end
-
-let propagate f l =
-  Stack.push (f, Msat.Plugin_intf.Eval l) propagate_stack
-
-let consequence f l p =
-  Stack.push (f, Msat.Plugin_intf.Consequence (l, p)) propagate_stack
-
-let do_propagate propagate =
-  while not (Stack.is_empty propagate_stack) do
-    let (t, reason) = Stack.pop propagate_stack in
-    Util.debug ~section:slice_section "Propagating to sat:@ @[<hov>%a@]" Expr.Print.formula t;
-    propagate t reason
-  done
-
-let clean_propagate () =
-  Stack.clear propagate_stack
-
-let do_push f =
-  while not (Stack.is_empty push_stack) do
-    let (a, p) = Stack.pop push_stack in
-    Util.debug ~section:slice_section "Pushing '%s':@ @[<hov>%a@]"
-      p.proof_name
-      CCFormat.(list ~sep:(return " ||@ ") Expr.Print.formula) a;
-    f a p
-  done
+let () =
+  let ext_name = "<internal>" in
+  let () = Plugin.register ext_name ~prio:0
+    ~descr:"Internal plugin for the dispatcher, do not disable..."
+    (mk_ext ~section ()) in
+  let () = Plugin.activate ext_name in
+  ()
 
 (* Pre-processing *)
 (* ************************************************************************ *)
@@ -359,9 +331,11 @@ let last_backtrack = ref 0
 (* Current asusmptions *)
 (* ************************************************************************ *)
 
+let create = SolverTypes.add_atom
+
 let eval_f f =
   let open SolverTypes in
-  let a = add_atom f in
+  let a = create f in
   if a.is_true then Some true
   else if a.neg.is_true then Some false
   else None
@@ -546,6 +520,51 @@ and watch ?formula ext_name k args f =
 
 let model () = B.snapshot eval_map
 
+(* Delayed propagation *)
+(* ************************************************************************ *)
+
+let push_stack = Stack.create ()
+let propagate_stack = Stack.create ()
+
+let push clause p =
+  if List.exists (Expr.Formula.equal Expr.Formula.f_true) clause then
+    Util.debug ~section:slice_section "Ignoring trivial new clause (%s):@ @[<hov>%a@]"
+      p.proof_name
+      CCFormat.(list ~sep:(return " ||@ ") Expr.Print.formula) clause
+  else begin
+    Util.debug ~section:slice_section "New clause to push (%s):@ @[<hov>%a@]"
+      p.proof_name
+      CCFormat.(list ~sep:(return " ||@ ") Expr.Print.formula) clause;
+    Stack.push (clause, p) push_stack
+  end
+
+let propagate f l =
+  match resolve_deps l with
+  | [] -> push [f] (mk_proof "" "eval0" Eval0)
+  | l' -> Stack.push (f, Msat.Plugin_intf.Eval l') propagate_stack
+
+let consequence f l p =
+  Stack.push (f, Msat.Plugin_intf.Consequence (l, p)) propagate_stack
+
+let do_propagate propagate =
+  while not (Stack.is_empty propagate_stack) do
+    let (t, reason) = Stack.pop propagate_stack in
+    Util.debug ~section:slice_section "Propagating to sat:@ @[<hov>%a@]" Expr.Print.formula t;
+    propagate t reason
+  done
+
+let clean_propagate () =
+  Stack.clear propagate_stack
+
+let do_push f =
+  while not (Stack.is_empty push_stack) do
+    let (a, p) = Stack.pop push_stack in
+    Util.debug ~section:slice_section "Pushing '%s':@ @[<hov>%a@]"
+      p.proof_name
+      CCFormat.(list ~sep:(return " ||@ ") Expr.Print.formula) a;
+    f a p
+  done
+
 (* Mcsat Plugin functions *)
 (* ************************************************************************ *)
 
@@ -590,10 +609,19 @@ module SolverTheory = struct
       do_push s.push;
       Sat
     with Absurd (l, p) ->
+      Util.exit_prof section;
+      (* Pushing clauses is important for literals true because of assignments at
+         level 0 (which if not propagated, cannot be "evaluated" at level 0,
+         and thus would render some conflicts invalid). However, since it can happen
+         to new literals (that have not yet been "peeked", and thus not watched),
+         we have to first ensure these literals exist in the SAT.
+      *)
       clean_propagate ();
+      ignore @@ List.map create l;
+      do_push s.push;
+      (* Debug and return value *)
       Util.debug ~section:slice_section "Conflict(%s):@ @[<hov>%a@]"
         p.proof_name CCFormat.(list ~sep:(return " ||@ ") Expr.Print.formula) l;
-      Util.exit_prof section;
       Unsat (l, p)
 
   let if_sat_iter s f =
