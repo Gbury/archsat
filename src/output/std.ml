@@ -8,7 +8,7 @@ let prelude opt =
   | Some l -> Format.asprintf "(%s)# @?" (In.string_of_language l)
 
 let prelude_space opt =
-  String.make (String.length (prelude opt)) ' '
+  String.make (String.length (prelude opt) - 8) ' '
 
 (* Output functions *)
 (* ************************************************************************ *)
