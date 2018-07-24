@@ -547,13 +547,13 @@ let push clause p =
     Stack.push (clause, p) push_stack
   end
 
-let propagate f l =
-  match resolve_deps l with
-  | [] -> push [f] (mk_proof "" "eval0" Eval0)
-  | l' -> Stack.push (f, Msat.Plugin_intf.Eval l') propagate_stack
-
 let consequence f l p =
   Stack.push (f, Msat.Plugin_intf.Consequence (l, p)) propagate_stack
+
+let propagate f l =
+  match resolve_deps l with
+  | [] -> consequence f [] (mk_proof "" "eval0" Eval0)
+  | l' -> Stack.push (f, Msat.Plugin_intf.Eval l') propagate_stack
 
 let do_propagate propagate =
   while not (Stack.is_empty propagate_stack) do
@@ -619,15 +619,14 @@ module SolverTheory = struct
       Sat
     with Absurd (l, p) ->
       Util.exit_prof section;
-      (* Pushing clauses is important for literals true because of assignments at
+      (* Propagating is important for literals true because of assignments at
          level 0 (which if not propagated, cannot be "evaluated" at level 0,
          and thus would render some conflicts invalid). However, since it can happen
          to new literals (that have not yet been "peeked", and thus not watched),
          we have to first ensure these literals exist in the SAT.
       *)
-      clean_propagate ();
-      ignore @@ List.map create l;
-      do_push s.push;
+      let _ = List.map create l in
+      do_propagate s.propagate;
       (* Debug and return value *)
       Util.debug ~section:slice_section "Conflict(%s):@ @[<hov>%a@]"
         p.proof_name CCFormat.(list ~sep:(return " ||@ ") Expr.Print.formula) l;
