@@ -707,7 +707,19 @@ module SolverTheory = struct
   let eval_aux f =
     match plugin_eval_pred f with
     | None -> Msat.Plugin_intf.Unknown
-    | Some (b, l) -> Msat.Plugin_intf.Valued (b, resolve_deps l)
+    | Some (b, l) ->
+      begin match resolve_deps l with
+        (* Propagations at level 0 are actually forbidden currently,
+           so instead we propagate it (the assume function takes care of
+           doing these propagations before sending the conflit to msat). *)
+        | [] ->
+          let f' = if b then f else Expr.Formula.neg f in
+          let () = propagate f' [] in
+          Msat.Plugin_intf.Unknown
+        (* Normal case: propagations at level > 0 *)
+        | l' ->
+          Msat.Plugin_intf.Valued (b, l')
+      end
 
   let eval formula =
     Util.enter_prof section;
