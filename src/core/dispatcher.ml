@@ -480,6 +480,8 @@ let rec ensure_assign t =
     match Expr.Term.valuation t with
     | Expr.Assign _ -> () (* Term will be assigned eventually *)
     | Expr.Eval k ->
+      (* TODO: use tags to avoid adding the same watch multiple times
+               (redundant watches will be ignored, but it costs some comuting time). *)
       let ext_name, to_watch, f = k t in
       watch ext_name 1 to_watch (ensure_assign_aux t to_watch f)
 
