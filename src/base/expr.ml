@@ -578,9 +578,7 @@ module Id = struct
     | Some (i, k') when i < prio ->
       (** Check that a symbol does not change from beign evaluated to assigned *)
       assert (match k, k' with
-          | Assign _, Assign _
-          | Eval _, Eval _ -> true
-          | _ -> false);
+          | Assign _, Eval _ -> false | _ -> true);
       CCVector.set value_vec id.index (Some (prio, k))
     | _ -> ()
 
