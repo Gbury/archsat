@@ -146,11 +146,16 @@ module Misc = struct
     CCCache.with_cache (CCCache.unbounded ~eq:(=) 17)
       (fun n ->
          let name = string_of_int n ^ "-tuple" in
-         let range = CCList.range 1 n in
-         let vars = List.map (fun i -> Expr.Id.ttype ("type#" ^ string_of_int i)) range in
-         let ty_args = List.map Expr.Ty.of_id vars in
-         let ret = Expr.Ty.apply (tuple_ty_cstr n) ty_args in
-         Expr.Id.term_fun name vars ty_args ret
+         if n = 0 then begin
+           Expr.Id.term_fun name [] [] (Expr.Ty.apply (tuple_ty_cstr n) [])
+         end else begin
+           assert (n > 0);
+           let range = CCList.range 1 n in
+           let vars = List.map (fun i -> Expr.Id.ttype ("type#" ^ string_of_int i)) range in
+           let ty_args = List.map Expr.Ty.of_id vars in
+           let ret = Expr.Ty.apply (tuple_ty_cstr n) ty_args in
+           Expr.Id.term_fun name vars ty_args ret
+         end
       )
 
   let tuple l =
