@@ -96,6 +96,10 @@ let print_exn opt fmt = function
   (** Internal errors. This is BAD, it should *not* happen *)
   | Dispatcher.Bad_assertion msg ->
     Format.fprintf Format.std_formatter "%s@." msg
+  | Dispatcher.Not_assigned t ->
+    Format.fprintf Format.std_formatter
+      "The following term's assignment couldn't be found, this is an error:@\n%a" Expr.Term.print t
+
   | Expr.Type_mismatch (t, ty1, ty2) ->
     Format.fprintf Format.std_formatter
       "Term@ %a@ has type %a@ but an expression of type@ %a@ was expected@."

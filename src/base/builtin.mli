@@ -78,6 +78,8 @@ module Arith : sig
 
   (** {5 Operations on builtins} *)
 
+  val classify : Expr.term -> ty option
+
   val cmp_types : ty -> ty -> int
 
   val add : value -> value -> value

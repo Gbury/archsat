@@ -111,6 +111,10 @@ type valuation =
   | Assign of (term -> term)
   | Eval of (term -> string * term list * (unit -> term))
 
+let pp_valuation fmt = function
+  | Assign _ -> Format.fprintf fmt "<assign>"
+  | Eval _ -> Format.fprintf fmt "<eval>"
+
 (* Original order or expresisons *)
 (* ************************************************************************ *)
 
@@ -574,11 +578,13 @@ module Id = struct
   let set_valuation id (prio: int) k =
     match CCVector.get value_vec id.index with
     | None ->
+      Util.debug "set valuation%a(%d): %a" pp_valuation k prio Print.id id;
       CCVector.set value_vec id.index (Some (prio, k))
     | Some (i, k') when i < prio ->
       (** Check that a symbol does not change from beign evaluated to assigned *)
       assert (match k, k' with
           | Assign _, Eval _ -> false | _ -> true);
+      Util.debug "set valuation%a(%d): %a" pp_valuation k prio Print.id id;
       CCVector.set value_vec id.index (Some (prio, k))
     | _ -> ()
 

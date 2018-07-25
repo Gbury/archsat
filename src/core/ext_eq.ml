@@ -201,7 +201,6 @@ let rec set_handler_term = function
   | { Expr.term = Expr.Meta m } -> set_handler_aux Expr.(m.meta_id)
   | { Expr.term = Expr.App (f, _, l) } ->
     if not Expr.(Ty.equal f.id_type.fun_ret Ty.prop) then begin
-      Util.debug ~section "setting handler for %a" Expr.Id.print f;
       Expr.Id.set_valuation f 0 (Expr.Assign eq_assign)
     end;
     List.iter set_handler_term l

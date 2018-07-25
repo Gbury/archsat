@@ -250,7 +250,7 @@ module Arith = struct
   let type_rat = Expr.Ty.apply rat_cstr []
   let type_real = Expr.Ty.apply real_cstr []
 
-  let num_type = function
+  let classify = function
     | { Expr.t_type = {
         Expr.ty = Expr.TyApp ({
             Expr.builtin = Type ((Int | Rat | Real) as t)}, [])
@@ -333,7 +333,7 @@ module Arith = struct
     | r -> fold_apply s r
 
   let apply f l =
-    match CCOpt.sequence_l (List.map num_type l) with
+    match CCOpt.sequence_l (List.map classify l) with
     | None -> None
     | Some l' ->
       let t = List.fold_left max_type Int l' in
@@ -438,7 +438,7 @@ module Arith = struct
       match List.map (Type.parse_term env) args with
       | [] -> raise (Type.Typing_error ("Arithmetics function need arguments", env, ast))
       | (h :: _) as l ->
-        begin match num_type h with
+        begin match classify h with
           | Some ty ->
             Some (Type.Term (Type.term_apply env ast (f ty) [] l))
           | None -> raise (Type.Typing_error (

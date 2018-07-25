@@ -475,15 +475,19 @@ let ensure_assign_aux t l f = (fun () ->
     B.add eval_depends t l
   )
 
+let eval_tag = Tag.create ()
+
 let rec ensure_assign t =
   if not Expr.(Ty.equal Ty.prop t.t_type) then
     match Expr.Term.valuation t with
     | Expr.Assign _ -> () (* Term will be assigned eventually *)
     | Expr.Eval k ->
-      (* TODO: use tags to avoid adding the same watch multiple times
-               (redundant watches will be ignored, but it costs some comuting time). *)
-      let ext_name, to_watch, f = k t in
-      watch ext_name 1 to_watch (ensure_assign_aux t to_watch f)
+      begin match Expr.Term.get_tag t eval_tag with
+        | Some () -> ()
+        | None ->
+          let ext_name, to_watch, f = k t in
+          watch_aux ~force:true ext_name 1 to_watch (ensure_assign_aux t to_watch f)
+      end
 
 (* TODO: protect watch against raised exceptions during job calling.
          -> the "watch" function can actually raise Absurd since it can
@@ -494,7 +498,7 @@ let rec ensure_assign t =
                particularly during the set_watchers phase, which would be problematic
 *)
 
-and watch ?formula ext_name k args f =
+and watch_aux ~force ?formula ext_name k args f =
   let plugin = Plugin.find ext_name in
   let section = Plugin.(plugin.ext.section) in
   let tag = Plugin.(plugin.id) in
@@ -521,13 +525,14 @@ and watch ?formula ext_name k args f =
   Util.debug ~section "New watch from %s, %d among:@ @[<hov>%a@]"
     Plugin.((get tag).name) k
     CCFormat.(list ~sep:(return " ||@ ") Expr.Print.term) args;
-  if not (List.mem tag l) then begin
+  if force || not (List.mem tag l) then begin
     Util.debug ~section "Watch added";
     H.add watchers t' (tag :: l);
     split [] [] k (List.sort_uniq Expr.Term.compare args)
   end else
     Util.debug ~section "Redundant watch"
 
+let watch = watch_aux ~force:false
 
 let model () = B.snapshot eval_map
 
@@ -683,7 +688,10 @@ module SolverTheory = struct
     | Expr.Var _ -> assert false
     | Expr.App (p, _, l) ->
       if Expr.Id.is_assignable p &&
-         not (Expr.Ty.equal Expr.Ty.prop e.Expr.t_type) then f e;
+         not (Expr.Ty.equal Expr.Ty.prop e.Expr.t_type) then begin
+        Util.debug ~section "mark as assignable: @[<hov>%a@]" Expr.Term.print e;
+        f e
+      end;
       List.iter (iter_assign_aux f) l
     | _ -> f e
 
