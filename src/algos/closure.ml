@@ -265,8 +265,9 @@ module Eq(T : Key) = struct
       Util.exit_prof t.section;
       raise (Unsat (a, b, expl t a b))
     | exception Same_tag (x, y) ->
-      add_eq_aux t i j;
-      let res = expl t i j in
+      let res_i_x = expl t i x in
+      let res_y_j = expl t y j in
+      let res = res_i_x @ res_y_j in
       Util.exit_prof t.section;
       raise (Unsat (i, j, res))
 
