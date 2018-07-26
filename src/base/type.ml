@@ -706,14 +706,18 @@ let rec parse_expr (env : env) t =
     | { Ast.term = Ast.App ({Ast.term = Ast.Builtin Ast.Eq}, l) } as t ->
       begin match l with
         | [a; b] ->
-          begin match promote env t @@ parse_expr env a,
-                      promote env t @@ parse_expr env b with
+          begin match promote env t @@ parse_expr (expect env (Typed Expr.Ty.base)) a,
+                      promote env t @@ parse_expr (expect env (Typed Expr.Ty.base)) b with
           | Term t1, Term t2 ->
             Formula (make_eq env t t1 t2)
           | Formula f1, Formula f2 ->
             Formula (Expr.Formula.equiv ~status:env.status f1 f2)
-          | _ ->
-            _expected env "either two terms or two formulas" t None
+          | Term _, ret ->
+            _expected env "term" b (Some ret)
+          | Formula _, ret ->
+            _expected env "formula" b (Some ret)
+          | ret, _ ->
+            _expected env "term or formula" a (Some ret)
           end
         | _ -> _bad_op_arity env "=" 2 t
       end

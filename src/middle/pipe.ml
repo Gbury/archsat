@@ -250,7 +250,9 @@ let typecheck (opt, c) : typechecked stmt =
           let loc = c.S.loc in
           let vars = List.map (Dolmen.Term.const ?loc) free_vars in
           let f = Dolmen.Term.forall ?loc vars (
-              Dolmen.Term.apply ?loc (Dolmen.Term.or_t ?loc ()) l
+              match l with
+              | [] -> assert false | [p] -> p
+              | _ -> Dolmen.Term.apply ?loc (Dolmen.Term.or_t ?loc ()) l
             ) in
           let res = Type.new_formula env f in
           (simple (hyp_id c) c.S.loc (`Hyp res) :> typechecked stmt)
@@ -296,7 +298,10 @@ let solve (opt, (c : typechecked stmt)) : solved stmt =
   | ({ contents = `Clause l; _ } as res) ->
     start_section ~section:Dispatcher.section Util.debug "Assume clause";
     let id = Solver.assume ~solve:Options.(opt.solve) l in
-    let f = Expr.Formula.f_or l in
+    let f = match l with
+      | [] -> assert false | [p] -> p
+      | _ -> Expr.Formula.f_or l
+    in
     (simple res.id res.loc (`Left (id, f)) :> solved stmt)
   | ({ contents = `Hyp f; _ } as res) ->
     start_section ~section:Dispatcher.section Util.debug "Assume hyp";
