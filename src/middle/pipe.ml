@@ -216,6 +216,10 @@ let type_wrap ?(goal=false) opt =
 
 let run_typecheck opt = Options.(opt.typing.typing)
 
+let fv_list l =
+  let l' = List.map Dolmen.Term.fv l in
+  CCList.sort_uniq Dolmen.Id.compare (List.flatten l')
+
 let typecheck (opt, c) : typechecked stmt =
   Util.enter_prof Type.section;
   let res =
@@ -237,8 +241,20 @@ let typecheck (opt, c) : typechecked stmt =
     | { S.descr = S.Clause l } ->
       start_section ~section:Type.section Util.debug "Clause typing";
       let env = type_wrap opt in
-      let res = List.map (Type.new_formula env) l in
-      (simple (hyp_id c) c.S.loc (`Clause res) :> typechecked stmt)
+      begin match fv_list l with
+        | [] -> (* regular clauses *)
+          let res = List.map (Type.new_formula env) l in
+          (simple (hyp_id c) c.S.loc (`Clause res) :> typechecked stmt)
+        | free_vars -> (* if there are free variables, these must be quantified
+                          or else the typchecker will raise an error. *)
+          let loc = c.S.loc in
+          let vars = List.map (Dolmen.Term.const ?loc) free_vars in
+          let f = Dolmen.Term.forall ?loc vars (
+              Dolmen.Term.apply ?loc (Dolmen.Term.or_t ?loc ()) l
+            ) in
+          let res = Type.new_formula env f in
+          (simple (hyp_id c) c.S.loc (`Hyp res) :> typechecked stmt)
+      end
     | { S.descr = S.Antecedent t } ->
       start_section ~section:Type.section Util.debug "Hypothesis typing";
       let env = type_wrap opt in
