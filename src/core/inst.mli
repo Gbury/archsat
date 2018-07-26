@@ -35,6 +35,9 @@ val add : ?name:string -> ?delay:int -> ?score:int -> Mapping.t -> bool
     @param mark if true then the formulas will be marked using mark_meta to annotate
             that this is a meta creation. *)
 
+val force : ?name:string -> ?delay:int -> ?score:int -> Expr.formula -> Mapping.t -> bool
+(** Specific version of add for the meta extension. *)
+
 val soft_subst :
   name:string -> Expr.formula -> Mapping.t -> Expr.formula list * Dispatcher.lemma
 (** [soft_subst f u], returns a clause and lemma suitable for pushing to the solver.

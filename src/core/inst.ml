@@ -341,6 +341,7 @@ let map_def map =
           let m, _ = Expr.Subst.choose (Mapping.term_meta map) in
           Expr.Meta.def m.Expr.meta_index
         with Not_found ->
+          Util.debug ~section "Invalid subst: %a" Mapping.print map;
           raise (Invalid_argument "Inst.map_def")
       end
   in
@@ -437,11 +438,14 @@ module Inst = struct
   let clock () = incr age
 
   (* Constructor *)
+  let mk_aux name score formula var_subst hash =
+    { age = !age; hash; score; name; formula; var_subst; }
+
   let mk name u score =
     let formula = map_def u in
     let var_subst = to_var u in
     let hash = Hashtbl.hash (Expr.Formula.hash formula, Mapping.hash u) in
-    { age = !age; hash; score; name; formula; var_subst; }
+    mk_aux name score formula var_subst hash
 
   (* debug printing *)
   let print fmt t =
@@ -468,11 +472,7 @@ let delayed = ref []
 let inst_set = H.create 4096
 let inst_incr = ref 0
 
-let add ?(name="partial") ?(delay=0) ?(score=0) u =
-  assert (match split_cluster (reduce_map u) with
-      | [s] -> Mapping.equal s u
-      | _ -> false);
-  let t = Inst.mk name u score in
+let add_aux ~delay ~score t =
   if not (H.mem inst_set t) then begin
     H.add inst_set t false;
     Util.debug ~section "New inst /%d (%d):@ %a" score delay Inst.print t;
@@ -485,6 +485,18 @@ let add ?(name="partial") ?(delay=0) ?(score=0) u =
     Util.debug ~section "Redondant inst:@ %a" Inst.print t;
     false
   end
+
+let force ?(name="partial") ?(delay=0) ?(score=0) formula var_subst =
+  let hash = Hashtbl.hash (Expr.Formula.hash formula, Mapping.hash var_subst) in
+  let t = Inst.mk_aux name score formula var_subst hash in
+  add_aux ~delay ~score t
+
+let add ?(name="partial") ?(delay=0) ?(score=0) u =
+  assert (match split_cluster (reduce_map u) with
+      | [s] -> Mapping.equal s u
+      | _ -> false);
+  let t = Inst.mk name u score in
+  add_aux ~delay ~score t
 
 let push acc inst =
   assert (not (H.find inst_set inst));

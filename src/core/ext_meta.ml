@@ -233,8 +233,8 @@ let do_formula =
     | _ -> ()
 
 let do_meta_inst = function
-  | ({ Expr.formula = Expr.All ((tys, ts), _, _) } as f)
-  | ({ Expr.formula = Expr.Not { Expr.formula = Expr.Ex ((tys, ts), _, _) } } as f) ->
+  | (({ Expr.formula = Expr.All ((tys, ts), _, _) } as f) as f')
+  | (({ Expr.formula = Expr.Not { Expr.formula = Expr.Ex ((tys, ts), _, _) } } as f) as f') ->
     let i = get_nb_metas f in
     if !i < !meta_max then begin
       incr i;
@@ -245,7 +245,7 @@ let do_meta_inst = function
       let t_metas = List.map Expr.Term.of_meta l' in
       let m = List.fold_left2 Mapping.Var.bind_ty Mapping.empty tys ty_metas in
       let m = List.fold_left2 Mapping.Var.bind_term m ts t_metas in
-      if not (Inst.add ~name:"meta_gen" ~delay:(delay !i) m) then assert false
+      if not (Inst.force ~name:"meta_gen" ~delay:(delay !i) f' m) then assert false
     end
   | _ -> assert false
 
@@ -330,6 +330,7 @@ let rec unif_f st = function
   | SuperEach ->
     Util.enter_prof sup_section;
     let t = sup_empty first_inst in
+    (* equalities *)
     let t = List.fold_left (fun acc (a, b) -> Superposition.add_eq acc a b) t st.equalities in
     (* Rewrite rules *)
     let t = List.fold_left (fun acc r ->
@@ -342,16 +343,17 @@ let rec unif_f st = function
           Superposition.add_eq acc p p'
         | _ -> acc
       ) t (Ext_rewrite.get_active ()) in
+    (* saturating equalities *)
     Util.debug ~section "Saturating equalities.";
     let t = Superposition.solve t in
     Util.debug ~section "Saturation complete.";
+    (* adding unification targets *)
     let n = fold_diff (fun acc _ _ -> acc + 1) 0 st in
     Util.info ~section "Folding over %d pair of terms" n;
     fold_diff (fun () a b ->
         Util.debug ~section "@[<hv 2>unifying@ %a@ and@ %a@]"
           Expr.Print.term a Expr.Print.term b;
         try
-
           let _ = Superposition.solve (Superposition.add_neq t a b) in
           ()
         with Found_unif -> ()
@@ -405,9 +407,12 @@ let rec unif_f st = function
           Superposition.add_eq acc p p'
         | _ -> acc
       ) t (Ext_rewrite.get_active ()) in
-    Util.debug ~section "Saturating equalities.";
-    let t = lazy (Superposition.solve t) in
-    Util.debug ~section "Saturation complete.";
+    let t = lazy (
+      Util.debug ~section "Saturating equalities.";
+      let res = Superposition.solve t in
+      Util.debug ~section "Saturation complete.";
+      res
+    ) in
     let n = fold_diff (fun acc _ _ -> acc + 1) 0 st in
     Util.info ~section "Folding over %d pair of terms" n;
     fold_diff (fun () a b ->

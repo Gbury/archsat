@@ -496,6 +496,9 @@ let rec ensure_assign t =
             1) some watches may be lost becasue of the exception
             2) it may raise outside of the "assume" exception trap,
                particularly during the set_watchers phase, which would be problematic
+   TODO: watchers with an empty list are called immediately, and thus their effect
+         may be forgotten when backtracking. This may happen particularly for evaluators
+         of expressions that are introduced lately (e.g. expressions created for conflicts).
 *)
 
 and watch_aux ~force ?formula ext_name k args f =

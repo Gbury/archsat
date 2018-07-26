@@ -354,8 +354,7 @@ let fresh a b map =
   in
   let m = C.fold (CCFun.flip Mapping.stretch) map
       (Mapping.expand (Mapping.expand m a) b) in
-  Util.debug "@[<hv 2>fresh:@ %a@ %a"
-    Mapping.print m pp_map map;
+  (* Util.debug "@[<hv 2>fresh:@ %a@ %a" Mapping.print m pp_map map; *)
   (Mapping.apply_term m a), (Mapping.apply_term m b), (compose_set map m)
 
 let freshen c =
@@ -589,12 +588,14 @@ let do_supp acc sigma'' active inactive =
   let res1 = compose_set sigma m in
   let res2 = compose_set sigma' m in
   let l = merge_set res1 res2 in
+  (*
   Util.debug "@[<v 2>supp:@ %a@ %a == %a@ %a@ %a == %a@ %a@]"
     pp_pos active
     Expr.Print.term s Expr.Print.term t
     pp_pos inactive
     Expr.Print.term u Expr.Print.term v
     Mapping.print m;
+  *)
   let apply = Mapping.apply_term m in
   let v' = apply v in
   let t' = apply t in
@@ -646,6 +647,14 @@ let do_rewrite active inactive =
   let sigma = inactive.clause.map in
   let s, t = extract active in
   let u, v = extract inactive in
+  (*
+  Util.debug "@[<v 2>rwrt:@ %a@ %a == %a@ %a@ %a == %a@ %a@]"
+    pp_pos active
+    Expr.Print.term s Expr.Print.term t
+    pp_pos inactive
+    Expr.Print.term u Expr.Print.term v
+    pp_map sigma;
+  *)
   let guard =
     active.clause.map << sigma &&
     Lpo.compare s t = Comparison.Gt &&
@@ -654,7 +663,7 @@ let do_rewrite active inactive =
         not (Position.equal inactive.path Position.root)
       ) else true)
   in
-  if not guard then None
+  if not guard then ((*Util.debug "rwrt failed"; *) None)
   else begin
     match Position.Term.substitute inactive.path ~by:t u with
     | Some u' ->
@@ -885,6 +894,7 @@ let rewrite p active inactive =
     None
 
 let add_inactive_rewrite p_set clause side path u =
+  (* TODO: use find_match *)
   let l = I.find_equal u p_set.root_pos_index in
   let inactive = { clause; side; path } in
   CCList.find_map (fun (_, l') ->
@@ -901,7 +911,8 @@ let rewrite_lit p_set c =
     let res = Position.Term.find_map (add_inactive_rewrite p_set c Left) s in
     begin match res with
       | Some _ -> res
-      | None -> Position.Term.find_map (add_inactive_rewrite p_set c Right) t
+      | None ->
+        Position.Term.find_map (add_inactive_rewrite p_set c Right) t
     end
 
 (* Equality_subsumption, alias ES
