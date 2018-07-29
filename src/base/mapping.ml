@@ -124,12 +124,12 @@ let map f_ty f_term f_formula t = {
 
 
 let fold
-  ?(ty_var=_id)
-  ?(ty_meta=_id)
-  ?(term_var=_id)
-  ?(term_meta=_id)
-  ?(formula_var=_id)
-  ?(formula_meta=_id) t acc =
+    ?(ty_var=_id)
+    ?(ty_meta=_id)
+    ?(term_var=_id)
+    ?(term_meta=_id)
+    ?(formula_var=_id)
+    ?(formula_meta=_id) t acc =
   S.fold formula_meta t.f_meta @@
   S.fold formula_var t.f_var @@
   S.fold term_meta t.t_meta @@
