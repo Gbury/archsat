@@ -75,7 +75,7 @@ let score u = match !heuristic_setting with
 (* Unification options *)
 type unif =
   | No_unif
-  | Simple
+  | Robinson
   | ERigid
   | SuperAll
   | SuperEach
@@ -85,9 +85,9 @@ let unif_setting = ref No_unif
 
 let unif_list = [
   "none", No_unif;
-  "simple", Simple;
+  "robinson", Robinson;
   "rigid", ERigid;
-  "super", SuperAll;
+  "super_all", SuperAll;
   "super_each", SuperEach;
   "auto", Auto;
 ]
@@ -185,7 +185,8 @@ let get_nb_metas f =
 
 let iter f = H.iter (fun e _ -> f e) metas
 
-let number () = (H.stats metas).Hashtbl.num_bindings
+(* Number of metas *)
+let number () = H.length metas
 
 (* Proofs *)
 let mk_proof f ty_vars ty_list t_vars t_list q =
@@ -313,7 +314,7 @@ let sup_empty f =
 
 let rec unif_f st = function
   | No_unif -> assert false
-  | Simple ->
+  | Robinson ->
     Util.enter_prof unif_section;
     fold_diff (fun () a b -> wrap_unif (
         Util.debug ~section "@[<hv>Unifying:@ %a@ and@ %a@]"
@@ -476,7 +477,7 @@ let handle : type ret. ret Dispatcher.msg -> ret option = function
         Util.debug ~section "Applying unification";
         unif_f st !unif_setting
     end;
-    if number () > 0 && !unif_setting <> No_unif then
+    if number () > 0 then
       Some Solver.Incomplete
     else
       Some Solver.Sat_ok
@@ -499,8 +500,8 @@ let opts =
     Cmdliner.Arg.(value & opt int 10 & info ["meta.max"] ~docv:"N" ~docs ~doc)
   in
   let incr =
-    let doc = "Set wether to generate new metas at each round (with delay)" in
-    Cmdliner.Arg.(value & opt bool false & info ["meta.incr"] ~docs ~doc)
+    let doc = "Set whether to generate new metas at each round (with delay)" in
+    Cmdliner.Arg.(value & opt bool true & info ["meta.incr"] ~docs ~doc)
   in
   let delay =
     let doc = "Delay before introducing new metas" in
@@ -513,11 +514,11 @@ let opts =
     Cmdliner.Arg.(value & opt heur_conv Goal_directed & info ["meta.heur"] ~docv:"HEUR" ~docs ~doc)
   in
   let sup_coef =
-    let doc = "Affine coefficient for the superposition limit" in
+    let doc = "Affine coefficient for the number of instanciations to find with superposition (when in super_all mode)" in
     Cmdliner.Arg.(value & opt float (1. /. 100.) & info ["meta.sup.coef"] ~docs ~doc)
   in
   let sup_const =
-    let doc = "Affine constant for the superposition limit" in
+    let doc = "Affine constant for the number of instanciations to find with superposition (when in super_all mode)" in
     Cmdliner.Arg.(value & opt int 1 & info ["meta.sup.const"] ~docs ~doc)
   in
   let sup_simpl =
@@ -525,12 +526,12 @@ let opts =
     Cmdliner.Arg.(value & opt bool true & info ["meta.sup.simpl"] ~docs ~doc)
   in
   let rigid_depth =
-    let doc = "Base to compute maximum depth when doing rigid unification." in
-    Cmdliner.Arg.(value & opt int 5 & info ["meta.rigid.depth"] ~docv:"N" ~docs ~doc)
+    let doc = "Base to compute maximum depth when doing rigid unification, whether with superposisiton, or the rigid unificaiton algorithm." in
+    Cmdliner.Arg.(value & opt int 10 & info ["meta.rigid.depth"] ~docv:"N" ~docs ~doc)
   in
   let rigid_incr =
     let doc = "Increment to the depth of rigid unification at each round." in
-    Cmdliner.Arg.(value & opt float 1. & info ["meta.rigid.incr"] ~docv:"N" ~docs ~doc)
+    Cmdliner.Arg.(value & opt float 2. & info ["meta.rigid.incr"] ~docv:"N" ~docs ~doc)
   in
   let ignore_list =
     let doc = Format.asprintf
