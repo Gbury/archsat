@@ -217,8 +217,8 @@ let pp_reason fmt c =
   | ES (d, e) -> Format.fprintf fmt "ES(%a;%a)" pp_pos d pp_pos e
   | RN (d, e) -> Format.fprintf fmt "RN(%a;%a)" pp_pos d pp_pos e
   | RP (d, e) -> Format.fprintf fmt "RP(%a;%a)" pp_pos d pp_pos e
-  | MN (d, e) -> Format.fprintf fmt "MN(%a;%a)" pp_pos d pp_pos e
-  | MP (d, e) -> Format.fprintf fmt "MP(%a;%a)" pp_pos d pp_pos e
+  | MN (d, e) -> Format.fprintf fmt "ME(%a;%a)" pp_pos d pp_pos e
+  | MP (d, e) -> Format.fprintf fmt "ME(%a;%a)" pp_pos d pp_pos e
 
 let pp_cmp ~pos fmt (a, b) =
   let s = Comparison.to_string (Lpo.compare a b) in
@@ -241,6 +241,9 @@ let pp_lit fmt c =
 
 let pp_map fmt map =
   C.iter (fun m -> Format.fprintf fmt "@,[%a]" Mapping.print m) map
+
+let debug_map fmt map =
+  C.iter (fun m -> Format.fprintf fmt "@,[%a]" Mapping.debug m) map
 
 let pp fmt (c:clause) =
   Format.fprintf fmt "@[<hov 2>%a[%d]@,@,[%a]@,[%a]%a@]"
@@ -272,15 +275,21 @@ let compute_weight = function
      in them (better chance to apply rule ER, and get a solution) *)
 
 let compute_depth = function
-  | Hyp -> 0
-  | ER c | Fresh c -> c.depth
+  (* Hypotheses are at depth 0. *)
+  | Hyp -> 1
+  (* If the reason is ER, then the resulting clause is the empty clause,
+     which we always want*)
+  | ER c -> 0
+  (* Superposition steps increase depth *)
+  | SN (c, c') | SP (c, c')
+    -> max c.clause.depth c'.clause.depth + 1
+  (* Fresh clauses shouldn't increa depths. *)
+  | Fresh c -> c.depth
+  (* Don't increase the depth for simplifications steps. *)
   | ES (c, c')
-  | SN (c, c')
-  | SP (c, c')
-  | RN (c, c')
-  | RP (c, c')
-  | MN (c, c')
-  | MP (c, c') -> max c.clause.depth c'.clause.depth
+  | RN (c, c') | RP (c, c')
+  | MN (c, c') | MP (c, c')
+    -> max c.clause.depth c'.clause.depth
 
 let leq_cl c c' =
   c.weight <= c'.weight || (
@@ -294,7 +303,7 @@ let mk_cl =
   (fun lit map reason ->
      incr i;
      let weight = compute_weight lit in
-     let depth = compute_depth reason + 1 in
+     let depth = compute_depth reason in
      let res = { id = !i; lit; map; reason; weight; depth; } in
      (* Obsolete, now that there are rewrite rules
      assert (
@@ -742,12 +751,14 @@ let do_subsumption rho active inactive =
   let s, t = extract active in
   let u, v = extract inactive in
   let rho = List.fold_left Mapping.expand rho [u; v] in
-  Util.debug "@[<v>subsuption:@ %a@ %a == %a@ %a@ %a == %a@ %a@]"
+  (*
+  Util.debug "@[<v>subsumption:@ %a@ %a == %a@ %a@ %a == %a@ %a@]"
     pp_pos active
     Expr.Print.term s Expr.Print.term t
     pp_pos inactive
     Expr.Print.term u Expr.Print.term v
     Mapping.print rho;
+  *)
   assert (
     match Position.Term.apply inactive.path u with
     | _, None -> false
@@ -776,6 +787,14 @@ let do_merging p active inactive rho =
   let sigma' = inactive.clause.map in
   let s, t = extract active in
   let u, v = extract inactive in
+  (*
+  Util.debug "@[<v>merging:@ %a@ %a == %a@ %a@ %a == %a@ %a@]"
+    pp_pos active
+    Expr.Print.term s Expr.Print.term t
+    pp_pos inactive
+    Expr.Print.term u Expr.Print.term v
+    Mapping.print rho;
+  *)
   assert (Expr.Term.equal (Mapping.apply_term ~fix:false rho u) s);
   assert (Expr.Term.equal (Mapping.apply_term ~fix:false rho v) t);
   if is_alpha rho then begin
@@ -1119,7 +1138,12 @@ let add_neq t a b =
   let c = mk_neq a' b' (C.singleton m) Hyp in
   enqueue c t
 
-let solve t =
+let debug t =
   Util.debug ~section:t.section "@{<White>Precedence@}: @[<hov>%a@]" pp_precedence t;
+  let l = List.sort (fun c c' -> Pervasives.compare c.id c'.id) @@ S.elements t.clauses in
+  List.iter (fun c -> Util.debug ~section:t.section " |%@ %a" pp c) l
+
+let solve t =
+  debug t;
   discount_loop ~merge:true t
 
