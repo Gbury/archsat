@@ -72,6 +72,7 @@ let compare m m' =
   S.compare E.Ty.compare m.ty_var m'.ty_var
   <?> (S.compare E.Ty.compare, m.ty_meta, m'.ty_meta)
   <?> (S.compare E.Term.compare, m.t_var, m'.t_var)
+  <?> (S.compare E.Term.compare, m.t_meta, m'.t_meta)
   <?> (S.compare E.Formula.compare, m.f_var, m'.f_var)
   <?> (S.compare E.Formula.compare, m.f_meta, m'.f_meta)
 
