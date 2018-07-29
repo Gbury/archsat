@@ -414,6 +414,13 @@ module Subst : sig
     Format.formatter -> ('a, 'b) t -> unit
   (** Prints the substitution, using the given functions to print keys and values. *)
 
+  val debug :
+    (Format.formatter -> 'a -> unit) ->
+    (Format.formatter -> 'b -> unit) ->
+    Format.formatter -> ('a, 'b) t -> unit
+  (** Prints the substitution, using the given functions to print keys and values,
+      includign some debug info. *)
+
   val choose : ('a, 'b) t -> 'a * 'b
   (** Return one binding of the given substitution, or raise Not_found if the substitution is empty.*)
 

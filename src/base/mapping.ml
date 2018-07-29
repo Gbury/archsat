@@ -90,6 +90,15 @@ let print fmt m =
     (S.print E.Print.id E.Print.formula) m.f_var (pp_sep m.t_var) ()
     (S.print E.Print.meta E.Print.formula) m.f_meta
 
+let debug fmt m =
+  Format.fprintf fmt "@[<hv 1>{%a;%a;%a;%a;%a;%a}@]"
+    (S.debug E.Print.id E.Print.ty) m.ty_var
+    (S.debug E.Print.meta E.Print.ty) m.ty_meta
+    (S.debug E.Print.id E.Print.term) m.t_var
+    (S.debug E.Print.meta E.Print.term) m.t_meta
+    (S.debug E.Print.id E.Print.formula) m.f_var
+    (S.debug E.Print.meta E.Print.formula) m.f_meta
+
 
 (* Whole mapping functions *)
 (* ************************************************************************ *)

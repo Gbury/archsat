@@ -21,6 +21,7 @@ val equal : t -> t -> bool
 (** Equality for mappings *)
 
 val print : Format.formatter -> t -> unit
+val debug : Format.formatter -> t -> unit
 (** Pretty printer for mappings *)
 
 

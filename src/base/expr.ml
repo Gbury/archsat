@@ -352,7 +352,7 @@ let () = Printexc.register_printer (function
 module Subst = struct
   module Mi = CCMap.Make(struct
       type t = int * int
-      let compare (a, b) (c, d) = match compare a c with 0 -> compare b d | x -> x
+      let compare = CCOrd.(pair int int)
     end)
 
   type ('a, 'b) t = ('a * 'b) Mi.t
@@ -415,6 +415,14 @@ module Subst = struct
     in
     Format.fprintf fmt "@[<hv>%a@]"
       CCFormat.(seq ~sep:(return ";@ ") aux) (Mi.values map)
+
+  let debug print_key print_value fmt map =
+    let aux fmt ((i, j), (key, value)) =
+      Format.fprintf fmt "@[<hov 2>(%d, %d): %a ↦@ %a@]"
+        i j print_key key print_value value
+    in
+    Format.fprintf fmt "@[<hv>%a@]"
+      CCFormat.(seq ~sep:(return ";@ ") aux) (Mi.to_seq map)
 
   (* Specific substitutions signature *)
   module type S = sig
