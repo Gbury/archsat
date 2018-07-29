@@ -336,11 +336,19 @@ let create = SolverTypes.add_atom
 let eval_f f =
   let open SolverTypes in
   let a = create f in
-  if a.is_true then Some true
-  else if a.neg.is_true then Some false
-  else None
+  let lvl = a.var.v_level in
+  let t =
+    if a.is_true then Some true
+    else if a.neg.is_true then Some false
+    else None
+  in
+  t, lvl
 
-let get_truth = eval_f
+let get_truth f = fst @@ eval_f f
+
+let get_absolute_truth f =
+  let truth, lvl = eval_f f in
+  if lvl = 0 then truth else None
 
 (* Evaluation/Watching functions *)
 (* ************************************************************************ *)
@@ -386,7 +394,7 @@ let add_job job t =
   H.replace watch_map t (job :: l)
 
 let call_job j =
-  if not CCOpt.(get_or ~default:true (j.job_formula >>= eval_f)) then
+  if not CCOpt.(get_or ~default:true (j.job_formula >>= get_truth)) then
     Util.debug ~section "Ignoring job because of false formula:@ %a"
       Expr.Formula.print (CCOpt.get_exn j.job_formula)
   else if j.job_done >= !last_backtrack then

@@ -134,6 +134,9 @@ val consequence : Expr.formula -> Expr.formula list -> lemma -> unit
 val get_truth : Expr.formula -> bool option
 (** Returns the current truth value of a given formula, if it is decided. *)
 
+val get_absolute_truth : Expr.formula -> bool option
+(** Return the truth value given at level 0 to formulas. *)
+
 val get_assign : Expr.term -> Expr.term
 (** [get_assign t] Returns the current assignment of [t], if it exists.
     @raise Not_assigned if the term isn't assigned *)

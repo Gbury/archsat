@@ -83,7 +83,12 @@ type rule_type =
 
 let split r =
   match Rewrite.Rule.(r.guards) with
-  | [] -> Substitution
+  | [] ->
+    begin match Dispatcher.get_absolute_truth Rewrite.Rule.(r.formula) with
+      | Some true -> Substitution
+      | Some false -> assert false
+      | None -> Trigger
+    end
   | _ -> Trigger
 
 (* Callbacks on the set of known terms *)
