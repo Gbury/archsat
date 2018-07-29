@@ -1,15 +1,21 @@
 
 BIN=archsat
 
-all: $(BIN)
+all: check solve prove
+
+check: $(BIN)
 	@cd parsing && $(MAKE) --no-print-directory
 	@cd include && $(MAKE) --no-print-directory
 	@cd typing && $(MAKE) --no-print-directory
+
+solve: $(BIN)
 	@cd clauses && $(MAKE) -f Makefile.solve --no-print-directory
 	@cd logic && $(MAKE) -f Makefile.solve --no-print-directory
 	@cd equality && $(MAKE) -f Makefile.solve --no-print-directory
 	@cd quant && $(MAKE) -f Makefile.solve --no-print-directory
-#	@cd rewr && $(MAKE) --no-print-directory
+	@cd rewr && $(MAKE) -f Makefile.solve --no-print-directory
+
+prove: solve $(BIN)
 	@cd clauses && $(MAKE) -f Makefile.prove --no-print-directory
 	@cd logic && $(MAKE) -f Makefile.prove --no-print-directory
 #	@cd equality && $(MAKE) -f Makefile.prove --no-print-directory
