@@ -52,7 +52,7 @@ let () =
       List.iter Semantics.Addon.set_ext opt.addons;
 
       (* Extensions options *)
-      Dispatcher.Plugin.set_exts "+arith,+eq,+inst,+logic,+prop,+skolem,+uf,+stats";
+      Dispatcher.Plugin.set_exts "+arith,+eq,+inst,+logic,+meta,+prop,+skolem,+uf,+stats";
       List.iter Dispatcher.Plugin.set_ext opt.plugins;
 
       (* Print the current options *)
