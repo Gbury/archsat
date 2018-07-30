@@ -28,15 +28,17 @@ val mk_rules :
 type t
 (** Persistent type for supperposisiton. *)
 
-val empty : ?max_depth:int -> ?rules:rules -> Section.t -> (Mapping.t -> unit) -> t
-(** Create an empty supperposisiton state. The function provided will
-    be called on all unifiers found during solving.
+val empty : ?max_depth:int -> ?rules:rules -> Section.t ->
+  ((Expr.formula * Mapping.t) list -> Mapping.t list -> unit) -> t
+(** Create an empty supperposisiton state. The callback function provided
+    will be called on all pairs of (rewrites and unifiers) found during
+    solving.
     @param rules Specify what rules to use during saturation.
       By default all rules are used.
 *)
 
-val add_eq : t -> Expr.term -> Expr.term -> t
-val add_neq : t -> Expr.term -> Expr.term -> t
+val add_eq : t -> ?f:Expr.formula -> Expr.term -> Expr.term -> t
+val add_neq : t -> ?f:Expr.formula -> Expr.term -> Expr.term -> t
 (** Add an (in)equality to the state queue, i.e it does not do much. *)
 
 val solve : t -> t

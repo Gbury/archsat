@@ -19,16 +19,16 @@ type lit =
 
 (* Type of reasons for clauses. *)
 type reason =
-  | Hyp
-  | Fresh of clause
-  | ER of clause
-  | ES of pointer * pointer
-  | SN of pointer * pointer
-  | SP of pointer * pointer
-  | RN of pointer * pointer
-  | RP of pointer * pointer
-  | MN of pointer * pointer
-  | MP of pointer * pointer
+  | Hyp of Expr.formula option * Mapping.t
+  | Fresh of clause * Mapping.t
+  | ER of clause * Mapping.t
+  | ES of pointer * pointer * Mapping.t
+  | SN of pointer * pointer * Mapping.t
+  | SP of pointer * pointer * Mapping.t
+  | RN of pointer * pointer * Mapping.t
+  | RP of pointer * pointer * Mapping.t
+  | MN of pointer * pointer * Mapping.t
+  | MP of pointer * pointer * Mapping.t
 
 (* Type for unit clauses, i.e clauses with at most one equation *)
 and clause = {
@@ -172,6 +172,29 @@ let merge_set set set' =
           | Some s'' -> s'' :: acc'
         ) set' acc) set []
 
+(* Free variables in clauses *)
+(* ************************************************************************ *)
+
+let clause_mapped_vars map =
+  C.fold (fun m acc ->
+      match Mapping.codomain m with
+      | (fv, ([], [])) -> Expr.Id.merge_fv fv acc
+      | _ ->
+        (* All meta-variable should be bound to variables, so no meta-variables
+        should appear in the codomain of the mappings *)
+        Util.error "Meta-variable in codomain of a map in superposisiton";
+        assert false
+    ) map ([], [])
+
+let clause_fv a b map =
+  let mapped_vars = clause_mapped_vars map in
+  let free_vars = Expr.Id.merge_fv (Expr.Term.fv a) (Expr.Term.fv b) in
+  let l, l' = Expr.Id.remove_fv free_vars mapped_vars in
+  List.fold_left (fun m v ->
+      Mapping.Var.bind_ty m v (Expr.Ty.of_id v))
+    (List.fold_left (fun m v ->
+         Mapping.Var.bind_term m v (Expr.Term.of_id v)) Mapping.empty l') l
+
 (* Clauses *)
 (* ************************************************************************ *)
 
@@ -200,7 +223,7 @@ let compare c c' =
 (* Printing of clauses *)
 let rec pp_id fmt c =
   match c.reason with
-  | Fresh c' -> Format.fprintf fmt "~%a" pp_id c'
+  | Fresh (c', _) -> Format.fprintf fmt "~%a" pp_id c'
   | _ -> Format.fprintf fmt "C%d" c.id
 
 let pp_pos fmt pos =
@@ -209,16 +232,16 @@ let pp_pos fmt pos =
 
 let pp_reason fmt c =
   match c.reason with
-  | Hyp -> Format.fprintf fmt "hyp"
-  | Fresh c -> Format.fprintf fmt "Fresh(%a)" pp_id c
-  | ER d -> Format.fprintf fmt "ER(%a)" pp_id d
-  | SN (d, e) -> Format.fprintf fmt "SN(%a;%a)" pp_pos d pp_pos e
-  | SP (d, e) -> Format.fprintf fmt "SP(%a;%a)" pp_pos d pp_pos e
-  | ES (d, e) -> Format.fprintf fmt "ES(%a;%a)" pp_pos d pp_pos e
-  | RN (d, e) -> Format.fprintf fmt "RN(%a;%a)" pp_pos d pp_pos e
-  | RP (d, e) -> Format.fprintf fmt "RP(%a;%a)" pp_pos d pp_pos e
-  | MN (d, e) -> Format.fprintf fmt "ME(%a;%a)" pp_pos d pp_pos e
-  | MP (d, e) -> Format.fprintf fmt "ME(%a;%a)" pp_pos d pp_pos e
+  | Hyp _ -> Format.fprintf fmt "hyp"
+  | Fresh (c, _) -> Format.fprintf fmt "Fresh(%a)" pp_id c
+  | ER (d, _) -> Format.fprintf fmt "ER(%a)" pp_id d
+  | SN (d, e, _) -> Format.fprintf fmt "SN(%a;%a)" pp_pos d pp_pos e
+  | SP (d, e, _) -> Format.fprintf fmt "SP(%a;%a)" pp_pos d pp_pos e
+  | ES (d, e, _) -> Format.fprintf fmt "ES(%a;%a)" pp_pos d pp_pos e
+  | RN (d, e, _) -> Format.fprintf fmt "RN(%a;%a)" pp_pos d pp_pos e
+  | RP (d, e, _) -> Format.fprintf fmt "RP(%a;%a)" pp_pos d pp_pos e
+  | MN (d, e, _) -> Format.fprintf fmt "ME(%a;%a)" pp_pos d pp_pos e
+  | MP (d, e, _) -> Format.fprintf fmt "ME(%a;%a)" pp_pos d pp_pos e
 
 let pp_cmp ~pos fmt (a, b) =
   let s = Comparison.to_string (Lpo.compare a b) in
@@ -251,13 +274,13 @@ let pp fmt (c:clause) =
 
 let pp_hyps fmt c =
   match c.reason with
-  | Hyp -> ()
-  | ER c | Fresh c ->
+  | Hyp _ -> ()
+  | ER (c, _) | Fresh (c, _) ->
     Format.fprintf fmt "%a" pp c
-  | SN (d, e) | SP (d, e)
-  | RN (d, e) | RP (d, e)
-  | MN (d, e) | MP (d, e)
-  | ES (d, e) ->
+  | SN (d, e, _) | SP (d, e, _)
+  | RN (d, e, _) | RP (d, e, _)
+  | MN (d, e, _) | MP (d, e, _)
+  | ES (d, e, _) ->
     Format.fprintf fmt "%a@\n%a" pp d.clause pp e.clause
 
 (* Heuristics for clauses. Currently uses the size of terms.
@@ -276,19 +299,19 @@ let compute_weight = function
 
 let compute_depth = function
   (* Hypotheses are at depth 0. *)
-  | Hyp -> 1
+  | Hyp _ -> 1
   (* If the reason is ER, then the resulting clause is the empty clause,
      which we always want*)
-  | ER c -> 0
+  | ER _ -> 0
   (* Superposition steps increase depth *)
-  | SN (c, c') | SP (c, c')
+  | SN (c, c', _) | SP (c, c', _)
     -> max c.clause.depth c'.clause.depth + 1
   (* Fresh clauses shouldn't increa depths. *)
-  | Fresh c -> c.depth
+  | Fresh (c, _) -> c.depth
   (* Don't increase the depth for simplifications steps. *)
-  | ES (c, c')
-  | RN (c, c') | RP (c, c')
-  | MN (c, c') | MP (c, c')
+  | ES (c, c', _)
+  | RN (c, c', _) | RP (c, c', _)
+  | MN (c, c', _) | MP (c, c', _)
     -> max c.clause.depth c'.clause.depth
 
 let leq_cl c c' =
@@ -327,8 +350,8 @@ let mk_cl =
 
 let ord a b = if Expr.Term.compare a b <= 0 then a, b else b, a
 
-let mk_empty map clause =
-  mk_cl Empty map (ER clause)
+let mk_empty map clause mgu =
+  mk_cl Empty map (ER (clause, mgu))
 
 let mk_eq a b map reason =
   let c, d = ord a b in
@@ -364,7 +387,7 @@ let fresh a b map =
   let m = C.fold (CCFun.flip Mapping.stretch) map
       (Mapping.expand (Mapping.expand m a) b) in
   (* Util.debug "@[<hv 2>fresh:@ %a@ %a" Mapping.print m pp_map map; *)
-  (Mapping.apply_term m a), (Mapping.apply_term m b), (compose_set map m)
+  m, (Mapping.apply_term m a), (Mapping.apply_term m b), (compose_set map m)
 
 let freshen c =
   match c.lit with
@@ -372,8 +395,8 @@ let freshen c =
   | Eq (a, b)
   | Neq (a, b) ->
     let f = if is_eq c then mk_eq else mk_neq in
-    let a', b', m' = fresh a b c.map in
-    f a' b' m' (Fresh c)
+    let r, a', b', m' = fresh a b c.map in
+    f a' b' m' (Fresh (c, r))
 
 (* Clause pointers *)
 (* ************************************************************************ *)
@@ -461,7 +484,7 @@ type t = {
   inactive_index : I.t;
   max_depth : int;
   section : Section.t;
-  callback : (Mapping.t -> unit);
+  callback : ((Expr.formula * Mapping.t) list -> Mapping.t list -> unit);
 }
 
 let all_rules = {
@@ -570,7 +593,7 @@ let do_resolution ~section acc clause =
     begin match Unif.Robinson.term Mapping.empty s t with
       | mgu ->
         let mgu = C.fold (CCFun.flip Mapping.stretch) sigma mgu in
-        mk_empty (compose_set sigma mgu) clause :: acc
+        mk_empty (compose_set sigma mgu) clause mgu :: acc
       | exception Unif.Robinson.Impossible_ty _ -> acc
       | exception Unif.Robinson.Impossible_term _ -> acc
     end
@@ -625,17 +648,17 @@ let do_supp acc sigma'' active inactive =
     match Position.Term.substitute inactive.path ~by:t' u' with
     | Some u'' ->
       let f = if is_eq inactive.clause then mk_eq else mk_neq in
-      let reason =
-        if is_eq inactive.clause then
-          SP(active, inactive)
-        else
-          SN(active, inactive)
-      in
       List.fold_left (fun acc (rho, res) ->
-          let u''', v'', map = fresh
+          let subst, u''', v'', map = fresh
               (Mapping.apply_term rho u'')
               (Mapping.apply_term rho v')
               (C.singleton res)
+          in
+          let reason =
+            if is_eq inactive.clause then
+              SP(active, inactive, Mapping.apply subst m)
+            else
+              SN(active, inactive, Mapping.apply subst m)
           in
           let c = f u''' v'' map reason in
           c :: acc) acc l
@@ -677,12 +700,12 @@ let do_rewrite active inactive =
     match Position.Term.substitute inactive.path ~by:t u with
     | Some u' ->
       let f = if is_eq inactive.clause then mk_eq else mk_neq in
+      let subst, u'', v', map = fresh u' v sigma in
       let reason =
         if is_eq inactive.clause
-        then RP(active, inactive)
-        else RN(active, inactive)
+        then RP(active, inactive, subst)
+        else RN(active, inactive, subst)
       in
-      let u'', v', map = fresh u' v sigma in
       Some (f u'' v' map reason)
     | None ->
       (* shouldn't really happen *)
@@ -777,7 +800,7 @@ let do_subsumption rho active inactive =
   if C.is_empty redundant then
     inactive.clause
   else
-    mk_eq u v sigma' (ES (active, inactive))
+    mk_eq u v sigma' (ES (active, inactive, rho))
 
 (* Perform clause merging *)
 let do_merging p active inactive rho =
@@ -799,12 +822,12 @@ let do_merging p active inactive rho =
   assert (Expr.Term.equal (Mapping.apply_term ~fix:false rho v) t);
   if is_alpha rho then begin
     let f = if is_eq inactive.clause then mk_eq else mk_neq in
+    let rho = C.fold (CCFun.flip Mapping.stretch) sigma' rho in
     let reason =
       if is_eq inactive.clause
-      then MP (active, inactive)
-      else MN (active, inactive)
+      then MP (active, inactive, rho)
+      else MN (active, inactive, rho)
     in
-    let rho = C.fold (CCFun.flip Mapping.stretch) sigma' rho in
     let c = C.union sigma (compose_set sigma' rho) in
     Util.debug ~section:p.section "@{<Red>Removing@}: %a" pp active.clause;
     Some (rm_clause active.clause p, f s t c reason)
@@ -1024,6 +1047,32 @@ let cheap_simplify c p =
 let generate c p =
   supp_lit c p (equality_resolution p c [])
 
+(* Analyze a derivation to record all rewrites *)
+(* ************************************************************************ *)
+
+let analyze_apply m l =
+  List.map (fun (f, m') -> (f, Mapping.apply m m')) l
+
+let rec analyze c =
+  match c.reason with
+  | Hyp (f, m) ->
+    if Mapping.is_empty m then [] else
+      begin match f with
+        | Some formula -> [formula, m]
+        | None ->
+          Util.error "Clause with free_vars but no tagged formula: %a" pp c;
+          []
+      end
+  | Fresh (c', m) | ER (c', m)
+    -> analyze_apply m (analyze c')
+  | ES (p, p', m)
+  | SN (p, p', m) | SP (p, p', m)
+  | RN (p, p', m) | RP (p, p', m)
+  | MN (p, p', m) | MP (p, p', m)
+    ->
+    let l = analyze p.clause in
+    let l' = analyze p'.clause in
+    analyze_apply m (l @ l')
 
 (* Main loop *)
 (* ************************************************************************ *)
@@ -1060,7 +1109,7 @@ let rec generate_new ~merge p_set c =
     let rules = mk_rules ~default:false ~mn:p_set.rules.mn ~mp:p_set.rules.mp () in
     let tmp = empty
         ~max_depth:p_set.max_depth ~rules
-        (Section.make ~parent:p_set.section "tmp") (fun _ -> ())
+        (Section.make ~parent:p_set.section "tmp") (fun _ _ -> ())
     in
     let p = List.fold_right enqueue l tmp in
     let p' = discount_loop ~merge:false p in
@@ -1086,7 +1135,7 @@ and discount_loop ~merge p_set =
         Util.debug ~section:p_set.section
           "@{<magenta>Found empty clause reached@}, %d clauses in state" (S.cardinal p_set.clauses);
         (* Call the callback *)
-        C.iter p_set.callback c.map;
+        p_set.callback (analyze c) (C.elements c.map);
         (* Continue solving *)
         discount_loop ~merge
           { p_set with clauses = S.add c p_set.clauses; queue = u }
@@ -1128,14 +1177,18 @@ let meta_to_var a b =
       ) Mapping.empty mtys) mterms in
   Mapping.apply_term m a, Mapping.apply_term m b, m
 
-let add_eq t a b =
+let add_eq t ?f a b =
   let a', b', m = meta_to_var a b in
-  let c = mk_eq a' b' (C.singleton m) Hyp in
+  let map = C.singleton m in
+  let fv = clause_fv a' b' map in
+  let c = mk_eq a' b' map (Hyp (f, fv)) in
   enqueue c t
 
-let add_neq t a b =
+let add_neq t ?f a b =
   let a', b', m = meta_to_var a b in
-  let c = mk_neq a' b' (C.singleton m) Hyp in
+  let map = C.singleton m in
+  let fv = clause_fv a' b' map in
+  let c = mk_neq a' b' map (Hyp (f, fv)) in
   enqueue c t
 
 let debug t =

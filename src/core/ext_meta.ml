@@ -265,15 +265,6 @@ let sup_limit st =
 let do_inst u =
   Inst.add ~name:"meta_unif" ~score:(score u) u
 
-let first_inst u =
-  Util.debug "Found inst: @[<hov>%a@]" Mapping.print u;
-  let l = CCFun.(u
-                 |> Mapping.fixpoint
-                 |> Inst.generalize
-                 |> Inst.partition) in
-  let _ = List.map do_inst l in
-  raise Found_unif
-
 let insts r u =
   Util.debug "Found inst: @[<hov>%a@]" Mapping.print u;
   let l = Inst.partition @@ Inst.generalize @@ Mapping.fixpoint u in
@@ -283,12 +274,13 @@ let insts r u =
     if !r > 0
     then Util.debug ~section "Waiting for %d other insts" !r
     else Util.debug ~section "Found all inst for the given problem";
-    if !r <= 0 then raise Found_unif
-  end
+    !r <= 0
+  end else
+    false
 
 let n_inst n =
   let r = ref n in
-  (fun u -> insts r u)
+  (fun u -> if insts r u then raise Found_unif)
 
 let cache = Unif.Cache.create ()
 
@@ -306,13 +298,25 @@ let sup_rules () =
                     es = false; rp = false; rn = false;
                     mn = false; mp = false; }
 
-let sup_empty f =
+let sup_empty n =
+  let r = ref n in
   let rules = sup_rules () in
   let max_depth = rigid_depth () in
+  let aux' m = insts r @@ Mapping.normalize m in
+  let aux (formula, m) =
+    Util.debug ~section "@[<hv 2>Doing rewrite from superposition@ %a@ %a@]"
+      Mapping.print m Expr.Formula.print formula;
+    let m' = Mapping.normalize m in
+    let _ = Inst.force ~name:"meta_rwrt" ~score:0 formula m' in
+    ()
+  in
   Util.log ~section "New empty superposition state (max_depth: %d)" max_depth;
-  Superposition.empty ~max_depth ~rules sup_section (fun m -> f @@ Mapping.normalize m)
+  Superposition.empty ~max_depth ~rules sup_section (fun l l' ->
+      let () = List.iter aux l in
+      if List.exists aux' l' then raise Found_unif
+    )
 
-let rec unif_f st = function
+let unif_f st = function
   | No_unif -> assert false
   | Robinson ->
     Util.enter_prof unif_section;
@@ -330,18 +334,19 @@ let rec unif_f st = function
     Util.exit_prof rigid_section
   | SuperEach ->
     Util.enter_prof sup_section;
-    let t = sup_empty first_inst in
+    let t = sup_empty 1 in
     (* equalities *)
-    let t = List.fold_left (fun acc (a, b) -> Superposition.add_eq acc a b) t st.equalities in
+    let t = List.fold_left (fun acc (a, b) ->
+        Superposition.add_eq acc a b) t st.equalities in
     (* Rewrite rules *)
     let t = List.fold_left (fun acc r ->
         let open Rewrite.Rule in
         match (r.guards, r.contents) with
         | [], C (Term, { trigger; result }) ->
-          Superposition.add_eq acc trigger result
+          Superposition.add_eq ~f:r.formula acc trigger result
         | [], C (Formula, { trigger = { Expr.formula = Expr.Pred p };
                           result = { Expr.formula = Expr.Pred p' }; }) ->
-          Superposition.add_eq acc p p'
+          Superposition.add_eq ~f:r.formula acc p p'
         | _ -> acc
       ) t (Ext_rewrite.get_active ()) in
     (* saturating equalities *)
@@ -362,16 +367,16 @@ let rec unif_f st = function
     Util.exit_prof sup_section
   | SuperAll ->
     Util.enter_prof sup_section;
-    let t = sup_empty (n_inst (sup_limit st)) in
+    let t = sup_empty (sup_limit st) in
     (* Rewrite rules *)
     let t = List.fold_left (fun acc r ->
         let open Rewrite.Rule in
         match (r.guards, r.contents) with
         | [], C (Term, { trigger; result }) ->
-          Superposition.add_eq acc trigger result
+          Superposition.add_eq ~f:r.formula acc trigger result
         | [], C (Formula, { trigger = { Expr.formula = Expr.Pred p };
                           result = { Expr.formula = Expr.Pred p' }; }) ->
-          Superposition.add_eq acc p p'
+          Superposition.add_eq ~f:r.formula acc p p'
         | _ -> acc
       ) t (Ext_rewrite.get_active ()) in
     (* Equalities from the current state *)
@@ -395,17 +400,17 @@ let rec unif_f st = function
     Util.exit_prof sup_section
   | Auto ->
     Util.enter_prof sup_section;
-    let t = sup_empty first_inst in
+    let t = sup_empty 1 in
     let t = List.fold_left (fun acc (a, b) -> Superposition.add_eq acc a b) t st.equalities in
     (* Rewrite rules *)
     let t = List.fold_left (fun acc r ->
         let open Rewrite.Rule in
         match (r.guards, r.contents) with
         | [], C (Term, { trigger; result }) ->
-          Superposition.add_eq acc trigger result
+          Superposition.add_eq ~f:r.formula acc trigger result
         | [], C (Formula, { trigger = { Expr.formula = Expr.Pred p };
                           result = { Expr.formula = Expr.Pred p' }; }) ->
-          Superposition.add_eq acc p p'
+          Superposition.add_eq ~f:r.formula acc p p'
         | _ -> acc
       ) t (Ext_rewrite.get_active ()) in
     let t = lazy (
@@ -426,7 +431,8 @@ let rec unif_f st = function
           let _ = Superposition.solve (Superposition.add_neq (Lazy.force t) a b) in
           ()
         with Found_unif -> ()
-      ) () st
+      ) () st;
+    Util.exit_prof sup_section
 
 (* Proof management *)
 (* ************************************************************************ *)

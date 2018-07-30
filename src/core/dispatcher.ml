@@ -507,6 +507,7 @@ let rec ensure_assign t =
    TODO: watchers with an empty list are called immediately, and thus their effect
          may be forgotten when backtracking. This may happen particularly for evaluators
          of expressions that are introduced lately (e.g. expressions created for conflicts).
+         also a problem for all late watchers.
 *)
 
 and watch_aux ~force ?formula ext_name k args f =
