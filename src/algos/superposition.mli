@@ -28,8 +28,10 @@ val mk_rules :
 type t
 (** Persistent type for supperposisiton. *)
 
-val empty : ?max_depth:int -> ?rules:rules -> Section.t ->
-  ((Expr.formula * Mapping.t) list -> Mapping.t list -> unit) -> t
+val empty :
+  ?max_depth:int -> ?rules:rules ->
+  ?callback:((Expr.formula * Mapping.t) list -> Mapping.t list -> unit) ->
+  Section.t -> t
 (** Create an empty supperposisiton state. The callback function provided
     will be called on all pairs of (rewrites and unifiers) found during
     solving.

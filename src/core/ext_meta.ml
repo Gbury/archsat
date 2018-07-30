@@ -311,7 +311,7 @@ let sup_empty n =
     ()
   in
   Util.log ~section "New empty superposition state (max_depth: %d)" max_depth;
-  Superposition.empty ~max_depth ~rules sup_section (fun l l' ->
+  Superposition.empty ~max_depth ~rules sup_section ~callback:(fun l l' ->
       let () = List.iter aux l in
       if List.exists aux' l' then raise Found_unif
     )

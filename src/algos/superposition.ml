@@ -484,7 +484,8 @@ type t = {
   inactive_index : I.t;
   max_depth : int;
   section : Section.t;
-  callback : ((Expr.formula * Mapping.t) list -> Mapping.t list -> unit);
+  callback :
+    ((Expr.formula * Mapping.t) list -> Mapping.t list -> unit) option;
 }
 
 let all_rules = {
@@ -498,7 +499,7 @@ let all_rules = {
   mp = true;
 }
 
-let empty ?(max_depth=0) ?(rules=all_rules) section callback = {
+let empty ?(max_depth=0) ?(rules=all_rules) ?callback section = {
   queue = Q.empty;
   clauses = S.empty;
   generated = S.empty;
@@ -1109,7 +1110,7 @@ let rec generate_new ~merge p_set c =
     let rules = mk_rules ~default:false ~mn:p_set.rules.mn ~mp:p_set.rules.mp () in
     let tmp = empty
         ~max_depth:p_set.max_depth ~rules
-        (Section.make ~parent:p_set.section "tmp") (fun _ _ -> ())
+        (Section.make ~parent:p_set.section "tmp")
     in
     let p = List.fold_right enqueue l tmp in
     let p' = discount_loop ~merge:false p in
@@ -1132,10 +1133,11 @@ and discount_loop ~merge p_set =
     end else begin
       Util.debug ~section:p_set.section "@{<yellow>Adding clause@} : %a" pp c;
       if c.lit = Empty then begin
-        Util.debug ~section:p_set.section
-          "@{<magenta>Found empty clause reached@}, %d clauses in state" (S.cardinal p_set.clauses);
         (* Call the callback *)
-        p_set.callback (analyze c) (C.elements c.map);
+        CCOpt.iter (fun f ->
+            Util.debug ~section:p_set.section
+              "@{<magenta>Found empty clause reached@}, %d clauses in state" (S.cardinal p_set.clauses);
+            f (analyze c) (C.elements c.map)) p_set.callback;
         (* Continue solving *)
         discount_loop ~merge
           { p_set with clauses = S.add c p_set.clauses; queue = u }
