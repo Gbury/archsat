@@ -1,5 +1,5 @@
 # subset_reflexivity.zf
 
-include "bset.zf".
+include "axioms/bset.zf".
 
 goal forall (a : type) (S : set a). subset a S S.

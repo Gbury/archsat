@@ -1,6 +1,6 @@
-# array_get_1.zf
+# array_get_2.zf
 
-include "array.zf".
+include "axioms/array.zf".
 
 val ty : type.
 
