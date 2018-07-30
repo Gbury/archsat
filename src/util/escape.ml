@@ -91,7 +91,7 @@ let rec add ?(fragile=false) t any status name =
       add_failure ~fragile t any status name r
 
 and add_success t any status name =
-  Util.debug ~section "Adding %a" pp_assign (any, status, name);
+  (* Util.debug ~section "Adding %a" pp_assign (any, status, name); *)
   let () = H.add t.table any (status, name) in
   let () = Hashtbl.add t.names name any in
   name

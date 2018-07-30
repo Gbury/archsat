@@ -1,0 +1,6 @@
+(assert (= a1 b1))
+(assert (= a2 b2))
+(assert (= a3 b3))
+(assert (= a4 b4))
+(assert (not (= (f a1 a2 a3 a4) (f b1 b2 b3 b4))))
+(check-sat)

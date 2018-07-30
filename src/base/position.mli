@@ -46,6 +46,15 @@ val print_res :
   Format.formatter -> ('a, 'b) res -> unit
 (** Print a res. *)
 
+
+(** {2 Apply positions to proof terms} *)
+
+module Proof : sig
+  val apply : t -> Term.t -> Term.t option
+  val substitute : t -> by:Term.t -> Term.t -> Term.t option
+  val find : Term.t -> Term.t -> t option
+end
+
 (** {2 Apply positions to types} *)
 
 module Ty : sig
@@ -63,6 +72,4 @@ module Term : sig
   val fold : ('a -> t -> Expr.term -> 'a) -> 'a -> Expr.term -> 'a
   val find_map : (t -> Expr.term -> 'a option) -> Expr.term -> 'a option
 end
-
-
 

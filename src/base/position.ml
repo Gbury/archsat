@@ -52,6 +52,58 @@ let print_res p fmt = function
   | Possible -> Format.fprintf fmt "possible"
   | Impossible -> Format.fprintf fmt "impossible"
 
+(* Positions for Proof terms *)
+(* ************************************************************************ *)
+
+module Proof = struct
+
+  let rec apply p t =
+    match p, t with
+    | Here, _ -> Some t
+    | Arg (0, p'), { Term.term = Term.App (t', _) }
+    | Arg (1, p'), { Term.term = Term.App (_, t') }
+    | Arg (0, p'), { Term.term = Term.Let (_, t', _) }
+    | Arg (1, p'), { Term.term = Term.Let (_, _, t') }
+    | Arg (0, p'), { Term.term = Term.Binder (_, _, t') }
+      -> apply p' t'
+    | Arg _, _ -> None
+
+  let rec substitute p ~by:u t =
+    match p, t with
+    | Here, _ -> Some u
+    | Arg (0, p'), { Term.term = Term.App (f, arg) } ->
+      CCOpt.map (fun x -> Term.app x arg) (substitute p' ~by:u f)
+    | Arg (1, p'), { Term.term = Term.App (f, arg) } ->
+      CCOpt.map (fun x -> Term.app f x) (substitute p' ~by:u arg)
+    | Arg (0, p'), { Term.term = Term.Let (v, e, body) } ->
+      CCOpt.map (fun x -> Term.letin v x body) (substitute p' ~by:u e)
+    | Arg (1, p'), { Term.term = Term.Let (v, e, body) } ->
+      CCOpt.map (fun x -> Term.letin v e x) (substitute p' ~by:u body)
+    | Arg (0, p'), { Term.term = Term.Binder (b, v, body) } ->
+      CCOpt.map (fun x -> Term.bind b v x) (substitute p' ~by:u body)
+    | Arg _, _ -> None
+
+  let rec find_aux cur_pos u t =
+    if Term.equal t u then Some (cur_pos Here)
+    else begin match t with
+      | { Term.term = Term.Type }
+      | { Term.term = Term.Id _ } -> None
+      | { Term.term = Term.App (f, arg) } ->
+        CCOpt.or_lazy
+          (find_aux (fun p -> cur_pos (Arg (0, p))) u f)
+          ~else_:(fun () -> find_aux (fun p -> cur_pos (Arg (1, p))) u arg)
+      | { Term.term = Term.Let (_, e, body) } ->
+        CCOpt.or_lazy
+          (find_aux (fun p -> cur_pos (Arg (0, p))) u e)
+          ~else_:(fun () -> find_aux (fun p -> cur_pos (Arg (1, p))) u body)
+      | { Term.term = Term.Binder (_, _, body) } ->
+        find_aux (fun p -> cur_pos (Arg (0, p))) u body
+    end
+
+  let find = find_aux (fun x -> x)
+
+end
+
 (* Positions for Types *)
 (* ************************************************************************ *)
 

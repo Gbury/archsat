@@ -42,5 +42,5 @@ all: $(TESTS)
 		fi
 
 clean:
-	rm -rf *.res *.sat *.unsat *.coq $(PROOF_FILE)
+	rm -rf *.res *.sat *.unsat *.coq *$(PROOF_FILE)* *.vo *.glob
 

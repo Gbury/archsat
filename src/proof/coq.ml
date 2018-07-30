@@ -66,9 +66,12 @@ module Print = struct
     | Term.Exists -> ","
 
   let rec elim_implicits t args =
-    match t.Term.term with
-    | Term.Binder (Term.Forall, v, body) when Term.is_coq_implicit v ->
-      elim_implicits body (List.tl args)
+    match t.Term.term, args with
+    | _, [] -> []
+    | Term.Binder (Term.Forall, v, body), (hd :: tl) ->
+      if Term.is_coq_implicit v
+      then elim_implicits body tl
+      else hd :: elim_implicits body tl
     | _ -> args
 
   let rec term fmt t =

@@ -12,6 +12,7 @@ let introduce_lemma f l pos =
 (* Introducing hyp as weak clauses *)
 (* ************************************************************************ *)
 
+(* Equalities need to be treated up to symmetry *)
 let introduce_hyp t l pos =
   pos |> Logic.cut "C" (Logic.clause_type l)
     ~f:(fun p -> p
@@ -85,11 +86,15 @@ let compute_aux h pos node =
       Util.debug ~section "Performing resolution between: %s-%s -> %s"
         left_proof.P.conclusion.P.St.name right_proof.P.conclusion.P.St.name
         node.P.conclusion.P.St.name;
-      let left_id = P.H.find h (P.expand left).P.conclusion in
-      let right_id = P.H.find h (P.expand right).P.conclusion in
+      let left_id = P.H.find h left_proof.P.conclusion in
+      let right_id = P.H.find h right_proof.P.conclusion in
       Logic.resolve left_id right_id l pos
-    | _ ->
-      raise (Proof.Failure ("incomplete resolution proof reconstruction", pos))
+    | P.Duplicate (c, _) ->
+      let proof = P.expand c in
+      Util.debug ~section "Eliminating duplicates in: %s -> %s"
+        proof.P.conclusion.P.St.name node.P.conclusion.P.St.name;
+      let proof_id = P.H.find h proof.P.conclusion in
+      Logic.remove_duplicates proof_id l pos
   in
   Util.debug ~section "%s -> %a" node.P.conclusion.P.St.name Expr.Id.print id;
   let () = P.H.add h node.P.conclusion id in

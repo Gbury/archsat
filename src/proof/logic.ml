@@ -168,8 +168,8 @@ let ctx f pos =
 let find t f pos =
   let seq = extract_open pos in
   let env = Proof.env seq in
-  let id = Proof.Env.find env t in
-  f (Term.id id) pos
+  let t' = Proof.Env.find env t in
+  f t' pos
 
 (* Ensure a bool-returning tactic succeeeds *)
 let ensure tactic pos =
@@ -192,12 +192,12 @@ let rec fold tactic l pos =
 
 (** Introduce the head term, and return
     the new position to continue the proof. *)
-let intro prefix pos =
+let intro ?(post=(fun _ x -> x)) prefix pos =
   match Proof.apply_step pos Proof.intro prefix with
-  | _, [| res |] -> res
+  | v, [| res |] -> post v.Expr.id_type res
   | _ -> assert false
 
-let introN prefix n = iter (intro prefix) n
+let introN ?post prefix n = iter (intro ?post prefix) n
 
 let name prefix pos =
   match Proof.apply_step pos Proof.intro prefix with
@@ -275,8 +275,8 @@ let trivial pos =
   let env = Proof.env ctx in
   let g = Proof.goal ctx in
   match Proof.Env.find env g with
-  | id ->
-    let () = exact [] (Term.id id) pos in
+  | t ->
+    let () = exact [] t pos in
     true
   | exception Proof.Env.Not_introduced _ ->
     false
@@ -287,14 +287,14 @@ let find_absurd pos env atom =
       [~true] and [false] aren't convertible... so just check whether false
       is present. *)
   match Proof.Env.find env Term.false_term with
-  | res -> Term.id res
+  | res -> res
   | exception Proof.Env.Not_introduced _ ->
     begin match Proof.Env.find env atom with
       | p ->
         let neg_atom = Term.app Term.not_term atom in
         (* First, try and see wether [neg atom] is in the env *)
         begin match Proof.Env.find env neg_atom with
-          | np -> (Term.app (Term.id np) (Term.id p))
+          | np -> (Term.app np p)
           | exception Proof.Env.Not_introduced _ ->
             Util.debug ~section "@[<hv>Couldn't find in env (%d):@ %a@]"
               (Term.hash neg_atom) Term.print neg_atom;
@@ -304,7 +304,7 @@ let find_absurd pos env atom =
                 let pat = Term.app Term.not_term (Term.id q_v) in
                 let s = Term.pmatch ~pat atom in
                 let q = Proof.Env.find env (Term.S.Id.get q_v s) in
-                (Term.app (Term.id p) (Term.id q))
+                (Term.app p q)
               with
               | Not_found ->
                 Util.warn ~section "Internal error in pattern matching";
@@ -365,6 +365,25 @@ let match_and t =
   | Not_found ->
     Util.error ~section "Absent binding after pattern matching";
     assert false
+
+let not_var = Term.var "p" Term._Prop
+let not_pat = Term.(apply not_term [id not_var])
+
+let match_not t =
+  try
+    let s = Term.pmatch ~pat:not_pat t in
+    let p = Term.S.Id.get not_var s in
+    Some p
+  with
+  | Term.Match_Impossible _ -> None
+  | Not_found ->
+    Util.error ~section "Absent binding after pattern matching";
+    assert false
+
+let match_not_not t = CCOpt.(match_not t >>= match_not)
+
+let shortcut_not_not t =
+  match match_not_not t with Some t' -> t' | None -> t
 
 (* Logical connective creation *)
 (* ************************************************************************ *)
@@ -446,18 +465,21 @@ let rec and_elim t pos =
     |> find right_term and_elim
 
 (** Eliminate double negations when the goal is [False] *)
-let not_not_elim prefix t pos =
+let not_not_simpl prefix t pos =
   let seq = extract_open pos in
   if not (Term.equal Term.false_term (Proof.goal seq)) then
     raise (Proof.Failure ("Double negation elimination is only possible when the goal is [False]", pos));
   pos
-  |> ctx (fun seq ->
-      apply1 [] (Term.id @@ Proof.Env.find (Proof.env seq)
-                   (Term.app Term.not_term (Term.app Term.not_term t))))
+  |> find t @@ apply1 []
   |> intro prefix
+
+let not_not_elim prefix t pos =
+  let t' = Term.app Term.not_term (Term.app Term.not_term t) in
+  not_not_simpl prefix t' pos
 
 (** Eliminate double negation if necessary. *)
 let normalize prefix t pos =
+  let t = shortcut_not_not t in
   let seq = extract_open pos in
   try
     let _ = Proof.Env.find (Proof.env seq) t in
@@ -465,26 +487,13 @@ let normalize prefix t pos =
   with Proof.Env.Not_introduced _ ->
     not_not_elim prefix t pos
 
+(* When the goal is [~ ~ t], reduce it to [t] *)
+let not_not_intro ?(prefix="N") pos =
+  let id, pos' = name prefix pos in
+  apply1 [] (Term.id id) pos'
+
 (* Resolution tactics *)
 (* ************************************************************************ *)
-
-let match_not_not =
-  let x = Term.var "x" Term._Prop in
-  let pat = Term.app Term.not_term (Term.app Term.not_term (Term.id x)) in
-  (fun t ->
-     try
-       Util.debug ~section "Match: %a / %a"
-         Term.print pat Term.print t;
-       let s = Term.pmatch ~pat t in
-       Util.debug ~section " -> %a"
-         (Term.S.print Expr.Id.print Term.print) s;
-       Some (Term.S.Id.get x s)
-     with
-     | Not_found -> assert false
-     | Term.Match_Impossible _ -> None)
-
-let shortcut_not_not t =
-  match match_not_not t with Some t' -> t' | None -> t
 
 let clause_type l =
   List.fold_right (fun lit acc ->
@@ -546,6 +555,42 @@ let resolve_step =
 let resolve c c' res pos =
   match Proof.apply_step pos resolve_step (c, c', res) with
   | (_, _, id, _), [| pos' |] -> id, pos'
+  | _ -> assert false
+
+let remove_duplicate_clause c res =
+  let e = Proof.Env.empty in
+  let e = Proof.Env.add e c in
+  let goal = clause_type res in
+  let p = Proof.mk (Proof.mk_sequent e goal) in
+  let () = resolve_clause_aux c c res (Proof.pos @@ Proof.root p) in
+  Proof.elaborate p
+
+let duplicate_step =
+  let compute seq (c, res) =
+    let t = remove_duplicate_clause c res in
+    let id, e = Proof.Env.intro ~hide:true (Proof.env seq) "R" t.Term.ty in
+    (c, id, t), [| Proof.mk_sequent e (Proof.goal seq) |]
+  in
+  let elaborate (_, id, t) = function
+    | [| body |] -> Term.letin id t body
+    | _ -> assert false
+  in
+  let coq = Proof.Last_but_not_least, (fun fmt (c, id, t) ->
+      Format.fprintf fmt
+        "(* Duplicate elimination %a -> %a *)@\n@[<hv 2>pose proof (@,%a@;<0 -2>) as %a.@]"
+        Coq.Print.id c Coq.Print.id id
+        Coq.Print.term t Coq.Print.id id
+    ) in
+  let dot = Proof.Branching, (fun fmt (c, id, _) ->
+      Format.fprintf fmt "%a = %a::"
+        Dot.Print.Proof.id id
+        Dot.Print.Proof.id c
+    ) in
+  Proof.mk_step ~coq ~dot ~compute ~elaborate "duplicate"
+
+let remove_duplicates c res pos =
+  match Proof.apply_step pos duplicate_step (c, res) with
+  | (_, id, _), [| pos' |] -> id, pos'
   | _ -> assert false
 
 (* Classical tactics *)

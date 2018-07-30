@@ -11,7 +11,7 @@ module S = Set.Make(Expr.Term)
 module M = Map.Make(Expr.Id.Const)
 
 type info =
-  | Trivial of Expr.formula
+  | Trivial of Expr.term
   | Chain of Expr.term list
 
 type D.lemma_info += Eq of info
@@ -143,8 +143,7 @@ let mk_proof l =
   match l with
   | [] -> assert false
   | [x] ->
-    let f = Expr.Formula.(eq x x) in
-    Dispatcher.mk_proof name "trivial" (Eq (Trivial f))
+    Dispatcher.mk_proof name "trivial" (Eq (Trivial x))
   | _ ->
     Dispatcher.mk_proof name "eq-trans" (Eq (Chain l))
 
@@ -227,7 +226,7 @@ let rec set_watcher_term t =
 
 let rec set_watcher = function
   | { Expr.formula = Expr.Equal (a, b) } as f when Expr.Term.equal a b ->
-    D.push [f] (D.mk_proof name "trivial" (Eq (Trivial f)));
+    D.push [f] (D.mk_proof name "trivial" (Eq (Trivial a)));
     set_watcher_term a
   | { Expr.formula = Expr.Equal (a, b) } as f ->
     watch 1 [a; b] (f_eval f);
@@ -246,47 +245,48 @@ let dot_info = function
   | Trivial _ -> None, []
   | Chain l -> None, List.map (CCFormat.const Dot.Print.term) l
 
-let to_eqs l =
+let to_pairs l =
   let rec aux first acc = function
     | [] -> assert false
     | [last] ->
-      Expr.Formula.eq first last, List.rev acc
+      (first, last), List.rev acc
     | x :: ((y :: _) as r) ->
-      aux first (Expr.Formula.eq x y :: acc) r
+      aux first ((x, y) :: acc) r
   in
-  match l with
+  match List.map Term.of_term l with
   | [] | [_] -> assert false
-  | first :: _ -> aux first [] l
-
-(*
-let rec coq_aux m fmt = function
-  | [] -> assert false
-  | [x] ->
-    Format.fprintf fmt "%a" (Proof.Ctx.named m) x
-  | x :: r ->
-    Format.fprintf fmt "(eq_trans %a %a)"
-      (Proof.Ctx.named m) x (coq_aux m) r
+  | (first :: _) as l' -> aux first [] l'
 
 let coq_proof = function
-  | Trivial f ->
-    Coq.tactic (fun fmt ctx ->
-        Coq.exact fmt "%a eq_refl" (Proof.Ctx.named ctx) (Expr.Formula.neg f)
-      )
-  | Chain l ->
-    let res, eqs = to_eqs (List.rev l) in
-    Coq.tactic ~prefix:"E" (fun fmt ctx ->
-        Format.fprintf fmt "exact (%a %a)."
-          (Proof.Ctx.named ctx) (Expr.Formula.neg res)
-          (coq_aux ctx) eqs
-      )
-*)
+  | Trivial _x -> (* We want to prove ~ ~ [x = x] -> False *)
+    (fun pos -> pos
+                |> Logic.not_not_intro ~prefix:"E"
+                |> Eq.refl)
+  | Chain l -> (* We want to prove:
+                  ~ ~ x1 = x2 -> ~ ~ x2 = x3 -> ... -> ~ ~ x3 = x_n -> ~ x1 = x_n -> False
+                  with l = [x1; x2; ...: x_n]. *)
+    let (x, y), l' = to_pairs l in
+    let f = Term.apply Term.equal_term [x.Term.ty; x; y] in
+    (** We use a ref to store the equalities introduced, because they might
+        be swapped (i.e we expect [~ ~ a = b] and instead introduce [~ ~ b = a],
+        which is actually not a problem, since we immediately eliminate this double
+        negation, but we can't generically generate the list of formulas to normalize,
+        because of potential swaps. Also, the coercions can't help us (no theorem to
+        coerce double negated equalities). *)
+    let r = ref [] in
+    (fun pos -> pos
+                |> Logic.introN "E" (List.length l' + 1)
+                    ~post:(fun f pos -> r := f :: !r; pos)
+                |> Logic.fold (Logic.normalize "E") !r
+                |> Logic.find (Term.app Term.not_term f) @@ Logic.apply1 []
+                |> Eq.trans l')
 
 (* Handler & Plugin registering *)
 (* ************************************************************************ *)
 
 let handle : type ret. ret D.msg -> ret option = function
   | Dot.Info Eq info -> Some (dot_info info)
-  (* | Coq.Tactic Eq info -> Some (coq_proof info) *)
+  | Proof.Lemma Eq info -> Some (coq_proof info)
   | _ -> None
 
 let register () =

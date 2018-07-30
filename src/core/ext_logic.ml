@@ -165,7 +165,7 @@ let coq_proof = function
                   Logic.exact [] (
                     let not_true = Proof.Env.find (Proof.env seq)
                         (Term.app Term.not_term Term.true_term) in
-                    Term.app (Term.id not_true) Logic.true_proof)
+                    Term.app not_true Logic.true_proof)
                 )
     )
   | And (init, res) -> (* prove: ~ ~ init -> ~ res -> False,
@@ -251,7 +251,7 @@ let coq_proof = function
                let () = Logic.and_intro ~f:(fun _ -> Logic.(ensure trivial)) pos in
                Proof.elaborate p
              ) left in
-           Logic.or_elim ~f:Logic.absurd (Term.apply (Term.id imply) args)
+           Logic.or_elim ~f:Logic.absurd (Term.apply imply args)
          )
     )
 

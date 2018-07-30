@@ -3,7 +3,7 @@
 
     This module defines a good quantity of base tactics
     (i.e functions that operate on proof positions) related
-    used in most proofs. *)
+    to propositional logic. *)
 
 open Proof
 
@@ -39,8 +39,8 @@ val fold : ('a -> (pos, pos) tactic) -> 'a list -> (pos, pos) tactic
 val ensure : (pos, bool) tactic -> (pos, unit) tactic
 (** Ensures the bool-returning tactic succeeds in closing the proof. *)
 
-val intro : string -> (pos, pos) tactic
-val introN : string -> int -> (pos, pos) tactic
+val intro : ?post:(Term.t -> (pos, pos) tactic) -> string -> (pos, pos) tactic
+val introN : ?post:(Term.t -> (pos, pos) tactic) -> string -> int -> (pos, pos) tactic
 (** Introduction tactic. The string given is used as prefix
     for the name of the newly introduced hypothesis. *)
 
@@ -109,6 +109,9 @@ val normalize : string -> Term.t -> (pos, pos) tactic
 (** Try and apply doulbe negation elimination to introduce the given term,
     if it is not already present. *)
 
+val not_not_intro : ?prefix:string -> (pos, pos) tactic
+(** Given a goal of the form [~ ~ t], reduce it to [t],
+    by doing an intro and then applying the newly introduced term. *)
 
 (** {2 Classical tactics} *)
 
@@ -128,5 +131,8 @@ val resolve_clause : Term.id -> Term.id -> Term.t list -> Term.t
 (** Compute the resolution of two clauses. *)
 
 val resolve : Term.id -> Term.id -> Term.t list -> (pos, Term.id * pos) tactic
+(** Resolution of clauses *)
+
+val remove_duplicates : Term.id -> Term.t list -> (pos, Term.id * pos) tactic
 (** Resolution of clauses *)
 

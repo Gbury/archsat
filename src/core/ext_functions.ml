@@ -7,8 +7,10 @@ let section = Section.make ~parent:Dispatcher.section "functions"
 module H = Backtrack.Hashtbl(Expr.Term)
 
 type info =
-  | Fun of Expr.formula list * Expr.term * Expr.term
-  | Pred of Expr.formula list * Expr.formula * Expr.formula
+  | Fun of Expr.term list * Expr.term list *
+           Expr.Id.Const.t * Expr.term * Expr.term
+  | Pred of Expr.term list * Expr.term list *
+            Expr.Id.Const.t * Expr.formula * Expr.formula
 
 type Dispatcher.lemma_info += UF of info
 
@@ -36,21 +38,21 @@ let set_interpretation t = fun () ->
               let p = Expr.Formula.pred t in
               let p' = Expr.Formula.pred t' in
               let eqs = List.map2 (fun a b -> Expr.Formula.eq a b) r l in
-              let l = List.map Expr.Formula.neg eqs in
+              let l' = List.map Expr.Formula.neg eqs in
               if Expr.(Term.equal u_v Builtin.Misc.p_true) then begin
-                let res = p :: Expr.Formula.neg p' :: l in
-                let proof = mk_proof (Pred (eqs, p, p')) in
+                let res = p :: Expr.Formula.neg p' :: l' in
+                let proof = mk_proof (Pred (l, r, f, p, p')) in
                 raise (Dispatcher.Absurd (res, proof))
               end else begin
-                let res = p' :: Expr.Formula.neg p :: l in
-                let proof = mk_proof (Pred (eqs, p', p)) in
+                let res = p' :: Expr.Formula.neg p :: l' in
+                let proof = mk_proof (Pred (l, r, f, p', p)) in
                 raise (Dispatcher.Absurd (res, proof))
               end
             | { Expr.term = Expr.App (_, _, r) } ->
               let eqs = List.map2 (fun a b -> Expr.Formula.eq a b) l r in
-              let l = List.map Expr.Formula.neg eqs in
-              let res = Expr.Formula.eq t t' :: l in
-              let proof = mk_proof (Fun (eqs, t, t')) in
+              let l' = List.map Expr.Formula.neg eqs in
+              let res = Expr.Formula.eq t t' :: l' in
+              let proof = mk_proof (Fun (l, r, f, t, t')) in
               raise (Dispatcher.Absurd (res, proof))
             | _ -> assert false
           end
@@ -80,37 +82,49 @@ let rec set_watcher = function
 (* ************************************************************************ *)
 
 let dot_info = function
-  | Fun (_, t, t') ->
+  | Fun (_, _, _, t, t') ->
     None, List.map (CCFormat.const Dot.Print.term) [t; t']
-  | Pred (_, t, t') ->
+  | Pred (_, _, _, t, t') ->
     None, List.map (CCFormat.const Dot.Print.formula) [t; t']
 
-(*
+
 let coq_proof = function
-  | Fun (l, t, t') ->
-    Coq.tactic ~prefix:"E" (fun fmt ctx ->
-        Format.fprintf fmt "apply %a.@ "
-          (Proof.Ctx.named ctx) (Expr.Formula.(neg @@ eq t t'));
-        List.iter (fun eq ->
-            Format.fprintf fmt "rewrite %a.@ " (Proof.Ctx.named ctx) eq) l;
-        Coq.exact fmt "eq_refl"
-      )
-  | Pred (l, p, p') ->
-    Coq.tactic ~prefix:"E" (fun fmt ctx ->
-        Format.fprintf fmt "apply %a.@ "
-          (Proof.Ctx.named ctx) (Expr.Formula.neg p);
-        List.iter (fun eq ->
-            Format.fprintf fmt "rewrite %a.@ " (Proof.Ctx.named ctx) eq) l;
-        Coq.exact fmt "%a" (Proof.Ctx.named ctx) p'
-      )
-*)
+  | Fun (l, r, f, a, b) -> (* We want to prove:
+                               ~ ~ x1 = y1 -> ... -> ~ ~ xn = yn -> ~ f(x1,.., xn) = f(y1,..,yn) -> False
+                               with l = [x1; ..; xn], r = [y1; ..; yn] *)
+    let t = Term.(of_id ~kind:`Cst @@ of_function_descr of_ttype of_ty) f in
+    let eqs = List.combine (List.map Term.of_term l) (List.map Term.of_term r) in
+    let a_t = Term.of_term a in
+    let b_t = Term.of_term b in
+    let goal = Term.apply Term.equal_term [a_t.Term.ty; a_t; b_t] in
+    let intros = ref [] in
+    (fun pos -> pos
+                |> Logic.introN "E" (List.length eqs + 1)
+                  ~post:(fun f pos -> intros := f :: !intros; pos)
+                |> Logic.fold (Logic.normalize "E") !intros
+                |> Logic.find (Term.app Term.not_term goal) @@ Logic.apply1 []
+                |> Eq.congruence_term t eqs)
+  | Pred (l, r, f, a, b) -> (* We want to prove:
+                               ~ ~ x1 = y1 -> ... -> ~ ~ xn = yn -> ~ ~ f(x1,.., xn) -> ~ f(y1,..,yn) -> False
+                               with l = [x1; ..; xn], r = [y1; ..; yn], a = f(x1, ..,xn), b = f(y1,..,yn) *)
+    let t = Term.(of_id ~kind:`Cst @@ of_function_descr of_ttype of_ty) f in
+    let eqs = List.combine (List.map Term.of_term l) (List.map Term.of_term r) in
+    let a_t = Term.of_formula a in
+    let intros = ref [] in
+    (fun pos -> pos
+                |> Logic.introN "E" (List.length eqs + 2)
+                  ~post:(fun f pos -> intros := f :: !intros; pos)
+                |> Logic.fold (Logic.normalize "E") !intros
+                |> Logic.find (Term.app Term.not_term a_t) @@ Logic.apply1 []
+                |> Eq.congruence_prop t eqs)
+
 
 (* Plugin registering *)
 (* ************************************************************************ *)
 
 let handle : type ret. ret Dispatcher.msg -> ret option = function
   | Dot.Info UF info -> Some (dot_info info)
-  (* | Coq.Tactic UF info -> Some (coq_proof info) *)
+  | Proof.Lemma UF info -> Some (coq_proof info)
   | _ -> None
 
 let register () =

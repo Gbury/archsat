@@ -21,6 +21,35 @@ module Env = struct
   module Mt = Map.Make(Term)
   module Ms = Map.Make(String)
 
+  (* Coercions:
+        some terms may have different equivalent forms that are
+        annoying to distinguish, for instance [a = b] and [b = a] because
+        they are equal when viewed a formulas during proof search. To that end,
+        when a lookup fail, we allow coercions to suggest some other terms to look
+        for, with adequate wrapper if such a term is found. *)
+
+  type coerced = {
+    term : Term.t;
+    wrap : Term.t -> Term.t;
+  }
+
+  type coercion = string * (Term.t -> coerced list)
+
+  (* To simplify things, the "normal" lookup is encoded as the trivial coercion *)
+  let coercions : coercion list ref =
+    ref [
+      "<id>", (fun term -> [ { term; wrap = (fun x -> x); } ] );
+    ]
+
+  (* It is important to keep coercions ordered, in order for the trivial coercion
+     to be used first (for performance reasons) *)
+  let register c =
+    coercions := !coercions @ [c]
+
+
+
+  (* Main type and functions *)
+
   type t = {
     (** Bindings *)
     names : Term.id Mt.t; (** local bindings *)
@@ -58,14 +87,33 @@ module Env = struct
 
   let mem t f = Mt.mem f t.names || Mt.mem f t.global
 
-  let find t f =
-    try Mt.find f t.names
-    with Not_found ->
-      begin try
-          Mt.find f t.global
-        with Not_found ->
-          raise (Not_introduced f)
+  let get t f =
+    try Term.id @@ Mt.find f t.names
+    with Not_found -> Term.id @@ Mt.find f t.global
+
+  let rec find_coerced t { term; wrap; } =
+    match get t term with
+    | exception Not_found -> None
+    | t' -> Some (term, t', wrap t')
+
+  let rec find_aux t f = function
+    | [] -> raise (Not_introduced f)
+    | (name, c) :: r ->
+      begin match CCList.find_map (find_coerced t) (c f) with
+        | None -> find_aux t f r
+        | Some (term, t', res) ->
+          if Term.(equal f res.ty) then res
+          else begin
+            Util.debug ~section
+              "@[<hv>Originally looking for @[<hov>%a@]@ coerced to @[<hov>%a@]@ which found@ @[<hov>%a@]@ but wrapped into @[<hov>%a@]@]"
+              Term.print f Term.print term Term.print t' Term.print res;
+            Util.error ~section "Coercion '%s' returned a wrongly wrapped term." name;
+            assert false
+          end
       end
+
+  let find t f =
+    find_aux t f !coercions
 
   let local_count t s =
     try Ms.find s t.count with Not_found -> 0
@@ -649,12 +697,15 @@ let rec match_n_arrow acc n ty =
     | Some (arg_ty, ret) -> match_n_arrow (arg_ty :: acc) (n - 1) ret
   end
 
+let match_n_arrows = match_n_arrow []
+
 (* Proof steps *)
 (* ************************************************************************ *)
 
 let apply =
   let prelude (_, _, l) = l in
   let compute ctx (f, n, prelude) =
+    Util.debug ~section "applying %a" Term.print f;
     let g = goal ctx in
     match match_n_arrow [] n f.Term.ty with
     | None ->
@@ -663,11 +714,12 @@ let apply =
         Term.print f.Term.ty Term.print f;
       assert false
     | Some (l, ret) ->
-      (** Ceck that the application proves the current goal *)
+      (** Check that the application proves the current goal *)
       if not (Term.equal ret g) then
         raise (Fail (
-            Format.asprintf "@[<hv>Couldn't apply@ %a:@  @[<hov>%a@]@]"
-              Term.print f Term.print f.Term.ty, ctx));
+            Format.asprintf
+              "@[<hv>Wrong result type during application, expected@ @[<hov>%a@]@ but got@ @[<hov>%a@]@]"
+              Term.print g Term.print ret, ctx));
       let e = env ctx in
       (** Check that the term used in closed in the current environment *)
       let unbound_vars = Term.S.fold (fun id () acc ->
@@ -675,6 +727,8 @@ let apply =
         ) (Term.free_vars f) [] in
       begin match unbound_vars with
         | [] -> (* Everything is good, let's proceed *)
+          Util.debug ~section "Goals left: @[<v>%a@]"
+            CCFormat.(list ~sep:(return "@ ") (hovbox Term.print)) l;
           (f, n, prelude), Array.map (fun g' -> mk_sequent e g') (Array.of_list l)
         | l -> (** Some variables are unbound, complain about them loudly *)
           raise (Fail (
@@ -699,10 +753,13 @@ let intro =
     match Term.reduce @@ goal ctx with
     | { Term.term = Term.Binder (Term.Forall, v (* : p *), q) } ->
       if Term.occurs v q then begin
-        v, [| mk_sequent (env ctx) q |]
+        Util.debug ~section "Declaring %a : %a" Expr.Id.print v Term.print v.Expr.id_type;
+        let e = Env.add (env ctx) v in
+        v, [| mk_sequent e q |]
       end else begin
         let p = v.Expr.id_type in
         let id, e = Env.intro (env ctx) prefix p in
+        Util.debug ~section "Introduced %a : %a" Expr.Id.print id Term.print p;
         id, [| mk_sequent e q |]
       end
     | t ->
@@ -727,6 +784,7 @@ let letin =
   let prelude _ = [] in
   let compute ctx (prefix, t) =
     let id, e = Env.intro (env ctx) prefix t.Term.ty in
+    Util.debug ~section "let_binding %a = @[<hov>%a@]" Expr.Id.print id Term.print t;
     (id, t), [| mk_sequent e (goal ctx) |]
   in
   let elaborate (id, t) = function
@@ -748,6 +806,7 @@ let cut =
   let compute ctx (prefix, t) =
     let e = env ctx in
     let id, e' = Env.intro e prefix t in
+    Util.debug ~section "cut %a : @[<hov>%a@]" Expr.Id.print id Term.print t;
     id, [| mk_sequent e t ; mk_sequent e' (goal ctx) |]
   in
   let elaborate id = function

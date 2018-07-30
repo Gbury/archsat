@@ -126,6 +126,9 @@ val apply : t -> t list -> t
 val letin : id -> t -> t -> t
 (** Local let, as [letin v e body],binds [v] to [e] in [body]. *)
 
+val bind : binder -> id -> t -> t
+(** Generic binder application. *)
+
 val lambda : id -> t -> t
 val lambdas : id list -> t -> t
 (** Function construction. *)

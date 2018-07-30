@@ -30,7 +30,7 @@ module Env : sig
   val mem : t -> Term.t -> bool
   (** Does the term exists in the environment ? *)
 
-  val find : t -> Term.t -> Term.id
+  val find : t -> Term.t -> Term.t
   (** Find the id associetd with a given term [t]. The returned id
       has type [t].
       @raise Not_introduced if term was not found *)
@@ -44,6 +44,26 @@ module Env : sig
 
   val declare : t -> Term.id -> t
   (** Add the given global identifier to the environment. *)
+
+
+  (** {7 Coercions}
+      Some terms may have different equivalent forms that are
+      annoying to distinguish, for instance [a = b] and [b = a] because
+      they are equal when viewed a formulas during proof search. To that end,
+      when a lookup fail, we allow coercions to suggest some other terms to look
+      for, with adequate wrapper if such a term is found. *)
+
+  type coerced = {
+    term : Term.t;
+    wrap : Term.t -> Term.t;
+  }
+  (** The type of coerced terms *)
+
+  type coercion = string * (Term.t -> coerced list)
+  (** the type of coercions *)
+
+  val register : coercion -> unit
+  (** Register a new coercion. *)
 
 end
 
@@ -232,4 +252,8 @@ val match_arrows : Term.t -> Term.t list * Term.t
 (** Try ad match the given term with an arrow type as much as possible,
     and return the list of argument types expected, followed by
     the return type of the function type provided. *)
+
+val match_n_arrows : int -> Term.t -> (Term.t list * Term.t) option
+(** Try ad match the given term with an arrow type, is succesful returns
+    the pair (argument_type, return_type). *)
 
