@@ -219,7 +219,7 @@ let find_indexed_negs () =
 
 type mmatch = {
   eq_used : bool;       (* is an equality used for the match ? *)
-  subst   : Mapping.t;  (* the mapping to uss *)
+  subst   : Mapping.t;  (* the mapping to use *)
 }
 
 let add_used b { subst; eq_used; } = { subst; eq_used = b || eq_used; }
@@ -417,7 +417,10 @@ let instanciate rule subst =
         Dispatcher.push clause lemma
       | guards ->
         let l = List.map (Rewrite.Guard.map (Mapping.apply_term subst)) guards in
-        let watched = CCList.flat_map Rewrite.Guard.to_list l in
+        let watched =
+          CCList.sort_uniq ~cmp:Expr.Term.compare @@
+          CCList.flat_map Rewrite.Guard.to_list l
+        in
         (* Add a watch to instantiate the rule when the condition is true *)
         (* TODO: make sure the function is called only once *)
         Dispatcher.watch ~formula:rule.Rewrite.Rule.formula name 1 watched
@@ -443,7 +446,7 @@ let match_and_instantiate ~pat ~expr ~only_eq ~match_fun (rule, t, c) =
   List.iter (fun { eq_used; subst; } ->
       Util.debug ~section:section_trigger "match found:@ %a" Mapping.print subst;
       if only_eq && not eq_used then
-        Util.debug ~section "Ignoring match because no eq cas used to match"
+        Util.debug ~section "Ignoring match because no equality was used to match"
       else
         instanciate rule subst
     ) seq
@@ -584,9 +587,9 @@ let rec add_rule r =
     if is_current_mode_forced () then begin
       Util.warn ~section "@[<hov>%s,@ %s@]"
         "Manual rule detected while in forced auto mode"
-        "please check that evrything is as should be...";
+        "please check that everything is as should be...";
     end else begin
-      (* TODO: this is unsound as auto rules were prohibited from generating meta variables *)
+      (* TODO: this is incomplete as auto rules were prohibited from generating meta variables *)
       Util.warn ~section "@[<hov>%s,@ %s,@ %s@]"
         "Detected manual rule while auto rules present"
         "removing auto rules and replacing them with manual rules"
