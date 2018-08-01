@@ -74,6 +74,20 @@ val reduce : t -> t
 (** Compute the beta-normal form of the term. *)
 
 
+(** {4 Disambiguation}
+    Variables can share the same name because theyr are not identified by name
+    but rather by unique ids. Thus when pretty printing terms, there may be
+    name collisions. The {!disambiguate} function tags variables using the
+    {!disambiguate_tag} so that there is no collision on the tagged names.
+*)
+
+val disambiguate_tag : Pretty.name Tag.t
+(** Disambiguation tag. *)
+
+val disambiguate : t -> unit
+(** Disambiguate variables to avoid name capture. *)
+
+
 (** {4 Variables} *)
 
 val is_var : id -> bool

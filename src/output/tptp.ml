@@ -13,23 +13,23 @@ module Print = struct
 
   let () =
     List.iter (function Any (id, tag, v) -> Expr.Id.tag id tag v) [
-      Any (Term.equal_id, name, "=");
-      Any (Term.equal_id, pos, Pretty.Infix);
-      Any (Term._Prop_id, name, "$o");
-      Any (Term.true_id,  name, "$true");
-      Any (Term.false_id, name, "$false");
-      Any (Term.not_id,   name, "~");
-      Any (Term.not_id,   pos, Pretty.Prefix);
-      Any (Term.imply_id, name, "=>");
-      Any (Term.imply_id, pos, Pretty.Infix);
-      Any (Term.equiv_id, name, "<=>");
-      Any (Term.equiv_id, pos, Pretty.Infix);
-      Any (Term.or_id,    name, "|");
-      Any (Term.or_id,    pos, Pretty.Infix);
-      Any (Term.or_id,    assoc, Pretty.Left);
-      Any (Term.and_id,   name, "&");
-      Any (Term.and_id,   pos, Pretty.Infix);
-      Any (Term.and_id,   assoc, Pretty.Left);
+      Any (Term.equal_id, name,   Pretty.Exact "=");
+      Any (Term.equal_id, pos,    Pretty.Infix);
+      Any (Term._Prop_id, name,   Pretty.Exact "$o");
+      Any (Term.true_id,  name,   Pretty.Exact "$true");
+      Any (Term.false_id, name,   Pretty.Exact "$false");
+      Any (Term.not_id,   name,   Pretty.Exact "~");
+      Any (Term.not_id,   pos,    Pretty.Prefix);
+      Any (Term.imply_id, name,   Pretty.Exact "=>");
+      Any (Term.imply_id, pos,    Pretty.Infix);
+      Any (Term.equiv_id, name,   Pretty.Exact "<=>");
+      Any (Term.equiv_id, pos,    Pretty.Infix);
+      Any (Term.or_id,    name,   Pretty.Exact "|");
+      Any (Term.or_id,    pos,    Pretty.Infix);
+      Any (Term.or_id,    assoc,  Pretty.Left);
+      Any (Term.and_id,   name,   Pretty.Exact "&");
+      Any (Term.and_id,   pos,    Pretty.Infix);
+      Any (Term.and_id,   assoc,  Pretty.Left);
     ]
 
   let is_dollar c = Uchar.equal c (Uchar.of_char '$')

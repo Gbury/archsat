@@ -1,8 +1,6 @@
 
 let section = Dispatcher.solver_section
 
-let proof_section = Section.make "proof"
-
 (* Module instanciation *)
 (* ************************************************************************ *)
 

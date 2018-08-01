@@ -92,7 +92,7 @@ let parse_zf env ast s args =
       begin match args with
         | [ { Ast.term = Ast.Symbol { Id.name; _ } } ] ->
           Some (Type.Tags [
-              Type.Any (Expr.Print.name, name);
+              Type.Any (Expr.Print.name, Pretty.Exact name);
               Type.Any (Expr.Print.pos, Pretty.Infix);
             ])
         | _ -> assert false
@@ -101,7 +101,7 @@ let parse_zf env ast s args =
       begin match args with
         | [ { Ast.term = Ast.Symbol { Id.name; _ } } ] ->
           Some (Type.Tags [
-              Type.Any (Expr.Print.name, name);
+              Type.Any (Expr.Print.name, Pretty.Exact name);
               Type.Any (Expr.Print.pos, Pretty.Prefix);
             ])
         | _ -> assert false

@@ -1,12 +1,16 @@
 
 PROOF_FILE=proof.v
+TERM_FILE=term.v
+NORM_FILE=norm.v
+
+FLAGS=-t 1s
 
 all: $(TESTS)
 	@echo -e "\033[2K\r\e[32m[OK]\e[0m [$(NAME)]"
 
 %.res: % $(BIN)
 	@echo -ne "\033[2K\r$(NAME) -- $<"
-	@if ! $(BIN) $(OPT) $< > /dev/null; then 							\
+	@if ! $(BIN) $(FLAGS) $(OPT) $< > /dev/null; then 							\
 			echo -e "\033[2K\r\e[31m[KO]\e[0m [$(NAME)] $<";			\
 			echo -e "$(BIN) $(OPT) $<";									\
 			exit 1;																			\
@@ -14,7 +18,7 @@ all: $(TESTS)
 
 %.sat: % $(BIN)
 	@echo -ne "\033[2K\r$(NAME) -- $<"
-	@if ! $(BIN) $(OPT) $< | grep Unsat > /dev/null; then 							\
+	@if ! $(BIN) $(FLAGS) $(OPT) $< | grep Unsat > /dev/null; then 							\
 			echo -e "\033[2K\r\e[31m[KO]\e[0m [$(NAME)] $<";			\
 			echo -e "$(BIN) $(OPT) $<";									\
 			exit 1;																			\
@@ -22,25 +26,35 @@ all: $(TESTS)
 
 %.unsat: % $(BIN)
 	@echo -ne "\033[2K\r$(NAME) -- $<"
-	@if ! $(BIN) $(OPT) $< | grep Unsat > /dev/null; then 	\
+	@if ! $(BIN) $(FLAGS) $(OPT) $< | grep Unsat > /dev/null; then 	\
 			echo -e "\033[2K\r\e[31m[KO]\e[0m [$(NAME)] $<";							\
 			echo -e "$(BIN) $(OPT) $<";													\
 			exit 1;																							\
 		fi
 
 %.coq: % $(BIN)
-	@echo -ne "\033[2K\r$(NAME) -- $<"
-	@if ! $(BIN) $(OPT) --coq $(PROOF_FILE) $< > /dev/null; then 		\
+	@echo -ne "\033[2K\r$(NAME) -- coq -- $<"
+	@if ! $(BIN) $(FLAGS) $(OPT) --coq $(PROOF_FILE) --coqterm $(TERM_FILE) --coqterm-normalize $(NORM_FILE) $< > /dev/null; then 		\
 			echo -e "\033[2K\r\e[31m[FAIL]\e[0m [$(NAME)] $<";											\
-			echo -e "$(BIN) $(OPT) --coq $(PROOF_FILE) $<";							\
+			echo -e "$(BIN) $(FLAGS) $(OPT) --coq $(PROOF_FILE) --coqterm $(TERM_FILE) --coqterm-normalize $(NORM_FILE) $<"; \
 			exit 1;																											\
 		fi
 	@if ! coqc $(PROOF_FILE) &> /dev/null; then											\
-			echo -e "\033[2K\r\e[31m[KO]\e[0m [$(NAME)] $<";										\
+			echo -e "\033[2K\r\e[31m[coq]\e[0m [$(NAME)] $<";										\
 			echo -e "$(BIN) $(OPT) --coq $(PROOF_FILE) $<";							\
+			exit 1;																											\
+		fi
+	@if ! coqc $(TERM_FILE) &> /dev/null; then											\
+			echo -e "\033[2K\r\e[31m[coqterm]\e[0m [$(NAME)] $<";										\
+			echo -e "$(BIN) $(OPT) --coqterm $(TERM_FILE) $<";							\
+			exit 1;																											\
+		fi
+	@if ! coqc $(NORM_FILE) &> /dev/null; then											\
+			echo -e "\033[2K\r\e[31m[coqterm-normalize]\e[0m [$(NAME)] $<";										\
+			echo -e "$(BIN) $(OPT) --coqterm-normalize $(NORM_FILE) $<";							\
 			exit 1;																											\
 		fi
 
 clean:
-	rm -rf *.res *.sat *.unsat *.coq *$(PROOF_FILE)* *.vo *.glob
+	rm -rf *.res *.sat *.unsat *.coq *$(PROOF_FILE)* *$(TERM_FILE)* *$(NORM_FILE)* *.vo *.glob
 

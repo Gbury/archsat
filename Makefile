@@ -33,7 +33,8 @@ uninstall:
 
 clean:
 	cd src && $(MAKE) clean
-	rm -f $(BIN)
+	cd tests && $(MAKE) clean
+	rm -f $(BIN) perf.* *.v* *tmp*
 
 .PHONY: doc bin install uninstall clean
 

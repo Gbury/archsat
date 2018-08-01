@@ -60,15 +60,24 @@ type stats_options = {
   enabled       : bool;
 }
 
+type coq_options = {
+  script      : Format.formatter option;
+  term        : Format.formatter option;
+  term_norm   : Format.formatter option;
+}
+
+type dot_options = {
+  incr        : string option;
+  res         : Format.formatter option;
+  full        : Format.formatter option;
+}
+
 type proof_options = {
   active      : bool;
   context     : bool;
-  incr_dot    : string option;
-  res_dot     : Format.formatter option;
-  full_dot    : Format.formatter option;
+  coq         : coq_options;
+  dot         : dot_options;
   unsat_core  : Format.formatter option;
-  coq         : Format.formatter option;
-  coqterm     : Format.formatter option;
 }
 
 type model_options = {
@@ -166,22 +175,30 @@ let profile_opts enable max_depth sections out =
 let stats_opts enabled =
   { enabled; }
 
-let proof_opts prove no_context res_dot incr_dot full_dot unsat_core coq coqterm =
+let coq_opts script term term_norm =
+  let script = formatter_of_out_descr script in
+  let term = formatter_of_out_descr term in
+  let term_norm = formatter_of_out_descr term_norm in
+  { script; term; term_norm; }
+
+let dot_opts incr res full =
+  let res = formatter_of_out_descr res in
+  let full = formatter_of_out_descr full in
+  { incr; res; full; }
+
+let proof_opts prove no_context coq dot unsat_core =
   let context = not no_context in
-  let res_dot = formatter_of_out_descr res_dot in
-  let full_dot = formatter_of_out_descr full_dot in
   let unsat_core = formatter_of_out_descr unsat_core in
-  let coq = formatter_of_out_descr coq in
-  let coqterm = formatter_of_out_descr coqterm in
   let active = prove
-               || res_dot <> None
-               || incr_dot <> None
-               || full_dot <> None
+               || dot.incr <> None
+               || dot.res <> None
+               || dot.full <> None
+               || coq.script <> None
+               || coq.term <> None
+               || coq.term_norm <> None
                || unsat_core <> None
-               || coq <> None
-               || coqterm <> None
   in
-  { active; context; res_dot; incr_dot; full_dot; unsat_core; coq; coqterm; }
+  { active; context; coq; dot; unsat_core; }
 
 let model_opts active assign = {
   active;
@@ -537,19 +554,26 @@ let stats_t =
   in
   Term.(const stats_opts $ enabled)
 
-let proof_t =
+let coq_t =
   let docs = proof_sect in
-  let check_proof =
-    let doc = "If set, compute and check the resolution proofs for unsat results. This option
-               does not trigger printing of the proof, for that a proof format printing option
-               (such as the $(b,--dot) option) must be used." in
-    Arg.(value & flag & info ["proof"] ~docs ~doc)
+  let script =
+    let doc = "Set the file to which the program should output a coq proof script.
+               A special 'stdout' value can be used to use standard output" in
+    Arg.(value & opt out_descr `None & info ["coq"] ~docs ~doc)
   in
-  let no_context =
-    let doc = "Prevent printing context before the formal proof
-               (only meaningful for certifying proof outputs such as coq, dedukti, ...)" in
-    Arg.(value & flag & info ["no-context"] ~docs ~doc)
+  let term =
+    let doc = "Set the file to which the program should output a coq proof term.
+               A special 'stdout' value can be used to use standard output" in
+    Arg.(value & opt out_descr `None & info ["coqterm"] ~docs ~doc)
   in
+  let normalize =
+    let doc = "Normalize the coq proof term before printing it" in
+    Arg.(value & opt out_descr `None & info ["coqterm-normalize"] ~docs ~doc)
+  in
+  Term.(const coq_opts $ script $ term $ normalize)
+
+let dot_t =
+  let docs = proof_sect in
   let res_dot =
     let doc = "Set the file to which the program should output a resolution proof in dot format.
                A special 'stdout' value can be used to use standard output." in
@@ -564,23 +588,28 @@ let proof_t =
                A special 'stdout' value can be used to use standard output." in
     Arg.(value & opt out_descr `None & info ["full-dot"] ~docs ~doc)
   in
+  Term.(const dot_opts $ incr_dot $ res_dot $ full_dot)
+
+let proof_t =
+  let docs = proof_sect in
+  let check_proof =
+    let doc = "If set, compute and check the resolution proofs for unsat results. This option
+               does not trigger printing of the proof, for that a proof format printing option
+               (such as the $(b,--dot) option) must be used." in
+    Arg.(value & flag & info ["proof"] ~docs ~doc)
+  in
+  let no_context =
+    let doc = "Prevent printing context before the formal proof
+               (only meaningful for certifying proof outputs such as coq, dedukti, ...)" in
+    Arg.(value & flag & info ["no-context"] ~docs ~doc)
+  in
   let unsat_core =
     let doc = "Set the file to which the program sould output the unsat core, i.e the list
                of hypothesis used in the proof.
                A special 'stdout' value can be used to use standard output." in
     Arg.(value & opt out_descr `None & info ["unsat-core"] ~docs ~doc)
   in
-  let coq =
-    let doc = "Set the file to which the program should output a coq proof script.
-               A special 'stdout' value can be used to use standard output" in
-    Arg.(value & opt out_descr `None & info ["coq"] ~docs ~doc)
-  in
-  let coqterm =
-    let doc = "Set the file to which the program should output a coq proof term.
-               A special 'stdout' value can be used to use standard output" in
-    Arg.(value & opt out_descr `None & info ["coqterm"] ~docs ~doc)
-  in
-  Term.(const proof_opts $ check_proof $ no_context $ res_dot $ incr_dot $ full_dot $ unsat_core $ coq $ coqterm)
+  Term.(const proof_opts $ check_proof $ no_context $ coq_t $ dot_t $ unsat_core)
 
 let model_t =
   let docs = model_sect in

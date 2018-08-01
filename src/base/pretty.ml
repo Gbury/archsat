@@ -9,7 +9,9 @@
 (* Pretty types *)
 (* ************************************************************************ *)
 
-type name = string
+type name =
+  | Exact of string
+  | Renamed of string
 
 type pos =
   | Infix

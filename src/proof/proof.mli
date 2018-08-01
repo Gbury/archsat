@@ -7,6 +7,9 @@
 val section : Section.t
 (** Root debug section for proofs *)
 
+val elaboration_section : Section.t
+(** Additional subdivision of sections for proofs *)
+
 (** {2 Local environments} *)
 
 module Env : sig
@@ -137,8 +140,14 @@ val pp_pos : Format.formatter -> pos -> unit
 val print : lang:lang -> Format.formatter -> proof -> unit
 (** Print the proof in the given language. *)
 
-val print_term : lang:lang -> Format.formatter -> proof -> unit
+val print_term :
+  ?process:(Term.t -> Term.t) ->
+  lang:lang -> Format.formatter -> proof -> unit
 (** Print the proof term corresponding t the proof in the given language. *)
+
+val print_term_preludes : lang:lang -> Format.formatter -> proof -> unit
+(** Print the prelude for a given proof (mainly useful for term proofs, since
+    preludes usually cannot be included in terms). *)
 
 val elaborate : proof -> Term.t
 (** Elaborate the given proof into a proof term. *)

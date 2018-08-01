@@ -64,15 +64,24 @@ type stats_options = {
   enabled       : bool;
 }
 
+type coq_options = {
+  script      : Format.formatter option;
+  term        : Format.formatter option;
+  term_norm   : Format.formatter option;
+}
+
+type dot_options = {
+  incr        : string option;
+  res         : Format.formatter option;
+  full        : Format.formatter option;
+}
+
 type proof_options = {
   active      : bool;
   context     : bool;
-  incr_dot    : string option;
-  res_dot     : Format.formatter option;
-  full_dot    : Format.formatter option;
+  coq         : coq_options;
+  dot         : dot_options;
   unsat_core  : Format.formatter option;
-  coq         : Format.formatter option;
-  coqterm     : Format.formatter option;
 }
 
 type model_options = {

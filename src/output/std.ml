@@ -10,6 +10,14 @@ let prelude opt =
 let prelude_space opt =
   String.make (String.length (prelude opt) - 8) ' '
 
+(* Location functions *)
+(* ************************************************************************ *)
+
+let default_loc opt = Dolmen.ParseLocation.mk
+    (Options.input_to_string Options.(opt.input.file)) 0 0 0 0
+
+let get_loc opt loc = CCOpt.get_or ~default:(default_loc opt) loc
+
 (* Output functions *)
 (* ************************************************************************ *)
 
@@ -81,9 +89,7 @@ let print_exn opt fmt = function
 
   (** Typing errors *)
   | Type.Typing_error (msg, env, t) ->
-    let default_loc = Dolmen.ParseLocation.mk
-        (Options.input_to_string Options.(opt.input.file)) 0 0 0 0 in
-    let loc = CCOpt.get_or ~default:default_loc t.Dolmen.Term.loc in
+    let loc = get_loc opt t.Dolmen.Term.loc in
     Format.fprintf Format.std_formatter "@[<hv>While typing:@ @[<hov>%a@]@]@." Dolmen.Term.print t;
     Format.fprintf Format.std_formatter "%a:@\n%s@." Dolmen.ParseLocation.fmt loc msg
 
@@ -92,6 +98,15 @@ let print_exn opt fmt = function
     Format.fprintf Format.std_formatter
       "Extension '%s/%s' not found.@ Available extensions are :@\n%a@."
       sect ext (fun fmt -> List.iter (fun s -> Format.fprintf fmt "%s " s)) l
+
+  (** Proofs errors *)
+  | Prove.Hypothesis_name_conflict ((h, hloc), (h', hloc')) ->
+    let loc = get_loc opt hloc in
+    let loc' = get_loc opt hloc' in
+    Format.fprintf Format.std_formatter
+      "@[<v>Two hypothesis have the same name:@ %a: defines %a@ %a: defines %a@]"
+      Dolmen.ParseLocation.fmt loc Expr.Id.print h
+      Dolmen.ParseLocation.fmt loc' Expr.Id.print h'
 
   (** Internal errors. This is BAD, it should *not* happen *)
   | Dispatcher.Bad_assertion msg ->

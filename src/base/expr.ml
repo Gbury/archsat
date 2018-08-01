@@ -189,7 +189,7 @@ module Print = struct
 
   let id fmt v =
     match Tag.get v.id_tags name with
-    | Some s -> Format.fprintf fmt "%s" s
+    | Some (Pretty.Exact s | Pretty.Renamed s) -> Format.fprintf fmt "%s" s
     | None -> Format.fprintf fmt "%s@{<Black>/%d@}" v.id_name v.index
 
   let meta fmt m = Format.fprintf fmt "m_%a@{<Black>#%d@}" id m.meta_id m.meta_index

@@ -15,21 +15,21 @@ module Print = struct
 
   let () =
     List.iter (function Any (id, tag, v) -> Expr.Id.tag id tag v) [
-      Any (Term._Prop_id, name, "Prop");
-      Any (Term.true_id,  name, "True");
-      Any (Term.false_id, name, "False");
-      Any (Term.not_id,   name, "~");
-      Any (Term.not_id,   pos, Pretty.Prefix);
-      Any (Term.imply_id, name, "→");
-      Any (Term.imply_id, pos, Pretty.Infix);
-      Any (Term.equiv_id, name, "↔");
-      Any (Term.equiv_id, pos, Pretty.Infix);
-      Any (Term.or_id,    name, "∨");
-      Any (Term.or_id,    pos, Pretty.Infix);
-      Any (Term.or_id,    assoc, Pretty.Left);
-      Any (Term.and_id,   name, "∧");
-      Any (Term.and_id,   pos, Pretty.Infix);
-      Any (Term.and_id,   assoc, Pretty.Left);
+      Any (Term._Prop_id, name,   Pretty.Exact "Prop");
+      Any (Term.true_id,  name,   Pretty.Exact "True");
+      Any (Term.false_id, name,   Pretty.Exact "False");
+      Any (Term.not_id,   name,   Pretty.Exact "~");
+      Any (Term.not_id,   pos,    Pretty.Prefix);
+      Any (Term.imply_id, name,   Pretty.Exact "→");
+      Any (Term.imply_id, pos,    Pretty.Infix);
+      Any (Term.equiv_id, name,   Pretty.Exact "↔");
+      Any (Term.equiv_id, pos,    Pretty.Infix);
+      Any (Term.or_id,    name,   Pretty.Exact "∨");
+      Any (Term.or_id,    pos,    Pretty.Infix);
+      Any (Term.or_id,    assoc,  Pretty.Left);
+      Any (Term.and_id,   name,   Pretty.Exact "∧");
+      Any (Term.and_id,   pos,    Pretty.Infix);
+      Any (Term.and_id,   assoc,  Pretty.Left);
     ]
 
   let t =

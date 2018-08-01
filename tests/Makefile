@@ -24,18 +24,18 @@ prove: solve $(BIN)
 
 clean:
 	rm -rf $(BIN)
-	@cd parsing && $(MAKE) clean --no-print-directory
-	@cd include && $(MAKE) clean --no-print-directory
-	@cd typing && $(MAKE) clean --no-print-directory
-	@cd clauses && $(MAKE) clean -f Makefile.solve --no-print-directory
-	@cd logic && $(MAKE) clean -f Makefile.solve --no-print-directory
-	@cd equality && $(MAKE) clean -f Makefile.solve --no-print-directory
-	@cd quant && $(MAKE) clean -f Makefile.solve --no-print-directory
-	@cd rewr && $(MAKE) clean --no-print-directory
-	@cd clauses && $(MAKE) clean -f Makefile.prove --no-print-directory
-	@cd logic && $(MAKE) clean -f Makefile.prove --no-print-directory
-	@cd equality && $(MAKE) clean -f Makefile.prove --no-print-directory
-	@cd quant && $(MAKE) clean -f Makefile.prove --no-print-directory
+	@cd parsing 	&& $(MAKE) clean --no-print-directory
+	@cd include 	&& $(MAKE) clean --no-print-directory
+	@cd typing 		&& $(MAKE) clean --no-print-directory
+	@cd clauses 	&& $(MAKE) clean -f Makefile.solve --no-print-directory
+	@cd logic 		&& $(MAKE) clean -f Makefile.solve --no-print-directory
+	@cd equality 	&& $(MAKE) clean -f Makefile.solve --no-print-directory
+	@cd quant 		&& $(MAKE) clean -f Makefile.solve --no-print-directory
+	@cd rewr 			&& $(MAKE) clean -f Makefile.solve --no-print-directory
+	@cd clauses 	&& $(MAKE) clean -f Makefile.prove --no-print-directory
+	@cd logic 		&& $(MAKE) clean -f Makefile.prove --no-print-directory
+	@cd equality 	&& $(MAKE) clean -f Makefile.prove --no-print-directory
+	@cd quant 		&& $(MAKE) clean -f Makefile.prove --no-print-directory
 
 $(BIN):
 	@ln -f -s ../archsat $(BIN)

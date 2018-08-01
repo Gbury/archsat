@@ -200,8 +200,10 @@ and subst s t =
   match t.term with
   | Type -> t
   | Id v ->
-    begin try S.Id.get v s
-      with Not_found -> t end
+    begin
+      try S.Id.get v s
+      with Not_found -> t
+    end
   | App (f, arg) ->
     app (subst s f) (subst s arg)
   | Let (v, e, body) ->
@@ -230,32 +232,30 @@ and subst s t =
     if v == v' && body == body' then t
     else bind b v' body'
 
+and reduce_beta map t =
+  match t.term with
+  | Let (v, e, body)
+  | App ( { term = Binder (Lambda, v, body) }, e )
+    ->
+    let e' = subst map (reduce e) in
+    reduce_beta (S.Id.bind map v e') body
+  | _ ->
+    if S.is_empty map then t else reduce @@ subst map t
+
 and reduce_aux t =
   match t.term with
   | Type -> t
   | Id { Expr.builtin = Defined b; _ } -> b
   | Id _ -> t
-  | App (f, arg) ->
-    let f' = reduce f in
-    if f == f' then begin (* f is already reduced *)
-      let arg' = reduce arg in
-      if arg == arg' then begin (* arg is already reduced *)
-        match f.term with
-        | Binder (Lambda, v, body) ->
-          let body' = reduce body in
-          reduce (subst (S.Id.bind S.empty v arg) body')
-        | _ -> t
-      end else
-        reduce (app f arg') (* recompute the type just to be sure *)
-    end else
-      reduce (app f' arg)
-  | Let (v, e, body) ->
-    let e' = reduce e in
-    let body' = reduce body in
-    reduce (subst (S.Id.bind S.empty v e') body')
   | Binder (b, v, body) ->
     let body' = reduce body in
     if body == body' then t else bind b v body'
+  | App (f, arg) ->
+    let f' = reduce f in
+    let arg' = reduce arg in
+    let t' = if f == f' && arg == arg' then t else app f' arg' in
+    reduce_beta S.empty t'
+  | Let _ -> reduce_beta S.empty t
 
 and reduce t =
   match t.reduced with
@@ -827,5 +827,68 @@ and of_tree ?callback t = function
   | Expr.F f -> of_formula ?callback f
   | Expr.L l -> apply_left t @@ List.map (of_tree ?callback t) l
 
+(* Disambiguate terms *)
+(* ************************************************************************ *)
+
+let disambiguate_tag = Tag.create ()
+
+module M = Set.Make(String)
+
+type env = {
+  names : M.t;
+}
+
+let empty_env = { names = M.empty; }
+
+let full_name v = v.Expr.id_name
+
+let disambiguation_collision v name =
+  Util.debug ~section
+    "@[<hov>While@ disambiguating,@ encountered@ already@ disambiguated@ variable@ '%a',@ with@ name@ '%s',@ which@ is@ already@ taken."
+    Expr.Id.print v name;
+  raise (Invalid_argument "Term.bind_ambiguous")
+
+let rec find_unambiguous env v =
+  let new_name = Format.asprintf "%s#%d" v.Expr.id_name (v.Expr.index :> int) in
+  if M.mem new_name env.names
+  then disambiguation_collision v new_name
+  else begin
+    Util.debug ~section "%a ~~~> %s" Expr.Id.print v new_name;
+    Expr.Id.tag v disambiguate_tag (Pretty.Renamed new_name);
+    new_name
+  end
+
+let bind_ambiguous env v =
+  match Expr.Id.get_tag v disambiguate_tag with
+  | None ->
+    let name = full_name v in
+    let new_name =
+      if not @@ M.mem name env.names then name
+      else find_unambiguous env v
+    in
+    { (* env with *) names = M.add new_name env.names }
+  | Some Pretty.Exact s -> assert false
+  | Some Pretty.Renamed s ->
+    if M.mem s env.names
+    then disambiguation_collision v s
+    else { (* env with *) names = M.add s env.names; }
+
+let rec disambiguate_aux env t =
+  match t.term with
+  | Type | Id _ -> ()
+  | App (f, arg) ->
+    disambiguate_aux env f;
+    disambiguate_aux env arg
+  | Let (v, e, body) ->
+    disambiguate_aux env e;
+    let env' = bind_ambiguous env v in
+    disambiguate_aux env' body
+  | Binder (b, v, body) ->
+    let env' = bind_ambiguous env v in
+    disambiguate_aux env' body
+
+let disambiguate t =
+  Util.debug ~section "@[<hv 2>disambiguate:@ @[<hov>%a@]@]" print t;
+  disambiguate_aux empty_env t
 
 

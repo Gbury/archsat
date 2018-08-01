@@ -4,6 +4,11 @@
     Wrappers for proof type-defs, definitions, axioms,
     and general global state. *)
 
+exception Hypothesis_name_conflict of
+    (Term.id * Dolmen.ParseLocation.t option) *
+    (Term.id * Dolmen.ParseLocation.t option)
+(** Exception raised when two hypothesis have the same name. *)
+
 (** {2 Managings proof state} *)
 
 val init : Options.opts -> unit -> unit

@@ -443,7 +443,7 @@ let export (opt, (c : translated stmt)) =
 (* ************************************************************************ *)
 
 let print_proof (opt, (c : translated stmt)) =
-  Util.enter_prof Solver.proof_section;
+  Util.enter_prof Proof.section;
   begin match c with
     (* Not much to do with these... *)
     | { contents = `Executed; _ }
@@ -469,7 +469,7 @@ let print_proof (opt, (c : translated stmt)) =
       Util.info "Proof size: %a" Util.print_size (Util.size p);
       Prove.output_proof Options.(opt.proof) p
   end;
-  Util.exit_prof Solver.proof_section
+  Util.exit_prof Proof.section
 
 (* Printing models *)
 (* ************************************************************************ *)
@@ -481,9 +481,9 @@ let print_model (opt, (c : translated stmt)) =
   | { contents = `Decl _; _ }
   | { contents = `Left _; _ }
   | { contents = `Right _ } -> ()
-    | { contents = `Skipped; _ } ->
-      if Options.(opt.proof.active) then
-        Util.warn "Model check/output activated, but solving is deactivated"
+  | { contents = `Skipped; _ } ->
+    if Options.(opt.model.active) then
+      Util.warn "Model check/output activated, but solving is deactivated"
   | { contents = `Proof _; _ } ->
     if Options.(opt.model.active) then
       Util.warn "Model check/output activated, but a proof was found"

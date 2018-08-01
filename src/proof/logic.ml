@@ -9,7 +9,7 @@ let classical = Proof.Prelude.require classical_id
 
 let () =
   Expr.Id.tag classical_id Coq.Print.pos Pretty.Prefix;
-  Expr.Id.tag classical_id Coq.Print.name "Coq.Logic.Classical";
+  Expr.Id.tag classical_id Coq.Print.name @@ Pretty.Exact "Coq.Logic.Classical";
   ()
 
 (* Useful constants *)
@@ -27,7 +27,7 @@ let exfalso_id =
       Term.arrow Term.false_term (Term.id p)))
 
 let () =
-  Expr.Id.tag exfalso_id Coq.Print.name "False_ind"
+  Expr.Id.tag exfalso_id Coq.Print.name @@ Pretty.Exact "False_ind"
 
 let nnpp_id =
   let p = Term.var "P" Term._Prop in

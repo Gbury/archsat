@@ -1,6 +1,8 @@
 
 let section = Section.make "proof"
 
+let elaboration_section = Section.make ~parent:section "elaboration"
+
 (* Proof environments *)
 (* ************************************************************************ *)
 
@@ -149,6 +151,8 @@ module Env = struct
 
   let declare t id =
     assert (not (Term.is_var id));
+    Util.debug ~section "@[<hv 2>Declaring@ %a :@ @[<hov>%a@]"
+      Expr.Id.print id Term.print id.Expr.id_type;
     try
       let id' = Ms.find id.Expr.id_name t.reverse in
       raise (Conflict (id', id))
@@ -212,14 +216,21 @@ module Prelude = struct
 
   let dot _ _ = ()
 
-  let coq fmt = function
+  let coq_proof fmt = function
     | Require id ->
       Format.fprintf fmt "(* Prelude: Module import *)@\nRequire Import %a.@\n" Coq.Print.id id
     | Alias (id, t) ->
       Util.debug ~section "%a : %a" Expr.Id.print id Term.print id.Expr.id_type;
-      Format.fprintf fmt "(* @[<hov>Prelude: Alias@] *)@\n@[<hv>Definition %a :@ @[<hov>%a@] :=@ @[<hov>%a@]@].@\n"
-        Coq.Print.id id Coq.Print.term id.Expr.id_type Coq.Print.term t
+      Format.fprintf fmt "(* @[<hov>Prelude: Alias@] *)@\n@[<hv>pose ( %a :=@ @[<hov>%a@] )@].@\n"
+        Coq.Print.id id Coq.Print.term t
 
+  let coq_term fmt = function
+    | Require id ->
+      Format.fprintf fmt "(* Prelude: Module import *)@\nRequire Import %a.@\n" Coq.Print.id id
+    | Alias (id, t) ->
+      Format.fprintf fmt
+        "(* @[<hov>Prelude: Alias@] *)@\n@[<hv>Definition %a :@ @[<hov>%a@] :=@ @[<hov>%a@]@].@\n"
+        Coq.Print.id id Coq.Print.term id.Expr.id_type Coq.Print.term t
 
   (** Prelude dependencies *)
 
@@ -294,6 +305,7 @@ type node = {
   id : int;
   pos : pos;
   proof : proof_node;
+  mutable term : Term.t option;
 }
 
 and pos = node array * int
@@ -368,13 +380,13 @@ let set ((t, i) as pos : pos) step state branches =
   match (get pos).proof with
   | Open _ ->
     incr _node_idx;
-    t.(i) <- { id = !_node_idx; pos; proof = Proof (step, state, branches); }
+    t.(i) <- { id = !_node_idx; pos; proof = Proof (step, state, branches); term = None; }
   | Proof _ ->
     Util.error ~section "Trying to apply reasonning step to an aleardy closed proof";
     assert false
 
 let dummy_node = {
-  id = 0; pos = [| |], -1;
+  id = 0; pos = [| |], -1; term = None;
   proof = Open (mk_sequent Env.empty Term.true_term);
 }
 
@@ -383,7 +395,7 @@ let mk_branches n f =
   for i = 0 to n - 1 do
     let pos = (res, i) in
     incr _node_idx;
-    res.(i) <- { id = !_node_idx; pos; proof = f i; }
+    res.(i) <- { id = !_node_idx; pos; proof = f i; term = None; }
   done;
   res
 
@@ -629,11 +641,22 @@ and elaborate_proof_node k = function
   | Proof (step, state, branches) ->
     elaborate_array (fun args -> k @@ step.elaborate state args) branches
 
-and elaborate_node k { proof; _ } =
-  elaborate_proof_node k proof
+and elaborate_node k { proof; term } =
+  match term with
+  | None -> elaborate_proof_node k proof
+  | Some t -> k t
 
 let elaborate = function
-  | _, [| p |] -> elaborate_node (fun x -> x) p
+  | _, [| p |] ->
+    Util.enter_prof elaboration_section;
+    begin match elaborate_node (fun x -> x) p with
+      | res ->
+        Util.exit_prof elaboration_section;
+        res
+      | exception exn ->
+        Util.exit_prof elaboration_section;
+        raise exn
+    end
   | _ -> assert false
 
 (* Printing proofs *)
@@ -643,33 +666,40 @@ let print_aux = function
   | Dot -> print_dot
   | Coq -> print_coq
 
-let print_prelude = function
-  | Dot -> Prelude.dot
-  | Coq -> Prelude.coq
+let print_prelude mode lang =
+  match mode, lang with
+  | _, Dot -> Prelude.dot
+  | `Proof, Coq -> Prelude.coq_proof
+  | `Term, Coq -> Prelude.coq_term
 
 let print_term_aux = function
   | Dot -> print_dot_term
   | Coq -> print_coq_term
 
-let print_preludes_aux ~lang fmt l =
+let print_preludes_aux ~mode ~lang fmt l =
   Prelude.topo l (fun p ->
-      Format.fprintf fmt "%a@ " (print_prelude lang) p
+      Format.fprintf fmt "%a@ " (print_prelude mode lang) p
     )
 
-let print_preludes ~lang fmt l =
-  Format.fprintf fmt "@[<v>%a@]" (print_preludes_aux ~lang) l
+let print_preludes ~mode ~lang fmt l =
+  Format.fprintf fmt "@[<v>%a@]" (print_preludes_aux ~mode ~lang) l
 
 let print ~lang fmt = function
   | (seq, [| p |]) as proof ->
-    print_preludes ~lang fmt (preludes proof);
+    print_preludes ~mode:`Proof ~lang fmt (preludes proof);
     print_aux lang fmt (seq, p)
   | _ -> assert false
 
-let print_term ~lang fmt = function
+let print_term ?(process=(fun x -> x)) ~lang fmt = function
   | (seq, [| p |]) as proof ->
-    print_preludes ~lang fmt (preludes proof);
-    print_term_aux lang fmt (seq, elaborate proof)
+    let t = elaborate proof in
+    let t' = process t in
+    assert (Term.(equal t.ty t'.ty));
+    print_term_aux lang fmt (seq, t')
   | _ -> assert false
+
+let print_term_preludes ~lang fmt proof =
+  print_preludes ~mode:`Term ~lang fmt (preludes proof)
 
 (* Match an arrow type *)
 (* ************************************************************************ *)

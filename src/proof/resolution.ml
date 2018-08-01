@@ -1,5 +1,5 @@
 
-let section = Section.make ~parent:Solver.proof_section "res"
+let section = Section.make ~parent:Proof.section "res"
 
 module P = Solver.Proof
 
@@ -51,7 +51,7 @@ let print_incr_dot_aux file proof =
   close_out out
 
 let print_incr_dot opt proof =
-  match Options.(opt.incr_dot) with
+  match Options.(opt.dot.incr) with
   | None -> ()
   | Some prefix ->
     let n = try Hashtbl.find h prefix with Not_found -> 0 in

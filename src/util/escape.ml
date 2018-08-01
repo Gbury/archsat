@@ -46,15 +46,15 @@ type t = {
   name   : Any.t -> name;     (* function for identifier name *)
   escape : string -> string;  (* escape function, ideally idempotent *)
   rename : string -> string;  (* renaming function, should have no fixpoint *)
-  table  : (status * string) H.t;
-  names  : (string, Any.t) Hashtbl.t;
+  mutable tables  : (Format.formatter * (status * string) H.t) list;
+  mutable names  : (Format.formatter * (string, Any.t) Hashtbl.t) list;
 }
 
 let mk ~lang ~name ~escape ~rename = {
   lang; name;
   escape; rename;
-  table = H.create 1013;
-  names = Hashtbl.create 1013;
+  tables = [];
+  names = [];
 }
 
 
@@ -67,46 +67,60 @@ let pp_assign fmt (any, status, name) =
      | Renamed -> "~~>")
     name
 
+let get_table t fmt =
+  try List.assq fmt t.tables
+  with Not_found ->
+    let h = H.create 4013 in
+    t.tables <- (fmt, h) :: t.tables;
+    h
+
+let get_names t fmt =
+  try List.assq fmt t.names
+  with Not_found ->
+    let h = Hashtbl.create 4013 in
+    t.names <- (fmt, h) :: t.names;
+    h
+
 (* Adding escapped sequences *)
 (* ************************************************************************ *)
 
-let rec add ?(fragile=false) t any status name =
-  match Hashtbl.find t.names name with
+let rec add ?(fragile=false) fmt t any status name =
+  match Hashtbl.find (get_names t fmt) name with
   | exception Not_found ->
-    add_success t any status name
+    add_success fmt t any status name
   | r ->
     assert (not (Any.equal any r));
     if status = Same then begin
-      match H.find t.table r with
+      match H.find (get_table t fmt) r with
       (** Two ids have the same name, we trust the developpers
           that this is intended *)
       | (Same, s) ->
         assert (s = name);
-        add_success t any status name
+        add_success fmt t any status name
       (** The escaped id collided with another escaped/renamed id,
           this is a potentially dangerous situation. *)
       | _ ->
-        add_failure ~fragile t any status name r
+        add_failure ~fragile fmt t any status name r
     end else
-      add_failure ~fragile t any status name r
+      add_failure ~fragile fmt t any status name r
 
-and add_success t any status name =
+and add_success fmt t any status name =
   (* Util.debug ~section "Adding %a" pp_assign (any, status, name); *)
-  let () = H.add t.table any (status, name) in
-  let () = Hashtbl.add t.names name any in
+  let () = H.add (get_table t fmt) any (status, name) in
+  let () = Hashtbl.add (get_names t fmt) name any in
   name
 
-and add_failure ~fragile t any status name r =
-  let conflict_st, conflict_name = H.find t.table r in
+and add_failure ~fragile fmt t any status name r =
+  let conflict_st, conflict_name = H.find (get_table t fmt) r in
   let log = if fragile then Util.error else Util.warn in
   log ~section "Escaping %a,@ conficted with@ %a"
     pp_assign (any, status, name) pp_assign (r, conflict_st, conflict_name);
   let new_name = t.rename name in
   assert (new_name <> name);
-  add t any Renamed new_name
+  add fmt t any Renamed new_name
 
-let escape t any =
-  match H.find t.table any with
+let escape fmt t any =
+  match H.find (get_table t fmt) any with
   | (_, s) -> s
   | exception Not_found ->
     let fragile, status, new_name =
@@ -118,22 +132,23 @@ let escape t any =
         let status = if (s = name) then Same else Escaped in
         false, status, s
     in
-    add ~fragile t any status new_name
+    add ~fragile fmt t any status new_name
 
 (* Convenience functions *)
 (* ************************************************************************ *)
 
 let id t fmt id =
-  Format.fprintf fmt "%s" (escape t (Any.Id id))
+  Format.fprintf fmt "%s" (escape fmt t (Any.Id id))
 
 let dolmen t fmt id =
-  Format.fprintf fmt "%s" (escape t (Any.Dolmen id))
+  Format.fprintf fmt "%s" (escape fmt t (Any.Dolmen id))
 
 let rec tagged_name_aux id = function
   | [] -> Normal (id.Expr.id_name)
   | tag :: r ->
     begin match Expr.Id.get_tag id tag with
-      | Some s -> Exact s
+      | Some Pretty.Exact s -> Exact s
+      | Some Pretty.Renamed s -> Normal s
       | None -> tagged_name_aux id r
     end
 

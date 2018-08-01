@@ -7,5 +7,5 @@ tff(q, type, q : $i > $o).
 include('ax_1.ax').
 
 % A small axiom again
-tff(ax_1, axiom, q(b)).
+tff(ax_2, axiom, q(b)).
 
