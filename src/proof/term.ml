@@ -279,11 +279,7 @@ let mk_reduced ty term =
     reduced = t;
     free = compute_free_vars term;
   } in
-  match H.find_all all_terms t with
-  | [t] -> t
-  | [] -> H.add all_terms t; t
-  (** There shouldn't be more than one instance of a term in the hashset. *)
-  | _ -> assert false
+  H.merge all_terms t
 
 let mk_normal ty term reduced =
   (* Format.eprintf "mk_normal: @[<v>ty: %a@ descr: %a@ reduced: %a@]@."
@@ -302,12 +298,7 @@ let mk_normal ty term reduced =
     index = !idx_terms;
     free = compute_free_vars term;
   } in
-  match H.find_all all_terms t with
-  | [t'] -> t'
-  | [] -> H.add all_terms t; t
-  (** There shouldn't be more than one instance of a term in the hashset. *)
-  | _ -> assert false
-
+  H.merge all_terms t
 
 (* Creating simple terms (i.e no application or let-binding) *)
 (* ************************************************************************ *)
@@ -1008,26 +999,26 @@ and of_tree ?callback t = function
 
 let disambiguate_tag = Tag.create ()
 
-module M = Set.Make(String)
+module M = Map.Make(String)
 
 type env = {
-  names : M.t;
+  names : id M.t;
 }
 
 let empty_env = { names = M.empty; }
 
 let full_name v = v.Expr.id_name
 
-let disambiguation_collision v name =
-  Util.debug ~section
-    "@[<hov>While@ disambiguating,@ encountered@ already@ disambiguated@ variable@ '%a',@ with@ name@ '%s',@ which@ is@ already@ taken."
-    Expr.Id.print v name;
+let disambiguation_collision env v name =
+  Util.error ~section
+    "@[<hov>While@ disambiguating,@ encountered@ already@ disambiguated@ variable@ '%a',@ with@ name@ '%s',@ which@ is@ already@ taken by@ %a"
+    Expr.Id.print v name Expr.Id.print (M.find name env.names);
   raise (Invalid_argument "Term.bind_ambiguous")
 
 let rec find_unambiguous env v =
   let new_name = Format.asprintf "%s#%d" v.Expr.id_name (v.Expr.index :> int) in
   if M.mem new_name env.names
-  then disambiguation_collision v new_name
+  then disambiguation_collision env v new_name
   else begin
     Util.debug ~section "%a ~~~> %s" Expr.Id.print v new_name;
     Expr.Id.tag v disambiguate_tag (Pretty.Renamed new_name);
@@ -1042,12 +1033,12 @@ let bind_ambiguous env v =
       if not @@ M.mem name env.names then name
       else find_unambiguous env v
     in
-    { (* env with *) names = M.add new_name env.names }
+    { (* env with *) names = M.add new_name v env.names }
   | Some Pretty.Exact s -> assert false
   | Some Pretty.Renamed s ->
     if M.mem s env.names
-    then disambiguation_collision v s
-    else { (* env with *) names = M.add s env.names; }
+    then disambiguation_collision env v s
+    else { (* env with *) names = M.add s v env.names; }
 
 let rec disambiguate_aux env t =
   match t.term with

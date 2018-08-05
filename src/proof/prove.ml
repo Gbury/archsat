@@ -2,6 +2,8 @@
 let section = Section.make ~parent:Proof.section "proving"
 
 let proof_section = Section.make ~parent:Proof.section "generation"
+let elaboration_section = Section.make ~parent:section "elaboration"
+let normalisation_section = Section.make ~parent:section "normalisation"
 
 let dot_section = Section.make ~parent:section "dot_print"
 let coq_section = Section.make ~parent:section "coq_print"
@@ -27,7 +29,6 @@ let pp_lazy lang s o x pp =
   match o with
   | None -> ()
   | Some fmt ->
-    CCOpt.iter (Util.info ~section "Computing proof for %s") lang;
     begin try
         let p = Lazy.force x in
         CCOpt.iter (Util.info ~section "Printing proof for %s") lang;
@@ -196,6 +197,7 @@ let output_proof opt p =
   let g = gid.Expr.id_type in
   (* Lazily compute the proof *)
   let proof = lazy (
+    Util.info ~section "Computing proof";
     Util.enter_prof proof_section;
     let hyps = get_hyps () in
     let env =
@@ -212,13 +214,19 @@ let output_proof opt p =
   ) in
   let term = lazy (
     let p = Lazy.force proof in
+    Util.info ~section "Computing proof term";
+    Util.enter_prof elaboration_section;
     let t = Proof.elaborate p in
+    Util.exit_prof elaboration_section;
     p, t
   ) in
   let norm = lazy (
     let p, t = Lazy.force term in
+    Util.info ~section "Computing normalized proof term";
+    Util.enter_prof normalisation_section;
     let t' = Term.reduce t in
-    let () = Term.disambiguate t' in
+    (* let () = Term.disambiguate t' in *)
+    Util.exit_prof normalisation_section;
     p, t'
   ) in
   (* Declare the prelues for term printing *)

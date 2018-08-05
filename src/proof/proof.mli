@@ -7,9 +7,6 @@
 val section : Section.t
 (** Root debug section for proofs *)
 
-val elaboration_section : Section.t
-(** Additional subdivision of sections for proofs *)
-
 (** {2 Local environments} *)
 
 module Env : sig

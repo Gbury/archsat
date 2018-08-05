@@ -1,8 +1,6 @@
 
 let section = Section.make "proof"
 
-let elaboration_section = Section.make ~parent:section "elaboration"
-
 (* Proof environments *)
 (* ************************************************************************ *)
 
@@ -115,7 +113,7 @@ module Env = struct
       end
        *)
 
-  let rec find_coerced t { term; wrap; } =
+  let find_coerced t { term; wrap; } =
     match get t term with
     | exception Not_found -> None
     | t' -> Some (term, t', wrap t')
@@ -669,16 +667,7 @@ and elaborate_node k { proof; term } =
   | Some t -> k t
 
 let elaborate = function
-  | _, [| p |] ->
-    Util.enter_prof elaboration_section;
-    begin match elaborate_node (fun x -> x) p with
-      | res ->
-        Util.exit_prof elaboration_section;
-        res
-      | exception exn ->
-        Util.exit_prof elaboration_section;
-        raise exn
-    end
+  | _, [| p |] -> elaborate_node (fun x -> x) p
   | _ -> assert false
 
 (* Printing proofs *)
