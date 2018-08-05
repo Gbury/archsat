@@ -9,6 +9,8 @@ type lemma_info = Formula of Expr.formula * Mapping.t * Expr.formula *
     that [q] is the result of instantiating [f] with the bound variables of [m],
     and then quantifying over the variables in [tys] and [ts]. *)
 
+val coq_proof : lemma_info -> (Proof.pos, unit) Proof.tactic
+(** Helper to make proofs. *)
 
 (** {2 Extension helpers} *)
 

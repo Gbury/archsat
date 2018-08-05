@@ -15,6 +15,8 @@ module Print = struct
 
   let () =
     List.iter (function Any (id, tag, v) -> Expr.Id.tag id tag v) [
+      Any (Term.equal_id, name,   Pretty.Exact "=");
+      Any (Term.equal_id, pos,    Pretty.Infix);
       Any (Term._Prop_id, name,   Pretty.Exact "Prop");
       Any (Term.true_id,  name,   Pretty.Exact "True");
       Any (Term.false_id, name,   Pretty.Exact "False");
@@ -86,19 +88,22 @@ module Print = struct
         Expr.Id.get_tag f pos
       | _ -> None
 
+  let rec elim_implicits t args =
+    match t.Term.term, args with
+    | _, [] -> []
+    | Term.Binder (Term.Forall, v, body), (hd :: tl) ->
+      if Term.is_dot_implicit v then elim_implicits body tl
+      else hd :: elim_implicits body tl
+    | _ -> args
+
     let rec term fmt t =
       match t.Term.term with
       | Term.Type -> Format.fprintf fmt "Type"
       | Term.Id v -> id fmt v
       | Term.App _ ->
         let f, args = Term.uncurry ~assoc t in
+        let args = elim_implicits Term.(reduce @@ ty f) args in
         begin match get_status f with
-          | _ when is_equal f ->
-            begin match args with
-              | [_; a; b] ->
-                Format.fprintf fmt "@[<hov>%a@ = %a@]" term a term b
-              | _ -> assert false
-            end
           | None ->
             Format.fprintf fmt "@[<hov>(%a %a)@]" term f
               CCFormat.(list ~sep:(return "@ ") term) args
@@ -152,7 +157,7 @@ module Print = struct
     | TyMeta m -> meta fmt m
     | TyApp (f, []) -> id fmt f
     | TyApp (f, l) ->
-      begin match Tag.get f.id_tags Print.pos with
+      begin match Expr.Id.get_tag f Print.pos with
         | None ->
           Format.fprintf fmt "@[<hov 2>%a(%a)@]"
             id f CCFormat.(list ~sep:(return ",") ty) l
@@ -182,7 +187,7 @@ module Print = struct
   *)
 
   let id_pretty fmt v =
-    match Tag.get v.id_tags Print.pos with
+    match Expr.Id.get_tag v Print.pos with
     | None -> ()
     | Some Pretty.Prefix -> Format.fprintf fmt "[%a]" id v
     | Some Pretty.Infix -> Format.fprintf fmt "(%a)" id v
@@ -198,7 +203,7 @@ module Print = struct
     | Meta m -> meta fmt m
     | App (f, [], []) -> id fmt f
     | App (f, tys, args) ->
-      begin match Tag.get f.id_tags Print.pos with
+      begin match Expr.Id.get_tag f Print.pos with
         | None ->
           begin match tys with
             | [] ->
@@ -306,7 +311,7 @@ module Arg = struct
   let hyp_info c =
     let id = Solver.hyp_proof c in
     "Hypothesis", Some "YELLOW",
-    [fun fmt () -> Print.id fmt (id :> Term.t Expr.id)]
+    [fun fmt () -> Print.id fmt id]
 
   let lemma_info c =
     let lemma =

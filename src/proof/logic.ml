@@ -243,7 +243,7 @@ let apply3 preludes t pos =
   | _ -> assert false
 
 let apply preludes t pos =
-  let l, _ = Proof.match_arrows t.Term.ty in
+  let l, _ = Proof.match_arrows @@ Term.ty t in
   applyN t (List.length l) preludes pos
 
 (* Splits for easy interaction with pipe operators *)
@@ -279,6 +279,9 @@ let trivial pos =
     let () = exact [] t pos in
     true
   | exception Proof.Env.Not_introduced _ ->
+    Util.debug ~section
+      "@[<hv>Absurd tactic failed because it couldn't find (%d)@ @[<hov>%a@]@ in env:@ %a@]"
+      (Term.Reduced.hash g) Term.print g Proof.Env.print env;
     false
 
 (** Find a contradiction in an environment using the given proposition. *)
@@ -297,7 +300,7 @@ let find_absurd pos env atom =
           | np -> (Term.app np p)
           | exception Proof.Env.Not_introduced _ ->
             Util.debug ~section "@[<hv>Couldn't find in env (%d):@ %a@]"
-              (Term.hash neg_atom) Term.print neg_atom;
+              (Term.Reduced.hash neg_atom) Term.print neg_atom;
             (* Try and see if [atom = neg q] with q in the context. *)
             begin try
                 let q_v = Term.var "q" Term._Prop in
@@ -319,7 +322,7 @@ let find_absurd pos env atom =
         end
       | exception Proof.Env.Not_introduced _ ->
         Util.warn ~section
-          "@[<hv>Trivial tactic failed because it couldn't find@ @[<hov>%a@]@ in env:@ %a@]"
+          "@[<hv>Absurd tactic failed because it couldn't find@ @[<hov>%a@]@ in env:@ %a@]"
           Term.print atom Proof.Env.print env;
         raise (Proof.Failure ("Logic.absurd", pos))
     end
@@ -398,7 +401,7 @@ let rec and_intro ~f pos =
     apply2 [] t' pos |> split ~left:(and_intro ~f) ~right:(and_intro ~f)
 
 let rec find_or x t =
-  if Term.equal x t then Some []
+  if Term.Reduced.equal x t then Some []
   else match match_or t with
     | None -> None
     | Some (left, right) ->
@@ -435,15 +438,15 @@ let or_intro t pos =
 let rec or_elim_aux ~shallow ~f t pos =
   let ctx = extract_open pos in
   let goal = Proof.goal ctx in
-  match match_or t.Term.ty with
+  match match_or @@ Term.ty t with
   | None ->
     let pos' =
-      if shallow && not (Proof.Env.mem (Proof.env ctx) t.Term.ty)
+      if shallow && not (Proof.Env.mem (Proof.env ctx) @@ Term.ty t)
       then letin "O" t pos
       else pos
     in
     Util.debug ~section "Couldn't split %a: %a" Term.print t Term.print t.Term.ty;
-    f t.Term.ty pos'
+    f (Term.ty t) pos'
   | Some (left_term, right_term) ->
     let t' = Term.apply or_elim_term [left_term; right_term; goal; t] in
     apply2 [or_elim_alias] t' pos |> split
@@ -455,7 +458,7 @@ let or_elim = or_elim_aux ~shallow:true
 let rec and_elim t pos =
   let ctx = extract_open pos in
   let goal = Proof.goal ctx in
-  match match_and t.Term.ty with
+  match match_and @@ Term.ty t with
   | None -> pos
   | Some (left_term, right_term) ->
     let t' = Term.apply and_elim_term [left_term; right_term; goal; t] in
@@ -467,7 +470,7 @@ let rec and_elim t pos =
 (** Eliminate double negations when the goal is [False] *)
 let not_not_simpl prefix t pos =
   let seq = extract_open pos in
-  if not (Term.equal Term.false_term (Proof.goal seq)) then
+  if not (Term.Reduced.equal Term.false_term (Proof.goal seq)) then
     raise (Proof.Failure ("Double negation elimination is only possible when the goal is [False]", pos));
   pos
   |> find t @@ apply1 []
@@ -525,13 +528,23 @@ let resolve_clause c1 c2 res =
   let e = Proof.Env.add e c2 in
   let goal = clause_type res in
   let p = Proof.mk (Proof.mk_sequent e goal) in
-  let () = resolve_clause_aux c1 c2 res (Proof.pos @@ Proof.root p) in
+  let () =
+    try resolve_clause_aux c1 c2 res (Proof.pos @@ Proof.root p)
+    with exn ->
+      let f = Filename.temp_file "archsat_dot" ".gv"
+          ~temp_dir:(Sys.getcwd ()) in
+      let ch = open_out f in
+      let fmt = Format.formatter_of_out_channel ch in
+      Dot.proof_context (Proof.print ~lang:Proof.Dot) fmt p;
+      close_out ch;
+      raise exn
+  in
   Proof.elaborate p
 
 let resolve_step =
   let compute seq (c, c', res) =
     let t = resolve_clause c c' res in
-    let id, e = Proof.Env.intro ~hide:true (Proof.env seq) "R" t.Term.ty in
+    let id, e = Proof.Env.intro ~hide:true (Proof.env seq) "R" @@ Term.ty t in
     (c, c', id, t), [| Proof.mk_sequent e (Proof.goal seq) |]
   in
   let elaborate (_, _, id, t) = function
@@ -568,7 +581,7 @@ let remove_duplicate_clause c res =
 let duplicate_step =
   let compute seq (c, res) =
     let t = remove_duplicate_clause c res in
-    let id, e = Proof.Env.intro ~hide:true (Proof.env seq) "R" t.Term.ty in
+    let id, e = Proof.Env.intro ~hide:true (Proof.env seq) "R" @@ Term.ty t in
     (c, id, t), [| Proof.mk_sequent e (Proof.goal seq) |]
   in
   let elaborate (_, id, t) = function

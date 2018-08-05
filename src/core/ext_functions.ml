@@ -96,7 +96,7 @@ let coq_proof = function
     let eqs = List.combine (List.map Term.of_term l) (List.map Term.of_term r) in
     let a_t = Term.of_term a in
     let b_t = Term.of_term b in
-    let goal = Term.apply Term.equal_term [a_t.Term.ty; a_t; b_t] in
+    let goal = Term.apply Term.equal_term [Term.ty a_t; a_t; b_t] in
     let intros = ref [] in
     (fun pos -> pos
                 |> Logic.introN "E" (List.length eqs + 1)

@@ -19,7 +19,7 @@ prove: solve $(BIN)
 	@cd clauses && $(MAKE) -f Makefile.prove --no-print-directory
 	@cd logic && $(MAKE) -f Makefile.prove --no-print-directory
 	@cd equality && $(MAKE) -f Makefile.prove --no-print-directory
-#	@cd quant && $(MAKE) -f Makefile.prove --no-print-directory
+	@cd quant && $(MAKE) -f Makefile.prove --no-print-directory
 #	@cd rewr && $(MAKE) -f Makefile.prove --no-print-directory
 
 clean:

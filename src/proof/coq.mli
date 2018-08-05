@@ -20,6 +20,9 @@ module Print : sig
   val term : Format.formatter -> Term.t -> unit
   (** Print a term in coq syntax. *)
 
+  val fragile : Format.formatter -> Term.t -> unit
+  (** Print a fragile term *)
+
 end
 
 

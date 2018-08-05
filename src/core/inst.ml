@@ -573,65 +573,45 @@ let dot_info = function
       CCFormat.const Dot.Print.mapping t;
       CCFormat.const Dot.Print.formula f;
     ]
-(*
-let coq_destruct ctx fmt = function
-  | { Expr.formula = Expr.Not ({
-      Expr.formula = Expr.Ex(l, _, _)} as q)} ->
-    let o = Expr.L (List.rev @@ (Expr.F (`Quant q)) ::
-                                List.rev_map (fun x -> Expr.F (`Var x)) l) in
-    let pp fmt = function
-      | `Var x -> Coq.Print.id fmt x
-      | `Quant q -> Proof.Ctx.named ctx fmt q
-    in
-    Format.fprintf fmt "destruct %a as %a.@ "
-      (Proof.Ctx.named ctx) q (Coq.Print.pattern_ex pp) o
-  | _ -> ()
-
-let coq_inst_ex m cur fmt x =
-  let t = match Mapping.Var.get_term_opt m x with
-    | None -> Expr.Term.of_id x
-    | Some t -> t
-  in
-  Format.fprintf fmt
-    "(Coq.Logic.Classical_Pred_Type.not_ex_all_not _ _ %s) %a"
-    cur Coq.Print.term t
 
 let coq_proof = function
-  | Formula ({ Expr.formula = Expr.All (l, _, _) } as f, t, q) ->
-    Coq.tactic ~prefix:"Q" ~normalize:(Coq.Mem [f]) (fun fmt ctx ->
-        let l', l'' = List.fold_left (fun (vars, args) x ->
-            match Mapping.Var.get_term_opt t x with
-            | None -> x :: vars, Expr.Term.of_id x :: args
-            | Some t -> vars, t :: args) ([], []) l in
-        let vars = List.rev l' in
-        let args = List.rev l'' in
-        begin match vars with
-          | [] ->
-            Coq.exact fmt "%a (%a)"
-              (Proof.Ctx.named ctx) (Expr.Formula.neg q)
-              (Coq.app_t ctx) (f, args)
-          | _ ->
-            Coq.exact fmt "%a (fun %a => %a)"
-              (Proof.Ctx.named ctx) (Expr.Formula.neg q)
-              Coq.fun_binder vars (Coq.app_t ctx) (f, args)
-        end)
-  | Formula ({ Expr.formula = Expr.Not (
-      { Expr.formula = Expr.Ex (l, _, _) })} as f', t, q) ->
-    Coq.tactic ~prefix:"Q" ~normalize:Coq.All
-      ~prelude:[Coq.Prelude.classical] (fun fmt ctx ->
-        (** Destruct the goal *)
-        let () = coq_destruct ctx fmt q in
-        let s = Coq.sequence ctx (coq_inst_ex t) (Proof.Ctx.name ctx f') fmt l in
-        Coq.exact fmt "%s %a" s (Proof.Ctx.named ctx) (Expr.Formula.neg q)
-      )
+  (* We want to prove ~ ~ [forall l, body] -> ~ [forall (tys ts), body{l/t}] -> False *)
+  | Formula ({ Expr.formula = Expr.All ((v_tys, v_ts), _, body) } as f, t, q, tys, ts) ->
+    let args =
+      List.map (fun x -> Term.of_ty (Mapping.Var.get_ty t x)) v_tys @
+      List.map (fun x -> Term.of_term (Mapping.Var.get_term t x)) v_ts
+    in
+    (fun pos -> pos
+                |> Logic.introN "Q" 2
+                |> Logic.not_not_elim "Q" (Term.of_formula f)
+                |> Logic.find (Term.app Term.not_term @@ Term.of_formula q) @@ Logic.apply1 []
+                |> Logic.introN "" (List.length tys + List.length ts)
+                |> Logic.find (Term.of_formula f) @@ (fun f ->
+                    Logic.exact [] (Term.apply f args)))
+
+  (* We want to prove ~ [exists l, body] -> ~ [forall (tys ts), ~ body{l/t}] -> False
+                   or ~ [exists l, ~ body] -> ~ [forall (tys ts), body{l/t}] -> False *)
+  | Formula ( { Expr.formula = Expr.Not {
+      Expr.formula = Expr.Ex ((v_tys, v_ts), _, body) } } as f, t, q, tys, ts) ->
+    let args =
+      List.map (fun x -> Term.of_ty (Mapping.Var.get_ty t x)) v_tys @
+      List.map (fun x -> Term.of_term (Mapping.Var.get_term t x)) v_ts
+    in
+    (fun pos -> pos
+                |> Logic.introN "Q" 2
+                |> Logic.find (Term.app Term.not_term @@ Term.of_formula q) @@ Logic.apply1 []
+                |> Logic.introN "" (List.length tys + List.length ts)
+                |> Logic.find (Term.of_formula f) @@ (fun f ->
+                    Logic.exact [Logic.classical] (Quant.inst_not_ex f args)))
+
   | _ -> assert false
-*)
+
 (* Extension registering *)
 (* ************************************************************************ *)
 
 let handle : type ret. ret Dispatcher.msg -> ret option = function
   | Dot.Info Inst info -> Some (dot_info info)
-  (* | Coq.Tactic Inst info -> Some (coq_proof info) *)
+  | Proof.Lemma Inst info -> Some (coq_proof info)
   | Solver.Found_sat _ -> inst_sat ()
   | _ -> None
 

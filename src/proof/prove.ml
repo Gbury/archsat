@@ -23,12 +23,14 @@ let pp_opt pp o x =
   | None -> ()
   | Some fmt -> pp fmt x
 
-let pp_lazy s o x pp =
+let pp_lazy lang s o x pp =
   match o with
   | None -> ()
   | Some fmt ->
+    CCOpt.iter (Util.info ~section "Computing proof for %s") lang;
     begin try
         let p = Lazy.force x in
+        CCOpt.iter (Util.info ~section "Printing proof for %s") lang;
         Util.enter_prof s;
         pp fmt p;
         Util.exit_prof s
@@ -168,9 +170,9 @@ let implicit_goal opt =
 (* ************************************************************************ *)
 
 let declare_term_preludes opt proof =
-  pp_lazy coqterm_section Options.(opt.coq.term) proof
+  pp_lazy None coqterm_section Options.(opt.coq.term) proof
     (Proof.print_term_preludes ~lang:Proof.Coq);
-  pp_lazy coqterm_norm_section Options.(opt.coq.term_norm) proof
+  pp_lazy None coqterm_norm_section Options.(opt.coq.term_norm) proof
     (Proof.print_term_preludes ~lang:Proof.Coq);
   ()
 
@@ -208,29 +210,35 @@ let output_proof opt p =
     Util.exit_prof proof_section;
     res
   ) in
+  let term = lazy (
+    let p = Lazy.force proof in
+    let t = Proof.elaborate p in
+    p, t
+  ) in
+  let norm = lazy (
+    let p, t = Lazy.force term in
+    let t' = Term.reduce t in
+    let () = Term.disambiguate t' in
+    p, t'
+  ) in
   (* Declare the prelues for term printing *)
   if Options.(opt.context) then declare_term_preludes opt proof;
   (* Declare the goal *)
   if Options.(opt.context) then declare_goal_aux ?loc opt gid;
   (* Print the lazy proof in coq *)
-  let () = pp_lazy coq_section Options.(opt.coq.script) proof
+  let () = pp_lazy (Some "coq") coq_section Options.(opt.coq.script) proof
       (print_context opt.Options.context Coq.proof_context
          (Proof.print ~lang:Proof.Coq)) in
   (* Print the lazy proof term in coq *)
-  let () = pp_lazy coqterm_section Options.(opt.coq.term) proof
+  let () = pp_lazy (Some "coqterm") coqterm_section Options.(opt.coq.term) term
       (print_context opt.Options.context Coq.proof_term_context
          (Proof.print_term ~lang:Proof.Coq)) in
   (* Print the normalized lazy proof term in coq *)
-  let process t =
-    let t' = Term.reduce t in
-    let () = Term.disambiguate t' in
-    t'
-  in
-  let () = pp_lazy coqterm_norm_section Options.(opt.coq.term_norm) proof
+  let () = pp_lazy (Some "coqterm-normalize") coqterm_norm_section Options.(opt.coq.term_norm) norm
       (print_context opt.Options.context Coq.proof_term_context
-         (Proof.print_term ~process ~lang:Proof.Coq)) in
+         (Proof.print_term ~lang:Proof.Coq)) in
   (* Print the lazy proof in dot *)
-  let () = pp_lazy dot_section Options.(opt.dot.full) proof
+  let () = pp_lazy (Some "dot") dot_section Options.(opt.dot.full) proof
       (print_context true Dot.proof_context
          (Proof.print ~lang:Proof.Dot)) in
   (* Done ! exit the profiling section, ^^ *)

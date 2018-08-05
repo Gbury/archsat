@@ -151,7 +151,7 @@ let wrap f x y =
   try
     f st x y
   with E.Unsat (a, b, l) ->
-    Util.info ~section "Error while adding hypothesis : %a ~ %a@ @[<hov>{%a}@]"
+    Util.debug ~section "Conflict found while adding hypothesis : %a ~ %a@ @[<hov>{%a}@]"
       Expr.Print.term x Expr.Print.term y
       CCFormat.(list ~sep:(return ",@ ") Expr.Print.term) l;
     raise (D.Absurd (mk_expl (a, b, l), mk_proof l))
@@ -162,7 +162,7 @@ let tag x = fun () ->
       Expr.Print.term x Expr.Print.term (D.get_assign x);
     E.add_tag st x (D.get_assign x)
   with E.Unsat (a, b, l) ->
-    Util.info ~section "Error while tagging : %a -> %a@ @[<hov>{%a}@]"
+    Util.debug ~section "Conflict found while tagging : %a -> %a@ @[<hov>{%a}@]"
       Expr.Print.term x Expr.Print.term (D.get_assign x)
       CCFormat.(list ~sep:(return ",@ ") Expr.Print.term) l;
     let res = mk_expl (a, b, l) in
@@ -266,7 +266,7 @@ let coq_proof = function
                   ~ ~ x1 = x2 -> ~ ~ x2 = x3 -> ... -> ~ ~ x3 = x_n -> ~ x1 = x_n -> False
                   with l = [x1; x2; ...: x_n]. *)
     let (x, y), l' = to_pairs l in
-    let f = Term.apply Term.equal_term [x.Term.ty; x; y] in
+    let f = Term.apply Term.equal_term [Term.ty x; x; y] in
     (** We use a ref to store the equalities introduced, because they might
         be swapped (i.e we expect [~ ~ a = b] and instead introduce [~ ~ b = a],
         which is actually not a problem, since we immediately eliminate this double

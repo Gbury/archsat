@@ -27,11 +27,9 @@ let kind_conv = Cmdliner.Arg.enum kind_list
 
 let inst = ref Tau
 
-let epsilon_ty, epsilon_term =
+let epsilon_name =
   let count = ref 0 in
-  let name () = incr count; Format.sprintf "ε_%d" !count in
-  (fun () -> Expr.Id.ttype (name ())),
-  (fun ty -> Expr.Id.ty (name ()) ty)
+  (fun () -> incr count; Format.sprintf "ε_%d" !count)
 
 (* Dependencies between epsilons/skolems *)
 (* ************************************************************************ *)
@@ -42,17 +40,17 @@ module Sterm = Set.Make(Expr.Term)
 (** Here we consider skolems applications as as epsilon terms, as is done
     in coq proof output.
 
-    We want to compute the depencey graph of epsion temrs (i.e which epsilon
-    appears in aother epsilon). *)
+    We want to compute the depency graph of epsilon terms (i.e which epsilon
+    appears in another epsilon). *)
 
 (** This tag stores the dependency information, and also serves to identify
     epsilons. *)
-let deps = Tag.create ()
+let dep_tag = Tag.create ()
 
 let rec find_deps_ty (tys, ts) = function
   | { Expr.ty = (Expr.TyVar _ | Expr.TyMeta _) ; _ } -> (tys, ts)
   | { Expr.ty = Expr.TyApp (f, l) } as ty ->
-    let tys' = match Expr.Ty.get_tag ty deps with
+    let tys' = match Expr.Ty.get_tag ty dep_tag with
       | Some _ -> Sty.add ty tys
       | None -> tys
     in
@@ -61,7 +59,7 @@ let rec find_deps_ty (tys, ts) = function
 let rec find_deps_term (tys, ts) = function
   | { Expr.term = (Expr.Var _ | Expr.Meta _) ; _ } -> (tys, ts)
   | { Expr.term = Expr.App (f, l, l') ; _ } as term ->
-    let ts' = match Expr.Term.get_tag term deps with
+    let ts' = match Expr.Term.get_tag term dep_tag with
       | Some _ -> Sterm.add term ts
       | None -> ts
     in
@@ -71,6 +69,71 @@ and find_all_deps (tys, ts) l l' =
     List.fold_left find_deps_term (
       List.fold_left find_deps_ty (tys, ts) l) l'
 
+(* Proof generation *)
+let prelude_tag = Tag.create ()
+
+let prelude_of_deps (tys, ts) =
+  Sterm.fold (fun t l ->
+      CCOpt.get_exn (Expr.Term.get_tag t prelude_tag) :: l
+    ) ts @@
+  Sty.fold (fun ty l ->
+      CCOpt.get_exn (Expr.Ty.get_tag ty prelude_tag) :: l
+    ) tys [Quant.epsilon_prelude]
+
+let inst_epsilon get_tag tag trap inhabited e t =
+  match Quant.match_ex t with
+  | Some (x, body) ->
+    let p = Term.lambda x body in
+    let eps_term = Term.apply Quant.epsilon_term [x.Expr.id_type; inhabited; p] in
+    let eps = Term.define (epsilon_name ()) eps_term in
+    let eps_t = Term.id eps in
+    let deps = prelude_of_deps @@ CCOpt.get_exn @@ get_tag e dep_tag in
+    let alias = Proof.Prelude.alias ~deps eps eps_term in
+    let () = tag e prelude_tag alias in
+    let () = trap e eps_t in
+    Term.(subst (S.Id.bind S.empty x eps_t)) body
+  | _ ->
+    begin match CCOpt.(Logic.match_not t >>= Quant.match_all) with
+      | Some (x, body) ->
+        let body =
+          match Logic.match_not body with
+          | Some body' -> body' | None -> Term.app Term.not_term body
+        in
+        let p = Term.lambda x body in
+        let eps_term = Term.apply Quant.epsilon_term [x.Expr.id_type; inhabited; p] in
+        let eps = Term.define (epsilon_name ()) eps_term in
+        let eps_t = Term.id eps in
+        let deps = prelude_of_deps @@ CCOpt.get_exn @@ get_tag e dep_tag in
+        let alias = Proof.Prelude.alias ~deps eps eps_term in
+        let () = tag e prelude_tag alias in
+        let () = trap e eps_t in
+        Term.(subst (S.Id.bind S.empty x eps_t)) body
+      | _ ->
+        Util.error ~section
+          "@[<hv>Expected an existencial (or not_all) but got: @[<hov>%a@]@]" Term.print t;
+        assert false
+    end
+
+let mk_proof f q types terms =
+  let t = Term.of_formula f in
+  let t = List.fold_left (fun t e ->
+      let inhabited = Term.apply Quant.inhabits_term
+          [Term._Type; Term.of_ty Synth.ty] in
+      inst_epsilon Expr.Ty.get_tag Expr.Ty.tag Term.trap_ty inhabited e t
+    ) t types in
+  let t = List.fold_left (fun t e ->
+      let e_ty = e.Expr.t_type in
+      let inhabited = Term.apply Quant.inhabits_term
+          [Term.of_ty e_ty; Term.of_term @@ Synth.term e_ty] in
+      inst_epsilon Expr.Term.get_tag Expr.Term.tag Term.trap_term inhabited e t
+    ) t terms in
+  assert (Term.Reduced.equal t (Term.of_formula q));
+  Dispatcher.mk_proof "skolem" "inst" (Sk (Inst (f, types, terms, q)))
+
+
+(* Generating tau and metas *)
+(* ************************************************************************ *)
+
 let tau_counter = ref 0
 
 let gen_ty_tau ~status ty_args t_args v =
@@ -78,14 +141,14 @@ let gen_ty_tau ~status ty_args t_args v =
   let v' = Expr.(Id.ty_fun (Format.sprintf "t%d" !tau_counter) 0) in
   let (tys, ts) = find_all_deps (Sty.empty, Sterm.empty) ty_args t_args in
   let res = Expr.Ty.apply ~status v' [] in
-  let () = Expr.Ty.tag res deps (tys, ts) in
+  let () = Expr.Ty.tag res dep_tag (tys, ts) in
   res
 
 let gen_ty_skolem ~status ty_args t_args v =
   let v' = Expr.Id.ty_skolem v in
   let (tys, ts) = find_all_deps (Sty.empty, Sterm.empty) ty_args t_args in
   let res = Expr.Ty.apply ~status v' ty_args in
-  let () = Expr.Ty.tag res deps (tys, ts) in
+  let () = Expr.Ty.tag res dep_tag (tys, ts) in
   res
 
 let gen_term_tau ~status ty_args t_args v =
@@ -93,20 +156,18 @@ let gen_term_tau ~status ty_args t_args v =
   let v' = Expr.(Id.term_fun (Format.sprintf "t%d" !tau_counter) [] [] v.id_type) in
   let (tys, ts) = find_all_deps (Sty.empty, Sterm.empty) ty_args t_args in
   let res = Expr.Term.apply ~status v' [] [] in
-  let () = Expr.Term.tag res deps (tys, ts) in
+  let () = Expr.Term.tag res dep_tag (tys, ts) in
   res
 
 let gen_term_skolem ~status ty_args types t_args v =
   let v' = Expr.Id.term_skolem v in
   let (tys, ts) = find_all_deps (Sty.empty, Sterm.empty) ty_args t_args in
   let res = Expr.Term.apply ~status v' (ty_args @ types) t_args in
-  let () = Expr.Term.tag res deps (tys, ts) in
+  let () = Expr.Term.tag res dep_tag (tys, ts) in
   res
 
 (* Helpers *)
 (* ************************************************************************ *)
-
-let def = Tag.create ()
 
 let seen = H.create 256
 
@@ -115,43 +176,6 @@ let has_been_seen f =
   with Not_found -> false
 
 let mark f = H.add seen f 0
-
-(* instanciate the first var *)
-let ty_inst_first ty = function
-  | ({ Expr.formula = Expr.Ex ((x :: _, _), _, _) } as f)
-  | ({ Expr.formula = Expr.Not {
-         Expr.formula = Expr.All ((x :: _, _), _, _) } } as f) ->
-    Expr.Formula.partial_inst
-      (Expr.Subst.Id.bind Expr.Subst.empty x ty)
-      Expr.Subst.empty f
-  | _ -> assert false
-
-let term_inst_first term = function
-  | ({ Expr.formula = Expr.Ex (([], x :: _), _, _) } as f)
-  | ({ Expr.formula = Expr.Not {
-         Expr.formula = Expr.All (([], x :: _), _, _) } } as f) ->
-    Expr.Formula.partial_inst Expr.Subst.empty
-      (Expr.Subst.Id.bind Expr.Subst.empty x term) f
-  | _ -> assert false
-
-(* Proof generation *)
-let mk_proof f q types terms =
-  let f' = List.fold_left (fun f' ty ->
-      let () = Expr.Ty.tag ty def f' in
-      ty_inst_first ty f') f types
-  in
-  let _q' = List.fold_left (fun f' term ->
-      Util.debug ~section "tagging: %a -> %a"
-        Expr.Print.term term Expr.Print.formula f';
-      let () = Expr.Term.tag term def f' in
-      term_inst_first term f') f' terms
-  in
-  (* TODO: fix this !!
-  Util.debug ~section "@[<hv>sk@ %a@ %a"
-    Expr.Formula.print q Expr.Formula.print q';
-     assert (Expr.Formula.equal q q');
-  *)
-  Dispatcher.mk_proof "skolem" "inst" (Sk (Inst (f, types, terms, q)))
 
 let get_ty_taus ~status ty_args t_args l =
   match !inst with
@@ -171,8 +195,8 @@ let tau = function
       mark f;
       Util.debug ~section "@[<hov 2>New formula (%a):@ %a@\nwith free variables:@ %a,@ %a"
         Expr.Status.print f.Expr.f_status Expr.Print.formula f
-            (CCFormat.list Expr.Print.ty) ty_args
-            (CCFormat.list Expr.Print.term) t_args;
+        (CCFormat.list Expr.Print.ty) ty_args
+        (CCFormat.list Expr.Print.term) t_args;
       let types = get_ty_taus ~status:f.Expr.f_status ty_args t_args l in
       let terms = get_term_taus ~status:f.Expr.f_status ty_args types t_args l' in
       let m = List.fold_left2 Mapping.Var.bind_ty Mapping.empty l types in
@@ -185,8 +209,8 @@ let tau = function
       mark f;
       Util.debug ~section "@[<hov 2>New formula (%a):@ %a@\nwith free variables:@ %a,@ %a"
         Expr.Status.print f.Expr.f_status Expr.Print.formula f
-            (CCFormat.list Expr.Print.ty) ty_args
-            (CCFormat.list Expr.Print.term) t_args;
+        (CCFormat.list Expr.Print.ty) ty_args
+        (CCFormat.list Expr.Print.term) t_args;
       let types = get_ty_taus ~status:f.Expr.f_status ty_args t_args l in
       let terms = get_term_taus ~status:f.Expr.f_status ty_args types t_args l' in
       let m = List.fold_left2 Mapping.Var.bind_ty Mapping.empty l types in
@@ -207,155 +231,50 @@ let dot_info = function
       [ CCFormat.const Dot.Print.formula f ]
     )
 
-(*
-let pp_coq_fun_ex fmt = function
-  | ({ Expr.formula = Expr.ExTy ((x :: _), _, _) } as f)
-  | ({ Expr.formula = Expr.Not { Expr.formula = Expr.AllTy ((x :: _), _, _) } } as f) ->
-    let s = Expr.Subst.Id.bind Expr.Subst.empty x (Expr.Ty.of_id x) in
-    let f' = Expr.Formula.partial_inst s Expr.Subst.empty f in
-    Format.fprintf fmt "fun %a => %a" Coq.Print.id x Coq.Print.formula f'
-  | ({ Expr.formula = Expr.Ex ((x :: _), _, _) } as f)
-  | ({ Expr.formula = Expr.Not { Expr.formula = Expr.All ((x :: _), _, _) } } as f) ->
-    let s = Expr.Subst.Id.bind Expr.Subst.empty x (Expr.Term.of_id x) in
-    let f' = Expr.Formula.partial_inst Expr.Subst.empty s f in
-    Format.fprintf fmt "fun %a => %a" Coq.Print.id x Coq.Print.formula f'
-  | _ -> assert false
-
-let pp_coq_ty_prelude fmt e =
-  let f = CCOpt.get_exn @@ Expr.Id.get_tag e def in
-  Format.fprintf fmt "@[<hv 2>Coq.Logic.Epsilon.epsilon@ (inhabits @[<hov>%a@])@ @[<hov 1>(%a)@]@]"
-    Coq.Print.ty Synth.ty pp_coq_fun_ex f
-
-let pp_coq_term_prelude fmt e =
-  let f = CCOpt.get_exn @@ Expr.Id.get_tag e def in
-  Format.fprintf fmt "@[<hv 2>Coq.Logic.Epsilon.epsilon@ (inhabits @[<hov>%a@])@ @[<hov 1>(%a)@]@]"
-    Coq.Print.term (Synth.term Expr.(e.id_type)) pp_coq_fun_ex f
-
-let ty_cache = CCCache.unbounded ~eq:Expr.Ty.equal ~hash:Expr.Ty.hash 42
-let term_cache = CCCache.unbounded ~eq:Expr.Term.equal ~hash:Expr.Term.hash 42
-
-let rec coq_preludes tys ts =
-  Sterm.fold (fun t acc ->
-      Coq.Prelude.S.add (coq_term_prelude t) acc) ts
-    (Sty.fold (fun ty acc ->
-         Coq.Prelude.S.add (coq_ty_prelude ty) acc) tys
-        (Coq.Prelude.S.singleton Coq.Prelude.epsilon))
-
-and coq_ty_prelude ty =
-  CCCache.with_cache ty_cache (fun ty ->
-      let e = epsilon_ty () in
-      let () = Expr.Id.tag e def
-          (CCOpt.get_exn @@ Expr.Ty.get_tag ty def) in
-      let res = Expr.Ty.of_id e in
-      let () = Coq.Print.trap_ty ty res in
-      match Expr.Ty.get_tag ty deps with
-      | None -> assert false
-      | Some (tys, ts) ->
-        let deps = coq_preludes tys ts in
-        Coq.Prelude.abbrev ~deps e pp_coq_ty_prelude
-    ) ty
-
-and coq_term_prelude term =
-  CCCache.with_cache term_cache (fun term ->
-      let e = epsilon_term Expr.(term.t_type) in
-      let f = CCOpt.get_exn @@ Expr.Term.get_tag term def in
-      let () = Expr.Id.tag e def f in
-      Util.debug ~section "def: %a // %a --> %a"
-        Expr.Print.id e Expr.Print.term term Expr.Print.formula f;
-      let res = Expr.Term.of_id e in
-      let () = Coq.Print.trap_term term res in
-      match Expr.Term.get_tag term deps with
-      | None -> assert false
-      | Some (tys, ts) ->
-        let deps = coq_preludes tys ts in
-        Coq.Prelude.abbrev ~deps e pp_coq_term_prelude
-    ) term
-
-let pp_ex is_not_all fmt s =
-  if not is_not_all then Format.fprintf fmt "%s" s
-  else Format.fprintf fmt "(Coq.Logic.Classical_Pred_Type.not_all_ex_not _ _ %s)" s
-
-let pp_not_ex_not fmt s =
-  Format.fprintf fmt "(Coq.Logic.Classical_Pred_Type.not_all_not_ex _ _ %s)" s
-
-let coq_ex_ty is_not_all s fmt _ =
-  Format.fprintf fmt "@[<hov 2>Coq.Logic.Epsilon.epsilon_spec@ (inhabits %a) _@ %a@]"
-    Coq.Print.ty Synth.ty (pp_ex is_not_all) s
-
-let coq_not_ex_not_ty s fmt _ =
-  Format.fprintf fmt "@[<hov 2>Coq.Logic.Epsilon.epsilon_spec@ (inhabits %a) _@ %a@]"
-    Coq.Print.ty Synth.ty pp_not_ex_not s
-
-let coq_ex is_not_all s fmt t =
-  Format.fprintf fmt "@[<hov 2>Coq.Logic.Epsilon.epsilon_spec@ (inhabits %a) _@ %a@]"
-    Coq.Print.term (Synth.term Expr.(t.t_type)) (pp_ex is_not_all) s
-
-let coq_not_ex_not s fmt t =
-  Format.fprintf fmt "@[<hov 2>Coq.Logic.Epsilon.epsilon_spec@ (inhabits %a) _@ %a@]"
-    Coq.Print.term (Synth.term Expr.(t.t_type)) pp_not_ex_not s
-
 let coq_proof = function
-  | Ty ({ Expr.formula = Expr.ExTy _} as f, l, q) ->
-    Coq.tactic ~prefix:"Q"
-      ~prelude:(Coq.Prelude.epsilon :: List.map coq_ty_prelude l) (fun fmt ctx ->
-            let res = Coq.sequence ctx (coq_ex_ty false) (Proof.Ctx.name ctx f) fmt l in
-            Coq.exact fmt "%s" res
-        )
-  | Ty ({ Expr.formula = Expr.Not {Expr.formula = Expr.AllTy (
-      _, _, { Expr.formula = Expr.Not _ } ) } } as f, l, q) ->
-    Coq.tactic ~prefix:"Q" ~normalize:(Coq.Mem [f])
-      ~prelude:(Coq.Prelude.epsilon :: Coq.Prelude.classical ::
-                List.map coq_ty_prelude l) (fun fmt ctx ->
-          let l', last = match CCList.take_drop (List.length l - 1) l with
-            | res, [x] -> res, x
-            | _ -> assert false
-          in
-          let tmp = Coq.sequence ctx (coq_ex_ty true) (Proof.Ctx.name ctx f) fmt l' in
-          Coq.exact fmt "%a (%a)"
-            (Proof.Ctx.named ctx) (Expr.Formula.neg q) (coq_not_ex_not_ty tmp) last
-        )
-  | Ty ({ Expr.formula = Expr.Not ({Expr.formula = Expr.AllTy _} as f) }, l, q) ->
-    Coq.tactic ~prefix:"Q" ~normalize:(Coq.Mem [f])
-      ~prelude:(Coq.Prelude.epsilon :: Coq.Prelude.classical ::
-                List.map coq_ty_prelude l) (fun fmt ctx ->
-          let res = Coq.sequence ctx (coq_ex_ty true) (Proof.Ctx.name ctx f) fmt l in
-          Coq.exact fmt "%s" res
-        )
-  | Term ({ Expr.formula = Expr.Ex _} as f, l, q) ->
-    Coq.tactic ~prefix:"Q" ~normalize:(Coq.Mem [f])
-      ~prelude:(Coq.Prelude.epsilon :: List.map coq_term_prelude l) (fun fmt ctx ->
-          let res = Coq.sequence ctx (coq_ex false) (Proof.Ctx.name ctx f) fmt l in
-          Coq.exact fmt "%a %s" (Proof.Ctx.named ctx) (Expr.Formula.neg q) res
-        )
-  | Term ({ Expr.formula = Expr.Not {Expr.formula = Expr.All (
-      _, _, { Expr.formula = Expr.Not _ } ) } } as f, l, q) ->
-    Coq.tactic ~prefix:"Q" ~normalize:(Coq.Mem [f])
-      ~prelude:(Coq.Prelude.epsilon :: Coq.Prelude.classical ::
-                List.map coq_term_prelude l) (fun fmt ctx ->
-          let l', last = match CCList.take_drop (List.length l - 1) l with
-            | res, [x] -> res, x
-            | _ -> assert false
-          in
-          let tmp = Coq.sequence ctx (coq_ex true) (Proof.Ctx.name ctx f) fmt l' in
-          Coq.exact fmt "%a (%a)"
-            (Proof.Ctx.named ctx) (Expr.Formula.neg q) (coq_not_ex_not tmp) last
-        )
-  | Term ({ Expr.formula = Expr.Not {Expr.formula = Expr.All _} } as f, l, q) ->
-    Coq.tactic ~prefix:"Q" ~normalize:(Coq.Mem [f])
-      ~prelude:(Coq.Prelude.epsilon :: Coq.Prelude.classical ::
-                List.map coq_term_prelude l) (fun fmt ctx ->
-          let res = Coq.sequence ctx (coq_ex true) (Proof.Ctx.name ctx f) fmt l in
-          Coq.exact fmt "%a %s" (Proof.Ctx.named ctx) (Expr.Formula.neg q) res
-        )
+  | Inst ( { Expr.formula = Expr.Ex _ } as f, tys, ts, res) ->
+    (** We want to prove ~ ~ [ exists _, body] -> ~ body -> False,
+        note that [body] may be a negation. *)
+    let deps = List.map (fun ty -> CCOpt.get_exn @@ Expr.Ty.get_tag ty prelude_tag) tys @
+               List.map (fun t -> CCOpt.get_exn @@ Expr.Term.get_tag t prelude_tag) ts in
+    let args = List.map Term.of_ty tys @
+               List.map Term.of_term ts in
+    let witnesses = List.map (fun _ -> Term.of_ty Synth.ty) tys @
+                    List.map (fun t -> Term.of_term @@ Synth.term t.Expr.t_type) ts in
+    let l = List.combine args witnesses in
+    (fun pos -> pos
+                |> Logic.introN "Q" 2
+                |> Logic.not_not_elim "Q" (Term.of_formula f)
+                |> Logic.find (Term.app Term.not_term @@ Term.of_formula res) (Logic.apply1 [])
+                |> Logic.find (Term.of_formula f) @@ (fun f ->
+                    Logic.exact (Quant.epsilon_prelude :: deps) (Quant.inst_epsilon f l))
+    )
+  | Inst ( { Expr.formula = Expr.Not {
+      Expr.formula = Expr.All _ } } as f, tys, ts, res) ->
+    (** We want to prove ~ [ all _, body] -> ~ ~ body -> False (res = ~ body)
+                      or ~ [ all _, ~ body] -> ~ body -> False (res = body) *)
+    let deps = List.map (fun ty -> CCOpt.get_exn @@ Expr.Ty.get_tag ty prelude_tag) tys @
+               List.map (fun t -> CCOpt.get_exn @@ Expr.Term.get_tag t prelude_tag) ts in
+    let args = List.map Term.of_ty tys @
+               List.map Term.of_term ts in
+    let witnesses = List.map (fun _ -> Term.of_ty Synth.ty) tys @
+                    List.map (fun t -> Term.of_term @@ Synth.term t.Expr.t_type) ts in
+    let l = List.combine args witnesses in
+    (fun pos -> pos
+                |> Logic.introN "Q" 2
+                |> Logic.find (Term.app Term.not_term @@ Term.of_formula res) (Logic.apply1 [])
+                |> Logic.find (Term.of_formula f) @@ (fun f ->
+                    Logic.exact (Logic.classical :: Quant.epsilon_prelude :: deps) (Quant.inst_epsilon f l))
+    )
+
   | _ -> assert false
-*)
 
 (* Cmdliner options and registering *)
 (* ************************************************************************ *)
 
 let handle : type ret. ret Dispatcher.msg -> ret option = function
   | Dot.Info Sk info -> Some (dot_info info)
-  (* | Coq.Tactic Sk info -> Some (coq_proof info) *)
+  | Proof.Lemma Sk info -> Some (coq_proof info)
   | _ -> None
 
 let opts =

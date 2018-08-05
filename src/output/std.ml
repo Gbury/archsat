@@ -100,6 +100,10 @@ let print_exn opt fmt = function
       sect ext (fun fmt -> List.iter (fun s -> Format.fprintf fmt "%s " s)) l
 
   (** Proofs errors *)
+  | Synth.Cannot_find ty ->
+    Format.fprintf Format.std_formatter
+      "@[<hv>Couldn't find a way to generate a term of type@ %a@ which is necessary for proof generation@]"
+      Expr.Ty.print ty;
   | Prove.Hypothesis_name_conflict ((h, hloc), (h', hloc')) ->
     let loc = get_loc opt hloc in
     let loc' = get_loc opt hloc' in

@@ -208,11 +208,19 @@ let type_wrap ?(goal=false) opt =
     | Some In.Dimacs -> Type.Typed Expr.Ty.prop
     | _ -> Type.Nothing
   in
+  let infer_hook env = function
+    | Type.Ty_fun _ -> ()
+    | Type.Term_fun cst -> Synth.add_id cst
+  in
   let env = Type.empty_env
-      ~status ~explain ~expect
+      ~status ~explain ~expect ~infer_hook
       (Semantics.type_env l)
   in
   env
+
+let add_synth = function
+  | `Term_decl cst -> Synth.add_id cst
+  | _ -> ()
 
 let run_typecheck opt = Options.(opt.typing.typing)
 
@@ -234,6 +242,7 @@ let typecheck (opt, c) : typechecked stmt =
       start_section ~section:Type.section Util.debug "Declaration typing";
       let env = type_wrap opt in
       let ret = Type.new_decl env t ?attr:c.S.attr id in
+      let () = add_synth ret in
       (simple (decl_id c) c.S.loc ret :> typechecked stmt)
     (** Hyps and goal statements *)
     | { S.descr = S.Prove } ->
@@ -466,7 +475,7 @@ let print_proof (opt, (c : translated stmt)) =
     | { contents = `Right { implicit; contents = (sid, p) }; id; _ } ->
       Prove.declare_goal ?loc:c.loc Options.(opt.proof) id implicit (sid, p)
     | { contents = `Proof p; _ } ->
-      Util.info "Proof size: %a" Util.print_size (Util.size p);
+      Util.info "Resolution proof size: %a" Util.print_size (Util.size p);
       Prove.output_proof Options.(opt.proof) p
   end;
   Util.exit_prof Proof.section

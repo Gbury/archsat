@@ -3,7 +3,7 @@ PROOF_FILE=proof.v
 TERM_FILE=term.v
 NORM_FILE=norm.v
 
-FLAGS=-t 1s
+FLAGS=-t 5s
 
 all: $(TESTS)
 	@echo -e "\033[2K\r\e[32m[OK]\e[0m [$(NAME)]"
@@ -34,6 +34,19 @@ all: $(TESTS)
 
 %.coq: % $(BIN)
 	@echo -ne "\033[2K\r$(NAME) -- coq -- $<"
+	@if ! $(BIN) $(FLAGS) $(OPT) --coq $(PROOF_FILE) $< > /dev/null; then 		\
+			echo -e "\033[2K\r\e[31m[FAIL]\e[0m [$(NAME)] $<";											\
+			echo -e "$(BIN) $(FLAGS) $(OPT) --coq $(PROOF_FILE) $<"; \
+			exit 1;																											\
+		fi
+	@if ! coqc $(PROOF_FILE) &> /dev/null; then											\
+			echo -e "\033[2K\r\e[31m[coq]\e[0m [$(NAME)] $<";										\
+			echo -e "coqc $(PROOF_FILE)";							\
+			exit 1;																											\
+		fi
+
+%.coqfull: % $(BIN)
+	@echo -ne "\033[2K\r$(NAME) -- coq -- $<"
 	@if ! $(BIN) $(FLAGS) $(OPT) --coq $(PROOF_FILE) --coqterm $(TERM_FILE) --coqterm-normalize $(NORM_FILE) $< > /dev/null; then 		\
 			echo -e "\033[2K\r\e[31m[FAIL]\e[0m [$(NAME)] $<";											\
 			echo -e "$(BIN) $(FLAGS) $(OPT) --coq $(PROOF_FILE) --coqterm $(TERM_FILE) --coqterm-normalize $(NORM_FILE) $<"; \
@@ -41,17 +54,17 @@ all: $(TESTS)
 		fi
 	@if ! coqc $(PROOF_FILE) &> /dev/null; then											\
 			echo -e "\033[2K\r\e[31m[coq]\e[0m [$(NAME)] $<";										\
-			echo -e "$(BIN) $(OPT) --coq $(PROOF_FILE) $<";							\
+			echo -e "coqc $(PROOF_FILE)";							\
 			exit 1;																											\
 		fi
 	@if ! coqc $(TERM_FILE) &> /dev/null; then											\
 			echo -e "\033[2K\r\e[31m[coqterm]\e[0m [$(NAME)] $<";										\
-			echo -e "$(BIN) $(OPT) --coqterm $(TERM_FILE) $<";							\
+			echo -e "coqc $(TERM_FILE)";							\
 			exit 1;																											\
 		fi
 	@if ! coqc $(NORM_FILE) &> /dev/null; then											\
 			echo -e "\033[2K\r\e[31m[coqterm-normalize]\e[0m [$(NAME)] $<";										\
-			echo -e "$(BIN) $(OPT) --coqterm-normalize $(NORM_FILE) $<";							\
+			echo -e "coqc $(NORM_FILE)";							\
 			exit 1;																											\
 		fi
 

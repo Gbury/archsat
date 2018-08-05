@@ -33,7 +33,7 @@ type 'ty id = private {
   id_name : string;
   index   : index; (** unique *)
   builtin : builtin;
-  mutable id_tags : tag_map;
+  id_tags : tag_map ref;
 }
 
 (** The type of identifiers. An ['a id] is an identifier whose solver-type
@@ -262,7 +262,7 @@ module Id : sig
   (** Constants representing the type for propositions and a default type
       for term, respectively. *)
 
-  val mk_new : ?builtin:builtin -> ?tags:tag_map -> string -> 'a -> 'a id
+  val mk_new : ?builtin:builtin -> ?tags:(tag_map ref) -> string -> 'a -> 'a id
   (** Generic function to create new ids. You should not use this function
       to create ids used in regular terms, but rather for ids used
       in other term structures (for isntance proof terms). *)

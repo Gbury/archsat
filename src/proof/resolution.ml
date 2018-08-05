@@ -73,9 +73,10 @@ let compute_aux h pos node =
       Util.debug ~section "  using %a" Term.print t;
       introduce_hyp t l pos
     | P.Lemma lemma ->
-      Util.debug ~section "Proving lemma: %a" P.St.print_clause node.P.conclusion;
+      let name = lemma.plugin_name in
+      Util.debug ~section "Proving lemma (%s): %a" name P.St.print_clause node.P.conclusion;
       let f =
-        match Dispatcher.(ask lemma.plugin_name (Proof.Lemma lemma.proof_info)) with
+        match Dispatcher.(ask name (Proof.Lemma lemma.proof_info)) with
         | Some f -> f
         | None -> (fun _ -> ())
       in

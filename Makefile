@@ -31,10 +31,12 @@ install: bin
 uninstall:
 	rm -f $(MANDIR)/man1/$(BIN).1 $(BINDIR)/$(BIN)
 
-clean:
+wipe: clean
 	cd src && $(MAKE) clean
+
+clean:
 	cd tests && $(MAKE) clean
-	rm -f $(BIN) perf.* *.v* *tmp*
+	rm -f $(BIN) perf.* *.v* *tmp* *.gv
 
 .PHONY: doc bin install uninstall clean
 

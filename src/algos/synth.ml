@@ -9,7 +9,7 @@ module H = Hashtbl.Make(Expr.Ty)
 module S = Set.Make(Expr.Id.Const)
 module T = Set.Make(Expr.Ty)
 
-exception Cannot_find
+exception Cannot_find of Expr.ty
 
 (* Helper functions *)
 (* ************************************************************************ *)
@@ -26,7 +26,10 @@ let size term =
 (* Association tables *)
 (* ************************************************************************ *)
 
+(* functions whose return type is a type variable *)
 let poly_list = ref []
+(* map each type constructor with a set of functions whose return type starts
+   with that constructor. *)
 let head_table = V.create 1013
 
 let get_head f =
@@ -68,8 +71,11 @@ let rec term_try s ty v =
     CCOpt.sequence_l (List.map (find_term s) arg_tys)
 
 and term_aux s = function
+  (* Type Variables shouldn't appear *)
   | { Expr.ty = Expr.TyVar _ } -> assert false
+  (* Since type metas are replaced by Expr.Ty.base, this is sound *)
   | { Expr.ty = Expr.TyMeta _ } -> find_term s Expr.Ty.base
+  (* Interesting case *)
   | { Expr.ty = Expr.TyApp (f, _) } as ty ->
     CCFun.(
       iter_on_head f
@@ -97,7 +103,7 @@ let ty = Expr.Ty.base
 let term_aux ty =
   match find_term T.empty ty with
   | Some t -> t
-  | None -> raise Cannot_find
+  | None -> raise (Cannot_find ty)
 
 let term = Util.within_prof section term_aux
 

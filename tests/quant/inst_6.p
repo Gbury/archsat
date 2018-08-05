@@ -1,10 +1,12 @@
 % #expect: unsat
 
-fof(ax, axiom, ! [ X ] : p(X) ).
+tff(a, type, ( a : $i ) ).
 
-fof(ax, axiom, ! [ Y ] : ( p(Y) => q(Y) ) ).
+fof(ax1, axiom, ! [ X ] : p(X) ).
 
-fof(ax, axiom, ! [ Z ] : ~ q(Z) ).
+fof(ax2, axiom, ! [ Y ] : ( p(Y) => q(Y) ) ).
+
+fof(ax3, axiom, ! [ Z ] : ~ q(Z) ).
 
 fof(goal, conjecture, false ).
 

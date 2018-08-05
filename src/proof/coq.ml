@@ -69,57 +69,66 @@ module Print = struct
     match t.Term.term, args with
     | _, [] -> []
     | Term.Binder (Term.Forall, v, body), (hd :: tl) ->
-      if Term.is_coq_implicit v
-      then elim_implicits body tl
-      else hd :: elim_implicits body tl
-    | _ -> args
+      if Term.is_coq_implicit v then elim_implicits body tl
+      else if Term.is_coq_inferred v then None :: elim_implicits body tl
+      else Some hd :: elim_implicits body tl
+    | _ -> List.map CCOpt.return args
 
-  let rec term_aux fmt t =
+  let rec term_aux ~fragile fmt t =
+    let t = if fragile then t else Term.contract t in
     match t.Term.term with
     | Term.Type -> Format.fprintf fmt "Type"
     | Term.Id v -> id fmt v
     | Term.App _ ->
       let f, args = Term.uncurry ~assoc t in
-      let args = elim_implicits f.Term.ty args in
+      let args = elim_implicits Term.(reduce @@ ty f) args in
       begin match get_status f, args with
         | None, [] ->
-          Format.fprintf fmt "@[<hov>%a@]" term_aux f
+          Format.fprintf fmt "@[<hov>%a@]" (term_aux ~fragile:false) f
         | None, _ ->
-          Format.fprintf fmt "@[<hov>(%a %a)@]" term_aux f
-            CCFormat.(list ~sep:(return "@ ") term_aux) args
+          Format.fprintf fmt "@[<hov>(%a %a)@]" (term_aux ~fragile:false) f
+            CCFormat.(list ~sep:(return "@ ") term_arg) args
         | Some Pretty.Prefix, _ ->
-          Format.fprintf fmt "@[<hov>%a %a@]" term_aux f
-            CCFormat.(list ~sep:(return "@ ") term_aux) args
+          Format.fprintf fmt "@[<hov>%a %a@]" (term_aux ~fragile:false) f
+            CCFormat.(list ~sep:(return "@ ") term_arg) args
         | Some Pretty.Infix, _ ->
-          let sep fmt () = Format.fprintf fmt "@ %a " term_aux f in
-          Format.fprintf fmt "@[<hov>(%a)@]" CCFormat.(list ~sep term_aux) args
+          let sep fmt () = Format.fprintf fmt "@ %a " (term_aux ~fragile:false) f in
+          Format.fprintf fmt "@[<hov>(%a)@]" CCFormat.(list ~sep term_arg) args
       end
     | Term.Let (v, e, body) ->
       Format.fprintf fmt "@[<v>@[<hv>let %a := @[<hov>%a@]@ in@]@ %a@]"
-        id v term_aux e term_aux body
+        id v (term_aux ~fragile:false) e (term_aux ~fragile:false) body
     | Term.Binder (b, _, _) ->
       let kind, vars, body = Term.flatten_binder t in
       begin match kind with
         | `Arrow ->
           let tys = List.map (fun id -> id.Expr.id_type) vars in
           Format.fprintf fmt "(@[<hov>%a ->@ %a@])"
-            CCFormat.(list ~sep:(return "@ -> ") term_aux) tys term_aux body
+            CCFormat.(list ~sep:(return "@ -> ") (term_aux ~fragile:false)) tys
+            (term_aux ~fragile:false) body
         | `Pi | `Binder _ ->
           let l = Term.concat_vars vars in
           Format.fprintf fmt "(@[<hov 2>%s @[<hov>%a@]%s@ %a@])"
             (binder_name b) var_lists l
-            (binder_sep b) term_aux body
+            (binder_sep b) (term_aux ~fragile:false) body
       end
+
+  and term_arg fmt = function
+    | None -> Format.fprintf fmt "_"
+    | Some t -> term_aux ~fragile:false fmt t
 
   and var_list fmt (ty, l) =
     assert (l <> []);
     Format.fprintf fmt "(%a:@ %a)"
-      CCFormat.(list ~sep:(return "@ ") id) l term_aux ty
+      CCFormat.(list ~sep:(return "@ ") id) l
+      (term_aux ~fragile:false) ty
 
   and var_lists fmt l =
     CCFormat.(list ~sep:(return "@ ") var_list) fmt l
 
-  let term = term_aux
+  let term = CCFormat.hovbox (term_aux ~fragile:false)
+
+  let fragile = CCFormat.hovbox (term_aux ~fragile:true)
 
 end
 

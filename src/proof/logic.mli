@@ -18,10 +18,15 @@ val classical : Prelude.t
 (** The prelude requiring classical logic *)
 
 
-(** {2 Some terms} *)
+(** {2 Some terms and matching functions} *)
 
 val true_proof : Term.t
 (** The term proving [true]. *)
+
+val match_not : Term.t -> Term.t option
+val match_or : Term.t -> (Term.t * Term.t) option
+val match_and : Term.t -> (Term.t * Term.t) option
+(** Some wrappers around {!Term.pmatch}. *)
 
 (** {2 Simple tactics} *)
 

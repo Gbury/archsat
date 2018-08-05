@@ -140,9 +140,7 @@ val pp_pos : Format.formatter -> pos -> unit
 val print : lang:lang -> Format.formatter -> proof -> unit
 (** Print the proof in the given language. *)
 
-val print_term :
-  ?process:(Term.t -> Term.t) ->
-  lang:lang -> Format.formatter -> proof -> unit
+val print_term : lang:lang -> Format.formatter -> (proof * Term.t) -> unit
 (** Print the proof term corresponding t the proof in the given language. *)
 
 val print_term_preludes : lang:lang -> Format.formatter -> proof -> unit

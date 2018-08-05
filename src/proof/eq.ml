@@ -35,13 +35,13 @@ let eq_subst, eq_subst_alias =
   let y = Term.var "y" a_t in
   let y_t = Term.id y in
   let p_x = Term.app p_t x_t in
-  let proof = Term.var "p" p_x in
+  let proof = Term.var "proof" p_x in
   let eq = Term.apply Term.equal_term [a_t; x_t; y_t] in
   let e = Term.var "e" eq in
   let t = Term.lambdas [a; x; y; p; e; proof] (
       Term.(apply (id eq_ind) [a_t; x_t; p_t; id proof; y_t; id e])
     ) in
-  let id = Term.define "eq_subst" t in
+  let id = Term.declare "eq_subst" (Term.ty t) in
   id, Proof.Prelude.alias id t
 
 let eq_refl =
@@ -231,8 +231,8 @@ let coercion_f t =
   match match_eq t with
   | Some (a, b) ->
     [ Proof.Env.{
-          term = Term.apply Term.equal_term [a.Term.ty; b; a];
-          wrap = (fun e -> Term.apply eq_sym_term [a.Term.ty; b; a; e]);
+          term = Term.apply Term.equal_term [Term.ty a; b; a];
+          wrap = (fun e -> Term.apply eq_sym_term [Term.ty a; b; a; e]);
         } ]
   | None ->
     begin match match_neq t with
@@ -240,8 +240,8 @@ let coercion_f t =
         [ Proof.Env.{
               term =
                 Term.app Term.not_term @@
-                Term.apply Term.equal_term [a.Term.ty; b; a];
-              wrap = (fun e -> Term.apply not_eq_sym_term [a.Term.ty; b; a; e]);
+                Term.apply Term.equal_term [Term.ty a; b; a];
+              wrap = (fun e -> Term.apply not_eq_sym_term [Term.ty a; b; a; e]);
             } ]
       | None -> []
     end
@@ -273,7 +273,7 @@ let refl pos =
   let goal = Proof.goal seq in
   match refl_match goal with
   | None -> raise (Proof.Failure ("couldn't apply eq_refl", pos))
-  | Some t -> Logic.exact [] (Term.apply eq_refl_term [t.Term.ty; t]) pos
+  | Some t -> Logic.exact [] (Term.apply eq_refl_term [Term.ty t; t]) pos
 
 (* Tactic for equality transitivity *)
 (* ************************************************************************ *)
@@ -283,8 +283,8 @@ let trans l pos =
     | [] -> List.rev acc
     | [t] -> aux_map (t :: acc) []
     | (x, y, proof) :: (x', y', proof') :: r ->
-      assert (Term.equal y x');
-      let new_proof = Term.apply eq_trans_term [x.Term.ty; x; y; y'; proof; proof'] in
+      assert (Term.Reduced.equal y x');
+      let new_proof = Term.apply eq_trans_term [Term.ty x; x; y; y'; proof; proof'] in
       aux_map ((x, y', new_proof) :: acc) r
   in
   let rec aux_fixpoint = function
@@ -317,7 +317,7 @@ let subst ~eq u path pos =
     | None -> raise (Proof.Failure ("Eq.subst", pos))
     | Some t -> t
   in
-  let a = Term.(t.ty) in
+  let a = Term.ty t in
   let x = fresh a in
   let p =
     match Position.Proof.substitute path ~by:(Term.id x) goal with
@@ -333,7 +333,10 @@ let replace ~eq ~by:u v pos =
   let goal = Proof.goal seq in
   match Position.Proof.find v goal with
   | Some p -> subst ~eq u p pos
-  | None -> raise (Proof.Failure ("Eq.replace", pos))
+  | None ->
+    Util.error ~section "Couldn't @[<v>find: %a@   in: %a@]"
+      Term.print v Term.print goal;
+    raise (Proof.Failure ("Eq.replace", pos))
 
 (* Tactic for congruence closure *)
 (* ************************************************************************ *)
@@ -342,22 +345,22 @@ let congruence_term f xys pos =
   match xys with
   | [] -> raise (Proof.Failure ("Eq.congruence", pos))
   | [x, y] ->
-    begin match Proof.match_arrow f.Term.ty with
+    begin match Proof.match_arrow @@ Term.ty f with
       | None -> raise (Proof.Failure ("Eq.congruence", pos))
       | Some (a, b) ->
-        assert (Term.(equal a x.ty));
-        assert (Term.(equal x.ty y.ty));
+        assert (Term.Reduced.equal a @@ Term.ty x);
+        assert (Term.Reduced.equal (Term.ty x) (Term.ty y));
         pos
         |> Logic.apply1 [] (Term.apply f_equal_term [a; b; f; x; y])
         |> Logic.ensure Logic.trivial
     end
   | [x1, y1; x2, y2] ->
-    begin match Proof.match_n_arrows 2 f.Term.ty with
+    begin match Proof.match_n_arrows 2 @@ Term.ty f with
       | Some ([a1; a2], b) ->
-        assert (Term.(equal a1 x1.ty));
-        assert (Term.(equal a1 y1.ty));
-        assert (Term.(equal a2 x2.ty));
-        assert (Term.(equal a2 y2.ty));
+        assert (Term.Reduced.equal a1 @@ Term.ty x1);
+        assert (Term.Reduced.equal a1 @@ Term.ty y1);
+        assert (Term.Reduced.equal a2 @@ Term.ty x2);
+        assert (Term.Reduced.equal a2 @@ Term.ty y2);
         pos
         |> Logic.apply2 [] (Term.apply f_equal2_term [a1; a2; b; f; x1; y1; x2; y2])
         |> Logic.split
@@ -372,6 +375,6 @@ let congruence_term f xys pos =
 
 let congruence_prop f l pos =
   pos
-  |> Logic.fold (fun (u, v) -> replace ~eq:(Logic.ensure Logic.trivial) ~by:v u) l
+  |> Logic.fold (fun (u, v) -> replace ~eq:(Logic.ensure Logic.trivial) ~by:u v) l
   |> Logic.ensure Logic.trivial
 

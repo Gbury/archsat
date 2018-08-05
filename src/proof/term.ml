@@ -1,5 +1,7 @@
 
-let section = Section.make "proof"
+let section = Section.make "term"
+
+(* TODO: Change to DeBruijn indices to speed up alpha comparison ? *)
 
 (* Proof terms *)
 (* ************************************************************************ *)
@@ -22,10 +24,11 @@ and descr =
 
 and t = {
   ty : t;
+  hash : int;
+  index : int;
   term : descr;
-  mutable hash : int;
-  mutable reduced : t option;
-  mutable free : (id, unit) S.t option;
+  reduced : t;
+  free : (id, unit) S.t;
 }
 
 
@@ -44,7 +47,7 @@ let _descr = function
   | Let _ -> 3
   | Binder _ -> 4
 
-(* Binder printing helpers *)
+(* Debug printing *)
 (* ************************************************************************ *)
 
 let binder_name = function
@@ -54,11 +57,9 @@ let binder_name = function
 
 let binder_sep = function _ -> ","
 
-(* Debug printing *)
-(* ************************************************************************ *)
+let rec pp fmt t = pp_descr fmt t.term
 
-let rec pp fmt t =
-  match t.term with
+and pp_descr fmt = function
   | Type -> Format.fprintf fmt "Type"
   | Id v -> Expr.Id.print fmt v
   | App (f, arg) ->
@@ -67,136 +68,336 @@ let rec pp fmt t =
     Format.fprintf fmt "@[<v>let %a = %a in@ @]%a"
       Expr.Id.print v pp e pp body
   | Binder (b, v, body) ->
-    Format.fprintf fmt "@[<hv 2>%s (%a : %a).@ %a@]"
+    Format.fprintf fmt "@[<hv 2>(%s (%a : %a).@ %a)@]"
       (binder_name b) Expr.Id.print v pp v.Expr.id_type pp body
+
+(* Std operations on terms *)
+(* ************************************************************************ *)
+
+let hash t = t.hash
+let compare t t' = Pervasives.compare t.index t'.index
+let equal t t' = compare t t' = 0
+
+let ty t = t.ty
+let free_vars t = t.free
+let reduce t = t.reduced
+let is_reduced t = t == t.reduced
+
+module Reduced = struct
+
+  type nonrec t = t
+
+  let hash t = t.reduced.hash
+  let compare t t' =
+    Pervasives.compare t.reduced.index t'.reduced.index
+
+  let equal t t' = compare t t' = 0
+
+end
+
+module Hs = Hashtbl.Make(Reduced)
 
 (* Id creation *)
 (* ************************************************************************ *)
 
-let var_tag = Tag.create ()
+type Expr.builtin +=
+  | Var
+  | Declared
+  | Defined of t
 
 let is_var v =
-  match Expr.Id.get_tag v var_tag with
-  | None -> false
-  | Some () -> true
+  match v.Expr.builtin with
+  | Var -> true
+  | _ -> false
 
-let mk_var s ty =
-  let tags = Tag.add Tag.empty var_tag () in
-  Expr.Id.mk_new ~tags s ty
+let var s ty =
+  Expr.Id.mk_new ~builtin:Var s ty
 
-let var s ty = mk_var s ty
-let declare s ty = Expr.Id.mk_new s ty
+let var_typed v ty =
+  let s = v.Expr.id_name in
+  let tags = v.Expr.id_tags in
+  Expr.Id.mk_new ~tags ~builtin:Var s ty
 
-type Expr.builtin += Defined of t
+let declare s ty =
+  Expr.Id.mk_new ~builtin:Declared s ty
+
+let definitions = Hs.create 17
 
 let define s def =
-  Expr.Id.mk_new ~builtin:(Defined def) s def.ty
+  let v = Expr.Id.mk_new ~builtin:(Defined def) s def.ty in
+  Hs.add definitions def v;
+  v
 
-(* Implicit arguments for Coq *)
-(* ************************************************************************ *)
-
-let mk_implicit () =
-  let tag = Tag.create () in
-  (fun v -> Expr.Id.tag v tag ()),
-  (fun v ->
-     match Expr.Id.get_tag v tag with
-     | None -> false
-     | Some () -> true
-  )
-
-let coq_implicit, is_coq_implicit = mk_implicit ()
-let tptp_implicit, is_tptp_implicit = mk_implicit ()
-
-(* Free variables *)
+(* Free variables computing *)
 (* ************************************************************************ *)
 
 let merge s s' = S.merge (fun _ o o' -> CCOpt.(o <+> o')) s s'
 
-let rec free_vars t =
-  match t.free with
-  | Some s -> s
-  | None ->
-    let res =
-      match t.term with
-      | Type -> S.empty
-      | Id v ->
-        let s = free_vars v.Expr.id_type in
-        if is_var v then S.Id.bind s v () else s
-      | App (f, arg) ->
-        merge (free_vars f) (free_vars arg)
-      | Binder (_, v, body) ->
-        S.Id.remove v (merge (free_vars v.Expr.id_type) (free_vars body))
-      | Let (v, e, body) ->
-        S.Id.remove v (merge (free_vars e) (free_vars body))
-    in
-    t.free <- Some res;
-    res
+let compute_free_vars = function
+  | Type -> S.empty
+  | Id v ->
+    let s = free_vars v.Expr.id_type in
+    if is_var v then S.Id.bind s v () else s
+  | App (f, arg) ->
+    merge (free_vars f) (free_vars arg)
+  | Binder (_, v, body) ->
+    S.Id.remove v (merge (free_vars v.Expr.id_type) (free_vars body))
+  | Let (v, e, body) ->
+    S.Id.remove v (merge (free_vars e) (free_vars body))
 
 let occurs v t = S.Id.mem v (free_vars t)
 let not_occurs v t = not (occurs v t)
 
-(* Simple Term creation *)
+(* Hash computing *)
 (* ************************************************************************ *)
 
-(** Creating terms *)
-let mk ty term =
-  { ty; term; hash = -1; free = None; reduced = None; }
+let hash_type = 3
+let hash_id = 5
+let hash_app = 7
+let hash_let = 9
+let hash_binder = 13
 
-let id v = mk v.Expr.id_type (Id v)
+let compute_hash = function
+  | Type -> hash_type
+  | Id v ->
+    CCHash.(pair int) hash (hash_id, v.Expr.id_type)
+  | App (f, arg) ->
+    CCHash.(triple int) hash hash (hash_app, f, arg)
+  | Let (v, e, body) ->
+    CCHash.(triple int) hash hash (hash_let, e, body)
+  | Binder (b, v, body) ->
+    CCHash.(triple int) hash hash (hash_binder, v.Expr.id_type, body)
 
+
+(* Alpha-equivalence *)
+(* ************************************************************************ *)
+
+let alpha_compatible_subst fv subst =
+  S.for_all (fun v () ->
+      match S.Id.get v subst with
+      | v' -> Expr.Id.equal v v'
+      | exception Not_found -> true
+    ) fv
+
+let rec compare_alpha subst pat t =
+  if pat == t then begin
+    let fv = free_vars pat in
+    if alpha_compatible_subst fv subst then ()
+    else raise (Match_Impossible (pat, t))
+  end else match pat, t with
+  | { term = Id v }, { term = Id v' } ->
+    begin match S.Id.get v subst with
+      | exception Not_found ->
+        (** TODO: what to do with free variables ? *)
+        if Expr.Id.equal v v' then ()
+        else raise (Match_Impossible (pat, t))
+      | v'' ->
+        if Expr.Id.equal v'' v' then ()
+        else raise (Match_Impossible (pat, t))
+    end
+  | { term = Type },
+    { term = Type } -> ()
+  | { term = App (f, f_arg) },
+    { term = App (g, g_arg) } ->
+    compare_alpha subst f g;
+    compare_alpha subst f_arg g_arg
+  | { term = Binder (b, v, body) },
+    { term = Binder (b', v', body') } ->
+    if b = b' then begin
+      compare_alpha subst v.Expr.id_type v'.Expr.id_type;
+      compare_alpha (S.Id.bind subst v v') body body'
+    end else
+      raise (Match_Impossible (pat, t))
+  | { term = Let (v, e, body) },
+    { term = Let (v', e', body') } ->
+    (** Hypothesis: is e and e' are alpha-equivalent, then their type also are. *)
+    compare_alpha subst e e';
+    compare_alpha (S.Id.bind subst v v') body body'
+  | _ -> raise (Match_Impossible (pat, t))
+
+let alpha t t' =
+  match compare_alpha S.empty t t' with
+  | () -> true
+  | exception Match_Impossible _ -> false
+
+(* Hashconsed set *)
+(* ************************************************************************ *)
+
+module H = Weak.Make(struct
+
+    type nonrec t = t
+
+    let hash = hash
+
+    (** In our case, only the first constructor of a term can be not hashconsed,
+        which means that for any term that is not [t] or [t'], equality modulo
+        alpha renaming can be decided using physical equality *)
+    let equal t t' =
+      match t, t' with
+      | { term = Type }, { term = Type } -> true
+      | { term = Id v }, { term = Id v' } -> Expr.Id.equal v v'
+      | { term = App (f, f_arg) },
+        { term = App (g, g_arg) } -> f == g && f_arg == g_arg
+      | { term = Binder (b, v, body) },
+        { term = Binder (b', v', body') } ->
+        (b = b' && v == v' && body == body') || alpha t t'
+      | { term = Let _ },
+        { term = Let _ }
+        -> alpha t t'
+      | _, _ -> false
+
+  end)
+
+let idx_terms = ref 0
+let all_terms = H.create 99997
+
+(** The cyclic Type constant is a special case that must be done by
+    hand since it is its own type. *)
 let rec _Type = {
+  index   = 0;
   ty      = _Type;
   term    = Type;
+  reduced = _Type;
   hash    = 13; (* TODO: better base hash ? *)
-  free    = Some S.empty;
-  reduced = Some _Type;
+  free    = S.empty;
 }
+
+(** Register the constant in the weak hashtbl *)
+let () = H.add all_terms _Type
+
+
+(** Create hashconsed terms *)
+
+let mk_reduced ty term =
+  (** First create a simplified term, wiht only the bare minimum information
+      to check whether it alreayd exists in the weak hashtbl. *)
+  incr idx_terms;
+  let hash = compute_hash term in
+  let rec t = {
+    ty; term; hash;
+    index = !idx_terms;
+    reduced = t;
+    free = compute_free_vars term;
+  } in
+  match H.find_all all_terms t with
+  | [t] -> t
+  | [] -> H.add all_terms t; t
+  (** There shouldn't be more than one instance of a term in the hashset. *)
+  | _ -> assert false
+
+let mk_normal ty term reduced =
+  (* Format.eprintf "mk_normal: @[<v>ty: %a@ descr: %a@ reduced: %a@]@."
+    pp ty pp_descr term pp reduced; *)
+  if not (is_reduced reduced) then begin
+    Util.error ~section "@[<hv>Term@ %a@ reduced from@ %a@ is not in normal form !@]"
+      pp reduced pp_descr term;
+    assert false
+  end;
+  assert (equal (reduce ty) (reduce reduced.ty));
+  (** *)
+  incr idx_terms;
+  let hash = compute_hash term in
+  let t = {
+    ty; term; hash; reduced;
+    index = !idx_terms;
+    free = compute_free_vars term;
+  } in
+  match H.find_all all_terms t with
+  | [t'] -> t'
+  | [] -> H.add all_terms t; t
+  (** There shouldn't be more than one instance of a term in the hashset. *)
+  | _ -> assert false
+
+
+(* Creating simple terms (i.e no application or let-binding) *)
+(* ************************************************************************ *)
+
+let id v =
+  let t = Id v in
+  let ty = v.Expr.id_type in
+  match v.Expr.builtin with
+  | Var | Declared -> mk_reduced ty t
+  | Defined t' -> mk_normal ty t (reduce t')
+  (** Variables should have one of these as builtins *)
+  | _ -> assert false
 
 let _Prop_id = declare "Prop" _Type
 let _Prop = id _Prop_id
+
 
 (* Reduction and comparison *)
 (* ************************************************************************ *)
 
 (* get a function type *)
-let rec extract_fun_ty t =
-  match reduce t.ty with
+let extract_fun_ty t =
+  match reduce (ty t) with
   | { term = Binder (Forall, v, ty) } -> v, ty
-  | _ -> raise (Function_expected t)
+  | _ ->
+    Util.error ~section
+      "@[<v 2>Trying to extract function type fom:@ term: %a@ ty: %a@ reduced ty: %a"
+      pp t pp (ty t) pp (reduce (ty t));
+    raise (Function_expected t)
 
-(* function application *)
-and _assert t ty =
-  if not (equal t.ty ty) then begin
+(* equality assertion *)
+let _assert t t_ty =
+  if not (Reduced.equal (ty t) t_ty) then begin
     Util.error
       "@[<hv>Proof term@ %a@ has type@ %a@ but was expected of type@ %a"
-      pp t pp t.ty pp ty;
-    raise (Type_mismatch (t, ty))
+      pp t pp (reduce (ty t)) pp (reduce t_ty);
+    raise (Type_mismatch (t, t_ty))
   end
 
-and app t arg =
-  let v, ty = extract_fun_ty t in
+(* function application *)
+let rec app f arg =
+  (* Format.eprintf "app: @[<hv>%a@ @@@ %a@]@." pp f pp arg; *)
+  let t = App (f, arg) in
+  let v, ty = extract_fun_ty f in
   let expected_arg_ty = v.Expr.id_type in
   _assert arg expected_arg_ty;
   let s = S.Id.bind S.empty v arg in
   let res_ty = subst s ty in
-  mk res_ty (App (t, arg))
+  (* check for normal forms *)
+  match f with
+  | { term = Binder (Lambda, v, body) } ->
+    (* Format.eprintf "reducing beta-redex@."; *)
+    let reduced = reduce_beta v arg body in
+    (* Format.eprintf "beta-redex reduced: @[<hov>%a@]@." pp reduced; *)
+    mk_normal res_ty t reduced
+  | _ ->
+    (* Format.eprintf "not a beta-redex@."; *)
+    if is_reduced f && is_reduced arg then
+      mk_reduced res_ty t
+    else
+      mk_normal res_ty t (reduce (app (reduce f) (reduce arg)))
 
 and letin v e body =
   assert (is_var v);
   _assert e v.Expr.id_type;
-  mk body.ty (Let (v, e, body))
+  mk_normal (ty body) (Let (v, e, body)) (reduce_beta v e body)
 
 and bind b v body =
   assert (is_var v);
-  match b with
-  | Lambda ->
-    let res_ty = bind Forall v body.ty in
-    mk res_ty (Binder (Lambda, v, body))
-  | Forall | Exists ->
-    (* TODO: check the type of a forall / see typical PT ? *)
-    mk body.ty (Binder (b, v, body))
+  let t = Binder (b, v, body) in
+  let ty =
+    match b with
+    | Lambda -> bind Forall v (ty body)
+    (* TODO: check the type of a forall / see typical PTS ? *)
+    | Forall | Exists -> ty body
+  in
+  let v_ty = v.Expr.id_type in
+  if is_reduced v_ty && is_reduced body then begin
+    mk_reduced ty t
+  end else begin
+    let v' = var_typed v (reduce v_ty) in
+    let map = S.Id.bind S.empty v (id v') in
+    (** the type of v' is reduced, && the body is reduced, therefore,
+        the computed type of the bind in th erecursive call should take the
+        first branch of the conditional and build a normal form. *)
+    let reduced = bind b v' (subst map (reduce body)) in
+    mk_normal ty t reduced
+  end
 
-and subst s t =
+and subst_aux s t =
   match t.term with
   | Type -> t
   | Id v ->
@@ -205,122 +406,69 @@ and subst s t =
       with Not_found -> t
     end
   | App (f, arg) ->
-    app (subst s f) (subst s arg)
+    let f' = subst_aux s f in
+    let arg' = subst_aux s arg in
+    app f' arg'
   | Let (v, e, body) ->
-    let e' = subst s e in
+    let e' = subst_aux s e in
     let s' = S.Id.remove v s in
     let v', s'' =
-      if equal e.ty e'.ty then v, s'
+      if e.ty == e'.ty then v, s'
       else
-        let v' = var v.Expr.id_name e'.ty in
+        let v' = var_typed v e'.ty in
         v', S.Id.bind s' v (id v')
     in
-    let body' = subst s'' body in
-    if v == v' && e == e' && body == body' then t
-    else mk body'.ty (Let (v', e', body'))
+    let body' = subst_aux s'' body in
+    letin v' e' body'
   | Binder (b, v, body) ->
     let ty = v.Expr.id_type in
-    let ty' = subst s ty in
+    let ty' = subst_aux s ty in
     let s' = S.Id.remove v s in
     let v', s'' =
-      if equal ty ty' then v, s'
+      if ty == ty' then v, s'
       else
-        let v' = var v.Expr.id_name ty' in
+        let v' = var_typed v ty' in
         v', S.Id.bind s' v (id v')
     in
-    let body' = subst s'' body in
-    if v == v' && body == body' then t
-    else bind b v' body'
+    let body' = subst_aux s'' body in
+    bind b v' body'
 
-and reduce_beta map t =
+and subst s t =
+  if S.is_empty s then t else subst_aux s t
+
+and reduce_beta v e body =
+  let map = S.Id.bind S.empty v (reduce e) in
+  let tmp = subst map body in
+  (* Format.eprintf "beta-reduced: @[<hov>%a@]@." pp tmp; *)
+  let ret = reduce tmp in
+  (* Format.eprintf "normal beta-reduced: @[<hov>%a@]@." pp ret; *)
+  ret
+
+(*
+and reduce_binders map t =
   match t.term with
-  | Let (v, e, body)
-  | App ( { term = Binder (Lambda, v, body) }, e )
-    ->
-    let e' = subst map (reduce e) in
-    reduce_beta (S.Id.bind map v e') body
-  | _ ->
-    if S.is_empty map then t else reduce @@ subst map t
+  | Binder (b, v, body) ->
+    let ty = v.Expr.id_type in
+    let ty' = subst map @@ reduce ty in
+    let v' = if ty == ty' then v else var v.Expr.id_name ty' in
+    let map' = if v == v' then map else S.Id.bind map v (id v') in
+    let body' = reduce_binders map' body in
+    if v == v' && body == body' then t else bind b v' body'
+  | _ -> subst map @@ reduce t
 
 and reduce_aux t =
   match t.term with
   | Type -> t
   | Id { Expr.builtin = Defined b; _ } -> b
   | Id _ -> t
-  | Binder (b, v, body) ->
-    let body' = reduce body in
-    if body == body' then t else bind b v body'
+  | Binder _ -> reduce_binders S.empty t
+  | Let _ -> reduce_beta S.empty t
   | App (f, arg) ->
     let f' = reduce f in
     let arg' = reduce arg in
     let t' = if f == f' && arg == arg' then t else app f' arg' in
     reduce_beta S.empty t'
-  | Let _ -> reduce_beta S.empty t
-
-and reduce t =
-  match t.reduced with
-  | Some t' -> t'
-  | None ->
-    let t' = reduce_aux t in
-    t'.reduced <- Some t';
-    t.reduced <- Some t';
-    t'
-
-and compare_id_type v v' =
-  compare v.Expr.id_type v'.Expr.id_type
-
-and compare_body (v, t) (v', t') =
-  let s = Expr.Subst.Id.bind Expr.Subst.empty v' (id v) in
-  compare_aux t (subst s t')
-
-and compare_rec t t' =
-  match t.term, t'.term with
-  | Type, Type -> 0
-  | Id x, Id y -> Expr.Id.compare x y
-  | App (f, arg), App (f', arg') ->
-    CCOrd.Infix.(compare_aux f f'
-                 <?> (compare_aux, arg, arg'))
-  | Binder (b, v, body), Binder (b', v', body') ->
-    CCOrd.Infix.(Pervasives.compare b b'
-                 <?> (compare_id_type, v, v')
-                 <?> (compare_body, (v, body), (v', body')))
-  | Let _, _
-  | _, Let _ -> assert false
-  | u, v -> Pervasives.compare (_descr u) (_descr v)
-
-and compare_aux t t' =
-  if t == t' then 0
-  else
-    CCOrd.(Pervasives.compare (hash t) (hash t')
-           <?> (compare_rec, t, t'))
-
-and compare t t' =
-  compare_aux (reduce t) (reduce t')
-
-and equal t t' =
-  compare t t' = 0
-
-and hash_id id = hash id.Expr.id_type
-
-and hash_aux t =
-  match t.term with
-  | Type -> 0
-  | Id x -> hash_id x
-  | App (f, arg) ->
-    Hashtbl.hash (hash f, hash arg)
-  | Let (x, v, body) ->
-    Hashtbl.hash (hash_id x, hash v, hash body)
-  | Binder (b, var, body) ->
-    Hashtbl.hash (Hashtbl.hash b, hash_id var, hash body)
-
-and hash t =
-  if t.hash > 0 then t.hash
-  else begin
-    let h = hash_aux (reduce t) in
-    t.hash <- h;
-    h
-  end
-
+*)
 
 (* Unification *)
 (* ************************************************************************ *)
@@ -374,6 +522,30 @@ let unif s t =
   S.filter (fun v _ -> S.Id.mem v fv) res
 *)
 
+(* Simplifing expressions before printing *)
+(* ************************************************************************ *)
+
+let contract t =
+  try id @@ Hs.find definitions t
+  with Not_found -> t
+
+(* Implicit arguments for printing *)
+(* ************************************************************************ *)
+
+let mk_flag () =
+  let tag = Tag.create () in
+  (fun v -> Expr.Id.tag v tag ()),
+  (fun v ->
+     match Expr.Id.get_tag v tag with
+     | None -> false
+     | Some () -> true
+  )
+
+let dot_implicit, is_dot_implicit = mk_flag ()
+let coq_implicit, is_coq_implicit = mk_flag ()
+let coq_inferred, is_coq_inferred = mk_flag ()
+let tptp_implicit, is_tptp_implicit = mk_flag ()
+
 (* Shorthands for constructors *)
 (* ************************************************************************ *)
 
@@ -407,6 +579,7 @@ let false_id = declare "false" _Prop
 let false_term = id false_id
 
 let imply_id =
+  (* Format.eprintf "@\ninitializing imply_id@."; *)
   let a = var "A" _Prop in
   let b = var "B" _Prop in
   let t = lambda a (lambda b (arrow (id a) (id b))) in
@@ -415,6 +588,7 @@ let imply_id =
 let imply_term = id imply_id
 
 let not_id =
+  (* Format.eprintf "@\ninitializing not_id@."; *)
   let a = var "A" _Prop in
   let t = lambda a (apply imply_term [id a; false_term]) in
   define "not" t
@@ -422,10 +596,11 @@ let not_id =
 let not_term = id not_id
 
 let equal_id =
+  (* Format.eprintf "@\ninitializing equal_id@."; *)
   let a_id = var "a" _Type in
   let () = coq_implicit a_id in
   let () = tptp_implicit a_id in
-  let () = coq_implicit a_id in
+  let () = dot_implicit a_id in
   let a_type = id a_id in
   declare "==" (forall a_id (arrows [a_type; a_type] _Prop))
 
@@ -535,6 +710,7 @@ let flatten_binder t =
       if is_type_var v () then is_type_var, Forall, `Pi
       else if occurs v body then occurs, Forall, `Binder Forall
       else if equal _Type t.ty then not_occurs, Forall, `Arrow
+      else if equal _Prop t.ty then not_occurs, Forall, `Arrow
       else not_type_var, Forall, `Binder Forall
     | Binder (b, _, _) -> (fun _ _ -> true), b, `Binder b
     | _ -> assert false
@@ -571,22 +747,22 @@ let rec print_app fmt t =
   let f, args = uncurry_app t in
   assert (args <> []);
   Format.fprintf fmt "(%a@ %a)"
-    print f CCFormat.(list ~sep:(return "@ ") print) args
+    print_aux f CCFormat.(list ~sep:(return "@ ") print_aux) args
 
 and print_let fmt v e body =
   Format.fprintf fmt "@[<v>@[<hov>let %a =@ %a in@]@ %a@]"
-    print_id v print e print body
+    print_id v print_aux e print_aux body
 
 and print_arrow fmt (l, body) =
   let l' = List.map (fun v -> v.Expr.id_type) l in
   let sep fmt () = Format.fprintf fmt " ->@ " in
   Format.fprintf fmt "(@[<hov>%a ->@ %a@])"
-    CCFormat.(list ~sep print) l' print body
+    CCFormat.(list ~sep print_aux) l' print_aux body
 
 and print_var_list fmt (ty, l) =
   assert (l <> []);
   Format.fprintf fmt "(%a :@ %a)"
-    CCFormat.(list ~sep:(return "@ ") print_id) l print ty
+    CCFormat.(list ~sep:(return "@ ") print_id) l print_aux ty
 
 and print_var_lists fmt l =
   CCFormat.(list ~sep:(return "@ ") print_var_list) fmt l
@@ -595,10 +771,10 @@ and print_binder fmt (b, l, body) =
   let l' = concat_vars l in
   Format.fprintf fmt "( @[<hov 2>%s @[<hov>%a@]%s@ %a@] )"
     (binder_name b) print_var_lists l'
-    (binder_sep b) print body
+    (binder_sep b) print_aux body
 
-and print fmt t =
-  match t.term with
+and print_aux fmt t =
+  match (contract t).term with
   | Type -> print_type fmt ()
   | Id v -> print_id fmt v
   | App _ -> print_app fmt t
@@ -609,6 +785,8 @@ and print fmt t =
       | `Arrow -> print_arrow fmt (l, body)
       | `Pi | `Binder _ -> print_binder fmt (b, l, body)
     end
+
+let print = CCFormat.hovbox print_aux
 
 let print_typed fmt t =
   Format.fprintf fmt "@[<hv 2>%a :@ %a@]" print t print t.ty
@@ -646,9 +824,7 @@ let rec match_aux subst pat t =
   | _ -> raise (Match_Impossible (pat, t))
 
 let pmatch ~pat t =
-  let s = match_aux S.empty (reduce pat) (reduce t) in
-  let fv = free_vars pat in
-  S.filter (fun v _ -> S.Id.mem v fv) s
+  match_aux S.empty (reduce pat) (reduce t)
 
 (* Tanslating from Expr to Term *)
 (* ************************************************************************ *)
@@ -695,7 +871,7 @@ let of_id_aux ~kind tr ?callback id =
   | None ->
     let ty = tr ?callback id.Expr.id_type in
     let mk = match kind with
-      | `Var -> mk_var
+      | `Var -> var
       | `Declared | `Cst -> declare
     in
     let v = mk id.Expr.id_name ty in

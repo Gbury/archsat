@@ -30,10 +30,11 @@ and descr = private
 
 and t = private {
   ty : t;
+  hash : int;
+  index : int;
   term : descr;
-  mutable hash : int;
-  mutable reduced : t option;
-  mutable free : (id, unit) S.t option;
+  reduced : t;
+  free : (id, unit) S.t;
 }
 (** Term records. Contains the type of the term,
     to avoid recomputing it every time (which is pretty
@@ -70,8 +71,26 @@ val print : Format.formatter -> t -> unit
 val print_typed : Format.formatter -> t -> unit
 (** Print a term (quite verbose). *)
 
+module Reduced : sig
+  type nonrec t = t
+  val hash : t -> int
+  val equal : t -> t -> bool
+  val compare : t -> t -> int
+end
+(** Standard function that take the reduced (or normal form) into account
+    rather than the base term. *)
+
+(** {4 Meta data accessor} *)
+
+val ty : t -> t
+(** Returns the type of a term. *)
+
 val reduce : t -> t
 (** Compute the beta-normal form of the term. *)
+
+val is_reduced : t -> bool
+(** Is the given term in normal form ?
+    WARNING: the type of a term in normal form is not necessary in normal form. *)
 
 
 (** {4 Disambiguation}
@@ -100,9 +119,21 @@ val occurs : id -> t -> bool
 (** Does the variable occurs in the set of free variables of
     the given term. *)
 
+
+(** {4 Printing flags} *)
+
+val dot_implicit : id -> unit
+val is_dot_implicit : id -> bool
+(** Mark.recognize coq implicit arguments. *)
+
 val coq_implicit : id -> unit
 val is_coq_implicit : id -> bool
 (** Mark.recognize coq implicit arguments. *)
+
+val coq_inferred : id -> unit
+val is_coq_inferred : id -> bool
+(** Mark.recognize coq arguments that can be inferred by coq,
+    and thus can be printed using "_". *)
 
 val tptp_implicit : id -> unit
 val is_tptp_implicit : id -> bool
@@ -234,6 +265,10 @@ val pmatch : pat:t -> t -> (id, t) S.t
 
 
 (** {2 Term destruction} *)
+
+val contract : t -> t
+(** Try and contract the term to return a smaller equivalent term
+    (useful when printing). *)
 
 val uncurry_app : t -> t * t list
 (** Uncurry the application. *)

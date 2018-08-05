@@ -20,7 +20,7 @@ module Env = struct
         | _ -> None
       )
 
-  module Mt = Map.Make(Term)
+  module Mt = Map.Make(Term.Reduced)
   module Ms = Map.Make(String)
 
   (* Coercions:
@@ -63,7 +63,7 @@ module Env = struct
   }
 
   let print_aux fmt (t, id) =
-    Format.fprintf fmt "%a (%d): @[<hov>%a@]" Expr.Print.id id (Term.hash t) Term.print t
+    Format.fprintf fmt "%a (%d): @[<hov>%a@]" Expr.Print.id id (Term.Reduced.hash t) Term.print t
 
   let bindings t =
     let l = Mt.bindings t.names in
@@ -90,8 +90,30 @@ module Env = struct
   let mem t f = Mt.mem f t.names || Mt.mem f t.global
 
   let get t f =
+    Util.debug ~section "looking for %a" Term.print f;
     try Term.id @@ Mt.find f t.names
     with Not_found -> Term.id @@ Mt.find f t.global
+    (*
+      begin
+        try Term.id @@ Mt.find f t.global
+        with Not_found ->
+          let (_, id) =
+            List.find (fun (f', id) ->
+              let d = Term.Reduced.compare f f' in
+              Util.debug ~section "@[<hv>compare (%d) with %a:@ %a@ ~/~@ %a@]"
+                d Expr.Id.print id Term.print f Term.print f';
+              d = 0
+              ) (bindings t)
+          in
+          ignore @@ CCList.product (fun (a, aid) (b, bid) ->
+              let d = Term.Reduced.compare a b in
+              Util.debug ~section "@[<hv>compare (%d):@ %a@ ~/~@ %a@]"
+                d Expr.Id.print aid Expr.Id.print bid)
+                 (bindings t) (bindings t);
+          Util.error ~section "Incoherent comparison ! Found %a in bindings" Expr.Id.print id;
+          assert false
+      end
+       *)
 
   let rec find_coerced t { term; wrap; } =
     match get t term with
@@ -104,7 +126,7 @@ module Env = struct
       begin match CCList.find_map (find_coerced t) (c f) with
         | None -> find_aux t f r
         | Some (term, t', res) ->
-          if Term.(equal f res.ty) then res
+          if Term.(Reduced.equal f (ty res)) then res
           else begin
             Util.debug ~section
               "@[<hv>Originally looking for @[<hov>%a@]@ coerced to @[<hov>%a@]@ which found@ @[<hov>%a@]@ but wrapped into @[<hov>%a@]@]"
@@ -196,7 +218,7 @@ module Prelude = struct
       | Require v, Require v' -> Expr.Id.compare v v'
       | Alias (v, e), Alias (v', e') ->
         let res = Expr.Id.compare v v' in
-        if res = 0 then assert (Term.equal e e');
+        if res = 0 then assert (Term.Reduced.equal e e');
         res
       | _ -> Pervasives.compare (_discr t) (_discr t')
 
@@ -222,7 +244,7 @@ module Prelude = struct
     | Alias (id, t) ->
       Util.debug ~section "%a : %a" Expr.Id.print id Term.print id.Expr.id_type;
       Format.fprintf fmt "(* @[<hov>Prelude: Alias@] *)@\n@[<hv>pose ( %a :=@ @[<hov>%a@] )@].@\n"
-        Coq.Print.id id Coq.Print.term t
+        Coq.Print.id id Coq.Print.fragile t
 
   let coq_term fmt = function
     | Require id ->
@@ -230,7 +252,7 @@ module Prelude = struct
     | Alias (id, t) ->
       Format.fprintf fmt
         "(* @[<hov>Prelude: Alias@] *)@\n@[<hv>Definition %a :@ @[<hov>%a@] :=@ @[<hov>%a@]@].@\n"
-        Coq.Print.id id Coq.Print.term id.Expr.id_type Coq.Print.term t
+        Coq.Print.id id Coq.Print.term id.Expr.id_type Coq.Print.fragile t
 
   (** Prelude dependencies *)
 
@@ -252,7 +274,7 @@ module Prelude = struct
     mk ~deps (Require s)
 
   let alias ?(deps=[]) id t =
-    assert (Term.equal id.Expr.id_type t.Term.ty);
+    assert (Term.Reduced.equal id.Expr.id_type (Term.ty t));
     mk ~deps (Alias (id, t))
 
   let topo l iter =
@@ -690,12 +712,11 @@ let print ~lang fmt = function
     print_aux lang fmt (seq, p)
   | _ -> assert false
 
-let print_term ?(process=(fun x -> x)) ~lang fmt = function
-  | (seq, [| p |]) as proof ->
-    let t = elaborate proof in
-    let t' = process t in
-    assert (Term.(equal t.ty t'.ty));
-    print_term_aux lang fmt (seq, t')
+let print_term ~lang fmt (proof, t) =
+  match proof with
+  | (seq, [| _ |]) ->
+    assert (Term.(Reduced.equal (ty t) (goal seq)));
+    print_term_aux lang fmt (seq, t)
   | _ -> assert false
 
 let print_term_preludes ~lang fmt proof =
@@ -737,7 +758,7 @@ let apply =
   let compute ctx (f, n, prelude) =
     Util.debug ~section "applying %a" Term.print f;
     let g = goal ctx in
-    match match_n_arrow [] n f.Term.ty with
+    match match_n_arrow [] n (Term.ty f) with
     | None ->
       Util.warn ~section
         "@[<hv 2>Expected a non-dependant product type but got:@ %a@ while applying:@ %a@]"
@@ -745,7 +766,7 @@ let apply =
       assert false
     | Some (l, ret) ->
       (** Check that the application proves the current goal *)
-      if not (Term.equal ret g) then
+      if not (Term.Reduced.equal ret g) then
         raise (Fail (
             Format.asprintf
               "@[<hv>Wrong result type during application, expected@ @[<hov>%a@]@ but got@ @[<hov>%a@]@]"
@@ -757,7 +778,7 @@ let apply =
         ) (Term.free_vars f) [] in
       begin match unbound_vars with
         | [] -> (* Everything is good, let's proceed *)
-          Util.debug ~section "Goals left: @[<v>%a@]"
+          Util.debug ~section "Goals after application: @[<v>%a@]"
             CCFormat.(list ~sep:(return "@ ") (hovbox Term.print)) l;
           (f, n, prelude), Array.map (fun g' -> mk_sequent e g') (Array.of_list l)
         | l -> (** Some variables are unbound, complain about them loudly *)
@@ -813,7 +834,7 @@ let intro =
 let letin =
   let prelude _ = [] in
   let compute ctx (prefix, t) =
-    let id, e = Env.intro (env ctx) prefix t.Term.ty in
+    let id, e = Env.intro (env ctx) prefix (Term.ty t) in
     Util.debug ~section "let_binding %a = @[<hov>%a@]" Expr.Id.print id Term.print t;
     (id, t), [| mk_sequent e (goal ctx) |]
   in

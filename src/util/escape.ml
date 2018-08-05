@@ -112,7 +112,7 @@ and add_success fmt t any status name =
 
 and add_failure ~fragile fmt t any status name r =
   let conflict_st, conflict_name = H.find (get_table t fmt) r in
-  let log = if fragile then Util.error else Util.warn in
+  let log = if fragile then Util.error else Util.info in
   log ~section "Escaping %a,@ conficted with@ %a"
     pp_assign (any, status, name) pp_assign (r, conflict_st, conflict_name);
   let new_name = t.rename name in

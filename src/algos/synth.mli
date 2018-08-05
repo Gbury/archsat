@@ -9,7 +9,7 @@
 
 (** {2 Synhtetizing} *)
 
-exception Cannot_find
+exception Cannot_find of Expr.ty
 (** Raised when it was not possible to find synthetize a term. *)
 
 val add_id : Expr.Id.Const.t -> unit

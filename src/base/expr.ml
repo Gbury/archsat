@@ -28,7 +28,7 @@ type 'ty id = {
   id_name : string;
   index   : index; (** unique *)
   builtin : builtin;
-  mutable id_tags : tag_map;
+  id_tags : tag_map ref;
 }
 
 (* Metavariables, basically, wrapped variables *)
@@ -188,7 +188,7 @@ module Print = struct
   let name : Pretty.name tag = Tag.create ()
 
   let id fmt v =
-    match Tag.get v.id_tags name with
+    match Tag.get !(v.id_tags) name with
     | Some (Pretty.Exact s | Pretty.Renamed s) -> Format.fprintf fmt "%s" s
     | None -> Format.fprintf fmt "%s@{<Black>/%d@}" v.id_name v.index
 
@@ -200,7 +200,7 @@ module Print = struct
     | TyMeta m -> meta fmt m
     | TyApp (f, []) -> id fmt f
     | TyApp (f, l) ->
-      begin match Tag.get f.id_tags pos with
+      begin match Tag.get !(f.id_tags) pos with
         | None ->
           Format.fprintf fmt "@[<hov 2>%a(%a)@]"
             id f CCFormat.(list ~sep:(return ",@ ") ty) l
@@ -229,7 +229,7 @@ module Print = struct
   let fun_ttype = signature ttype
 
   let id_pretty fmt v =
-    match Tag.get v.id_tags pos with
+    match Tag.get !(v.id_tags) pos with
     | None -> ()
     | Some Pretty.Infix -> Format.fprintf fmt "(%a)" id v
     | Some Pretty.Prefix -> Format.fprintf fmt "[%a]" id v
@@ -252,7 +252,7 @@ module Print = struct
     | Meta m -> meta fmt m
     | App (f, [], []) -> id fmt f
     | App (f, tys, args) ->
-      begin match Tag.get f.id_tags pos with
+      begin match Tag.get !(f.id_tags) pos with
         | None ->
           begin match tys, args with
             | _, [] ->
@@ -508,28 +508,31 @@ module Id = struct
   let term_skolems : (index, (ttype, ty) function_descr id) Hashtbl.t = Hashtbl.create 1007
 
   (* Constructors *)
-  let mk_new ?(builtin=Base) ?(tags=Tag.empty) id_name id_type =
+  let mk_new ?(builtin=Base) ?tags id_name id_type =
     assert (id_name <> "");
     let index = CCVector.length value_vec in
-    let id_tags = tags in
+    let id_tags = match tags with
+      | Some t -> t
+      | None -> ref Tag.empty
+    in
     CCVector.push value_vec None;
     { index; id_name; id_type; id_tags; builtin }
 
-  let ttype ?builtin ?tags name = mk_new ?builtin ?tags name Type
-  let ty ?builtin ?tags name ty = mk_new ?builtin ?tags name ty
+  let ttype ?builtin ?tags name = mk_new ?builtin ?tags:(CCOpt.map ref tags) name Type
+  let ty ?builtin ?tags name ty = mk_new ?builtin ?tags:(CCOpt.map ref tags) name ty
 
   let const ?builtin ?tags name fun_vars fun_args fun_ret =
-    mk_new ?builtin ?tags name { fun_vars; fun_args; fun_ret; }
+    mk_new ?builtin ?tags:(CCOpt.map ref tags) name { fun_vars; fun_args; fun_ret; }
 
   let ty_fun ?builtin ?tags name n =
     const ?builtin ?tags name [] (CCList.replicate n Type) Type
   let term_fun = const
 
   (* Tags *)
-  let get_tag id k = Tag.get id.id_tags k
+  let get_tag id k = Tag.get !(id.id_tags) k
 
   let tag id k v =
-    id.id_tags <- Tag.add id.id_tags k v
+    id.id_tags := Tag.add !(id.id_tags) k v
 
   let cached f =
     let t = Tag.create () in
