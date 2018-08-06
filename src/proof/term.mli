@@ -33,7 +33,7 @@ and t = private {
   hash : int;
   index : int;
   term : descr;
-  reduced : t;
+  reduced : t Lazy.t;
   free : (id, unit) S.t;
 }
 (** Term records. Contains the type of the term,

@@ -27,7 +27,7 @@ and t = {
   hash : int;
   index : int;
   term : descr;
-  reduced : t;
+  reduced : t Lazy.t;
   free : (id, unit) S.t;
 }
 
@@ -80,17 +80,15 @@ let equal t t' = compare t t' = 0
 
 let ty t = t.ty
 let free_vars t = t.free
-let reduce t = t.reduced
-let is_reduced t = t == t.reduced
+let reduce t = Lazy.force t.reduced
+let is_reduced t = t == (reduce t)
 
 module Reduced = struct
 
   type nonrec t = t
 
-  let hash t = t.reduced.hash
-  let compare t t' =
-    Pervasives.compare t.reduced.index t'.reduced.index
-
+  let hash t = hash @@ reduce t
+  let compare t t' = compare (reduce t) (reduce t')
   let equal t t' = compare t t' = 0
 
 end
@@ -115,7 +113,7 @@ let var s ty =
 
 let var_typed v ty =
   let s = v.Expr.id_name in
-  let tags = v.Expr.id_tags in
+  let tags = ref (! (v.Expr.id_tags)) in
   Expr.Id.mk_new ~tags ~builtin:Var s ty
 
 let declare s ty =
@@ -257,7 +255,7 @@ let rec _Type = {
   index   = 0;
   ty      = _Type;
   term    = Type;
-  reduced = _Type;
+  reduced = lazy _Type;
   hash    = 13; (* TODO: better base hash ? *)
   free    = S.empty;
 }
@@ -276,21 +274,22 @@ let mk_reduced ty term =
   let rec t = {
     ty; term; hash;
     index = !idx_terms;
-    reduced = t;
+    reduced = lazy t;
     free = compute_free_vars term;
   } in
   H.merge all_terms t
 
 let mk_normal ty term reduced =
   (* Format.eprintf "mk_normal: @[<v>ty: %a@ descr: %a@ reduced: %a@]@."
-    pp ty pp_descr term pp reduced; *)
+     pp ty pp_descr term pp reduced; *)
+  (*
   if not (is_reduced reduced) then begin
     Util.error ~section "@[<hv>Term@ %a@ reduced from@ %a@ is not in normal form !@]"
       pp reduced pp_descr term;
     assert false
   end;
-  assert (equal (reduce ty) (reduce reduced.ty));
-  (** *)
+  *)
+  (* assert (equal (reduce ty) (reduce reduced.ty)); *)
   incr idx_terms;
   let hash = compute_hash term in
   let t = {
@@ -308,7 +307,7 @@ let id v =
   let ty = v.Expr.id_type in
   match v.Expr.builtin with
   | Var | Declared -> mk_reduced ty t
-  | Defined t' -> mk_normal ty t (reduce t')
+  | Defined t' -> mk_normal ty t (lazy (reduce t'))
   (** Variables should have one of these as builtins *)
   | _ -> assert false
 
@@ -351,20 +350,23 @@ let rec app f arg =
   match f with
   | { term = Binder (Lambda, v, body) } ->
     (* Format.eprintf "reducing beta-redex@."; *)
-    let reduced = reduce_beta v arg body in
+    let reduced = lazy (reduce_beta v arg body) in
     (* Format.eprintf "beta-redex reduced: @[<hov>%a@]@." pp reduced; *)
     mk_normal res_ty t reduced
   | _ ->
     (* Format.eprintf "not a beta-redex@."; *)
     if is_reduced f && is_reduced arg then
       mk_reduced res_ty t
-    else
-      mk_normal res_ty t (reduce (app (reduce f) (reduce arg)))
+    else begin
+      let reduced = lazy (reduce (app (reduce f) (reduce arg))) in
+      mk_normal res_ty t reduced
+    end
 
 and letin v e body =
   assert (is_var v);
   _assert e v.Expr.id_type;
-  mk_normal (ty body) (Let (v, e, body)) (reduce_beta v e body)
+  let reduced = lazy (reduce_beta v e body) in
+  mk_normal (ty body) (Let (v, e, body)) reduced
 
 and bind b v body =
   assert (is_var v);
@@ -384,7 +386,7 @@ and bind b v body =
     (** the type of v' is reduced, && the body is reduced, therefore,
         the computed type of the bind in th erecursive call should take the
         first branch of the conditional and build a normal form. *)
-    let reduced = bind b v' (subst map (reduce body)) in
+    let reduced = lazy (bind b v' (subst map (reduce body))) in
     mk_normal ty t reduced
   end
 
@@ -1015,12 +1017,17 @@ let disambiguation_collision env v name =
     Expr.Id.print v name Expr.Id.print (M.find name env.names);
   raise (Invalid_argument "Term.bind_ambiguous")
 
-let rec find_unambiguous env v =
+let add_name reason env v name =
+  assert (not (M.mem name env.names));
+  Util.debug ~section "(%s) %a ~~~> %s" reason Expr.Id.print v name;
+  { (* env with *) names = M.add name v env.names }
+
+let find_unambiguous env v =
   let new_name = Format.asprintf "%s#%d" v.Expr.id_name (v.Expr.index :> int) in
   if M.mem new_name env.names
   then disambiguation_collision env v new_name
   else begin
-    Util.debug ~section "%a ~~~> %s" Expr.Id.print v new_name;
+    Util.debug ~section "(renaming) %a ###> %s" Expr.Id.print v new_name;
     Expr.Id.tag v disambiguate_tag (Pretty.Renamed new_name);
     new_name
   end
@@ -1029,16 +1036,15 @@ let bind_ambiguous env v =
   match Expr.Id.get_tag v disambiguate_tag with
   | None ->
     let name = full_name v in
-    let new_name =
-      if not @@ M.mem name env.names then name
-      else find_unambiguous env v
-    in
-    { (* env with *) names = M.add new_name v env.names }
+    if not @@ M.mem name env.names then
+      add_name "std:binding" env v name
+    else
+      add_name "disambiguated" env v (find_unambiguous env v)
   | Some Pretty.Exact s -> assert false
   | Some Pretty.Renamed s ->
     if M.mem s env.names
     then disambiguation_collision env v s
-    else { (* env with *) names = M.add s v env.names; }
+    else add_name "renamed" env v s
 
 let rec disambiguate_aux env t =
   match t.term with

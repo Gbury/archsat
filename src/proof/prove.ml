@@ -225,7 +225,7 @@ let output_proof opt p =
     Util.info ~section "Computing normalized proof term";
     Util.enter_prof normalisation_section;
     let t' = Term.reduce t in
-    (* let () = Term.disambiguate t' in *)
+    let () = Term.disambiguate t' in
     Util.exit_prof normalisation_section;
     p, t'
   ) in
