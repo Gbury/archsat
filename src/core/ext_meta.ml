@@ -190,7 +190,7 @@ let number () = H.length metas
 
 (* Proofs *)
 let mk_proof f ty_vars ty_list t_vars t_list q =
-  Dispatcher.mk_proof "meta" "ty" (Meta (
+  Dispatcher.mk_proof "meta" "gen" (Meta (
       Inst (f, ty_vars, ty_list, t_vars, t_list, q)))
 
 (* Ignored tags *)

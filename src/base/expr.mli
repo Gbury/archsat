@@ -475,6 +475,9 @@ module Ty : sig
   (** Return the list of free variables (resp. meta-variables) in the given type.
       Here, the [ty id list] (resp. [ty meta list]) is guaranteed to be empty. *)
 
+  val is_ground : ty -> bool
+  (** Check whether a type is ground. *)
+
   val tag : ty -> 'a tag -> 'a -> unit
   (** Insert a local tag in the given type. Does not change the semantic
       value of the type. Can be used to store some additional user-defined
@@ -521,6 +524,9 @@ module Term : sig
   val fv : term -> ttype id list * ty id list
   val fm : term -> ttype meta list * ty meta list
   (** Return the list of free variables in the given term. *)
+
+  val is_ground : term -> bool
+  (** Check whether a term is ground. *)
 
   val valuation : term -> valuation
   (** Return a valuation for the given term

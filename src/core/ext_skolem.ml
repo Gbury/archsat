@@ -115,6 +115,11 @@ let inst_epsilon get_tag tag trap inhabited e t =
     end
 
 let mk_proof f q types terms =
+  Util.debug ~section "mk_proof: @[<v>%a@ [@[<hov>%a]@]@ [@[<hov>%a]@]@ %a@]"
+    Expr.Formula.print f
+    CCFormat.(list ~sep:(return ";@ ") Expr.Ty.print) types
+    CCFormat.(list ~sep:(return ";@ ") Expr.Term.print) terms
+    Expr.Formula.print q;
   let t = Term.of_formula f in
   let t = List.fold_left (fun t e ->
       let inhabited = Term.apply Quant.inhabits_term
@@ -123,6 +128,8 @@ let mk_proof f q types terms =
     ) t types in
   let t = List.fold_left (fun t e ->
       let e_ty = e.Expr.t_type in
+      Util.debug ~section "  |- @[<hv>%a :@ %a@]"
+        Expr.Term.print e Expr.Ty.print e_ty;
       let inhabited = Term.apply Quant.inhabits_term
           [Term.of_ty e_ty; Term.of_term @@ Synth.term e_ty] in
       inst_epsilon Expr.Term.get_tag Expr.Term.tag Term.trap_term inhabited e t
@@ -138,7 +145,7 @@ let tau_counter = ref 0
 
 let gen_ty_tau ~status ty_args t_args v =
   let () = incr tau_counter in
-  let v' = Expr.(Id.ty_fun (Format.sprintf "t%d" !tau_counter) 0) in
+  let v' = Expr.(Id.ty_fun (Format.sprintf "τ%d" !tau_counter) 0) in
   let (tys, ts) = find_all_deps (Sty.empty, Sterm.empty) ty_args t_args in
   let res = Expr.Ty.apply ~status v' [] in
   let () = Expr.Ty.tag res dep_tag (tys, ts) in
@@ -153,7 +160,7 @@ let gen_ty_skolem ~status ty_args t_args v =
 
 let gen_term_tau ~status ty_args t_args v =
   let () = incr tau_counter in
-  let v' = Expr.(Id.term_fun (Format.sprintf "t%d" !tau_counter) [] [] v.id_type) in
+  let v' = Expr.(Id.term_fun (Format.sprintf "τ%d" !tau_counter) [] [] v.id_type) in
   let (tys, ts) = find_all_deps (Sty.empty, Sterm.empty) ty_args t_args in
   let res = Expr.Term.apply ~status v' [] [] in
   let () = Expr.Term.tag res dep_tag (tys, ts) in

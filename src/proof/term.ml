@@ -921,8 +921,8 @@ and of_ty ?callback ty =
 let rec of_term_aux ?callback = function
   | { Expr.term = Expr.Var v } ->
     of_id ~kind:`Var ?callback of_ty v
-  | { Expr.term = Expr.Meta m } ->
-    of_term ?callback (Synth.term Expr.(m.meta_id.id_type))
+  | { Expr.term = Expr.Meta m } as t ->
+    of_term ?callback (Synth.term Expr.(t.t_type))
   | { Expr.term = Expr.App (f, tys, args) } ->
     let f' = of_id ~kind:`Cst ?callback (of_function_descr of_ttype of_ty) f in
     let tys' = List.map (of_ty ?callback) tys in

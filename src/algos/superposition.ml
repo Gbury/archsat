@@ -655,6 +655,7 @@ let do_supp acc sigma'' active inactive =
               (Mapping.apply_term rho v')
               (C.singleton res)
           in
+          let subst = Mapping.stretch subst m in
           let reason =
             if is_eq inactive.clause then
               SP(active, inactive, Mapping.apply subst m)

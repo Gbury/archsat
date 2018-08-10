@@ -894,6 +894,11 @@ module Ty = struct
   let fv = Id.free_ty Id.null_fv
   let fm = Meta.free_ty Meta.null_fm
 
+  let is_ground ty =
+    match fv ty with
+    | [], [] -> true
+    | _ -> false
+
 end
 
 (* Terms *)
@@ -1010,6 +1015,11 @@ module Term = struct
   (* Free variables *)
   let fv = Id.free_term Id.null_fv
   let fm = Meta.free_term Meta.null_fm
+
+  let is_ground t =
+    match fv t with
+    | [], [] -> true
+    | _ -> false
 
   (* Valuation of terms *)
   let valuation t =

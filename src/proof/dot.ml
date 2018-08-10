@@ -309,9 +309,14 @@ module Arg = struct
     box Print.formula fmt f
 
   let hyp_info c =
-    let id = Solver.hyp_proof c in
-    "Hypothesis", Some "YELLOW",
-    [fun fmt () -> Print.id fmt id]
+    if Solver.is_registered c then
+      let id = Solver.hyp_proof c in
+      "Hypothesis", Some "YELLOW",
+      [fun fmt () -> Print.id fmt id]
+    else
+      "Hypothesis", Some "YELLOW",
+      [fun fmt () -> Format.fprintf fmt "goal"]
+
 
   let lemma_info c =
     let lemma =

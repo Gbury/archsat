@@ -67,6 +67,17 @@ let register_hyp n id =
   | None ->
     CCVector.set hyp_table n (Some id)
 
+let is_registered c =
+  match c.Dispatcher.SolverTypes.tag with
+  | None ->
+    Util.error ~section "Accessing proof for non-existant hyp";
+    assert false
+  | Some tag ->
+    begin match CCVector.get hyp_table tag with
+      | None -> false
+      | Some _ -> true
+    end
+
 let hyp_proof c =
   match c.Dispatcher.SolverTypes.tag with
   | None ->

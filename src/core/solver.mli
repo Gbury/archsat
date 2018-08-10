@@ -75,6 +75,9 @@ val export_dimacs : Format.formatter -> unit -> unit
 val register_hyp : id -> Term.id -> unit
 (** Assign the given proof id to the hyp linked to the identifier. *)
 
+val is_registered : Dispatcher.SolverTypes.clause -> bool
+(** is the clause registered as a hypothesis (else, it should be a goal). *)
+
 val hyp_proof : Dispatcher.SolverTypes.clause -> Term.id
 (** Get the proof id of an hypothesis clause. *)
 
