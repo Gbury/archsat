@@ -89,7 +89,7 @@ module Print = struct
           Format.fprintf fmt "@[<hov>(%a %a)@]" (term_aux ~fragile:false) f
             CCFormat.(list ~sep:(return "@ ") term_arg) args
         | Some Pretty.Prefix, _ ->
-          Format.fprintf fmt "@[<hov>%a %a@]" (term_aux ~fragile:false) f
+          Format.fprintf fmt "@[<hov>(%a %a)@]" (term_aux ~fragile:false) f
             CCFormat.(list ~sep:(return "@ ") term_arg) args
         | Some Pretty.Infix, _ ->
           let sep fmt () = Format.fprintf fmt "@ %a " (term_aux ~fragile:false) f in

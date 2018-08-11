@@ -817,7 +817,9 @@ let rec match_aux subst pat t =
   | _ -> raise (Match_Impossible (pat, t))
 
 let pmatch ~pat t =
-  match_aux S.empty (reduce pat) (reduce t)
+  try match_aux S.empty pat t
+  with Match_Impossible _ ->
+    match_aux S.empty (reduce pat) (reduce t)
 
 (* Tanslating from Expr to Term *)
 (* ************************************************************************ *)
