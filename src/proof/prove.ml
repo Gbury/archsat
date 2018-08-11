@@ -240,11 +240,11 @@ let output_proof opt p =
   (* Print the lazy proof term in coq *)
   let () = pp_lazy (Some "coqterm") coqterm_section Options.(opt.coq.term) term
       (print_context opt.Options.context Coq.proof_term_context
-         (Proof.print_term ~lang:Proof.Coq)) in
+         (Proof.print_term ~big:false ~lang:Proof.Coq)) in
   (* Print the normalized lazy proof term in coq *)
   let () = pp_lazy (Some "coqterm-normalize") coqterm_norm_section Options.(opt.coq.term_norm) norm
       (print_context opt.Options.context Coq.proof_term_context
-         (Proof.print_term ~lang:Proof.Coq)) in
+         (Proof.print_term ~big:true ~lang:Proof.Coq)) in
   (* Print the lazy proof in dot *)
   let () = pp_lazy (Some "dot") dot_section Options.(opt.dot.full) proof
       (print_context true Dot.proof_context

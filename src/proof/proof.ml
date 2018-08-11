@@ -626,6 +626,11 @@ let print_coq_term fmt (_, t) =
     "(* PROOF START *)@\n@[<hov 2>%a@]@\n(* PROOF END *)@."
     Coq.Print.term t
 
+let print_coq_big_term fmt (_, t) =
+  Format.fprintf fmt
+    "(* PROOF START *)@\n@[<hov 2>%a@]@\n(* PROOF END *)@."
+    Coq.Print.bigterm t
+
 (* Inspecting proofs *)
 (* ************************************************************************ *)
 
@@ -683,9 +688,11 @@ let print_prelude mode lang =
   | `Proof, Coq -> Prelude.coq_proof
   | `Term, Coq -> Prelude.coq_term
 
-let print_term_aux = function
-  | Dot -> print_dot_term
-  | Coq -> print_coq_term
+let print_term_aux lang big =
+  match lang, big with
+  | Dot, _ -> print_dot_term
+  | Coq, false -> print_coq_term
+  | Coq, true -> print_coq_big_term
 
 let print_preludes_aux ~mode ~lang fmt l =
   Prelude.topo l (fun p ->
@@ -701,11 +708,11 @@ let print ~lang fmt = function
     print_aux lang fmt (seq, p)
   | _ -> assert false
 
-let print_term ~lang fmt (proof, t) =
+let print_term ?(big=false) ~lang fmt (proof, t) =
   match proof with
   | (seq, [| _ |]) ->
     assert (Term.(Reduced.equal (ty t) (goal seq)));
-    print_term_aux lang fmt (seq, t)
+    print_term_aux lang big fmt (seq, t)
   | _ -> assert false
 
 let print_term_preludes ~lang fmt proof =

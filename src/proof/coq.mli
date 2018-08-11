@@ -23,6 +23,12 @@ module Print : sig
   val fragile : Format.formatter -> Term.t -> unit
   (** Print a fragile term *)
 
+  val bigterm : Format.formatter -> Term.t -> unit
+  (** Print a big term (i.e, with less indentation and boxes).
+      This should help formatting of big terms where indentation box
+      have a tendency to push everything to the right, and also
+      help performances since there are less boxes open at the same time. *)
+
 end
 
 
