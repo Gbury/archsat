@@ -515,13 +515,6 @@ let unif s t =
   S.filter (fun v _ -> S.Id.mem v fv) res
 *)
 
-(* Simplifing expressions before printing *)
-(* ************************************************************************ *)
-
-let contract t =
-  try id @@ Hs.find definitions t
-  with Not_found -> t
-
 (* Implicit arguments for printing *)
 (* ************************************************************************ *)
 
@@ -726,6 +719,18 @@ let concat_vars l =
       else aux v.Expr.id_type (concat_aux ty curr acc) [v] r
   in
   aux _Type [] [] l
+
+(* Simplifing expressions before printing *)
+(* ************************************************************************ *)
+
+let contract t =
+  try id @@ Hs.find definitions t
+  with Not_found ->
+    begin match t.term with
+      | Binder (Forall, v, body) when Reduced.equal body false_term ->
+        app not_term v.Expr.id_type
+      | _ -> t
+    end
 
 (* Printing *)
 (* ************************************************************************ *)
