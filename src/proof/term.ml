@@ -430,12 +430,16 @@ and subst s t =
   if S.is_empty s then t else subst_aux s t
 
 and reduce_beta v e body =
-  let map = S.Id.bind S.empty v (reduce e) in
-  let tmp = subst map body in
-  (* Format.eprintf "beta-reduced: @[<hov>%a@]@." pp tmp; *)
-  let ret = reduce tmp in
-  (* Format.eprintf "normal beta-reduced: @[<hov>%a@]@." pp ret; *)
-  ret
+  let t = reduce body in
+  if occurs v t then
+    let map = S.Id.bind S.empty v (reduce e) in
+    let tmp = subst map t in
+    (* Format.eprintf "beta-reduced: @[<hov>%a@]@." pp tmp; *)
+    let ret = reduce tmp in
+    (* Format.eprintf "normal beta-reduced: @[<hov>%a@]@." pp ret; *)
+    ret
+  else
+    t
 
 (*
 and reduce_binders map t =
