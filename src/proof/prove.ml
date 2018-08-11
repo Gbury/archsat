@@ -8,7 +8,7 @@ let normalisation_section = Section.make ~parent:section "normalisation"
 let dot_section = Section.make ~parent:section "dot_print"
 let coq_section = Section.make ~parent:section "coq_print"
 let coqterm_section = Section.make ~parent:section "coqterm_print"
-let coqterm_norm_section = Section.make ~parent:section "coqterm-norm_print"
+let coqnorm_section = Section.make ~parent:section "coqnorm_print"
 
 module P = Solver.Proof
 
@@ -96,7 +96,7 @@ let print_id_typed fmt id =
 let declare_id_aux ?loc opt id =
   pp_opt (Coq.declare_id ?loc) Options.(opt.coq.script) id;
   pp_opt (Coq.declare_id ?loc) Options.(opt.coq.term) id;
-  pp_opt (Coq.declare_id ?loc) Options.(opt.coq.term_norm) id;
+  pp_opt (Coq.declare_id ?loc) Options.(opt.coq.norm) id;
   ()
 
 let declare_implicits opt = function
@@ -125,7 +125,7 @@ let declare_id ?loc opt implicit id =
 let init opt () =
   pp_opt Coq.init Options.(opt.proof.coq.script) opt;
   pp_opt Coq.init Options.(opt.proof.coq.term) opt;
-  pp_opt Coq.init Options.(opt.proof.coq.term_norm) opt;
+  pp_opt Coq.init Options.(opt.proof.coq.norm) opt;
   pp_opt Dot.init_full Options.(opt.proof.dot.full) opt;
   ()
 
@@ -135,7 +135,7 @@ let init opt () =
 let declare_hyp_aux ?loc opt id =
   pp_opt (Coq.declare_hyp ?loc) Options.(opt.coq.script) id;
   pp_opt (Coq.declare_hyp ?loc) Options.(opt.coq.term) id;
-  pp_opt (Coq.declare_hyp ?loc) Options.(opt.coq.term_norm) id;
+  pp_opt (Coq.declare_hyp ?loc) Options.(opt.coq.norm) id;
   ()
 
 let declare_hyp ?loc opt id implicit p =
@@ -151,7 +151,7 @@ let declare_hyp ?loc opt id implicit p =
 let declare_goal_aux ?loc opt id =
   pp_opt (Coq.declare_goal ?loc) Options.(opt.coq.script) id;
   pp_opt (Coq.declare_goal_term ?loc) Options.(opt.coq.term) id;
-  pp_opt (Coq.declare_goal_term ?loc) Options.(opt.coq.term_norm) id;
+  pp_opt (Coq.declare_goal_term ?loc) Options.(opt.coq.norm) id;
   ()
 
 let declare_goal ?loc opt id implicit (solver_id, p) =
@@ -173,7 +173,7 @@ let implicit_goal opt =
 let declare_term_preludes opt proof =
   pp_lazy None coqterm_section Options.(opt.coq.term) proof
     (Proof.print_term_preludes ~lang:Proof.Coq);
-  pp_lazy None coqterm_norm_section Options.(opt.coq.term_norm) proof
+  pp_lazy None coqnorm_section Options.(opt.coq.norm) proof
     (Proof.print_term_preludes ~lang:Proof.Coq);
   ()
 
@@ -240,11 +240,11 @@ let output_proof opt p =
   (* Print the lazy proof term in coq *)
   let () = pp_lazy (Some "coqterm") coqterm_section Options.(opt.coq.term) term
       (print_context opt.Options.context Coq.proof_term_context
-         (Proof.print_term ~big:false ~lang:Proof.Coq)) in
+         (Proof.print_term ~big:Options.(opt.coq.term_big) ~lang:Proof.Coq)) in
   (* Print the normalized lazy proof term in coq *)
-  let () = pp_lazy (Some "coqterm-normalize") coqterm_norm_section Options.(opt.coq.term_norm) norm
+  let () = pp_lazy (Some "coqterm-normalize") coqnorm_section Options.(opt.coq.norm) norm
       (print_context opt.Options.context Coq.proof_term_context
-         (Proof.print_term ~big:true ~lang:Proof.Coq)) in
+         (Proof.print_term ~big:Options.(opt.coq.norm_big) ~lang:Proof.Coq)) in
   (* Print the lazy proof in dot *)
   let () = pp_lazy (Some "dot") dot_section Options.(opt.dot.full) proof
       (print_context true Dot.proof_context

@@ -63,7 +63,9 @@ type stats_options = {
 type coq_options = {
   script      : Format.formatter option;
   term        : Format.formatter option;
-  term_norm   : Format.formatter option;
+  term_big    : bool;
+  norm        : Format.formatter option;
+  norm_big    : bool;
 }
 
 type dot_options = {
@@ -175,11 +177,11 @@ let profile_opts enable max_depth sections out =
 let stats_opts enabled =
   { enabled; }
 
-let coq_opts script term term_norm =
+let coq_opts script term term_big norm norm_big =
   let script = formatter_of_out_descr script in
   let term = formatter_of_out_descr term in
-  let term_norm = formatter_of_out_descr term_norm in
-  { script; term; term_norm; }
+  let norm = formatter_of_out_descr norm in
+  { script; term; term_big; norm; norm_big; }
 
 let dot_opts incr res full =
   let res = formatter_of_out_descr res in
@@ -195,7 +197,7 @@ let proof_opts prove no_context coq dot unsat_core =
                || dot.full <> None
                || coq.script <> None
                || coq.term <> None
-               || coq.term_norm <> None
+               || coq.norm <> None
                || unsat_core <> None
   in
   { active; context; coq; dot; unsat_core; }
@@ -566,11 +568,19 @@ let coq_t =
                A special 'stdout' value can be used to use standard output" in
     Arg.(value & opt out_descr `None & info ["coqterm"] ~docs ~doc)
   in
+  let term_big =
+    let doc = "Set whether to use the big term printer or not for coq proof terms" in
+    Arg.(value & flag & info ["coqterm-big"] ~docs ~doc)
+  in
   let normalize =
     let doc = "Normalize the coq proof term before printing it" in
-    Arg.(value & opt out_descr `None & info ["coqterm-normalize"] ~docs ~doc)
+    Arg.(value & opt out_descr `None & info ["coqnorm"] ~docs ~doc)
   in
-  Term.(const coq_opts $ script $ term $ normalize)
+  let norm_big =
+    let doc = "Set whether to use the big term printer or not for normal coq terms" in
+    Arg.(value & flag & info ["coqnorm-big"] ~docs ~doc)
+  in
+  Term.(const coq_opts $ script $ term $ term_big $ normalize $ norm_big)
 
 let dot_t =
   let docs = proof_sect in

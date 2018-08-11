@@ -67,7 +67,9 @@ type stats_options = {
 type coq_options = {
   script      : Format.formatter option;
   term        : Format.formatter option;
-  term_norm   : Format.formatter option;
+  term_big    : bool;
+  norm        : Format.formatter option;
+  norm_big    : bool;
 }
 
 type dot_options = {
