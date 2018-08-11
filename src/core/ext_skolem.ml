@@ -158,9 +158,10 @@ let gen_ty_skolem ~status ty_args t_args v =
   let () = Expr.Ty.tag res dep_tag (tys, ts) in
   res
 
-let gen_term_tau ~status ty_args t_args v =
+let gen_term_tau ~status m ty_args t_args v =
   let () = incr tau_counter in
-  let v' = Expr.(Id.term_fun (Format.sprintf "τ%d" !tau_counter) [] [] v.id_type) in
+  let ty = Mapping.apply_ty m v.Expr.id_type in
+  let v' = Expr.(Id.term_fun (Format.sprintf "τ%d" !tau_counter) [] [] ty) in
   let (tys, ts) = find_all_deps (Sty.empty, Sterm.empty) ty_args t_args in
   let res = Expr.Term.apply ~status v' [] [] in
   let () = Expr.Term.tag res dep_tag (tys, ts) in
@@ -189,8 +190,8 @@ let get_ty_taus ~status ty_args t_args l =
   | Tau -> List.map (gen_ty_tau ~status ty_args t_args) l
   | Skolem -> List.map (gen_ty_skolem ~status ty_args t_args) l
 
-let get_term_taus ~status ty_args types t_args l = match !inst with
-  | Tau -> List.map (gen_term_tau ~status ty_args t_args) l
+let get_term_taus ~status m ty_args types t_args l = match !inst with
+  | Tau -> List.map (gen_term_tau ~status m ty_args t_args) l
   | Skolem -> List.map (gen_term_skolem ~status ty_args types t_args) l
 
 (* Helpers *)
@@ -205,8 +206,8 @@ let tau = function
         (CCFormat.list Expr.Print.ty) ty_args
         (CCFormat.list Expr.Print.term) t_args;
       let types = get_ty_taus ~status:f.Expr.f_status ty_args t_args l in
-      let terms = get_term_taus ~status:f.Expr.f_status ty_args types t_args l' in
       let m = List.fold_left2 Mapping.Var.bind_ty Mapping.empty l types in
+      let terms = get_term_taus ~status:f.Expr.f_status m ty_args types t_args l' in
       let m = List.fold_left2 Mapping.Var.bind_term m l' terms in
       let q = Mapping.apply_formula m p in
       Dispatcher.push [Expr.Formula.neg f; q] (mk_proof f q types terms)
@@ -219,8 +220,8 @@ let tau = function
         (CCFormat.list Expr.Print.ty) ty_args
         (CCFormat.list Expr.Print.term) t_args;
       let types = get_ty_taus ~status:f.Expr.f_status ty_args t_args l in
-      let terms = get_term_taus ~status:f.Expr.f_status ty_args types t_args l' in
       let m = List.fold_left2 Mapping.Var.bind_ty Mapping.empty l types in
+      let terms = get_term_taus ~status:f.Expr.f_status m ty_args types t_args l' in
       let m = List.fold_left2 Mapping.Var.bind_term m l' terms in
       let q = Expr.Formula.neg @@ Mapping.apply_formula m p in
       Dispatcher.push [Expr.Formula.neg f; q] (mk_proof f q types terms)
