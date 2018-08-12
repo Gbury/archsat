@@ -28,17 +28,23 @@ module Env = struct
         when a lookup fail, we allow coercions to suggest some other terms to look
         for, with adequate wrapper if such a term is found. *)
 
-  type coerced = {
+  type cst = Term.t
+
+  type wrapped = {
     term : Term.t;
     wrap : Term.t -> Term.t;
   }
+
+  type coerced =
+    | Cst of cst
+    | Wrapped of wrapped
 
   type coercion = string * (Term.t -> coerced list)
 
   (* To simplify things, the "normal" lookup is encoded as the trivial coercion *)
   let coercions : coercion list ref =
     ref [
-      "<id>", (fun term -> [ { term; wrap = (fun x -> x); } ] );
+      "<id>", (fun term -> [ Wrapped { term; wrap = (fun x -> x); } ] );
     ]
 
   (* It is important to keep coercions ordered, in order for the trivial coercion
@@ -113,10 +119,13 @@ module Env = struct
       end
        *)
 
-  let find_coerced t { term; wrap; } =
-    match get t term with
-    | exception Not_found -> None
-    | t' -> Some (term, t', wrap t')
+  let find_coerced t = function
+    | Cst res -> Some (res, res, res)
+    | Wrapped { term; wrap; } ->
+      begin match get t term with
+        | exception Not_found -> None
+        | t' -> Some (term, t', wrap t')
+      end
 
   let rec find_aux t f = function
     | [] -> raise (Not_introduced f)
@@ -151,20 +160,20 @@ module Env = struct
   (** Find a name not already used (guaranteed to terminate, since
       the 'reverse' map is finite. *)
   let rec intro_aux hidden t f prefix n =
-      let name = Format.sprintf "%s%d" prefix n in
-      if Ms.mem name t.reverse then
-        intro_aux hidden t f prefix (n + 1)
-      else begin
-        let id = Term.var name f in
-        if hidden then
-          id, { t with hidden = Mt.add f id t.hidden;
-                       count = Ms.add prefix (n + 1) t.count;
-                       reverse = Ms.add name id t.reverse; }
-        else
-          id, { t with names = Mt.add f id t.names;
-                       count = Ms.add prefix (n + 1) t.count;
-                       reverse = Ms.add name id t.reverse; }
-      end
+    let name = Format.sprintf "%s%d" prefix n in
+    if Ms.mem name t.reverse then
+      intro_aux hidden t f prefix (n + 1)
+    else begin
+      let id = Term.var name f in
+      if hidden then
+        id, { t with hidden = Mt.add f id t.hidden;
+                     count = Ms.add prefix (n + 1) t.count;
+                     reverse = Ms.add name id t.reverse; }
+      else
+        id, { t with names = Mt.add f id t.names;
+                     count = Ms.add prefix (n + 1) t.count;
+                     reverse = Ms.add name id t.reverse; }
+    end
 
   let intro ?(hide=false) t prefix f =
     intro_aux hide t f prefix (local_count t prefix)

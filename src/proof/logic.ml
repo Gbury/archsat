@@ -388,6 +388,38 @@ let match_not_not t = CCOpt.(match_not t >>= match_not)
 let shortcut_not_not t =
   match match_not_not t with Some t' -> t' | None -> t
 
+(* True/False congruence *)
+(* ************************************************************************ *)
+
+let coercion_f t =
+  if not (Term.Reduced.equal Term._Prop (Term.ty t)) then []
+  else begin
+    if Term.Reduced.equal Term.true_term t then
+      [ Proof.Env.Cst true_proof ]
+    else if Term.Reduced.equal Term.false_term t then
+      [ Proof.Env.( Wrapped {
+            term = Term.app Term.not_term Term.true_term;
+            wrap = (fun e -> Term.app e true_proof);
+          } ) ]
+    else
+      match match_not t with
+      | Some t' when Term.Reduced.equal Term.true_term t' ->
+        [ Proof.Env.( Wrapped {
+              term = Term.false_term;
+              wrap = (fun e ->
+                  let x = Term.var "x" Term.true_term in
+                  Term.lambda x e);
+            } ) ]
+      | Some t' when Term.Reduced.equal Term.false_term t' ->
+        [ Proof.Env.Cst (
+              let x = Term.var "x" Term.false_term in
+              Term.lambda x (Term.id x)
+            ) ]
+      | _ -> []
+  end
+
+let () = Proof.Env.register ("true/false", coercion_f)
+
 (* Logical connective creation *)
 (* ************************************************************************ *)
 

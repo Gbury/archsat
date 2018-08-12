@@ -230,19 +230,19 @@ let match_neq =
 let coercion_f t =
   match match_eq t with
   | Some (a, b) ->
-    [ Proof.Env.{
+    [ Proof.Env.(Wrapped {
           term = Term.apply Term.equal_term [Term.ty a; b; a];
           wrap = (fun e -> Term.apply eq_sym_term [Term.ty a; b; a; e]);
-        } ]
+        } ) ]
   | None ->
     begin match match_neq t with
       | Some (a, b) ->
-        [ Proof.Env.{
+        [ Proof.Env.(Wrapped {
               term =
                 Term.app Term.not_term @@
                 Term.apply Term.equal_term [Term.ty a; b; a];
               wrap = (fun e -> Term.apply not_eq_sym_term [Term.ty a; b; a; e]);
-            } ]
+            } ) ]
       | None -> []
     end
 

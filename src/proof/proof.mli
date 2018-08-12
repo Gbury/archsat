@@ -53,10 +53,17 @@ module Env : sig
       when a lookup fail, we allow coercions to suggest some other terms to look
       for, with adequate wrapper if such a term is found. *)
 
-  type coerced = {
+  type cst = Term.t
+
+  type wrapped = {
     term : Term.t;
     wrap : Term.t -> Term.t;
   }
+
+  type coerced =
+    | Cst of cst
+    | Wrapped of wrapped
+
   (** The type of coerced terms *)
 
   type coercion = string * (Term.t -> coerced list)
