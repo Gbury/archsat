@@ -61,6 +61,7 @@ type stats_options = {
 }
 
 type coq_options = {
+  msat        : Format.formatter option;
   script      : Format.formatter option;
   term        : Format.formatter option;
   term_big    : bool;
@@ -177,11 +178,12 @@ let profile_opts enable max_depth sections out =
 let stats_opts enabled =
   { enabled; }
 
-let coq_opts script term term_big norm norm_big =
+let coq_opts msat script term term_big norm norm_big =
+  let msat = formatter_of_out_descr msat in
   let script = formatter_of_out_descr script in
   let term = formatter_of_out_descr term in
   let norm = formatter_of_out_descr norm in
-  { script; term; term_big; norm; norm_big; }
+  { msat; script; term; term_big; norm; norm_big; }
 
 let dot_opts incr res full =
   let res = formatter_of_out_descr res in
@@ -558,10 +560,16 @@ let stats_t =
 
 let coq_t =
   let docs = proof_sect in
+  let msat =
+    let doc = "Set the file to which the program should output a coq proof script
+              using the msat coq backend.
+               A special 'stdout' value can be used to use standard output" in
+    Arg.(value & opt out_descr `None & info ["coq"] ~docs ~doc)
+  in
   let script =
     let doc = "Set the file to which the program should output a coq proof script.
                A special 'stdout' value can be used to use standard output" in
-    Arg.(value & opt out_descr `None & info ["coq"] ~docs ~doc)
+    Arg.(value & opt out_descr `None & info ["coqscript"] ~docs ~doc)
   in
   let term =
     let doc = "Set the file to which the program should output a coq proof term.
@@ -580,7 +588,7 @@ let coq_t =
     let doc = "Set whether to use the big term printer or not for normal coq terms" in
     Arg.(value & flag & info ["coqnorm-big"] ~docs ~doc)
   in
-  Term.(const coq_opts $ script $ term $ term_big $ normalize $ norm_big)
+  Term.(const coq_opts $ msat $ script $ term $ term_big $ normalize $ norm_big)
 
 let dot_t =
   let docs = proof_sect in

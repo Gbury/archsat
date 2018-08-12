@@ -375,6 +375,6 @@ let congruence_term f xys pos =
 
 let congruence_prop f l pos =
   pos
-  |> Logic.fold (fun (u, v) -> replace ~eq:(Logic.ensure Logic.trivial) ~by:u v) l
+  |> Logic.fold (fun (u, v) -> replace ~eq:(Logic.ensure Logic.trivial) ~by:v u) l
   |> Logic.ensure Logic.trivial
 

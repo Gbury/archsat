@@ -6,7 +6,8 @@ let elaboration_section = Section.make ~parent:section "elaboration"
 let normalisation_section = Section.make ~parent:section "normalisation"
 
 let dot_section = Section.make ~parent:section "dot_print"
-let coq_section = Section.make ~parent:section "coq_print"
+let msat_section = Section.make ~parent:section "coq-msat_print"
+let script_section = Section.make ~parent:section "coqscript_print"
 let coqterm_section = Section.make ~parent:section "coqterm_print"
 let coqnorm_section = Section.make ~parent:section "coqnorm_print"
 
@@ -33,7 +34,7 @@ let pp_lazy lang s o x pp =
         let p = Lazy.force x in
         CCOpt.iter (Util.info ~section "Printing proof for %s") lang;
         Util.enter_prof s;
-        pp fmt p;
+        Format.fprintf fmt "%a@." pp p;
         Util.exit_prof s
       with
       | Proof.Open_proof ->
@@ -94,6 +95,7 @@ let print_id_typed fmt id =
 
 (* Declare identifiers *)
 let declare_id_aux ?loc opt id =
+  pp_opt (Coq.declare_id ?loc) Options.(opt.coq.msat) id;
   pp_opt (Coq.declare_id ?loc) Options.(opt.coq.script) id;
   pp_opt (Coq.declare_id ?loc) Options.(opt.coq.term) id;
   pp_opt (Coq.declare_id ?loc) Options.(opt.coq.norm) id;
@@ -123,6 +125,7 @@ let declare_id ?loc opt implicit id =
 (* ************************************************************************ *)
 
 let init opt () =
+  pp_opt Coq.init Options.(opt.proof.coq.msat) opt;
   pp_opt Coq.init Options.(opt.proof.coq.script) opt;
   pp_opt Coq.init Options.(opt.proof.coq.term) opt;
   pp_opt Coq.init Options.(opt.proof.coq.norm) opt;
@@ -133,6 +136,7 @@ let init opt () =
 (* ************************************************************************ *)
 
 let declare_hyp_aux ?loc opt id =
+  pp_opt (Coq.declare_hyp ?loc) Options.(opt.coq.msat) id;
   pp_opt (Coq.declare_hyp ?loc) Options.(opt.coq.script) id;
   pp_opt (Coq.declare_hyp ?loc) Options.(opt.coq.term) id;
   pp_opt (Coq.declare_hyp ?loc) Options.(opt.coq.norm) id;
@@ -149,6 +153,7 @@ let declare_hyp ?loc opt id implicit p =
 (* ************************************************************************ *)
 
 let declare_goal_aux ?loc opt id =
+  pp_opt (Coq.declare_goal ?loc) Options.(opt.coq.msat) id;
   pp_opt (Coq.declare_goal ?loc) Options.(opt.coq.script) id;
   pp_opt (Coq.declare_goal_term ?loc) Options.(opt.coq.term) id;
   pp_opt (Coq.declare_goal_term ?loc) Options.(opt.coq.norm) id;
@@ -195,9 +200,26 @@ let output_proof opt p =
     | Some (loc, sid, g) -> loc, Some sid, g
   in
   let g = gid.Expr.id_type in
-  (* Lazily compute the proof *)
+  (* Lazuly compute the proof using the msat backend *)
   let proof = lazy (
     Util.info ~section "Computing proof";
+    Util.enter_prof proof_section;
+    let hyps = get_hyps () in
+    let env =
+      try
+        List.fold_left Proof.Env.declare Proof.Env.empty hyps
+      with Proof.Env.Conflict (h, h') ->
+        raise (Hypothesis_name_conflict ((h, get_hyp_loc h),
+                                         (h', get_hyp_loc h')))
+    in
+    let seq = Proof.mk_sequent env g in
+    let res = Resolution.msat_backend opt seq (sid, p) in
+    Util.exit_prof proof_section;
+    res
+  ) in
+  (* Lazily compute the script *)
+  let script = lazy (
+    Util.info ~section "Computing script";
     Util.enter_prof proof_section;
     let hyps = get_hyps () in
     let env =
@@ -212,14 +234,16 @@ let output_proof opt p =
     Util.exit_prof proof_section;
     res
   ) in
+  (* Lazily compute the script term *)
   let term = lazy (
-    let p = Lazy.force proof in
+    let p = Lazy.force script in
     Util.info ~section "Computing proof term";
     Util.enter_prof elaboration_section;
     let t = Proof.elaborate p in
     Util.exit_prof elaboration_section;
     p, t
   ) in
+  (* Lazily compute the script normalized term *)
   let norm = lazy (
     let p, t = Lazy.force term in
     Util.info ~section "Computing normalized proof term";
@@ -230,11 +254,15 @@ let output_proof opt p =
     p, t'
   ) in
   (* Declare the prelues for term printing *)
-  if Options.(opt.context) then declare_term_preludes opt proof;
+  if Options.(opt.context) then declare_term_preludes opt script;
   (* Declare the goal *)
   if Options.(opt.context) then declare_goal_aux ?loc opt gid;
   (* Print the lazy proof in coq *)
-  let () = pp_lazy (Some "coq") coq_section Options.(opt.coq.script) proof
+  let () = pp_lazy (Some "coq") msat_section Options.(opt.coq.msat) proof
+      (print_context opt.Options.context Coq.proof_context
+         (Proof.print ~lang:Proof.Coq)) in
+  (* Print the lazy script in coq *)
+  let () = pp_lazy (Some "coqscript") script_section Options.(opt.coq.script) script
       (print_context opt.Options.context Coq.proof_context
          (Proof.print ~lang:Proof.Coq)) in
   (* Print the lazy proof term in coq *)
@@ -245,8 +273,8 @@ let output_proof opt p =
   let () = pp_lazy (Some "coqterm-normalize") coqnorm_section Options.(opt.coq.norm) norm
       (print_context opt.Options.context Coq.proof_term_context
          (Proof.print_term ~big:Options.(opt.coq.norm_big) ~lang:Proof.Coq)) in
-  (* Print the lazy proof in dot *)
-  let () = pp_lazy (Some "dot") dot_section Options.(opt.dot.full) proof
+  (* Print the lazy script in dot *)
+  let () = pp_lazy (Some "dot") dot_section Options.(opt.dot.full) script
       (print_context true Dot.proof_context
          (Proof.print ~lang:Proof.Dot)) in
   (* Done ! exit the profiling section, ^^ *)

@@ -401,7 +401,7 @@ and subst_aux s t =
   | App (f, arg) ->
     let f' = subst_aux s f in
     let arg' = subst_aux s arg in
-    app f' arg'
+    if f == f' && arg == arg' then t else app f' arg'
   | Let (v, e, body) ->
     let e' = subst_aux s e in
     let s' = S.Id.remove v s in
@@ -412,7 +412,7 @@ and subst_aux s t =
         v', S.Id.bind s' v (id v')
     in
     let body' = subst_aux s'' body in
-    letin v' e' body'
+    if v == v' && e == e' && body == body' then t else letin v' e' body'
   | Binder (b, v, body) ->
     let ty = v.Expr.id_type in
     let ty' = subst_aux s ty in
@@ -424,7 +424,7 @@ and subst_aux s t =
         v', S.Id.bind s' v (id v')
     in
     let body' = subst_aux s'' body in
-    bind b v' body'
+    if v == v' && body == body' then t else bind b v' body'
 
 and subst s t =
   if S.is_empty s then t else subst_aux s t
@@ -747,7 +747,10 @@ let print_id fmt v =
 
 let rec print_app fmt t =
   let f, args = uncurry_app t in
-  assert (args <> []);
+  if args = [] then begin
+    Util.error ~section "wrong uncurry: %a" pp t;
+    assert false
+  end;
   Format.fprintf fmt "(%a@ %a)"
     print_aux f CCFormat.(list ~sep:(return "@ ") print_aux) args
 
@@ -776,7 +779,8 @@ and print_binder fmt (b, l, body) =
     (binder_sep b) print_aux body
 
 and print_aux fmt t =
-  match (contract t).term with
+  let t = contract t in
+  match t.term with
   | Type -> print_type fmt ()
   | Id v -> print_id fmt v
   | App _ -> print_app fmt t

@@ -65,6 +65,7 @@ type stats_options = {
 }
 
 type coq_options = {
+  msat        : Format.formatter option;
   script      : Format.formatter option;
   term        : Format.formatter option;
   term_big    : bool;

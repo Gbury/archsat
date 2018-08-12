@@ -59,6 +59,9 @@ let new_hyp () =
   let () = CCVector.push hyp_table None in
   n
 
+let register_goal n id =
+  CCVector.set hyp_table n (Some id)
+
 let register_hyp n id =
   match CCVector.get hyp_table n with
   | Some _ ->

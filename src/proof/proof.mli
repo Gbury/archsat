@@ -134,7 +134,7 @@ val mk : sequent -> proof
 val pp_pos : Format.formatter -> pos -> unit
 (** Print a proof position. *)
 
-val print : lang:lang -> Format.formatter -> proof -> unit
+val print : ?prelude:bool -> lang:lang -> Format.formatter -> proof -> unit
 (** Print the proof in the given language. *)
 
 val print_term : ?big:bool -> lang:lang -> Format.formatter -> (proof * Term.t) -> unit
@@ -143,6 +143,9 @@ val print_term : ?big:bool -> lang:lang -> Format.formatter -> (proof * Term.t) 
 val print_term_preludes : lang:lang -> Format.formatter -> proof -> unit
 (** Print the prelude for a given proof (mainly useful for term proofs, since
     preludes usually cannot be included in terms). *)
+
+val preludes : proof -> Prelude.t list
+(** Return the preludes of a proof. *)
 
 val elaborate : proof -> Term.t
 (** Elaborate the given proof into a proof term. *)

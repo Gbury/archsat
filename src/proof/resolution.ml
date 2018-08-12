@@ -12,15 +12,16 @@ let introduce_lemma f l pos =
 (* Introducing hyp as weak clauses *)
 (* ************************************************************************ *)
 
-(* Equalities need to be treated up to symmetry *)
+let prove_hyp t l pos =
+  pos
+  |> Logic.introN "Ax" (List.length l)
+  |> begin match l with
+    | [ t' ] -> Logic.absurd t'
+    | _ -> Logic.or_elim t ~f:Logic.absurd
+  end
+
 let introduce_hyp t l pos =
-  pos |> Logic.cut "C" (Logic.clause_type l)
-    ~f:(fun p -> p
-                 |> Logic.introN "Ax" (List.length l)
-                 |> begin match l with
-                   | [ t' ] -> Logic.absurd t'
-                   | _ -> Logic.or_elim t ~f:Logic.absurd
-                 end)
+  pos |> Logic.cut "C" (Logic.clause_type l) ~f:(prove_hyp t l)
 
 (* From mSAT lit to proof term *)
 (* ************************************************************************ *)
@@ -112,7 +113,7 @@ let compute opt seq (sid, p) =
   let () =
     let handle id =
        match sid with
-         | Some sid -> Solver.register_hyp sid id
+         | Some sid -> Solver.register_goal sid id
          | None ->
            Util.error ~section "No solver_id provided for binding to goal introduction"
     in
@@ -136,6 +137,91 @@ let compute opt seq (sid, p) =
       if Printexc.backtrace_status () then
         Printexc.print_backtrace stdout;
       Util.warn ~section "@[<hv>Formula was not introduced:@ %a@]" Term.print t
+  in
+  proof
+
+(* Compute a formal proof from a resolution proof *)
+(* ************************************************************************ *)
+
+let msat_term_of_atom a =
+  let lit = P.St.(a.var.pa.lit) in
+  let pos = P.St.(a.var.pa == a) in
+  let t = Term.of_formula lit in
+  if pos then t else Term.app Term.not_term t
+
+let pp_msat_coq pp_c =
+  let module Arg = struct
+    let prove_hyp = pp_c "hyp"
+    let prove_lemma = pp_c "lemma"
+    let prove_assumption = pp_c "assumption"
+  end in
+  let module M = Msat.Coq.Make(P)(Arg) in
+  M.print
+
+let msat_backend =
+  let prelude (_, l, _) = l in
+  let compute seq (h, p) =
+    let env = Proof.env seq in
+    let leafs = P.unsat_core p in
+    Util.info ~section "Finished computing proof leafs";
+    let preludes =
+      List.fold_left (fun acc c ->
+          let atoms = Array.to_list P.St.(c.atoms) in
+          let l = List.map msat_term_of_atom atoms in
+          let t = Logic.clause_type l in
+          let proof = Proof.mk (Proof.mk_sequent env t) in
+          let () = P.H.add h c proof in
+          let pos = Proof.pos @@ Proof.root proof in
+          let () =
+            match P.St.(c.cpremise) with
+            | P.St.Hyp ->
+              let t' = Term.id (Solver.hyp_proof c) in
+              Util.debug ~section "Proving hyp (%a) : %a" Term.print t' Term.print t;
+              prove_hyp t' l pos
+            | P.St.Lemma lemma ->
+              let name = lemma.plugin_name in
+              Util.debug ~section "Proving lemma (%s): %a" name Term.print t;
+              let f =
+                match Dispatcher.(ask name (Proof.Lemma lemma.proof_info)) with
+                | Some f -> f
+                | None -> (fun _ -> ())
+              in
+              f pos
+            | P.St.Local | P.St.History _ -> assert false
+          in
+          Proof.preludes proof @ acc
+        ) [] leafs
+    in
+    (h, preludes, p), [| |]
+  in
+  let coq = Proof.Last_but_not_least, (fun fmt (h, _, p) ->
+      let pp_c status fmt name c =
+        let atoms = Array.to_list P.St.(c.atoms) in
+        let l = List.map msat_term_of_atom atoms in
+        let t = Logic.clause_type l in
+        let p = P.H.find h c in
+        Format.fprintf fmt
+          "@[<v>(* Proving %s: %s *)@ assert (%s : (@[<hov>%a@])).@ { @[<hov>%a@] }@ @]"
+          status name name Coq.Print.term t (Proof.print ~prelude:false ~lang:Proof.Coq) p
+      in
+      pp_msat_coq pp_c fmt p
+    ) in
+  let elaborate _ _ = assert false in
+  Proof.mk_step ~prelude ~coq ~elaborate ~compute "msat_coq_backend"
+
+let msat_backend opt seq (sid, p) =
+  let h = P.H.create 4013 in
+  let proof = Proof.mk seq in
+  let () =
+    let handle id =
+       match sid with
+         | Some sid -> Solver.register_goal sid id
+         | None ->
+           Util.error ~section "No solver_id provided for binding to goal introduction"
+    in
+    let init = Logic.nnpp ~handle @@ Proof.(pos (root proof)) in
+    let _, a = Proof.apply_step init msat_backend (h, p) in
+    assert (Array.length a = 0)
   in
   proof
 

@@ -1,5 +1,7 @@
 
+TMP_FILE=tmp.log
 PROOF_FILE=proof.v
+SCRIPT_FILE=script.v
 TERM_FILE=term.v
 NORM_FILE=norm.v
 
@@ -10,51 +12,66 @@ all: $(TESTS)
 
 %.res: % $(BIN)
 	@echo -ne "\033[2K\r$(NAME) -- $<"
-	@if ! $(BIN) $(FLAGS) $(OPT) $< > /dev/null; then 							\
+	@if ! $(BIN) $(FLAGS) $(OPT) $< > $(TMP_FILE); then 							\
 			echo -e "\033[2K\r\e[31m[KO]\e[0m [$(NAME)] $<";			\
-			echo -e "$(BIN) $(OPT) $<";									\
+			echo -e "$(BIN) $(FLAGS) $(OPT) $<";									\
+			cat $(TMP_FILE);																			\
 			exit 1;																			\
 		fi
 
 %.sat: % $(BIN)
 	@echo -ne "\033[2K\r$(NAME) -- $<"
-	@if ! $(BIN) $(FLAGS) $(OPT) $< | grep Unsat > /dev/null; then 							\
+	@if ! $(BIN) $(FLAGS) $(OPT) $< | tee $(TMP_FILE) | grep Unsat > /dev/null; then 							\
 			echo -e "\033[2K\r\e[31m[KO]\e[0m [$(NAME)] $<";			\
-			echo -e "$(BIN) $(OPT) $<";									\
+			echo -e "$(BIN) $(FLAGS) $(OPT) $<";									\
+			cat $(TMP_FILE);																			\
 			exit 1;																			\
 		fi
 
 %.unsat: % $(BIN)
 	@echo -ne "\033[2K\r$(NAME) -- $<"
-	@if ! $(BIN) $(FLAGS) $(OPT) $< | grep Unsat > /dev/null; then 	\
+	@if ! $(BIN) $(FLAGS) $(OPT) $< | tee $(TMP_FILE) | grep Unsat > /dev/null; then 	\
 			echo -e "\033[2K\r\e[31m[KO]\e[0m [$(NAME)] $<";							\
-			echo -e "$(BIN) $(OPT) $<";													\
+			echo -e "$(BIN) $(FLAGS) $(OPT) $<";													\
+			cat $(TMP_FILE);																			\
 			exit 1;																							\
 		fi
 
 %.coq: % $(BIN)
 	@echo -ne "\033[2K\r$(NAME) -- coq -- $<"
-	@if ! $(BIN) $(FLAGS) $(OPT) --coq $(PROOF_FILE) $< > /dev/null; then 		\
+	@if ! $(BIN) $(FLAGS) $(OPT) --coq $(PROOF_FILE) --coqscript $(SCRIPT_FILE) $< > $(TMP_FILE); then 		\
 			echo -e "\033[2K\r\e[31m[FAIL]\e[0m [$(NAME)] $<";											\
-			echo -e "$(BIN) $(FLAGS) $(OPT) --coq $(PROOF_FILE) $<"; \
+			echo -e "$(BIN) $(FLAGS) $(OPT) --coq $(PROOF_FILE) --coqscript $(SCRIPT_FILE) $<"; \
+			cat $(TMP_FILE);																			\
 			exit 1;																											\
 		fi
 	@if ! coqc $(PROOF_FILE) &> /dev/null; then											\
 			echo -e "\033[2K\r\e[31m[coq]\e[0m [$(NAME)] $<";										\
 			echo -e "coqc $(PROOF_FILE)";							\
+			exit 1;																											\
+		fi
+	@if ! coqc $(SCRIPT_FILE) &> /dev/null; then											\
+			echo -e "\033[2K\r\e[31m[coq]\e[0m [$(NAME)] $<";										\
+			echo -e "coqc $(SCRIPT_FILE)";							\
 			exit 1;																											\
 		fi
 
 %.coqfull: % $(BIN)
 	@echo -ne "\033[2K\r$(NAME) -- coq -- $<"
-	@if ! $(BIN) $(FLAGS) $(OPT) --coq $(PROOF_FILE) --coqterm $(TERM_FILE) --coqnorm $(NORM_FILE) $< > /dev/null; then 		\
+	@if ! $(BIN) $(FLAGS) $(OPT) --coq $(PROOF_FILE) --coqscript $(SCRIPT_FILE) --coqterm $(TERM_FILE) --coqnorm $(NORM_FILE) $< > $(TMP_FILE); then 		\
 			echo -e "\033[2K\r\e[31m[FAIL]\e[0m [$(NAME)] $<";											\
-			echo -e "$(BIN) $(FLAGS) $(OPT) --coq $(PROOF_FILE) --coqterm $(TERM_FILE) --coqnorm $(NORM_FILE) $<"; \
+			echo -e "$(BIN) $(FLAGS) $(OPT) --coq $(PROOF_FILE) --coqscript $(SCRIPT_FILE) --coqterm $(TERM_FILE) --coqnorm $(NORM_FILE) $<"; \
+			cat $(TMP_FILE);																			\
 			exit 1;																											\
 		fi
 	@if ! coqc $(PROOF_FILE) &> /dev/null; then											\
 			echo -e "\033[2K\r\e[31m[coq]\e[0m [$(NAME)] $<";										\
 			echo -e "coqc $(PROOF_FILE)";							\
+			exit 1;																											\
+		fi
+	@if ! coqc $(SCRIPT_FILE) &> /dev/null; then											\
+			echo -e "\033[2K\r\e[31m[coq]\e[0m [$(NAME)] $<";										\
+			echo -e "coqc $(SCRIPT_FILE)";							\
 			exit 1;																											\
 		fi
 	@if ! coqc $(TERM_FILE) &> /dev/null; then											\
@@ -69,5 +86,5 @@ all: $(TESTS)
 		fi
 
 clean:
-	rm -rf *.res *.sat *.unsat *.coq *$(PROOF_FILE)* *$(TERM_FILE)* *$(NORM_FILE)* *.vo *.glob
+	rm -rf *.res *.sat *.unsat *.coq $(TMP_FILE) *$(PROOF_FILE)* *$(SCRIPT_FILE)* *$(TERM_FILE)* *$(NORM_FILE)* *.vo *.glob
 

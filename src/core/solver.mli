@@ -5,6 +5,7 @@
    for more information on mSAT.
 *)
 
+
 (** {2 Proofs & Models} *)
 
 module Proof : Msat.Res.S with module St = Dispatcher.SolverTypes
@@ -20,6 +21,7 @@ module Model : sig
   (** Print a model on the given formatter. *)
 
 end
+
 
 (** {2 Type defs} *)
 
@@ -75,11 +77,15 @@ val export_dimacs : Format.formatter -> unit -> unit
 val register_hyp : id -> Term.id -> unit
 (** Assign the given proof id to the hyp linked to the identifier. *)
 
+val register_goal : id -> Term.id -> unit
+(** Assign the given proof id to the hyp linked to the identifier. *)
+
 val is_registered : Dispatcher.SolverTypes.clause -> bool
 (** is the clause registered as a hypothesis (else, it should be a goal). *)
 
 val hyp_proof : Dispatcher.SolverTypes.clause -> Term.id
 (** Get the proof id of an hypothesis clause. *)
+
 
 (** {2 Dispatcher messages} *)
 

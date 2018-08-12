@@ -618,17 +618,17 @@ and print_node_coq ~depth fmt { proof; _ } =
 
 let print_coq fmt (_, p) =
   Format.fprintf fmt
-    "(* PROOF START *)@\n%a@\n(* PROOF END *)@."
+    "(* PROOF START *)@\n%a@\n(* PROOF END *)"
     (print_node_coq ~depth:0) p
 
 let print_coq_term fmt (_, t) =
   Format.fprintf fmt
-    "(* PROOF START *)@\n@[<hov 2>%a@]@\n(* PROOF END *)@."
+    "(* PROOF START *)@\n@[<hov 2>%a@]@\n(* PROOF END *)"
     Coq.Print.term t
 
 let print_coq_big_term fmt (_, t) =
   Format.fprintf fmt
-    "(* PROOF START *)@\n@[<hov 2>%a@]@\n(* PROOF END *)@."
+    "(* PROOF START *)@\n@[<hov 2>%a@]@\n(* PROOF END *)"
     Coq.Print.bigterm t
 
 (* Inspecting proofs *)
@@ -702,9 +702,9 @@ let print_preludes_aux ~mode ~lang fmt l =
 let print_preludes ~mode ~lang fmt l =
   Format.fprintf fmt "@[<v>%a@]" (print_preludes_aux ~mode ~lang) l
 
-let print ~lang fmt = function
+let print ?(prelude=true) ~lang fmt = function
   | (seq, [| p |]) as proof ->
-    print_preludes ~mode:`Proof ~lang fmt (preludes proof);
+    if prelude then print_preludes ~mode:`Proof ~lang fmt (preludes proof);
     print_aux lang fmt (seq, p)
   | _ -> assert false
 
