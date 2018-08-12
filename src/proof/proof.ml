@@ -1,6 +1,22 @@
 
 let section = Section.make "proof"
 
+(* Proof printing data *)
+(* ************************************************************************ *)
+
+type lang =
+  | Dot     (**)
+  | Coq     (**)
+  | Dedukti (**)
+(* Proof languages supported. *)
+
+type pretty =
+  | Branching           (* All branches are equivalent *)
+  | Last_but_not_least  (* Last branch is the 'rest of the proof *)
+(** Pretty pinting information to know better how to print proofs.
+    For instance, 'split's would probably be [Branching], while
+    cut/pose proof, would preferably be [Last_but_not_least]. *)
+
 (* Proof environments *)
 (* ************************************************************************ *)
 
@@ -206,7 +222,7 @@ module Prelude = struct
 
     type t =
       | Require of unit Expr.id
-      | Alias of Term.id * Term.t
+      | Alias of Term.id * (lang -> Term.t option)
 
     let _discr = function
       | Require _ -> 0
@@ -223,10 +239,7 @@ module Prelude = struct
     let compare t t' =
       match t, t' with
       | Require v, Require v' -> Expr.Id.compare v v'
-      | Alias (v, e), Alias (v', e') ->
-        let res = Expr.Id.compare v v' in
-        if res = 0 then assert (Term.Reduced.equal e e');
-        res
+      | Alias (v, e), Alias (v', e') -> Expr.Id.compare v v'
       | _ -> Pervasives.compare (_discr t) (_discr t')
 
     let equal t t' = compare t t' = 0
@@ -234,8 +247,8 @@ module Prelude = struct
     let print fmt = function
       | Require id ->
         Format.fprintf fmt "require: %a" Expr.Id.print id
-      | Alias (v, t) ->
-        Format.fprintf fmt "alias: %a ->@ %a" Expr.Print.id v Term.print t
+      | Alias (v, _) ->
+        Format.fprintf fmt "alias: %a" Expr.Print.id v
 
   end
 
@@ -248,18 +261,34 @@ module Prelude = struct
   let coq_proof fmt = function
     | Require id ->
       Format.fprintf fmt "(* Prelude: Module import *)@\nRequire Import %a.@\n" Coq.Print.id id
-    | Alias (id, t) ->
+    | Alias (id, f) ->
       Util.debug ~section "%a : %a" Expr.Id.print id Term.print id.Expr.id_type;
-      Format.fprintf fmt "(* @[<hov>Prelude: Alias@] *)@\n@[<hv>pose ( %a :=@ @[<hov>%a@] )@].@\n"
-        Coq.Print.id id Coq.Print.fragile t
+      CCOpt.iter (fun t ->
+          Format.fprintf fmt
+            "(* @[<hov>Prelude: Alias@] *)@\n@[<hv>pose ( %a :=@ @[<hov>%a@] )@].@\n"
+            Coq.Print.id id Coq.Print.fragile t
+        ) (f Coq)
 
   let coq_term fmt = function
     | Require id ->
       Format.fprintf fmt "(* Prelude: Module import *)@\nRequire Import %a.@\n" Coq.Print.id id
-    | Alias (id, t) ->
+    | Alias (id, f) ->
+      CCOpt.iter (fun t ->
+          Format.fprintf fmt
+            "(* @[<hov>Prelude: Alias@] *)@\n@[<hv>Definition %a :@ @[<hov>%a@] :=@ @[<hov>%a@]@].@\n"
+            Coq.Print.id id Coq.Print.term id.Expr.id_type Coq.Print.fragile t
+        ) (f Coq)
+
+  let dk_term fmt  = function
+    | Require id ->
       Format.fprintf fmt
-        "(* @[<hov>Prelude: Alias@] *)@\n@[<hv>Definition %a :@ @[<hov>%a@] :=@ @[<hov>%a@]@].@\n"
-        Coq.Print.id id Coq.Print.term id.Expr.id_type Coq.Print.fragile t
+        "(; Prelude: Module import (%a) -- not needed in dedukti;)@." Dedukti.Print.id id
+    | Alias (id, f) ->
+      CCOpt.iter (fun t ->
+          Format.fprintf fmt
+            "(; Prelude: Alias ;)@\n@[<hv 2>def %a :=@ @[<hov>%a@]@].@\n"
+            Dedukti.Print.id id Dedukti.Print.fragile t
+        ) (f Dedukti)
 
   (** Prelude dependencies *)
 
@@ -280,9 +309,8 @@ module Prelude = struct
   let require ?(deps=[]) s =
     mk ~deps (Require s)
 
-  let alias ?(deps=[]) id t =
-    assert (Term.Reduced.equal id.Expr.id_type (Term.ty t));
-    mk ~deps (Alias (id, t))
+  let alias ?(deps=[]) id f =
+    mk ~deps (Alias (id, f))
 
   let topo l iter =
     let s = List.fold_left (fun s x -> S.add x s) S.empty l in
@@ -290,21 +318,6 @@ module Prelude = struct
     T.iter (fun v -> if S.exists (G.mem_edge dep_graph v) s then iter v) dep_graph
 
 end
-
-(* Proof printing data *)
-(* ************************************************************************ *)
-
-type lang =
-  | Dot     (**)
-  | Coq     (**)
-(* Proof languages supported. *)
-
-type pretty =
-  | Branching           (* All branches are equivalent *)
-  | Last_but_not_least  (* Last branch is the 'rest of the proof *)
-(** Pretty pinting information to know better how to print proofs.
-    For instance, 'split's would probably be [Branching], while
-    cut/pose proof, would preferably be [Last_but_not_least]. *)
 
 (* Proofs *)
 (* ************************************************************************ *)
@@ -393,10 +406,15 @@ let print_sequent fmt sequent =
 let _prelude _ = []
 
 let _dummy_dot_print = Branching, (fun fmt _ -> Format.fprintf fmt "N/A")
+let _dummy_dk_print = Branching, (fun _ _ -> assert false)
 
-let mk_step ?(prelude=_prelude) ?(dot=_dummy_dot_print) ~coq ~compute ~elaborate name =
+let mk_step
+    ?(prelude=_prelude)
+    ?(dot=_dummy_dot_print)
+    ?(dedukti=_dummy_dk_print)
+    ~coq ~compute ~elaborate name =
   { name ;prelude; compute; elaborate;
-    print = (function Dot -> dot | Coq -> coq); }
+    print = (function Dot -> dot | Coq -> coq | Dedukti -> dedukti); }
 
 (* Building proofs *)
 (* ************************************************************************ *)
@@ -640,6 +658,19 @@ let print_coq_big_term fmt (_, t) =
     "(* PROOF START *)@\n@[<hov 2>%a@]@\n(* PROOF END *)"
     Coq.Print.bigterm t
 
+(* Dedukti printing *)
+(* ************************************************************************ *)
+
+let print_dk_term fmt (_, t) =
+  Format.fprintf fmt
+    "(; PROOF START ;)@\n@[<hov>%a@]@\n(; PROOF END ;)"
+    Dedukti.Print.term t
+
+let print_dk_big_term fmt (_, t) =
+  Format.fprintf fmt
+    "(; PROOF START ;)@\n@[<hov>%a@]@\n(; PROOF END ;)"
+    Dedukti.Print.term t
+
 (* Inspecting proofs *)
 (* ************************************************************************ *)
 
@@ -690,18 +721,23 @@ let elaborate = function
 let print_aux = function
   | Dot -> print_dot
   | Coq -> print_coq
+  | Dedukti -> assert false
 
 let print_prelude mode lang =
   match mode, lang with
   | _, Dot -> Prelude.dot
   | `Proof, Coq -> Prelude.coq_proof
   | `Term, Coq -> Prelude.coq_term
+  | `Proof, Dedukti -> assert false
+  | `Term, Dedukti -> Prelude.dk_term
 
 let print_term_aux lang big =
   match lang, big with
   | Dot, _ -> print_dot_term
   | Coq, false -> print_coq_term
   | Coq, true -> print_coq_big_term
+  | Dedukti, false -> print_dk_term
+  | Dedukti, true -> print_dk_big_term
 
 let print_preludes_aux ~mode ~lang fmt l =
   Prelude.topo l (fun p ->

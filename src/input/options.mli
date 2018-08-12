@@ -79,11 +79,17 @@ type dot_options = {
   full        : Format.formatter option;
 }
 
+type dedukti_options = {
+  term        : Format.formatter option;
+  term_big    : bool;
+}
+
 type proof_options = {
   active      : bool;
   context     : bool;
   coq         : coq_options;
   dot         : dot_options;
+  dedukti     : dedukti_options;
   unsat_core  : Format.formatter option;
 }
 

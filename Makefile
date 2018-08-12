@@ -36,7 +36,7 @@ wipe: clean
 
 clean:
 	cd tests && $(MAKE) clean
-	rm -f $(BIN) perf.* *.v* *tmp* *.gv *.glob
+	rm -f $(BIN) perf.* *.v* *tmp* *.gv *.glob *.dk
 
 .PHONY: doc bin install uninstall clean
 

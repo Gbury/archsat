@@ -2,7 +2,9 @@
 BIN=../archsat
 OPT=--infer
 NAME=prove/logic
-TESTS= $(patsubst %,%.coqfull,$(shell find . -name '*.smt2' -o -name '*.p' | sort -n))
+TESTS= \
+	$(patsubst %,%.coqfull,$(shell find . -name '*.smt2' -o -name '*.p' | sort -n)) \
+	$(patsubst %,%.dk,$(shell find . -name '*.smt2' -o -name '*.p' | sort -n))
 
 include ../Makefile.shared
 

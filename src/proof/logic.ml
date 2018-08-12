@@ -1,16 +1,18 @@
 
 let section = Section.make ~parent:Proof.section "logic"
 
+let tag ?dk ?coq id =
+  CCOpt.iter (fun s -> Expr.Id.tag id Dedukti.Print.name @@ Pretty.Exact s) dk;
+  CCOpt.iter (fun s -> Expr.Id.tag id Coq.Print.name @@ Pretty.Exact s) coq;
+  ()
+
 (* Logic preludes *)
 (* ************************************************************************ *)
 
 let classical_id = Expr.Id.mk_new "classical" ()
 let classical = Proof.Prelude.require classical_id
 
-let () =
-  Expr.Id.tag classical_id Coq.Print.pos Pretty.Prefix;
-  Expr.Id.tag classical_id Coq.Print.name @@ Pretty.Exact "Coq.Logic.Classical";
-  ()
+let () = tag classical_id ~dk:"classical" ~coq:"Coq.Logic.Classical"
 
 (* Useful constants *)
 (* ************************************************************************ *)
@@ -25,9 +27,6 @@ let exfalso_id =
   let p = Term.var "P" Term._Prop in
   Term.declare "exfalso" (Term.forall p (
       Term.arrow Term.false_term (Term.id p)))
-
-let () =
-  Expr.Id.tag exfalso_id Coq.Print.name @@ Pretty.Exact "False_ind"
 
 let nnpp_id =
   let p = Term.var "P" Term._Prop in
@@ -81,7 +80,8 @@ let and_elim_id, and_elim_alias =
       Term.(apply (id and_ind) [a_t; b_t; p_t; id f; id o])
     ) in
   let id = Term.define "and_elim" t in
-  id, Proof.Prelude.alias id t
+  id, Proof.Prelude.alias id (function
+      | Proof.Coq -> Some t | Proof.Dot | Proof.Dedukti -> None)
 
 let or_introl_id =
   let a = Term.var "A" Term._Prop in
@@ -143,7 +143,8 @@ let or_elim_id, or_elim_alias =
       Term.(apply (id or_ind) [a_t; b_t; p_t; id f; id g; id o])
     ) in
   let id = Term.define "or_elim" t in
-  id, Proof.Prelude.alias id t
+  id, Proof.Prelude.alias id (function
+      | Proof.Coq -> Some t | Proof.Dot | Proof.Dedukti -> None)
 
 let nnpp_term = Term.id nnpp_id
 let exfalso_term = Term.id exfalso_id
@@ -152,6 +153,19 @@ let and_elim_term = Term.id and_elim_id
 let or_introl_term = Term.id or_introl_id
 let or_intror_term = Term.id or_intror_id
 let and_intro_term = Term.id and_intro_id
+
+let () =
+  tag true_proof_id ~dk:"logic.true_intro"  ~coq:"I";
+  tag exfalso_id    ~dk:"logic.false_elim"  ~coq:"False_ind";
+  tag nnpp_id       ~dk:"classical.nnpp"    ~coq:"NNPP";
+  tag and_intro_id  ~dk:"logic.and_intro"   ~coq:"conj";
+  tag and_ind       ?dk:None                ~coq:"and_ind";
+  tag and_elim_id   ~dk:"logic.and_elim"    ?coq:None;
+  tag or_introl_id  ~dk:"logic.or_introl"   ~coq:"or_introl";
+  tag or_intror_id  ~dk:"logic.or_intror"   ~coq:"or_intror";
+  tag or_ind        ?dk:None                ~coq:"or_ind";
+  tag or_elim_id    ~dk:"logic.or_elim"     ?coq:None;
+  ()
 
 (* Some generic tactic manipulations *)
 (* ************************************************************************ *)

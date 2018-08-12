@@ -6,6 +6,8 @@
 src/_build
 src/*.native
 
+static/*.dko
+
 .*.swp
 *.docdir
 archsat

@@ -1,0 +1,17 @@
+
+(; Law of excluded middle,
+   defined directly as the elimination of the (p \/ ~ p) disjunction ;)
+
+classic : p : logic.prop -> z : logic.prop ->
+          (logic.proof p -> logic.proof z) ->
+          (logic.proof (logic.not p) -> logic.proof z) ->
+          logic.proof z.
+
+(; Proof by contradiction using the exlcuded middle ;)
+
+def nnpp (p : logic.prop)
+  : logic.proof (logic.not (logic.not p)) -> logic.proof p :=
+  H1 : logic.proof (logic.not (logic.not p)) =>
+  classic p p (H2 : logic.proof p => H2)
+              (H3 : logic.proof (logic.not p) => H1 H3 p).
+

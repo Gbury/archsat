@@ -75,11 +75,17 @@ type dot_options = {
   full        : Format.formatter option;
 }
 
+type dedukti_options = {
+  term        : Format.formatter option;
+  term_big    : bool;
+}
+
 type proof_options = {
   active      : bool;
   context     : bool;
   coq         : coq_options;
   dot         : dot_options;
+  dedukti     : dedukti_options;
   unsat_core  : Format.formatter option;
 }
 
@@ -190,7 +196,11 @@ let dot_opts incr res full =
   let full = formatter_of_out_descr full in
   { incr; res; full; }
 
-let proof_opts prove no_context coq dot unsat_core =
+let dedukti_opts term term_big =
+  let term = formatter_of_out_descr term in
+  { term; term_big; }
+
+let proof_opts prove no_context coq dot dedukti unsat_core =
   let context = not no_context in
   let unsat_core = formatter_of_out_descr unsat_core in
   let active = prove
@@ -200,9 +210,10 @@ let proof_opts prove no_context coq dot unsat_core =
                || coq.script <> None
                || coq.term <> None
                || coq.norm <> None
+               || dedukti.term <> None
                || unsat_core <> None
   in
-  { active; context; coq; dot; unsat_core; }
+  { active; context; coq; dot; dedukti; unsat_core; }
 
 let model_opts active assign = {
   active;
@@ -608,6 +619,19 @@ let dot_t =
   in
   Term.(const dot_opts $ incr_dot $ res_dot $ full_dot)
 
+let dedukti_t =
+  let docs = proof_sect in
+  let term =
+    let doc = "Set the file to which a dedukti proof term should be output.
+               A special 'stdout' value can be used to use standard output." in
+    Arg.(value & opt out_descr `None & info ["dkterm"] ~docs ~doc)
+  in
+  let term_big =
+    let doc = "Set whether to use the big term printer or not for dedukti proof terms" in
+    Arg.(value & flag & info ["dkterm-big"] ~docs ~doc)
+  in
+  Term.(const dedukti_opts $ term $ term_big)
+
 let proof_t =
   let docs = proof_sect in
   let check_proof =
@@ -627,7 +651,7 @@ let proof_t =
                A special 'stdout' value can be used to use standard output." in
     Arg.(value & opt out_descr `None & info ["unsat-core"] ~docs ~doc)
   in
-  Term.(const proof_opts $ check_proof $ no_context $ coq_t $ dot_t $ unsat_core)
+  Term.(const proof_opts $ check_proof $ no_context $ coq_t $ dot_t $ dedukti_t $ unsat_core)
 
 let model_t =
   let docs = model_sect in

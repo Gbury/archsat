@@ -88,7 +88,7 @@ let inst_epsilon get_tag tag trap inhabited e t =
     let eps = Term.define (epsilon_name ()) eps_term in
     let eps_t = Term.id eps in
     let deps = prelude_of_deps @@ CCOpt.get_exn @@ get_tag e dep_tag in
-    let alias = Proof.Prelude.alias ~deps eps eps_term in
+    let alias = Proof.Prelude.alias ~deps eps (fun _ -> Some eps_term) in
     let () = tag e prelude_tag alias in
     let () = trap e eps_t in
     Term.(subst (S.Id.bind S.empty x eps_t)) body
@@ -104,7 +104,7 @@ let inst_epsilon get_tag tag trap inhabited e t =
         let eps = Term.define (epsilon_name ()) eps_term in
         let eps_t = Term.id eps in
         let deps = prelude_of_deps @@ CCOpt.get_exn @@ get_tag e dep_tag in
-        let alias = Proof.Prelude.alias ~deps eps eps_term in
+        let alias = Proof.Prelude.alias ~deps eps (fun _ -> Some eps_term) in
         let () = tag e prelude_tag alias in
         let () = trap e eps_t in
         Term.(subst (S.Id.bind S.empty x eps_t)) body

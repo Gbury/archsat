@@ -7,6 +7,23 @@
 val section : Section.t
 (** Root debug section for proofs *)
 
+
+(** {2 Languages & printing} *)
+
+type lang =
+  | Dot     (** The DOT graphviz language *)
+  | Coq     (** The Coq language *)
+  | Dedukti (** The Dedukti language *)
+(** Supported languages for proof output (not to be confused with
+    proof term output). *)
+
+type pretty =
+  | Branching           (** All branches are equivalent *)
+  | Last_but_not_least  (** The last "branch" is the most important
+                            and/or bigger one. *)
+(** Pretty printing information about branches of a proof. *)
+
+
 (** {2 Local environments} *)
 
 module Env : sig
@@ -74,6 +91,7 @@ module Env : sig
 
 end
 
+
 (** {2 Proof prelude} *)
 
 module Prelude : sig
@@ -84,7 +102,7 @@ module Prelude : sig
   val require : ?deps:t list -> unit Expr.id -> t
   (** Require the given module (as an identifier). *)
 
-  val alias : ?deps:t list -> Term.id -> Term.t -> t
+  val alias : ?deps:t list -> Term.id -> (lang -> Term.t option) -> t
   (** Make an alias for readability purposes. *)
 
   val topo : t list -> (t -> unit) -> unit
@@ -94,21 +112,6 @@ module Prelude : sig
       before being called on [p]. *)
 
 end
-
-
-(** {2 Languages & printing} *)
-
-type lang =
-  | Dot     (** The DOT graphviz language *)
-  | Coq     (** The Coq language *)
-(** Supported languages for proof output (not to be confused with
-    proof term output). *)
-
-type pretty =
-  | Branching           (** All branches are equivalent *)
-  | Last_but_not_least  (** The last "branch" is the most important
-                            and/or bigger one. *)
-(** Pretty printing information about branches of a proof. *)
 
 
 (** {2 Proof Contexts} *)
@@ -172,6 +175,7 @@ type ('input, 'state) step
 val mk_step :
   ?prelude:('state -> Prelude.t list) ->
   ?dot:pretty * (Format.formatter -> 'state -> unit) ->
+  ?dedukti:pretty * (Format.formatter -> 'state -> unit) ->
   coq:pretty * (Format.formatter -> 'state -> unit) ->
   compute:(sequent -> 'input -> 'state * sequent array) ->
   elaborate:('state -> Term.t array -> Term.t) -> string ->

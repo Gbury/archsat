@@ -1,9 +1,10 @@
 
 TMP_FILE=tmp.log
-PROOF_FILE=proof.v
-SCRIPT_FILE=script.v
-TERM_FILE=term.v
-NORM_FILE=norm.v
+COQ_PROOF_FILE=proof.v
+COQ_SCRIPT_FILE=script.v
+COQ_TERM_FILE=term.v
+COQ_NORM_FILE=norm.v
+DK_TERM_FILE=term.dk
 
 FLAGS=-t 5s
 
@@ -37,54 +38,69 @@ all: $(TESTS)
 			exit 1;																							\
 		fi
 
-%.coq: % $(BIN)
-	@echo -ne "\033[2K\r$(NAME) -- coq -- $<"
-	@if ! $(BIN) $(FLAGS) $(OPT) --coq $(PROOF_FILE) --coqscript $(SCRIPT_FILE) $< > $(TMP_FILE); then 		\
+%.dk: % $(BIN)
+	@echo -ne "\033[2K\r$(NAME) -- dk -- $<"
+	@if ! $(BIN) $(FLAGS) $(OPT) --dkterm $(DK_TERM_FILE) $< > $(TMP_FILE); then 		\
 			echo -e "\033[2K\r\e[31m[FAIL]\e[0m [$(NAME)] $<";											\
-			echo -e "$(BIN) $(FLAGS) $(OPT) --coq $(PROOF_FILE) --coqscript $(SCRIPT_FILE) $<"; \
+			echo -e "$(BIN) $(FLAGS) $(OPT) --dkterm $(DK_TERM_FILE) $<"; \
 			cat $(TMP_FILE);																			\
 			exit 1;																											\
 		fi
-	@if ! coqc $(PROOF_FILE) &> /dev/null; then											\
-			echo -e "\033[2K\r\e[31m[coq]\e[0m [$(NAME)] $<";										\
-			echo -e "coqc $(PROOF_FILE)";							\
+	@if ! dkcheck -I ../../static $(DK_TERM_FILE) &> /dev/null; then											\
+			echo -e "\033[2K\r\e[31m[dkterm]\e[0m [$(NAME)] $<";										\
+			echo -e "dkcheck -I static $(DK_TERM_FILE)";							\
 			exit 1;																											\
 		fi
-	@if ! coqc $(SCRIPT_FILE) &> /dev/null; then											\
+
+
+%.coq: % $(BIN)
+	@echo -ne "\033[2K\r$(NAME) -- coq -- $<"
+	@if ! $(BIN) $(FLAGS) $(OPT) --coq $(COQ_PROOF_FILE) --coqscript $(COQ_SCRIPT_FILE) $< > $(TMP_FILE); then 		\
+			echo -e "\033[2K\r\e[31m[FAIL]\e[0m [$(NAME)] $<";											\
+			echo -e "$(BIN) $(FLAGS) $(OPT) --coq $(COQ_PROOF_FILE) --coqscript $(COQ_SCRIPT_FILE) $<"; \
+			cat $(TMP_FILE);																			\
+			exit 1;																											\
+		fi
+	@if ! coqc $(COQ_PROOF_FILE) &> /dev/null; then											\
 			echo -e "\033[2K\r\e[31m[coq]\e[0m [$(NAME)] $<";										\
-			echo -e "coqc $(SCRIPT_FILE)";							\
+			echo -e "coqc $(COQ_PROOF_FILE)";							\
+			exit 1;																											\
+		fi
+	@if ! coqc $(COQ_SCRIPT_FILE) &> /dev/null; then											\
+			echo -e "\033[2K\r\e[31m[coq]\e[0m [$(NAME)] $<";										\
+			echo -e "coqc $(COQ_SCRIPT_FILE)";							\
 			exit 1;																											\
 		fi
 
 %.coqfull: % $(BIN)
 	@echo -ne "\033[2K\r$(NAME) -- coq -- $<"
-	@if ! $(BIN) $(FLAGS) $(OPT) --coq $(PROOF_FILE) --coqscript $(SCRIPT_FILE) --coqterm $(TERM_FILE) --coqnorm $(NORM_FILE) $< > $(TMP_FILE); then 		\
+	@if ! $(BIN) $(FLAGS) $(OPT) --coq $(COQ_PROOF_FILE) --coqscript $(COQ_SCRIPT_FILE) --coqterm $(COQ_TERM_FILE) --coqnorm $(COQ_NORM_FILE) $< > $(TMP_FILE); then 		\
 			echo -e "\033[2K\r\e[31m[FAIL]\e[0m [$(NAME)] $<";											\
-			echo -e "$(BIN) $(FLAGS) $(OPT) --coq $(PROOF_FILE) --coqscript $(SCRIPT_FILE) --coqterm $(TERM_FILE) --coqnorm $(NORM_FILE) $<"; \
+			echo -e "$(BIN) $(FLAGS) $(OPT) --coq $(COQ_PROOF_FILE) --coqscript $(COQ_SCRIPT_FILE) --coqterm $(COQ_TERM_FILE) --coqnorm $(COQ_NORM_FILE) $<"; \
 			cat $(TMP_FILE);																			\
 			exit 1;																											\
 		fi
-	@if ! coqc $(PROOF_FILE) &> /dev/null; then											\
+	@if ! coqc $(COQ_PROOF_FILE) &> /dev/null; then											\
 			echo -e "\033[2K\r\e[31m[coq]\e[0m [$(NAME)] $<";										\
-			echo -e "coqc $(PROOF_FILE)";							\
+			echo -e "coqc $(COQ_PROOF_FILE)";							\
 			exit 1;																											\
 		fi
-	@if ! coqc $(SCRIPT_FILE) &> /dev/null; then											\
+	@if ! coqc $(COQ_SCRIPT_FILE) &> /dev/null; then											\
 			echo -e "\033[2K\r\e[31m[coq]\e[0m [$(NAME)] $<";										\
-			echo -e "coqc $(SCRIPT_FILE)";							\
+			echo -e "coqc $(COQ_SCRIPT_FILE)";							\
 			exit 1;																											\
 		fi
-	@if ! coqc $(TERM_FILE) &> /dev/null; then											\
+	@if ! coqc $(COQ_TERM_FILE) &> /dev/null; then											\
 			echo -e "\033[2K\r\e[31m[coqterm]\e[0m [$(NAME)] $<";										\
-			echo -e "coqc $(TERM_FILE)";							\
+			echo -e "coqc $(COQ_TERM_FILE)";							\
 			exit 1;																											\
 		fi
-	@if ! coqc $(NORM_FILE) &> /dev/null; then											\
+	@if ! coqc $(COQ_NORM_FILE) &> /dev/null; then											\
 			echo -e "\033[2K\r\e[31m[coqnorm]\e[0m [$(NAME)] $<";										\
-			echo -e "coqc $(NORM_FILE)";							\
+			echo -e "coqc $(COQ_NORM_FILE)";							\
 			exit 1;																											\
 		fi
 
 clean:
-	rm -rf *.res *.sat *.unsat *.coq $(TMP_FILE) *$(PROOF_FILE)* *$(SCRIPT_FILE)* *$(TERM_FILE)* *$(NORM_FILE)* *.vo *.glob
+	rm -rf *.res *.sat *.unsat *.coq $(TMP_FILE) *$(DK_TERM_FILE)* *$(COQ_PROOF_FILE)* *$(COQ_SCRIPT_FILE)* *$(COQ_TERM_FILE)* *$(COQ_NORM_FILE)* *.vo *.glob
 

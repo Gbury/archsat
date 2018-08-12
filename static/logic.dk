@@ -1,0 +1,139 @@
+#NAME logic.
+
+(; Polymorphic First-order logic for Archsat ;)
+
+def prop  : Type.
+def type  : Type.
+def proof : prop -> Type.
+def term  : type -> Type.
+def arrow : type -> type -> type.
+
+
+(; Constant symbols ;)
+
+def True  : prop.
+def False : prop.
+
+def not : prop -> prop.
+def and : prop -> prop -> prop.
+def or  : prop -> prop -> prop.
+def imp : prop -> prop -> prop.
+def equiv : prop -> prop -> prop.
+
+def forall : a : type -> (term a -> prop) -> prop.
+def exists : a : type -> (term a -> prop) -> prop.
+
+def foralltype : (type -> prop) -> prop.
+def existstype : (type -> prop) -> prop.
+
+def equal      : a : type -> term a -> term a -> prop.
+
+
+(; Proofs of these rules in the encoding of the calculus of constructions ;)
+
+[] type  --> cc.uT.
+[] term  --> cc.eT.
+[] arrow --> cc.Arrow.
+[] prop  --> dk_logic.Prop.
+[] proof --> dk_logic.eP.
+
+[] True       --> dk_logic.True.
+[] False      --> dk_logic.False.
+[] not        --> dk_logic.not.
+[] and        --> dk_logic.and.
+[] or         --> dk_logic.or.
+[] imp        --> dk_logic.imp.
+[] equiv      --> dk_logic.eqv.
+[] forall     --> dk_logic.forall.
+[] exists     --> dk_logic.exists.
+[] foralltype --> dk_logic.forall_type.
+[] existstype --> dk_logic.exists_type.
+[] equal      --> dk_logic.equal.
+
+
+(; True ;)
+
+def true_intro : proof True :=
+  p : prop => x : proof p => x.
+
+
+(; False ;)
+
+def false_elim (p : prop)
+  : proof False -> proof p :=
+  H : proof False => H p.
+
+
+(; Conjunction ;)
+
+def and_intro (p : prop) (q: prop)
+  : proof p -> proof q -> proof (and p q) := dk_logic.and_intro p q.
+
+def and_elim (p : prop) (q : prop) (r : prop)
+  : proof (and p q) -> (proof p -> proof q -> proof r) -> proof r :=
+  H : proof (and p q) => f : (proof p -> proof q -> proof r) => H r f.
+
+
+(; Disjunction ;)
+
+def or_introl (p : prop) (q : prop)
+  : proof p -> proof (or p q) :=
+  H1 : proof p => z : prop =>
+  H2 : (proof p -> proof z) =>
+  H3 : (proof q -> proof z) => H2 H1.
+
+def or_intror (p : prop) (q : prop)
+  : proof q -> proof (or p q) :=
+  H1 : proof q => z : prop =>
+  H2 : (proof p -> proof z) =>
+  H3 : (proof q -> proof z) => H3 H1.
+
+def or_elim (p : prop) (q: prop) (r: prop)
+  : proof (or p q) -> (proof p -> proof r) -> (proof q -> proof r) -> proof r :=
+  H : proof (or p q) => f : (proof p -> proof r) => g : (proof q -> proof r) => H r f g.
+
+
+(; Equality ;)
+
+def eq_subst (a : type) (x : term a) (y: term a) (p : term a -> prop)
+  : proof (equal a x y) -> proof (p x) -> proof (p y) :=
+  H1 : proof (equal a x y) => H2 : proof (p x) =>
+  dk_logic.equal_ind a p x y H1 H2.
+
+def eq_refl (a: type) (x: term a) : proof (equal a x x) := dk_logic.refl a x.
+
+def eq_sym (a : type) (x : term a) (y : term a)
+  : proof (equal a x y) -> proof (equal a y x) :=
+  H1 : proof (equal a x y) => dk_logic.equal_sym a x y H1.
+
+def not_eq_sym (a : type) (x : term a) (y : term a)
+  : proof (not (equal a x y)) -> proof (not (equal a y x)) :=
+  H1 : proof (not (equal a x y)) => H2 : proof (equal a y x) =>
+  H1 (eq_sym a y x H2).
+
+def eq_trans (a : type) (x : term a) (y : term a) (z : term a)
+  : proof (equal a x y) -> proof (equal a y z) -> proof (equal a x z) :=
+  H1 : proof (equal a x y) => H2 : proof (equal a y z) =>
+  eq_subst a y z (s : term a => equal a x s) H2 H1.
+
+
+(; Functions and equality ;)
+
+def f_equal
+  (a : type) (b : type) (f : term a -> term b) (x : term a) (y : term a)
+  : proof (equal a x y) -> proof (equal b (f x) (f y)) :=
+  H : proof (equal a x y) =>
+    eq_subst a x y (z : term a => equal b (f x) (f z)) H (eq_refl b (f x)).
+
+def f_equal2
+  (a : type) (b : type) (c : type) (f : term a -> term b -> term c)
+  (x1 : term a) (y1 : term a) (x2 : term b) (y2 : term b)
+  : proof (equal a x1 y1) -> proof (equal b x2 y2) -> proof (equal c (f x1 x2) (f y1 y2)) :=
+  H1 : proof (equal a x1 y1) => H2 : proof (equal b x2 y2) =>
+    eq_subst a x1 y1 (z1 : term a => equal c (f x1 x2) (f z1 y2)) H1 (
+      eq_subst b x2 y2 (z2 : term b => equal c (f x1 x2) (f x1 z2)) H2 (
+        eq_refl c (f x1 x2)
+      )
+    ).
+
+

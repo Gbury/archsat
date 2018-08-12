@@ -1,6 +1,11 @@
 
 let section = Section.make ~parent:Proof.section "eq"
 
+let tag ?dk ?coq id =
+  CCOpt.iter (fun s -> Expr.Id.tag id Dedukti.Print.name @@ Pretty.Exact s) dk;
+  CCOpt.iter (fun s -> Expr.Id.tag id Coq.Print.name @@ Pretty.Exact s) coq;
+  ()
+
 (* Useful constants *)
 (* ************************************************************************ *)
 
@@ -42,7 +47,8 @@ let eq_subst, eq_subst_alias =
       Term.(apply (id eq_ind) [a_t; x_t; p_t; id proof; y_t; id e])
     ) in
   let id = Term.declare "eq_subst" (Term.ty t) in
-  id, Proof.Prelude.alias id t
+  id, Proof.Prelude.alias id (function
+      | Proof.Coq -> Some t | Proof.Dot | Proof.Dedukti -> None)
 
 let eq_refl =
   let a = Term.var "A" Term._Type in
@@ -177,6 +183,17 @@ let eq_trans_term = Term.id eq_trans
 let eq_subst_term = Term.id eq_subst
 let f_equal2_term = Term.id f_equal2
 let not_eq_sym_term = Term.id not_eq_sym
+
+let () =
+  tag eq_ind        ?dk:None                ~coq:"eq_ind";
+  tag eq_subst      ~dk:"logic.eq_subst"    ?coq:None;
+  tag eq_refl       ~dk:"logic.eq_refl"     ~coq:"eq_refl";
+  tag eq_sym        ~dk:"logic.eq_sym"      ~coq:"eq_sym";
+  tag not_eq_sym    ~dk:"logic.not_eq_sym"  ~coq:"not_eq_sym";
+  tag eq_trans      ~dk:"logic.eq_trans"    ~coq:"eq_trans";
+  tag f_equal       ~dk:"logic.f_equal"     ~coq:"f_equal";
+  tag f_equal2      ~dk:"logic.f_equal2"    ~coq:"f_equal2";
+  ()
 
 (* Equality coercions for env lookups *)
 (* ************************************************************************ *)

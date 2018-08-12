@@ -1,8 +1,8 @@
 
-(** Proof in the Coq format
+(** Proof in the Dedukti format
 
-    This module defines helprs for printing coq proof scripts
-    and terms corresponding to unsatisfiability proofs.
+    This module defines helprs for printing dedukti proof terms
+    corresponding to unsatisfiability proofs.
 *)
 
 (** {2 Printing} *)
@@ -23,12 +23,6 @@ module Print : sig
   val fragile : Format.formatter -> Term.t -> unit
   (** Print a fragile term *)
 
-  val bigterm : Format.formatter -> Term.t -> unit
-  (** Print a big term (i.e, with less indentation and boxes).
-      This should help formatting of big terms where indentation box
-      have a tendency to push everything to the right, and also
-      help performances since there are less boxes open at the same time. *)
-
 end
 
 
@@ -46,18 +40,9 @@ val declare_hyp :
   ?loc:Dolmen.ParseLocation.t -> Format.formatter -> Term.id -> unit
 (** Declare a new hypothesis, with the correct type. *)
 
-val declare_goal :
-  ?loc:Dolmen.ParseLocation.t -> Format.formatter -> Term.id -> unit
-(** Declare a new hypothesis, with the correct type. *)
-
 val declare_goal_term :
   ?loc:Dolmen.ParseLocation.t -> Format.formatter -> Term.id -> unit
 (** Declare a new hypothesis, with the correct type. *)
-
-val proof_context :
-  (Format.formatter -> 'a -> unit) ->
-  Format.formatter -> 'a -> unit
-(** Wraps a printer to make it print inside a proof context. *)
 
 val proof_term_context :
   (Format.formatter -> 'a -> unit) ->
