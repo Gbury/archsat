@@ -14,13 +14,16 @@ bin:
 lib:
 	$(MAKE) -C src lib
 
+static:
+	cd static && $(MAKE)
+
 test: test-lib test-bin
 
 test-lib: lib
 	@echo "RUN API tests"
 	$(MAKE) -C src test
 
-test-bin: bin
+test-bin: bin static
 	@echo "run BIN tests…"
 	@cd tests && $(MAKE) --no-print-directory
 
@@ -36,7 +39,8 @@ wipe: clean
 
 clean:
 	cd tests && $(MAKE) clean
+	cd static && $(MAKE) clean
 	rm -f $(BIN) perf.* *.v* *tmp* *.gv *.glob *.dk
 
-.PHONY: doc bin install uninstall clean
+.PHONY: doc bin lib static test test-lib test-bin install uninstall wipe clean
 
