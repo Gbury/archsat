@@ -36,6 +36,7 @@ let pp_lazy lang s o x pp =
         CCOpt.iter (Util.info ~section "Printing proof for %s") lang;
         Util.enter_prof s;
         Format.fprintf fmt "%a@." pp p;
+        CCOpt.iter (Util.info ~section "Finished printing proof for %s") lang;
         Util.exit_prof s
       with
       | Proof.Open_proof ->

@@ -36,10 +36,10 @@ uninstall:
 
 wipe: clean
 	cd src && $(MAKE) clean
+	cd static && $(MAKE) clean
 
 clean:
 	cd tests && $(MAKE) clean
-	cd static && $(MAKE) clean
 	rm -f $(BIN) perf.* *.v* *tmp* *.gv *.glob *.dk
 
 .PHONY: doc bin lib static test test-lib test-bin install uninstall wipe clean

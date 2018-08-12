@@ -83,17 +83,21 @@ let free_vars t = t.free
 let reduce t = Lazy.force t.reduced
 let is_reduced t = t == (reduce t)
 
-module Reduced = struct
-
+module Aux = struct
   type nonrec t = t
+  let hash = hash
+  let compare = compare
+  let equal = equal
+end
 
+module Reduced = struct
+  type nonrec t = t
   let hash t = hash @@ reduce t
   let compare t t' = compare (reduce t) (reduce t')
   let equal t t' = compare t t' = 0
-
 end
 
-module Hs = Hashtbl.Make(Reduced)
+module Hs = Hashtbl.Make(Aux)
 
 (* Id creation *)
 (* ************************************************************************ *)
@@ -731,7 +735,7 @@ let contract t =
   try id @@ Hs.find definitions t
   with Not_found ->
     begin match t.term with
-      | Binder (Forall, v, body) when Reduced.equal body false_term ->
+      | Binder (Forall, v, body) when equal body false_term ->
         app not_term v.Expr.id_type
       | _ -> t
     end
