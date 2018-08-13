@@ -82,6 +82,8 @@ type dot_options = {
 type dedukti_options = {
   term        : Format.formatter option;
   term_big    : bool;
+  norm        : Format.formatter option;
+  norm_big    : bool;
 }
 
 type proof_options = {

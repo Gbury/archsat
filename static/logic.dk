@@ -69,6 +69,10 @@ def false_elim (p : prop)
 def and_intro (p : prop) (q: prop)
   : proof p -> proof q -> proof (and p q) := dk_logic.and_intro p q.
 
+def and_ind (p : prop) (q : prop) (r : prop)
+  : (proof p -> proof q -> proof r) -> proof (and p q) -> proof r :=
+  f : (proof p -> proof q -> proof r) => H : proof (and p q) => H r f.
+
 def and_elim (p : prop) (q : prop) (r : prop)
   : proof (and p q) -> (proof p -> proof q -> proof r) -> proof r :=
   H : proof (and p q) => f : (proof p -> proof q -> proof r) => H r f.
@@ -87,6 +91,10 @@ def or_intror (p : prop) (q : prop)
   H1 : proof q => z : prop =>
   H2 : (proof p -> proof z) =>
   H3 : (proof q -> proof z) => H3 H1.
+
+def or_ind (p : prop) (q: prop) (r: prop)
+  : (proof p -> proof r) -> (proof q -> proof r) -> proof (or p q) -> proof r :=
+  f : (proof p -> proof r) => g : (proof q -> proof r) => H : proof (or p q) => H r f g.
 
 def or_elim (p : prop) (q: prop) (r: prop)
   : proof (or p q) -> (proof p -> proof r) -> (proof q -> proof r) -> proof r :=

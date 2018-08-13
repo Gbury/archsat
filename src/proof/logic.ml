@@ -159,11 +159,11 @@ let () =
   tag exfalso_id    ~dk:"logic.false_elim"  ~coq:"False_ind";
   tag nnpp_id       ~dk:"classical.nnpp"    ~coq:"NNPP";
   tag and_intro_id  ~dk:"logic.and_intro"   ~coq:"conj";
-  tag and_ind       ?dk:None                ~coq:"and_ind";
+  tag and_ind       ~dk:"logic.and_ind"     ~coq:"and_ind";
   tag and_elim_id   ~dk:"logic.and_elim"    ?coq:None;
   tag or_introl_id  ~dk:"logic.or_introl"   ~coq:"or_introl";
   tag or_intror_id  ~dk:"logic.or_intror"   ~coq:"or_intror";
-  tag or_ind        ?dk:None                ~coq:"or_ind";
+  tag or_ind        ~dk:"logic.or_ind"      ~coq:"or_ind";
   tag or_elim_id    ~dk:"logic.or_elim"     ?coq:None;
   ()
 

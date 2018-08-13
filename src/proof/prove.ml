@@ -11,6 +11,7 @@ let script_section = Section.make ~parent:section "coqscript_print"
 let coqterm_section = Section.make ~parent:section "coqterm_print"
 let coqnorm_section = Section.make ~parent:section "coqnorm_print"
 let dkterm_section = Section.make ~parent:section "dkterm_print"
+let dknorm_section = Section.make ~parent:section "dknorm_print"
 
 module P = Solver.Proof
 
@@ -102,6 +103,7 @@ let declare_id_aux ?loc opt id =
   pp_opt (Coq.declare_id ?loc) Options.(opt.coq.term) id;
   pp_opt (Coq.declare_id ?loc) Options.(opt.coq.norm) id;
   pp_opt (Dedukti.declare_id ?loc) Options.(opt.dedukti.term) id;
+  pp_opt (Dedukti.declare_id ?loc) Options.(opt.dedukti.norm) id;
   ()
 
 let declare_implicits opt = function
@@ -133,6 +135,7 @@ let init opt () =
   pp_opt Coq.init Options.(opt.proof.coq.term) opt;
   pp_opt Coq.init Options.(opt.proof.coq.norm) opt;
   pp_opt Dedukti.init Options.(opt.proof.dedukti.term) opt;
+  pp_opt Dedukti.init Options.(opt.proof.dedukti.norm) opt;
   pp_opt Dot.init_full Options.(opt.proof.dot.full) opt;
   ()
 
@@ -145,6 +148,7 @@ let declare_hyp_aux ?loc opt id =
   pp_opt (Coq.declare_hyp ?loc) Options.(opt.coq.term) id;
   pp_opt (Coq.declare_hyp ?loc) Options.(opt.coq.norm) id;
   pp_opt (Dedukti.declare_hyp ?loc) Options.(opt.dedukti.term) id;
+  pp_opt (Dedukti.declare_hyp ?loc) Options.(opt.dedukti.norm) id;
   ()
 
 let declare_hyp ?loc opt id implicit p =
@@ -163,6 +167,7 @@ let declare_goal_aux ?loc opt id =
   pp_opt (Coq.declare_goal_term ?loc) Options.(opt.coq.term) id;
   pp_opt (Coq.declare_goal_term ?loc) Options.(opt.coq.norm) id;
   pp_opt (Dedukti.declare_goal_term ?loc) Options.(opt.dedukti.term) id;
+  pp_opt (Dedukti.declare_goal_term ?loc) Options.(opt.dedukti.norm) id;
   ()
 
 let declare_goal ?loc opt id implicit (solver_id, p) =
@@ -187,6 +192,8 @@ let declare_term_preludes opt proof =
   pp_lazy None coqnorm_section Options.(opt.coq.norm) proof
     (Proof.print_term_preludes ~lang:Proof.Coq);
   pp_lazy None dkterm_section Options.(opt.dedukti.term) proof
+    (Proof.print_term_preludes ~lang:Proof.Dedukti);
+  pp_lazy None dkterm_section Options.(opt.dedukti.norm) proof
     (Proof.print_term_preludes ~lang:Proof.Dedukti);
   ()
 
@@ -282,9 +289,13 @@ let output_proof opt p =
       (print_context opt.Options.context Dedukti.proof_term_context
          (Proof.print_term ~big:Options.(opt.dedukti.term_big) ~lang:Proof.Dedukti)) in
   (* Print the normalized lazy proof term in coq *)
-  let () = pp_lazy (Some "coqterm-normalize") coqnorm_section Options.(opt.coq.norm) norm
+  let () = pp_lazy (Some "coqnorm") coqnorm_section Options.(opt.coq.norm) norm
       (print_context opt.Options.context Coq.proof_term_context
          (Proof.print_term ~big:Options.(opt.coq.norm_big) ~lang:Proof.Coq)) in
+  (* Print the normalized lazy proof term in dedukti *)
+  let () = pp_lazy (Some "dknorm") dknorm_section Options.(opt.dedukti.norm) norm
+      (print_context opt.Options.context Dedukti.proof_term_context
+         (Proof.print_term ~big:Options.(opt.dedukti.norm_big) ~lang:Proof.Dedukti)) in
   (* Print the lazy script in dot *)
   let () = pp_lazy (Some "dot") dot_section Options.(opt.dot.full) script
       (print_context true Dot.proof_context

@@ -5,6 +5,7 @@ COQ_SCRIPT_FILE=script.v
 COQ_TERM_FILE=term.v
 COQ_NORM_FILE=norm.v
 DK_TERM_FILE=term.dk
+DK_NORM_FILE=norm.dk
 
 FLAGS=-t 5s
 
@@ -40,15 +41,20 @@ all: $(TESTS)
 
 %.dk: % $(BIN)
 	@echo -ne "\033[2K\r$(NAME) -- dk -- $<"
-	@if ! $(BIN) $(FLAGS) $(OPT) --dkterm $(DK_TERM_FILE) $< > $(TMP_FILE); then 		\
+	@if ! $(BIN) $(FLAGS) $(OPT) --dkterm $(DK_TERM_FILE) --dknorm $(DK_NORM_FILE) $< > $(TMP_FILE); then 		\
 			echo -e "\033[2K\r\e[31m[FAIL]\e[0m [$(NAME)] $<";											\
-			echo -e "$(BIN) $(FLAGS) $(OPT) --dkterm $(DK_TERM_FILE) $<"; \
+			echo -e "$(BIN) $(FLAGS) $(OPT) --dkterm $(DK_TERM_FILE) --dknorm $(DK_NORM_FILE) $<"; \
 			cat $(TMP_FILE);																			\
 			exit 1;																											\
 		fi
 	@if ! dkcheck -I ../../static $(DK_TERM_FILE) &> /dev/null; then											\
 			echo -e "\033[2K\r\e[31m[dkterm]\e[0m [$(NAME)] $<";										\
 			echo -e "dkcheck -I static $(DK_TERM_FILE)";							\
+			exit 1;																											\
+		fi
+	@if ! dkcheck -I ../../static $(DK_NORM_FILE) &> /dev/null; then											\
+			echo -e "\033[2K\r\e[31m[dknorm]\e[0m [$(NAME)] $<";										\
+			echo -e "dkcheck -I static $(DK_NORM_FILE)";							\
 			exit 1;																											\
 		fi
 
@@ -102,5 +108,5 @@ all: $(TESTS)
 		fi
 
 clean:
-	rm -rf *.res *.sat *.unsat *.coq $(TMP_FILE) *$(DK_TERM_FILE)* *$(COQ_PROOF_FILE)* *$(COQ_SCRIPT_FILE)* *$(COQ_TERM_FILE)* *$(COQ_NORM_FILE)* *.vo *.glob
+	rm -rf *.res *.sat *.unsat *.coq $(TMP_FILE) *$(DK_TERM_FILE)* *$(DK_NORM_FILE)* *$(COQ_PROOF_FILE)* *$(COQ_SCRIPT_FILE)* *$(COQ_TERM_FILE)* *$(COQ_NORM_FILE)* *.vo *.glob
 

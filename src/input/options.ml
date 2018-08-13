@@ -78,6 +78,8 @@ type dot_options = {
 type dedukti_options = {
   term        : Format.formatter option;
   term_big    : bool;
+  norm        : Format.formatter option;
+  norm_big    : bool;
 }
 
 type proof_options = {
@@ -196,9 +198,10 @@ let dot_opts incr res full =
   let full = formatter_of_out_descr full in
   { incr; res; full; }
 
-let dedukti_opts term term_big =
+let dedukti_opts term term_big norm norm_big =
   let term = formatter_of_out_descr term in
-  { term; term_big; }
+  let norm = formatter_of_out_descr norm in
+  { term; term_big; norm; norm_big; }
 
 let proof_opts prove no_context coq dot dedukti unsat_core =
   let context = not no_context in
@@ -630,7 +633,16 @@ let dedukti_t =
     let doc = "Set whether to use the big term printer or not for dedukti proof terms" in
     Arg.(value & flag & info ["dkterm-big"] ~docs ~doc)
   in
-  Term.(const dedukti_opts $ term $ term_big)
+  let norm =
+    let doc = "Set the file to which a reduced dedukti proof term should be output.
+               A special 'stdout' value can be used to use standard output." in
+    Arg.(value & opt out_descr `None & info ["dknorm"] ~docs ~doc)
+  in
+  let norm_big =
+    let doc = "Set whether to use the big term printer or not for reduced dedukti proof terms" in
+    Arg.(value & flag & info ["dknorm-big"] ~docs ~doc)
+  in
+  Term.(const dedukti_opts $ term $ term_big $ norm $  norm_big)
 
 let proof_t =
   let docs = proof_sect in
