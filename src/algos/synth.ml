@@ -254,8 +254,9 @@ let term_aux goal =
   | Done t -> t
   | _ ->
     Util.warn ~section
-      "@[<hv>Couldn't find a term of type@ @[<hov>%a@]@ (originally @[<hov>%a@])@]"
-      Expr.Ty.print ty Expr.Ty.print goal;
+      "@[<hv>Couldn't find a term of type@ @[<hov>%a@]@ (originally @[<hov>%a@])@\n%s@]"
+      Expr.Ty.print ty Expr.Ty.print goal
+      "This will prevent proof outputs from type-checking";
     let c = Expr.Id.term_fun (synth_name ()) [] [] ty in
     let t = Expr.Term.apply c [] [] in
     n.descr <- Done t;
