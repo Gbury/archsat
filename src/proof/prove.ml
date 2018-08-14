@@ -8,7 +8,7 @@ let normalisation_section = Section.make ~parent:Proof.section "normalisation"
 
 let dot_section = Section.make ~parent:section "dot_print"
 let msat_section = Section.make ~parent:section "coq-msat_print"
-let script_section = Section.make ~parent:section "coqscript_print"
+let coqscript_section = Section.make ~parent:section "coqscript_print"
 let coqterm_section = Section.make ~parent:section "coqterm_print"
 let coqnorm_section = Section.make ~parent:section "coqnorm_print"
 let dkterm_section = Section.make ~parent:section "dkterm_print"
@@ -265,7 +265,6 @@ let output_proof opt p =
     Util.info ~section "Computing normalized proof term";
     Util.enter_prof normalisation_section;
     let t' = Term.reduce t in
-    let () = Term.disambiguate t' in
     Util.exit_prof normalisation_section;
     p, t'
   ) in
@@ -278,7 +277,7 @@ let output_proof opt p =
       (print_context opt.Options.context Coq.proof_context
          (Proof.print ~lang:Proof.Coq)) in
   (* Print the lazy script in coq *)
-  let () = pp_lazy (Some "coqscript") script_section Options.(opt.coq.script) script
+  let () = pp_lazy (Some "coqscript") coqscript_section Options.(opt.coq.script) script
       (print_context opt.Options.context Coq.proof_context
          (Proof.print ~lang:Proof.Coq)) in
   (* Print the lazy proof term in coq *)

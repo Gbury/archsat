@@ -26,7 +26,7 @@ and t = {
   index : int;
   term : descr;
   reduced : t Lazy.t;
-  free : (id, unit) S.t;
+  free : (id, int) S.t;
 }
 
 
@@ -106,6 +106,25 @@ end
 
 module Hs = Hashtbl.Make(Aux)
 
+(* Environments for disambiguation *)
+(* ************************************************************************ *)
+
+module M = Map.Make(String)
+
+let full_name v = v.Expr.id_name
+
+type env = {
+  names : id M.t;
+}
+
+let all_names = ref M.empty
+
+let new_name v =
+  all_names := M.add (full_name v) v !all_names
+
+let empty_env () =
+  { names = !all_names; }
+
 (* Id creation *)
 (* ************************************************************************ *)
 
@@ -130,12 +149,15 @@ let var_typed v ty =
   Expr.Id.mk_new ~tags ~builtin:Var s ty
 
 let declare s ty =
-  Expr.Id.mk_new ~builtin:Declared s ty
+  let v = Expr.Id.mk_new ~builtin:Declared s ty in
+  let () = new_name v in
+  v
 
 let definitions = Hs.create 17
 
 let define s def =
   let v = Expr.Id.mk_new ~builtin:(Defined def) s def.ty in
+  let () = new_name v in
   Hs.add definitions def v;
   Hs.add definitions (reduce def) v;
   v
@@ -143,13 +165,20 @@ let define s def =
 (* Free variables computing *)
 (* ************************************************************************ *)
 
-let merge s s' = S.merge (fun _ o o' -> CCOpt.(o <+> o')) s s'
+let merge s s' =
+  S.merge (fun _ o o' ->
+      let n = CCOpt.get_or ~default:0 o in
+      let m = CCOpt.get_or ~default:0 o' in
+      assert (n >= 0 && m >= 0);
+      let res = n + m in
+      if res = 0 then None else Some res
+  ) s s'
 
 let compute_free_vars = function
   | Type -> S.empty
   | Id v ->
     let s = free_vars v.Expr.id_type in
-    if is_var v then S.Id.bind s v () else s
+    if is_var v then S.Id.bind s v 1 else s
   | App (f, arg) ->
     merge (free_vars f) (free_vars arg)
   | Binder (_, v, body) ->
@@ -157,7 +186,12 @@ let compute_free_vars = function
   | Let (v, e, body) ->
     S.Id.remove v (merge (free_vars e) (free_vars body))
 
-let occurs v t = S.Id.mem v (free_vars t)
+let occurs v t =
+  match S.Id.get v (free_vars t) with
+  | i when i > 0 -> true
+  | _ -> false
+  | exception Not_found -> false
+
 let not_occurs v t = not (occurs v t)
 
 (* Hash computing *)
@@ -185,7 +219,7 @@ let compute_hash = function
 (* ************************************************************************ *)
 
 let alpha_compatible_subst fv subst =
-  S.for_all (fun v () ->
+  S.for_all (fun v _ ->
       match S.Id.get v subst with
       | v' -> Expr.Id.equal v v'
       | exception Not_found -> true
@@ -1046,21 +1080,15 @@ and of_tree ?callback t = function
 
 let disambiguate_tag = Tag.create ()
 
-module M = Map.Make(String)
-
-type env = {
-  names : id M.t;
-}
-
-let empty_env = { names = M.empty; }
-
-let full_name v = v.Expr.id_name
-
 let disambiguation_collision env v name =
-  Util.error ~section
-    "@[<hov>While@ disambiguating,@ encountered@ already@ disambiguated@ variable@ '%a',@ with@ name@ '%s',@ which@ is@ already@ taken by@ %a"
-    Expr.Id.print v name Expr.Id.print (M.find name env.names);
-  raise (Invalid_argument "Term.bind_ambiguous")
+  let v' = M.find name env.names in
+  if Expr.Id.equal v v' then ()
+  else begin
+    Util.error ~section
+      "@[<hov>While@ disambiguating,@ encountered@ already@ disambiguated@ variable@ '%a',@ with@ name@ '%s',@ which@ is@ already@ taken by@ %a"
+      Expr.Id.print v name Expr.Id.print (M.find name env.names);
+    raise (Invalid_argument "Term.bind_ambiguous")
+  end
 
 let add_name reason env v name =
   assert (not (M.mem name env.names));
@@ -1070,8 +1098,10 @@ let add_name reason env v name =
 let find_unambiguous env v =
   let new_name = Format.asprintf "%s#%d" v.Expr.id_name (v.Expr.index :> int) in
   if M.mem new_name env.names
-  then disambiguation_collision env v new_name
-  else begin
+  then begin
+    disambiguation_collision env v new_name;
+    new_name
+  end else begin
     Util.debug ~section "(renaming) %a ###> %s" Expr.Id.print v new_name;
     Expr.Id.tag v disambiguate_tag (Pretty.Renamed new_name);
     new_name
@@ -1088,7 +1118,7 @@ let bind_ambiguous env v =
   | Some Pretty.Exact s -> assert false
   | Some Pretty.Renamed s ->
     if M.mem s env.names
-    then disambiguation_collision env v s
+    then (disambiguation_collision env v s; env)
     else add_name "renamed" env v s
 
 let rec disambiguate_aux env t =
@@ -1102,11 +1132,88 @@ let rec disambiguate_aux env t =
     let env' = bind_ambiguous env v in
     disambiguate_aux env' body
   | Binder (b, v, body) ->
+    let () = disambiguate_aux env v.Expr.id_type in
     let env' = bind_ambiguous env v in
     disambiguate_aux env' body
 
 let disambiguate t =
   Util.debug ~section "@[<hv 2>disambiguate:@ @[<hov>%a@]@]" print t;
-  disambiguate_aux empty_env t
+  disambiguate_aux (empty_env ()) t
 
+(* Erase unary beta-redexes *)
+(* ************************************************************************ *)
+
+let pp_acc_elt fmt = function
+  | `Let (v, e) ->
+    Format.fprintf fmt "%a <- @[<hov>%a@]" Expr.Id.print v print e
+  | `For (v, e) ->
+    Format.fprintf fmt "%a %s :@[<hov>%a@]" Expr.Id.print v (binder_name Forall) print e
+  | `Bind (b, v) ->
+    Format.fprintf fmt "%a (%s)" Expr.Id.print v (binder_name b)
+
+let pp_acc fmt l =
+  (CCFormat.vbox CCFormat.(list ~sep:(return "@ ") pp_acc_elt)) fmt l
+
+let beta1_aux l t =
+  Util.debug ~section "beta1_aux: @[<v>- %a@ - %a@]" pp_acc l print t;
+  let aux acc = function
+    | `Let (v, e) -> letin v e acc
+    | `Bind (b, v) -> bind b v acc
+    | `For (v, e) -> app (forall v acc) e
+  in
+  List.fold_left aux t l
+
+let rec beta1_reduce acc map is_forall v e body =
+  match S.Id.get v (free_vars body) with
+  | exception Not_found -> beta1 acc map body
+  | 0 -> beta1 acc map body
+  | i ->
+    assert (i > 0);
+    let e, acc', map = beta1 [] map e in
+    let e = beta1_aux acc' e in
+    if i = 1 then
+      beta1 acc (S.Id.bind map v e) body
+    else if is_forall then
+      beta1 (`For (v, e) :: acc) map body
+    else
+      beta1 (`Let (v, e) :: acc) map body
+
+and beta1 acc map t =
+  Util.debug ~section "beta1: @[<v>- %a@ - %a@ - %a@]"
+    pp_acc acc (S.print Expr.Id.print print) map print t;
+  match t.term with
+  | Type -> t, acc, map
+  | Id v ->
+    begin match S.Id.get v map with
+      | exception Not_found -> t, acc, map
+      | t' -> t', acc, S.Id.remove v map
+    end
+  | Let (v, e, body)
+  | App ( { term = Binder (Lambda, v, body) }, e ) ->
+    beta1_reduce acc map false v e body
+  | App ( { term = Binder (Forall, v, body) }, e ) ->
+    beta1_reduce acc map true v e body
+  | App (f, arg) ->
+    let f', f_acc, map' = beta1 [] map f in
+    let f'' = beta1_aux f_acc f' in
+    begin match f'' with
+      | { term = Binder (Lambda, v, body) } ->
+        beta1_reduce acc map' false v arg body
+      | { term = Binder (Forall, v, body) } ->
+        beta1_reduce acc map' true v arg body
+      | _ ->
+        Util.debug ~section "@[<v>%a@ beta1 reduced (function) to@ %a@]" print f print f'';
+        let arg', arg_acc, map'' = beta1 [] map' arg in
+        let arg'' = beta1_aux arg_acc arg' in
+        Util.debug ~section "@[<v>%a@ beta1 reduced (argument) to@ %a@]" print arg print arg'';
+        let res = app f'' arg'' in
+        Util.debug ~section "@[<v>%a@ beta1 reduced (app) to@ %a@]" print t print res;
+        app f'' arg'', acc, map''
+    end
+  | Binder (b, v, body) ->
+    beta1 (`Bind (b, v) :: acc) map body
+
+let beta_simplify t =
+  let t', acc, map = beta1 [] S.empty t in
+  beta1_aux acc t'
 

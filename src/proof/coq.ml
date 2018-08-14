@@ -131,9 +131,13 @@ module Print = struct
   and var_lists fmt l =
     CCFormat.(list ~sep:(return "@ ") var_list) fmt l
 
-  let term = CCFormat.hovbox (term_aux ~fragile:false ~simplify:true)
+  let term fmt t =
+    Term.disambiguate t;
+    (CCFormat.hovbox (term_aux ~fragile:false ~simplify:true)) fmt t
 
-  let fragile = CCFormat.hovbox (term_aux ~fragile:true ~simplify:false)
+  let fragile fmt t =
+    Term.disambiguate t;
+    (CCFormat.hovbox (term_aux ~fragile:true ~simplify:false)) fmt t
 
   module Big = struct
 

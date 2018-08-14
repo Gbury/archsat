@@ -3,6 +3,9 @@
 **/*.blg
 **/*.toc
 
+**/*.vo
+**/*.glob
+
 src/_build
 src/*.native
 

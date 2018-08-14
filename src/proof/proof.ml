@@ -832,7 +832,7 @@ let apply =
               Term.print g Term.print ret, ctx));
       let e = env ctx in
       (** Check that the term used in closed in the current environment *)
-      let unbound_vars = Term.S.fold (fun id () acc ->
+      let unbound_vars = Term.S.fold (fun id _ acc ->
           if not (Env.exists e id) then id :: acc else acc
         ) (Term.free_vars f) [] in
       begin match unbound_vars with

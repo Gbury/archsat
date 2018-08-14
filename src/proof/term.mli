@@ -34,7 +34,7 @@ and t = private {
   index : int;
   term : descr;
   reduced : t Lazy.t;
-  free : (id, unit) S.t;
+  free : (id, int) S.t;
 }
 (** Term records. Contains the type of the term,
     to avoid recomputing it every time (which is pretty
@@ -92,6 +92,8 @@ val is_reduced : t -> bool
 (** Is the given term in normal form ?
     WARNING: the type of a term in normal form is not necessary in normal form. *)
 
+val beta_simplify : t -> t
+(** Simplify a term (hopefully faster than reduce) *)
 
 (** {4 Disambiguation}
     Variables can share the same name because theyr are not identified by name
@@ -112,7 +114,7 @@ val disambiguate : t -> unit
 val is_var : id -> bool
 (** Is the given identifier a variable ? or a constant ?. *)
 
-val free_vars : t -> (id, unit) S.t
+val free_vars : t -> (id, int) S.t
 (** Computes the set of free variable sin a term. *)
 
 val occurs : id -> t -> bool

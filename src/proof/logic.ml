@@ -557,12 +557,12 @@ let resolve_clause_aux c1 c2 res pos =
   |> Array.iter (fun p ->
       if not (trivial p) then begin
         p
-        |> intro "res"
+        |> intro "r"
         |> apply [] (Term.id c2)
         |> Array.iter (fun p' ->
             if not (trivial p') then begin
               let a = Proof.goal (extract_open p') in
-              p' |> intro "res" |> absurd (shortcut_not_not a)
+              p' |> intro "r" |> absurd (shortcut_not_not a)
             end
           )
       end

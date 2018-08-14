@@ -159,9 +159,13 @@ module Print = struct
     Format.fprintf fmt "%a: @[<hov 2>%a@]"
       id v (type_aux ~simplify:true) ty
 
-  let term = CCFormat.hovbox (term_aux ~fragile:false ~simplify:true)
+  let term fmt t =
+    Term.disambiguate t;
+    (CCFormat.hovbox (term_aux ~fragile:false ~simplify:true)) fmt t
 
-  let fragile = CCFormat.hovbox (term_aux ~fragile:true ~simplify:false)
+  let fragile fmt t =
+    Term.disambiguate t;
+    (CCFormat.hovbox (term_aux ~fragile:true ~simplify:false)) fmt t
 
 end
 
@@ -181,10 +185,12 @@ let declare_loc fmt = function
     Format.fprintf fmt "(; @[<hov>%a@] ;)" Dolmen.ParseLocation.fmt l
 
 let declare_id ?loc fmt id =
+  Term.disambiguate id.Expr.id_type;
   Format.fprintf fmt "%a@\n%a.@\n@."
     declare_loc loc Print.var_type id
 
 let declare_hyp ?loc fmt id =
+  Term.disambiguate id.Expr.id_type;
   Format.fprintf fmt "%a@\n%a.@\n@."
     declare_loc loc Print.var_type id
 
