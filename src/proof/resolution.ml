@@ -40,6 +40,17 @@ let term_of_atom a =
     else Term.app Term.not_term t
   end
 
+(* Get function for proving lemmas *)
+(* ************************************************************************ *)
+
+let prove_function lemma clause =
+  let name = lemma.Dispatcher.plugin_name in
+  let section = Dispatcher.find_section name in
+  Util.debug ~section "Proving lemma (%s): %a" name P.St.print_clause clause;
+  match Dispatcher.(ask name (Proof.Lemma lemma.proof_info)) with
+  | Some f -> (fun pos -> f (Proof.switch section pos))
+  | None -> (fun _ -> ())
+
 (* Incremental dot printing *)
 (* ************************************************************************ *)
 
@@ -74,13 +85,7 @@ let compute_aux h pos node =
       Util.debug ~section "  using %a" Term.print t;
       introduce_hyp t l pos
     | P.Lemma lemma ->
-      let name = lemma.plugin_name in
-      Util.debug ~section "Proving lemma (%s): %a" name P.St.print_clause node.P.conclusion;
-      let f =
-        match Dispatcher.(ask name (Proof.Lemma lemma.proof_info)) with
-        | Some f -> f
-        | None -> (fun _ -> ())
-      in
+      let f = prove_function lemma node.P.conclusion in
       introduce_lemma f l pos
     | P.Resolution (left, right, _) ->
       let left_proof = P.expand left in
@@ -117,7 +122,7 @@ let compute opt seq (sid, p) =
          | None ->
            Util.error ~section "No solver_id provided for binding to goal introduction"
     in
-    let init = Logic.nnpp ~handle @@ Proof.(pos (root proof)) in
+    let init = Logic.nnpp ~handle @@ Proof.(pos (root proof)) |> Proof.switch section in
     try
       let final = P.fold (fun acc node ->
           print_incr_dot opt proof;
@@ -179,13 +184,7 @@ let msat_backend =
               Util.debug ~section "Proving hyp (%a) : %a" Term.print t' Term.print t;
               prove_hyp t' l pos
             | P.St.Lemma lemma ->
-              let name = lemma.plugin_name in
-              Util.debug ~section "Proving lemma (%s): %a" name Term.print t;
-              let f =
-                match Dispatcher.(ask name (Proof.Lemma lemma.proof_info)) with
-                | Some f -> f
-                | None -> (fun _ -> ())
-              in
+              let f = prove_function lemma c in
               f pos
             | P.St.Local | P.St.History _ -> assert false
           in

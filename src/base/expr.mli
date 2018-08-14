@@ -300,6 +300,10 @@ module Id : sig
       using priority [n].
       (only the valuation with highest priority is called). *)
 
+  val get_valuation : 'a id -> valuation
+  (** Get the valuation associated with an id.
+      @raise Exit if not found. *)
+
   val is_valuated : 'a id -> bool
   (** Has the given id's valuation been set ? *)
 

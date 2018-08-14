@@ -9,6 +9,8 @@ type t = {
   index : int;
 }
 
+let eq t t' = t.index = t'.index
+
 let mk =
   let curr = ref ~-1 in
   (fun name ->
@@ -31,7 +33,7 @@ let incr ?(k=1) t s =
 (* ************************************************************************ *)
 
 type group = {
-  stats : t list;
+  mutable stats : t list;
   mutable sections : Section.t list;
 }
 
@@ -42,6 +44,9 @@ let bundle stats =
   all_groups := res :: !all_groups;
   res
 
+let add_to_group group stat =
+  group.stats <- CCList.add_nodup ~eq stat group.stats
+
 let attach t group =
   group.sections <- CCList.add_nodup ~eq:Section.equal t group.sections
 
@@ -49,18 +54,21 @@ let attach t group =
 (* ************************************************************************ *)
 
 let print_stats_group g =
-  let l = "Sections" :: (List.map (fun s -> s.name) g.stats) in
-  let sections = PrintBox.(vlist ~bars:false (
-      List.map (fun s -> text (Section.full_name s)) g.sections)) in
-  let stats = List.map (fun t -> PrintBox.(vlist ~bars:false (
-      List.map (fun s -> int_ @@ get t s) g.sections))) g.stats in
-  let b = PrintBox.(
-      grid ~pad:(hpad 3) ~bars:true [|
-        Array.of_list (List.map (fun s -> text s) l);
-        Array.of_list (sections :: stats);
-      |]) in
-  print_newline ();
-  PrintBox.output stdout b
+  if g.sections = [] || g.stats = [] then ()
+  else begin
+    let l = "Sections" :: (List.map (fun s -> s.name) g.stats) in
+    let sections = PrintBox.(vlist ~bars:false (
+        List.map (fun s -> text (Section.full_name s)) g.sections)) in
+    let stats = List.map (fun t -> PrintBox.(vlist ~bars:false (
+        List.map (fun s -> int_ @@ get t s) g.sections))) g.stats in
+    let b = PrintBox.(
+        grid ~pad:(hpad 3) ~bars:true [|
+          Array.of_list (List.map (fun s -> text s) l);
+          Array.of_list (sections :: stats);
+        |]) in
+    print_newline ();
+    PrintBox.output stdout b
+  end
 
 let print () =
   List.iter print_stats_group !all_groups

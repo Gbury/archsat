@@ -86,6 +86,7 @@ val mk_ext :
 
 module Plugin : Extension.S with type ext = ext
 
+
 (** {2 Solver functions} *)
 
 val ask : string -> 'a msg -> 'a option
@@ -102,6 +103,7 @@ val handle : ('acc -> 'ret option -> 'acc) -> 'acc -> 'ret msg -> 'acc
 val pre_process : Expr.formula -> Expr.formula
 (** Give the formula to extensions for pre-processing. *)
 
+
 (** {2 Extension-side helpers} *)
 
 val section : Section.t
@@ -112,6 +114,9 @@ val solver_section : Section.t
 
 val plugin_section : Section.t
 (** Debug section for dispatcher plugins. *)
+
+val find_section : string -> Section.t
+(** Try and find the section associated with the given plugin name. *)
 
 val stack : Backtrack.Stack.t
 (** The global undo stack. All extensions should either use datatypes

@@ -4,6 +4,9 @@
     This module defines functiosn to register statistics about sections.
 *)
 
+val print : unit -> unit
+(** Print statistics on the standard output. *)
+
 (* {2 Statistics counters} *)
 
 type t
@@ -39,9 +42,9 @@ type group
 val bundle : t list -> group
 (** Bundle a list of counters into a group. *)
 
+val add_to_group : group -> t -> unit
+(** Add a statistics to a group. *)
+
 val attach : Section.t -> group -> unit
 (** Attach a section to a group of counters. *)
-
-val print : unit -> unit
-(** Print statistics on the standard output. *)
 

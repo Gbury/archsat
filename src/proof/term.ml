@@ -1,8 +1,6 @@
 
 let section = Section.make "term"
 
-(* TODO: Change to DeBruijn indices to speed up alpha comparison ? *)
-
 (* Proof terms *)
 (* ************************************************************************ *)
 
@@ -71,6 +69,9 @@ and pp_descr fmt = function
     Format.fprintf fmt "@[<hv 2>(%s (%a : %a).@ %a)@]"
       (binder_name b) Expr.Id.print v pp v.Expr.id_type pp body
 
+let pp fmt t =
+  Format.fprintf fmt "[%d.%d] %a" t.index t.hash pp t
+
 (* Std operations on terms *)
 (* ************************************************************************ *)
 
@@ -91,9 +92,15 @@ module Aux = struct
 end
 
 module Reduced = struct
+
   type nonrec t = t
+
   let hash t = hash @@ reduce t
-  let compare t t' = compare (reduce t) (reduce t')
+
+  let compare t t' =
+    if Aux.equal t t' then 0
+    else Aux.compare (reduce t) (reduce t')
+
   let equal t t' = compare t t' = 0
 end
 
@@ -101,6 +108,8 @@ module Hs = Hashtbl.Make(Aux)
 
 (* Id creation *)
 (* ************************************************************************ *)
+
+let contract_tag = Tag.create ()
 
 type Expr.builtin +=
   | Var
@@ -128,6 +137,7 @@ let definitions = Hs.create 17
 let define s def =
   let v = Expr.Id.mk_new ~builtin:(Defined def) s def.ty in
   Hs.add definitions def v;
+  Hs.add definitions (reduce def) v;
   v
 
 (* Free variables computing *)
@@ -434,16 +444,32 @@ and subst s t =
   if S.is_empty s then t else subst_aux s t
 
 and reduce_beta v e body =
-  let t = reduce body in
-  if occurs v t then
+  let body = reduce body in
+  if not_occurs v body then body
+  else begin
     let map = S.Id.bind S.empty v (reduce e) in
+    (*
+    reduce_chain map body
+    *)
+    let tmp = subst map body in
+    reduce tmp
+  end
+
+(* Not really useful to speed up proof generation.
+and reduce_chain map t =
+  match t.term with
+  | Let (v, e, body)
+  | App ( { term = Binder (Lambda, v, body) ; _ } , e ) ->
+    if not_occurs v body then
+      reduce_chain map body
+    else begin
+      let map' = S.Id.bind map v (reduce e) in
+      reduce_chain map' body
+    end
+  | _ ->
     let tmp = subst map t in
-    (* Format.eprintf "beta-reduced: @[<hov>%a@]@." pp tmp; *)
-    let ret = reduce tmp in
-    (* Format.eprintf "normal beta-reduced: @[<hov>%a@]@." pp ret; *)
-    ret
-  else
-    t
+    reduce tmp
+*)
 
 (*
 and reduce_binders map t =

@@ -10,8 +10,34 @@ let dummy_section = Section.make "DUMMY"
 (* ************************************************************************ *)
 
 let stats_watchers = Stats.mk "watchers"
+let stats_conflicts = Stats.mk "conflicts"
 
-let stats_group = Stats.bundle [stats_watchers]
+let stats_pushed = Stats.mk "pushed"
+
+let plugin_stats_group = Stats.bundle [
+    stats_watchers;
+    stats_conflicts;
+    stats_pushed;
+  ]
+
+let stats_assignable = Stats.mk "var assignable"
+let stats_evalable = Stats.mk "var eval-able"
+
+let stats_evaluated = Stats.mk "formula evaluated"
+
+let stats_assignments = Stats.mk "assignments"
+let stats_evaluations = Stats.mk "evaluations"
+
+let stats_group = Stats.bundle [
+    stats_assignable;
+    stats_assignments;
+
+    stats_evalable;
+    stats_evaluations;
+    stats_evaluated;
+  ]
+
+let () = Stats.attach section stats_group
 
 (* Type definitions *)
 (* ************************************************************************ *)
@@ -131,7 +157,7 @@ type ext = {
 let mk_ext
     ~section ?(handle: handle option)
     ?set_handler ?set_watcher ?assume ?eval_pred ?preprocess () =
-  Stats.attach section stats_group;
+  Stats.attach section plugin_stats_group;
   {
     section;
     set_handler = CCOpt.map (profile section) set_handler;
@@ -233,6 +259,8 @@ let plugin_eval_pred f =
   | Some eval_pred -> eval_pred f
   | None -> None
 
+let find_section name = Plugin.((find name).ext).section
+
 (* Sending messages *)
 (* ************************************************************************ *)
 
@@ -281,7 +309,10 @@ let () =
 (* ************************************************************************ *)
 
 let check_var v =
-  if not (Expr.Id.is_valuated v) then
+  match Expr.Id.get_valuation v with
+  | Expr.Assign _ -> Stats.incr stats_assignable section
+  | Expr.Eval _ -> Stats.incr stats_evalable section
+  | exception Exit ->
     Util.warn ~section "WARNING: Variable '%a' has no valuation" Expr.Print.id v
 
 let rec check_term = function
@@ -479,6 +510,7 @@ and set_assign t v =
     assign_watch t l
 
 let ensure_assign_aux t l f = (fun () ->
+    Stats.incr stats_evaluations section;
     set_assign t (f ());
     B.add eval_depends t l
   )
@@ -560,6 +592,7 @@ let push clause p =
       p.proof_name
       CCFormat.(list ~sep:(return " ||@ ") Expr.Print.formula) clause
   else begin
+    Stats.incr stats_pushed (find_section p.plugin_name);
     Util.debug ~section:slice_section "New clause to push (%s):@ @[<hov>%a@]"
       p.proof_name
       CCFormat.(list ~sep:(return " ||@ ") Expr.Print.formula) clause;
@@ -570,6 +603,7 @@ let consequence f l p =
   Stack.push (f, Msat.Plugin_intf.Consequence (l, p)) propagate_stack
 
 let propagate f l =
+  Stats.incr stats_evaluated section;
   match resolve_deps l with
   | [] -> consequence f [] (mk_proof "" "eval0" Eval0)
   | l' -> Stack.push (f, Msat.Plugin_intf.Eval l') propagate_stack
@@ -628,6 +662,7 @@ module SolverTheory = struct
             Expr.Print.formula f;
           assume_aux f
         | Assign (t, v) ->
+          Stats.incr stats_assignments section;
           Util.debug ~section:slice_section "assuming: @[<hov>%a ->@ %a@]"
             Expr.Print.term t Expr.Print.term v;
           set_assign t v
@@ -637,7 +672,7 @@ module SolverTheory = struct
       do_push s.push;
       Sat
     with Absurd (l, p) ->
-      Util.exit_prof section;
+      Stats.incr stats_conflicts (find_section p.plugin_name);
       (* Propagating is important for literals true because of assignments at
          level 0 (which if not propagated, cannot be "evaluated" at level 0,
          and thus would render some conflicts invalid). However, since it can happen
@@ -649,6 +684,7 @@ module SolverTheory = struct
       (* Debug and return value *)
       Util.debug ~section:slice_section "Conflict(%s):@ @[<hov>%a@]"
         p.proof_name CCFormat.(list ~sep:(return " ||@ ") Expr.Print.formula) l;
+      Util.exit_prof section;
       Unsat (l, p)
 
   let if_sat_iter s f =
@@ -669,6 +705,7 @@ module SolverTheory = struct
       Util.exit_prof section;
       Msat.Plugin_intf.Sat
     with Absurd (l, p) ->
+      Stats.incr stats_conflicts (find_section p.plugin_name);
       clean_propagate ();
       Util.debug ~section "Conflict(%s):@ @[<hov>%a@]"
         p.proof_name CCFormat.(list ~sep:(return " ||@ ") Expr.Print.formula) l;
@@ -728,6 +765,7 @@ module SolverTheory = struct
     match plugin_eval_pred f with
     | None -> Msat.Plugin_intf.Unknown
     | Some (b, l) ->
+      Stats.incr stats_evaluated section;
       begin match resolve_deps l with
         (* Propagations at level 0 are actually forbidden currently,
            so instead we propagate it (the assume function takes care of

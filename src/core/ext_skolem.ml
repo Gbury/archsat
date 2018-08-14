@@ -85,6 +85,7 @@ let inst_epsilon get_tag tag trap inhabited e t =
   | Some (x, body) ->
     let p = Term.lambda x body in
     let eps_term = Term.apply Quant.epsilon_term [x.Expr.id_type; inhabited; p] in
+    Util.debug ~section "Defining epsilon...";
     let eps = Term.define (epsilon_name ()) eps_term in
     let eps_t = Term.id eps in
     let deps = prelude_of_deps @@ CCOpt.get_exn @@ get_tag e dep_tag in
@@ -101,6 +102,7 @@ let inst_epsilon get_tag tag trap inhabited e t =
         in
         let p = Term.lambda x body in
         let eps_term = Term.apply Quant.epsilon_term [x.Expr.id_type; inhabited; p] in
+        Util.debug ~section "Defining epsilon...";
         let eps = Term.define (epsilon_name ()) eps_term in
         let eps_t = Term.id eps in
         let deps = prelude_of_deps @@ CCOpt.get_exn @@ get_tag e dep_tag in

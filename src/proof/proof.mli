@@ -77,16 +77,16 @@ module Env : sig
     wrap : Term.t -> Term.t;
   }
 
-  type coerced =
+  type coercion =
     | Cst of cst
     | Wrapped of wrapped
 
   (** The type of coerced terms *)
 
-  type coercion = string * (Term.t -> coerced list)
+  type congruence = string * (Term.t -> coercion list)
   (** the type of coercions *)
 
-  val register : coercion -> unit
+  val register : congruence -> unit
   (** Register a new coercion. *)
 
 end
@@ -237,6 +237,9 @@ val pos : node -> pos
 
 val get : pos -> node
 (** Return a node given its position. *)
+
+val switch : Section.t -> pos -> pos
+(** Switch the position to the given section. *)
 
 val extract : node -> proof_node
 (** Extract the contents of a node. *)

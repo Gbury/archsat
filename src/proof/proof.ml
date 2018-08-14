@@ -1,6 +1,13 @@
 
 let section = Section.make "proof"
 
+(* Stats *)
+(* ************************************************************************ *)
+
+let stats_group = Stats.bundle []
+
+let () = Stats.attach section stats_group
+
 (* Proof printing data *)
 (* ************************************************************************ *)
 
@@ -51,14 +58,14 @@ module Env = struct
     wrap : Term.t -> Term.t;
   }
 
-  type coerced =
+  type coercion =
     | Cst of cst
     | Wrapped of wrapped
 
-  type coercion = string * (Term.t -> coerced list)
+  type congruence = string * (Term.t -> coercion list)
 
   (* To simplify things, the "normal" lookup is encoded as the trivial coercion *)
-  let coercions : coercion list ref =
+  let congruences : congruence list ref =
     ref [
       "<id>", (fun term -> [ Wrapped { term; wrap = (fun x -> x); } ] );
     ]
@@ -66,8 +73,7 @@ module Env = struct
   (* It is important to keep coercions ordered, in order for the trivial coercion
      to be used first (for performance reasons) *)
   let register c =
-    coercions := !coercions @ [c]
-
+    congruences := !congruences @ [c]
 
 
   (* Main type and functions *)
@@ -160,7 +166,7 @@ module Env = struct
       end
 
   let find t f =
-    find_aux t f !coercions
+    find_aux t f !congruences
 
   let local_count t s =
     try Ms.find s t.count with Not_found -> 0
@@ -331,6 +337,7 @@ type ('input, 'state) step = {
 
   (* step name *)
   name : string;
+  stat : Stats.t;
 
   (* Printing information *)
   print : lang ->
@@ -350,7 +357,11 @@ type node = {
   mutable term : Term.t option;
 }
 
-and pos = node array * int
+and pos = {
+  i : int;
+  t : node array;
+  section : Section.t;
+}
 
 and proof_node =
   | Open  : sequent -> proof_node
@@ -413,7 +424,9 @@ let mk_step
     ?(dot=_dummy_dot_print)
     ?(dedukti=_dummy_dk_print)
     ~coq ~compute ~elaborate name =
-  { name ;prelude; compute; elaborate;
+  let stat = Stats.mk name in
+  let () = Stats.add_to_group stats_group stat in
+  { name; prelude; compute; elaborate; stat;
     print = (function Dot -> dot | Coq -> coq | Dedukti -> dedukti); }
 
 (* Building proofs *)
@@ -421,9 +434,9 @@ let mk_step
 
 let _node_idx = ref 0
 
-let get ((t, i) : pos) = t.(i)
+let get ({ t; i; _ } : pos) = t.(i)
 
-let set ((t, i) as pos : pos) step state branches =
+let set ({ t; i ; _ } as pos : pos) step state branches =
   match (get pos).proof with
   | Open _ ->
     incr _node_idx;
@@ -432,22 +445,26 @@ let set ((t, i) as pos : pos) step state branches =
     Util.error ~section "Trying to apply reasonning step to an aleardy closed proof";
     assert false
 
+let switch section pos =
+  Stats.attach section stats_group;
+  { pos with section }
+
 let dummy_node = {
-  id = 0; pos = [| |], -1; term = None;
+  id = 0; pos = { t = [| |]; i = -1; section; }; term = None;
   proof = Open (mk_sequent Env.empty Term.true_term);
 }
 
-let mk_branches n f =
+let mk_branches section n f =
   let res = Array.make n dummy_node in
   for i = 0 to n - 1 do
-    let pos = (res, i) in
+    let pos = { t = res; i ; section; } in
     incr _node_idx;
     res.(i) <- { id = !_node_idx; pos; proof = f i; term = None; }
   done;
   res
 
 let mk sequent =
-  sequent, mk_branches 1 (fun _ -> Open sequent)
+  sequent, mk_branches section 1 (fun _ -> Open sequent)
 
 let apply_step pos step input =
   match (get pos).proof with
@@ -455,6 +472,7 @@ let apply_step pos step input =
     Util.error ~section "Trying to apply reasonning step to an aleardy closed proof";
     assert false
   | Open sequent ->
+    Stats.incr step.stat pos.section;
     let state, a =
       try
         step.compute sequent input
@@ -474,7 +492,7 @@ let apply_step pos step input =
         raise (Failure (
             Format.asprintf "Following ids conflict: %a <> %a" Expr.Print.id v Expr.Print.id v', pos))
     in
-    let branches = mk_branches (Array.length a) (fun i -> Open a.(i)) in
+    let branches = mk_branches pos.section (Array.length a) (fun i -> Open a.(i)) in
     let () = set pos step state branches in
     state, Array.map (fun { pos; _} -> pos) branches
 

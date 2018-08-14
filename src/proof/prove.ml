@@ -1,9 +1,10 @@
 
-let section = Section.make ~parent:Proof.section "proving"
+let section = Section.make ~parent:Proof.section "printing"
 
-let proof_section = Section.make ~parent:Proof.section "generation"
-let elaboration_section = Section.make ~parent:section "elaboration"
-let normalisation_section = Section.make ~parent:section "normalisation"
+let proof_section = Section.make ~parent:Proof.section "msat-res"
+let script_section = Section.make ~parent:Proof.section "generation"
+let elaboration_section = Section.make ~parent:Proof.section "elaboration"
+let normalisation_section = Section.make ~parent:Proof.section "normalisation"
 
 let dot_section = Section.make ~parent:section "dot_print"
 let msat_section = Section.make ~parent:section "coq-msat_print"
@@ -235,7 +236,7 @@ let output_proof opt p =
   (* Lazily compute the script *)
   let script = lazy (
     Util.info ~section "Computing script";
-    Util.enter_prof proof_section;
+    Util.enter_prof script_section;
     let hyps = get_hyps () in
     let env =
       try
@@ -246,7 +247,7 @@ let output_proof opt p =
     in
     let seq = Proof.mk_sequent env g in
     let res = Resolution.compute opt seq (sid, p) in
-    Util.exit_prof proof_section;
+    Util.exit_prof script_section;
     res
   ) in
   (* Lazily compute the script term *)
