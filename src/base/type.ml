@@ -573,7 +573,9 @@ let make_pred env ast_term p =
 
 let mk_quant env mk (ty_vars, t_vars) body =
   (* Check that all quantified variables are actually used *)
-  let fv_ty, fv_t = Expr.Formula.fv body in
+  let fv_ty, fv_t = List.fold_left (fun acc v ->
+      Expr.Id.merge_fv acc (Expr.Ty.fv v.Expr.id_type)
+    ) (Expr.Formula.fv body) t_vars in
   List.iter (fun v ->
       if not @@ CCList.mem ~eq:Expr.Id.equal v fv_ty then _unused_type v env
     ) ty_vars;
