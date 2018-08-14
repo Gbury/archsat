@@ -1,16 +1,18 @@
 
 let section = Section.make ~parent:Proof.section "quant"
 
+let tag ?dk ?coq id =
+  CCOpt.iter (fun s -> Expr.Id.tag id Dedukti.Print.name @@ Pretty.Exact s) dk;
+  CCOpt.iter (fun s -> Expr.Id.tag id Coq.Print.name @@ Pretty.Exact s) coq;
+  ()
+
 (* Epsilon prelude *)
 (* ************************************************************************ *)
 
 let epsilon_prelude_id = Expr.Id.mk_new "epsilon" ()
 let epsilon_prelude = Proof.Prelude.require epsilon_prelude_id
 
-let () =
-  Expr.Id.tag epsilon_prelude_id Coq.Print.pos Pretty.Prefix;
-  Expr.Id.tag epsilon_prelude_id Coq.Print.name @@ Pretty.Exact "Coq.Logic.Epsilon";
-  ()
+let () = tag epsilon_prelude_id ~dk:"epsilon" ~coq:"Coq.Logic.Epsilon"
 
 (* Useful constants for instanciation *)
 (* ************************************************************************ *)
@@ -54,6 +56,11 @@ let not_ex_not_all =
 
 let not_ex_all_not_term = Term.id not_ex_all_not
 let not_ex_not_all_term = Term.id not_ex_not_all
+
+let () =
+  tag not_ex_all_not  ~dk:"classical.not_ex_all_not"  ~coq:"not_ex_all_not";
+  tag not_ex_not_all  ~dk:"classical.not_ex_not_all"  ~coq:"not_ex_not_all";
+  ()
 
 (* Quantified formula matching *)
 (* ************************************************************************ *)
@@ -225,6 +232,15 @@ let not_all_not_ex =
 
 let not_all_ex_not_term = Term.id not_all_ex_not
 let not_all_not_ex_term = Term.id not_all_not_ex
+
+let () =
+  tag inhabited       ~dk:"logic.inhabited"           ~coq:"inhabited";
+  tag inhabits        ~dk:"logic.inhabits"            ~coq:"inhabits";
+  tag epsilon         ~dk:"epsilon.epsilon"           ~coq:"epsilon";
+  tag epsilon_spec    ~dk:"epsilon.epsilon_spec"      ~coq:"epsilon_spec";
+  tag not_all_ex_not  ~dk:"classical.not_all_ex_not"  ~coq:"not_all_ex_not";
+  tag not_all_not_ex  ~dk:"classical.not_all_not_ex"  ~coq:"not_all_not_ex";
+  ()
 
 (* Term building for espilon instanciation *)
 (* ************************************************************************ *)

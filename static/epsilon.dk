@@ -1,0 +1,24 @@
+
+(; Axiomatisation for Hilbert's epsilon operator ;)
+
+def epsilon :
+  a : logic.type ->
+  logic.proof (logic.inhabited a) ->
+  (logic.term a -> logic.prop) -> logic.term a.
+
+def epsilon_spec :
+  a : logic.type ->
+  i : logic.proof (logic.inhabited a) ->
+  p :(logic.term a -> logic.prop) ->
+  logic.proof (logic.exists a p) ->
+  logic.proof (p (epsilon a i p)).
+
+(; Axiomatisation for Hilbert's epsilon operator for type existencials ;)
+
+def epsilon_type : (logic.type -> logic.prop) -> logic.type.
+
+def epsilon_type_spec :
+  p :(logic.type -> logic.prop) ->
+  logic.proof (logic.existstype p) ->
+  logic.proof (p (epsilon_type p)).
+

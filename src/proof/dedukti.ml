@@ -91,11 +91,14 @@ module Print = struct
             CCFormat.(list ~sep:(return "@ -> ") (type_aux ~simplify:true)) tys
             (type_aux ~simplify:true) body
         | `Pi | `Binder Term.Lambda ->
-          let sep = match kind with `Pi -> "->" | _ -> "=>" in
+          let sep, pp_arg = match kind with
+            | `Pi -> "->", type_aux
+            | _ -> "=>", term_aux ~fragile:false
+          in
           Format.fprintf fmt "@[<hov>%s%a %s@ %a%s@]"
             (if fragile then "(" else "")
             (var_list sep) vars sep
-            (term_aux ~fragile:false ~simplify:true) body
+            (pp_arg ~simplify:true) body
             (if fragile then ")" else "")
         | `Binder Term.Forall -> quant ~fragile fmt "logic.forall" v t'
         | `Binder Term.Exists -> quant ~fragile fmt "logic.exists" v t'
