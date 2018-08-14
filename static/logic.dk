@@ -145,3 +145,9 @@ def f_equal2
     ).
 
 
+(; Type inhabitation ;)
+
+def inhabited : type -> prop.
+
+def inhabits : a : type -> term a -> proof (inhabited a).
+

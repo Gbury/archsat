@@ -1,5 +1,5 @@
 
-FILES=logic.dko classical.dko
+FILES=logic.dko classical.dko epsilon.dko
 
 all: $(FILES)
 

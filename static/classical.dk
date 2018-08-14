@@ -15,3 +15,108 @@ def nnpp (p : logic.prop)
   classic p p (H2 : logic.proof p => H2)
               (H3 : logic.proof (logic.not p) => H1 H3 p).
 
+
+(; de Morgan Laws for quantifiers ;)
+
+def not_all_not_ex
+  (u : logic.type) (p : logic.term u -> logic.prop) :
+  logic.proof (logic.not (logic.forall u (x : logic.term u => logic.not (p x)))) ->
+  logic.proof (logic.exists u p) :=
+    notall : logic.proof (logic.not (logic.forall u (x : logic.term u => logic.not (p x)))) =>
+      nnpp (logic.exists u p) (abs : logic.proof (logic.not (logic.exists u p)) =>
+        notall (n : logic.term u => H : logic.proof (p n) =>
+          abs (z : logic.prop => p0 : (x : logic.term u -> logic.proof (p x) -> logic.proof z) =>
+            p0 n H
+          )
+        )
+      ).
+
+def not_all_ex_not
+  (u : logic.type) (p : logic.term u -> logic.prop) :
+  logic.proof (logic.not (logic.forall u p)) ->
+  logic.proof (logic.exists u (x : logic.term u => logic.not (p x))) :=
+    notall : logic.proof (logic.not (logic.forall u p)) =>
+      not_all_not_ex u (x : logic.term u => logic.not (p x)) (
+        (all : logic.proof (logic.forall u (x : logic.term u => logic.not (logic.not (p x)))) =>
+          notall (n : logic.term u =>
+            nnpp (p n) (all n)
+          )
+        )
+      ).
+
+def not_ex_all_not
+  (u : logic.type) (p : logic.term u -> logic.prop) :
+  logic.proof (logic.not (logic.exists u p)) ->
+  logic.proof (logic.forall u (x : logic.term u => logic.not (p x))) :=
+    notex : logic.proof (logic.not (logic.exists u p)) =>
+      n : logic.term u => abs : logic.proof (p n) =>
+        notex (z : logic.prop =>
+          p0 : (x : logic.term u -> logic.proof (p x) -> logic.proof z) =>
+            p0 n abs
+          ).
+
+def not_ex_not_all
+  (u : logic.type) (p : logic.term u -> logic.prop) :
+  logic.proof (logic.not (logic.exists u (x : logic.term u => logic.not (p x)))) ->
+  logic.proof (logic.forall u p) :=
+    H : logic.proof (logic.not (logic.exists u (x : logic.term u => logic.not (p x)))) =>
+      n : logic.term u =>
+        nnpp (p n) (k : logic.proof (logic.not (p n)) =>
+          H (z : logic.prop =>
+            p0 : (x : logic.term u -> logic.proof (logic.not (p x)) -> logic.proof z) =>
+              p0 n k
+          )
+        ).
+
+
+(; de Morgan Laws for type quantifiers ;)
+
+def not_all_not_ex_type
+  (p : logic.type -> logic.prop) :
+  logic.proof (logic.not (logic.foralltype (x : logic.type => logic.not (p x)))) ->
+  logic.proof (logic.existstype p) :=
+    notall : logic.proof (logic.not (logic.foralltype (x : logic.type => logic.not (p x)))) =>
+      nnpp (logic.existstype p) (abs : logic.proof (logic.not (logic.existstype p)) =>
+        notall (n : logic.type => H : logic.proof (p n) =>
+          abs (z : logic.prop => p0 : (x : logic.type -> logic.proof (p x) -> logic.proof z) =>
+            p0 n H
+          )
+        )
+      ).
+
+def not_all_ex_not_type
+  (p : logic.type -> logic.prop) :
+  logic.proof (logic.not (logic.foralltype p)) ->
+  logic.proof (logic.existstype (x : logic.type => logic.not (p x))) :=
+    notall : logic.proof (logic.not (logic.foralltype p)) =>
+      not_all_not_ex_type (x : logic.type => logic.not (p x)) (
+        (all : logic.proof (logic.foralltype (x : logic.type => logic.not (logic.not (p x)))) =>
+          notall (n : logic.type =>
+            nnpp (p n) (all n)
+          )
+        )
+      ).
+
+def not_ex_all_not_type
+  (p : logic.type -> logic.prop) :
+  logic.proof (logic.not (logic.existstype p)) ->
+  logic.proof (logic.foralltype (x : logic.type => logic.not (p x))) :=
+    notex : logic.proof (logic.not (logic.existstype p)) =>
+      n : logic.type => abs : logic.proof (p n) =>
+        notex (z : logic.prop =>
+          p0 : (x : logic.type -> logic.proof (p x) -> logic.proof z) =>
+            p0 n abs
+          ).
+
+def not_ex_not_all_type
+  (p : logic.type -> logic.prop) :
+  logic.proof (logic.not (logic.existstype (x : logic.type => logic.not (p x)))) ->
+  logic.proof (logic.foralltype p) :=
+    H : logic.proof (logic.not (logic.existstype (x : logic.type => logic.not (p x)))) =>
+      n : logic.type =>
+        nnpp (p n) (k : logic.proof (logic.not (p n)) =>
+          H (z : logic.prop =>
+            p0 : (x : logic.type -> logic.proof (logic.not (p x)) -> logic.proof z) =>
+              p0 n k
+          )
+        ).
