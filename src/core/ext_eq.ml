@@ -100,7 +100,9 @@ end
 (* ************************************************************************ *)
 
 let name = "eq"
-let watch = D.watch name
+
+let watch_t = D.mk_watch (module Expr.Term) name
+let watch_f = D.mk_watch (module Expr.Formula) name
 
 let eval_pred = function
   | { Expr.formula = Expr.Equal (a, b) } as f ->
@@ -218,7 +220,7 @@ let rec set_handler = function
 
 let rec set_watcher_term t =
   if not Expr.(Ty.equal t.t_type Ty.prop) then
-    watch 1 [t] (tag t);
+    watch_t t 1 [t] (tag t);
   match t with
   | { Expr.term = Expr.Var v } -> assert false
   | { Expr.term = Expr.Meta m } -> ()
@@ -229,7 +231,7 @@ let rec set_watcher = function
     D.push [f] (D.mk_proof name "trivial" (Eq (Trivial a)));
     set_watcher_term a
   | { Expr.formula = Expr.Equal (a, b) } as f ->
-    watch 1 [a; b] (f_eval f);
+    watch_f f 1 [a; b] (f_eval f);
     set_watcher_term a;
     set_watcher_term b
   | { Expr.formula = Expr.Pred p } ->

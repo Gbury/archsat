@@ -150,10 +150,12 @@ val set_assign : Expr.term -> Expr.term -> unit
 (** [set_assign t v lvl] sets the assignment of [t] to [v], with level [lvl].
     May erase previous assignment of [t]. *)
 
-val watch : ?formula:Expr.formula -> string -> int -> Expr.term list -> (unit -> unit) -> unit
-(** [watch name k l f] sets up a k-watching among the terms in l, calling f once there is fewer
-    than k terms not assigned in l. [name] should be a registered extension, and together with
-    the ordered list [l], it is used as a key to prevent duplicates watches.
+val mk_watch : (module Hashtbl.HashedType with type t = 'a) -> string ->
+  (?formula:Expr.formula -> 'a -> int -> Expr.term list -> (unit -> unit) -> unit)
+(** [mk_watch hash eq ext_name] returns a function [watch], so that
+    [watch key k l f] sets up a k-watching among the terms in l, calling f once there is fewer
+    than k terms not assigned in l, using [key] to prevent duplicate watchers.
+    [ext_name] should be a registered extension.
     @param formula attach the watcher to a formula, so that the callback will only be called
       if the given formula is among the current assumption when the watcher triggers (i.e if the formula is true). *)
 

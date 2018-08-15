@@ -1,6 +1,8 @@
 
 let section = Section.make ~parent:Dispatcher.section "functions"
 
+let name = "uf"
+
 (* Module aliases & wrappers *)
 (* ************************************************************************ *)
 
@@ -61,11 +63,13 @@ let set_interpretation t = fun () ->
       end
     | _ -> assert false
 
+let watch = Dispatcher.mk_watch (module Expr.Term) name
+
 let rec set_watcher_term = function
   | { Expr.term = Expr.Var _ }
   | { Expr.term = Expr.Meta _ } -> ()
   | { Expr.term = Expr.App (f, _, l) } as t ->
-    if l <> [] then Dispatcher.watch "uf" 1 (t :: l) (set_interpretation t);
+    if l <> [] then watch t 1 (t :: l) (set_interpretation t);
     List.iter set_watcher_term l
 
 let rec set_watcher = function
@@ -128,7 +132,7 @@ let handle : type ret. ret Dispatcher.msg -> ret option = function
   | _ -> None
 
 let register () =
-  Dispatcher.Plugin.register "uf"
+  Dispatcher.Plugin.register name
     ~descr:"Ensures consistency of assignments for function applications."
     (Dispatcher.mk_ext ~handle:{Dispatcher.handle} ~section ~set_watcher ())
 

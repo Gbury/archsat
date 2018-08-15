@@ -400,6 +400,11 @@ let parse_rule = function
 (* Instantiate rewrite rules *)
 (* ************************************************************************ *)
 
+(** Substs should be enough to ensure unicity of rewrites, since
+    variables for different rewrite rules should be different. *)
+let watch =
+  Dispatcher.mk_watch (module Mapping) name
+
 let insts = CCCache.unbounded 4013
     ~hash:(CCHash.pair Rewrite.Rule.hash Mapping.hash)
     ~eq:(CCEqual.pair Rewrite.Rule.equal Mapping.equal)
@@ -423,7 +428,7 @@ let instanciate rule subst =
         in
         (* Add a watch to instantiate the rule when the condition is true *)
         (* TODO: make sure the function is called only once *)
-        Dispatcher.watch ~formula:rule.Rewrite.Rule.formula name 1 watched
+        watch ~formula:rule.Rewrite.Rule.formula subst 1 watched
           (fun () ->
              let l' = List.map (Rewrite.Guard.map Dispatcher.get_assign) l in
              try

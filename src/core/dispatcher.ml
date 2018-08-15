@@ -297,13 +297,13 @@ let mk_proof =
           because it defines a new message, :/ ) *)
 type lemma_info += Eval0
 
-let () =
+let internal_plugin_id =
   let ext_name = "<internal>" in
   let () = Plugin.register ext_name ~prio:0
     ~descr:"Internal plugin for the dispatcher, do not disable..."
     (mk_ext ~section ()) in
   let () = Plugin.activate ext_name in
-  ()
+  Plugin.((find ext_name).id)
 
 (* Pre-processing *)
 (* ************************************************************************ *)
@@ -386,15 +386,17 @@ let get_absolute_truth f =
 
 (* The current assignment map, term -> value *)
 let eval_map = B.create stack
+
 (* Dependency map for assignments, term -> term list.
    an empty list denotes no dependencies,
    a non-empty list signifies that the term is actually evaluated
    (and not assigned), but its vaue can be derived from the values
    of the terms in the list. *)
 let eval_depends = B.create stack
+
 (* Map of terms watched by extensions *)
-let watchers = H.create 4096
 let watch_map = H.create 4096
+
 
 (* Exceptions *)
 exception Not_assigned of Expr.term
@@ -415,7 +417,14 @@ let rec resolve_deps_aux t =
   match B.find eval_depends t with
   | [] -> [t]
   | l -> resolve_deps l
-  | exception Not_found -> assert (is_assigned t); [t]
+  | exception Not_found ->
+    if is_assigned t then [t]
+    else begin
+      Util.error ~section
+        "@[<hv>Resolving dependences of non-assigned lit:@ %a@]"
+        Expr.Term.print t;
+      assert false
+    end
 
 and resolve_deps l =
   CCList.flat_map resolve_deps_aux l
@@ -525,8 +534,11 @@ let rec ensure_assign t =
       begin match Expr.Term.get_tag t eval_tag with
         | Some () -> ()
         | None ->
-          let ext_name, to_watch, f = k t in
-          watch_aux ~force:true ext_name 1 to_watch (ensure_assign_aux t to_watch f)
+          let name, to_watch, f = k t in
+          let plugin = Plugin.find name in
+          let plugin_id = Plugin.(plugin.id) in
+          let plugin_section = Plugin.(plugin.ext.section) in
+          watch_aux plugin_section plugin_id 1 to_watch (ensure_assign_aux t to_watch f)
       end
 
 (* TODO: protect watch against raised exceptions during job calling.
@@ -542,20 +554,17 @@ let rec ensure_assign t =
          also a problem for all late watchers.
 *)
 
-and watch_aux ~force ?formula ext_name k args f =
-  let plugin = Plugin.find ext_name in
-  let section = Plugin.(plugin.ext.section) in
-  let tag = Plugin.(plugin.id) in
+and watch_aux ?formula section plugin_id k args f =
   List.iter ensure_assign args;
   assert (k > 0);
   let rec split assigned not_assigned i = function
     | l when i <= 0 ->
-      let j = new_job ?formula tag k section not_assigned (List.rev_append l assigned) f in
+      let j = new_job ?formula plugin_id k section not_assigned (List.rev_append l assigned) f in
       List.iter (add_job j) not_assigned
     | [] (* i > 0 *) ->
       let l = List.rev_append not_assigned assigned in
       let to_watch, not_watched = CCList.take_drop k l in
-      let j = new_job ?formula tag k section to_watch not_watched f in
+      let j = new_job ?formula plugin_id k section to_watch not_watched f in
       List.iter (add_job j) to_watch;
       call_job j
     | y :: r (* i > 0 *) ->
@@ -564,19 +573,26 @@ and watch_aux ~force ?formula ext_name k args f =
       else
         split assigned (y :: not_assigned) (i - 1) r
   in
-  let t' = Builtin.Misc.tuple args in
-  let l = try H.find watchers t' with Not_found -> [] in
-  Util.debug ~section "New watch from %s, %d among:@ @[<hov>%a@]"
-    Plugin.((get tag).name) k
-    CCFormat.(list ~sep:(return " ||@ ") Expr.Print.term) args;
-  if force || not (List.mem tag l) then begin
-    Util.debug ~section "Watch added";
-    H.add watchers t' (tag :: l);
-    split [] [] k (List.sort_uniq Expr.Term.compare args)
-  end else
-    Util.debug ~section "Redundant watch"
+  Util.debug ~section "Watch added";
+  split [] [] k (List.sort_uniq Expr.Term.compare args)
 
-let watch = watch_aux ~force:false
+and mk_watch (type t) (module A : Hashtbl.HashedType with type t = t) ext_name =
+  let module H = Hashtbl.Make(A) in
+  let h = H.create 4013 in
+  (fun ?formula key k args f ->
+     let plugin = Plugin.find ext_name in
+     let section = Plugin.(plugin.ext.section) in
+     let tag = Plugin.(plugin.id) in
+     Util.debug ~section "New watch from %s, %d among:@ @[<hov>%a@]"
+       Plugin.((get tag).name) k
+       CCFormat.(list ~sep:(return " ||@ ") Expr.Print.term) args;
+     if H.mem h key then
+       Util.debug ~section "redundant watch"
+     else begin
+       H.add h key ();
+       watch_aux ?formula section tag k args f
+     end
+  )
 
 let model () = B.snapshot eval_map
 
@@ -604,6 +620,8 @@ let consequence f l p =
 
 let propagate f l =
   Stats.incr stats_evaluated section;
+  Util.debug ~section "@[<hv>Propagating@ %a@ because of@ %a@]"
+    Expr.Formula.print f CCFormat.(list ~sep:(return ",@ ") Expr.Term.print) l;
   match resolve_deps l with
   | [] -> consequence f [] (mk_proof "" "eval0" Eval0)
   | l' -> Stack.push (f, Msat.Plugin_intf.Eval l') propagate_stack
