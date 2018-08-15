@@ -57,7 +57,7 @@ module Print = struct
               end
             | `ASCII when (i = 1 && is_dollar c) || is_alphanum c ->
               [ c ]
-            | _ -> [ Uchar.of_char '_' ]
+            | _ -> [ Uchar.of_char 'V'; Uchar.of_char '_' ]
           end) in
     Escape.mk ~lang:"tptp" ~name ~escape ~rename
 
