@@ -45,7 +45,7 @@ let set_interpretation t = fun () ->
                 raise (Dispatcher.Absurd (res, proof))
               end else begin
                 let res = p' :: Expr.Formula.neg p :: l' in
-                let proof = mk_proof (Pred (l, r, f, p', p)) in
+                let proof = mk_proof (Pred (r, l, f, p', p)) in
                 raise (Dispatcher.Absurd (res, proof))
               end
             | { Expr.term = Expr.App (_, _, r) } ->
