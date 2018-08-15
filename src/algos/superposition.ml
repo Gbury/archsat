@@ -32,13 +32,15 @@ type reason =
 
 (* Type for unit clauses, i.e clauses with at most one equation *)
 and clause = {
-  id : int;                 (* Unique id (for printing and tracking through logs) *)
-  lit : lit;                (* Contents of the clause *)
-  map : C.t;                (* Current mapping for variables & meta-variables *)
-  reason : reason;          (* Reason of the clause *)
-  weight : int;             (* weight of the clause (clauses with lesser
-                               weight are selected first) *)
-  depth  : int;             (* Depth of the inference chain that leads to this clause. *)
+  id        : int;            (* Unique id (for printing and tracking through logs) *)
+  lit       : lit;            (* Contents of the clause *)
+  map       : C.t;            (* Current mapping for variables & meta-variables *)
+  reason    : reason;         (* Reason of the clause *)
+  weight    : int;            (* weight of the clause (clauses with lesser
+                                 weight are selected first) *)
+  depth     : int;            (* Depth of the inference chain that leads to this clause. *)
+  rewrites :                  (* List of rewrites used to reach this clause. *)
+    (Expr.formula * Mapping.t) list;
 }
 
 and pointer = {
@@ -320,6 +322,31 @@ let leq_cl c c' =
     C.cardinal c.map >= C.cardinal c'.map
   )
 
+(* TODO: use hashconsed sets of rewrites to save some space *)
+let map_rewrites m l =
+  let apply m m' =
+    let tmp = Mapping.apply m m' in
+    if Mapping.equal tmp m' then m' else tmp
+  in
+  List.map (fun (f, m') -> (f, apply m m')) l
+
+let rec compute_rewrites = function
+  | Hyp (f, m) ->
+    if Mapping.is_empty m then [] else
+      begin match f with
+        | Some formula -> [] (* [formula, m] *)
+        | None ->
+          Util.error "Clause with free_vars but no tagged formula";
+          []
+      end
+  | Fresh (c', m) | ER (c', m)
+    -> map_rewrites m c'.rewrites
+  | ES (p, p', m)
+  | SN (p, p', m) | SP (p, p', m)
+  | RN (p, p', m) | RP (p, p', m)
+  | MN (p, p', m) | MP (p, p', m)
+    -> map_rewrites m (p.clause.rewrites @ p'.clause.rewrites)
+
 (* Clauses *)
 let mk_cl =
   let i = ref 0 in
@@ -327,7 +354,8 @@ let mk_cl =
      incr i;
      let weight = compute_weight lit in
      let depth = compute_depth reason in
-     let res = { id = !i; lit; map; reason; weight; depth; } in
+     let rewrites = compute_rewrites reason in
+     let res = { id = !i; lit; map; reason; weight; depth; rewrites } in
      (* Obsolete, now that there are rewrite rules
      assert (
        let lty,lt = match lit with
@@ -1052,30 +1080,6 @@ let generate c p =
 (* Analyze a derivation to record all rewrites *)
 (* ************************************************************************ *)
 
-let analyze_apply m l =
-  List.map (fun (f, m') -> (f, Mapping.apply m m')) l
-
-let rec analyze c =
-  match c.reason with
-  | Hyp (f, m) ->
-    if Mapping.is_empty m then [] else
-      begin match f with
-        | Some formula -> [formula, m]
-        | None ->
-          Util.error "Clause with free_vars but no tagged formula: %a" pp c;
-          []
-      end
-  | Fresh (c', m) | ER (c', m)
-    -> analyze_apply m (analyze c')
-  | ES (p, p', m)
-  | SN (p, p', m) | SP (p, p', m)
-  | RN (p, p', m) | RP (p, p', m)
-  | MN (p, p', m) | MP (p, p', m)
-    ->
-    let l = analyze p.clause in
-    let l' = analyze p'.clause in
-    analyze_apply m (l @ l')
-
 (* Main loop *)
 (* ************************************************************************ *)
 
@@ -1138,7 +1142,7 @@ and discount_loop ~merge p_set =
         CCOpt.iter (fun f ->
             Util.debug ~section:p_set.section
               "@{<magenta>Found empty clause reached@}, %d clauses in state" (S.cardinal p_set.clauses);
-            f (analyze c) (C.elements c.map)) p_set.callback;
+            f c.rewrites (C.elements c.map)) p_set.callback;
         (* Continue solving *)
         discount_loop ~merge
           { p_set with clauses = S.add c p_set.clauses; queue = u }
