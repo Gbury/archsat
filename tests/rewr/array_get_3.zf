@@ -1,0 +1,14 @@
+# array_get_1.zf
+
+include "axioms/array.zf".
+
+val t : type.
+
+val a : array t.
+val x : t.
+val y : t.
+
+assert 0 != 1.
+
+goal get _ 1 (set _ 0 y (set _ 1 x a)) = x.
+

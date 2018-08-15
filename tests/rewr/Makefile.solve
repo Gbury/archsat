@@ -1,0 +1,8 @@
+
+BIN=../archsat
+OPT=-x +rwrt
+NAME=solve/rewriting
+TESTS= $(patsubst %,%.unsat,$(shell find . -maxdepth 1 -name '*.smt2' -o -name '*.zf' | sort -n))
+
+include ../Makefile.shared
+

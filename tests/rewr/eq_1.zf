@@ -1,0 +1,14 @@
+
+val t : type.
+
+val a : t.
+val b : t.
+val f : t -> t.
+
+# Rewrite rule
+rewrite forall (x : t). f x = x.
+
+# Goal
+goal (a = f b) => (a = b).
+
+

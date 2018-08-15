@@ -1,0 +1,5 @@
+# diff_empty.zf
+
+include "axioms/bset.zf".
+
+goal forall (a : type) (S : set a). diff a S S = empty a.

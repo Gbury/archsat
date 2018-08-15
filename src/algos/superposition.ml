@@ -334,7 +334,7 @@ let rec compute_rewrites = function
   | Hyp (f, m) ->
     if Mapping.is_empty m then [] else
       begin match f with
-        | Some formula -> [] (* [formula, m] *)
+        | Some formula -> [formula, m]
         | None ->
           Util.error "Clause with free_vars but no tagged formula";
           []

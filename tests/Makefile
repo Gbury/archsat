@@ -14,7 +14,7 @@ solve: $(BIN)
 	@cd equality && $(MAKE) -f Makefile.solve --no-print-directory
 	@cd quant && $(MAKE) -f Makefile.solve --no-print-directory
 	@cd poly && $(MAKE) -f Makefile.solve --no-print-directory
-#	@cd rewr && $(MAKE) -f Makefile.solve --no-print-directory
+	@cd rewr && $(MAKE) -f Makefile.solve --no-print-directory
 
 prove: solve $(BIN)
 	@cd clauses && $(MAKE) -f Makefile.prove --no-print-directory

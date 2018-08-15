@@ -1,0 +1,15 @@
+
+val t : type.
+
+val a : t.
+val b : t.
+val c : t.
+val f : t -> t.
+val g : t -> t.
+
+# Rewrite rule
+rewrite forall (x : t). f (g x) = x.
+
+# Mix eq transitivity and rewrite
+goal (a = f b) => (b = g c) => (a = c).
+

@@ -436,7 +436,7 @@ let instanciate rule subst =
                Util.debug ~section "False condition:@ %a"
                  (Rewrite.Guard.print ~term:Expr.Term.print) g
              with Not_found ->
-               Util.debug ~section "Pushing rewrite";
+               Util.debug ~section "All conditions true, pushing rewrite";
                let clause, lemma =
                  Inst.soft_subst ~name:"trigger" rule.Rewrite.Rule.formula subst in
                Dispatcher.push clause lemma
