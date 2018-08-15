@@ -40,7 +40,7 @@ and clause = {
                                  weight are selected first) *)
   depth     : int;            (* Depth of the inference chain that leads to this clause. *)
   rewrites :                  (* List of rewrites used to reach this clause. *)
-    (Expr.formula * Mapping.t) list;
+    (Expr.formula * Mapping.t) list Lazy.t;
 }
 
 and pointer = {
@@ -340,12 +340,13 @@ let rec compute_rewrites = function
           []
       end
   | Fresh (c', m) | ER (c', m)
-    -> map_rewrites m c'.rewrites
+    -> map_rewrites m (Lazy.force c'.rewrites)
   | ES (p, p', m)
   | SN (p, p', m) | SP (p, p', m)
   | RN (p, p', m) | RP (p, p', m)
   | MN (p, p', m) | MP (p, p', m)
-    -> map_rewrites m (p.clause.rewrites @ p'.clause.rewrites)
+    -> map_rewrites m (Lazy.force p.clause.rewrites @
+                       Lazy.force p'.clause.rewrites)
 
 (* Clauses *)
 let mk_cl =
@@ -354,7 +355,7 @@ let mk_cl =
      incr i;
      let weight = compute_weight lit in
      let depth = compute_depth reason in
-     let rewrites = compute_rewrites reason in
+     let rewrites = lazy (compute_rewrites reason) in
      let res = { id = !i; lit; map; reason; weight; depth; rewrites } in
      (* Obsolete, now that there are rewrite rules
      assert (
@@ -1142,7 +1143,7 @@ and discount_loop ~merge p_set =
         CCOpt.iter (fun f ->
             Util.debug ~section:p_set.section
               "@{<magenta>Found empty clause reached@}, %d clauses in state" (S.cardinal p_set.clauses);
-            f c.rewrites (C.elements c.map)) p_set.callback;
+            f (Lazy.force c.rewrites) (C.elements c.map)) p_set.callback;
         (* Continue solving *)
         discount_loop ~merge
           { p_set with clauses = S.add c p_set.clauses; queue = u }
