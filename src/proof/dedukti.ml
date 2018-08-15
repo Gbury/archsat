@@ -11,6 +11,7 @@ module Print = struct
   let pos = Tag.create ()
   let name = Tag.create ()
   let assoc = Tag.create ()
+  let variant = Tag.create ()
   type any = Any : Term.id * 'a Expr.tag * 'a -> any
 
   let () =
@@ -50,11 +51,20 @@ module Print = struct
     match t.Term.term with
     | Term.Binder _ ->
       begin match Term.flatten_binder t with
-        | `Arrow, _, _ ->
+        | (`Arrow | `Pi), _, _ ->
           not @@ Term.Reduced.equal Term._Prop (Term.ty t)
         | _ -> false
       end
     | _ -> false
+
+  let get_variant t args =
+    match t with
+    | { Term.term = Term.Id f } ->
+      begin match Expr.Id.get_tag f variant with
+        | Some v -> v args
+        | None -> t, args
+      end
+    | _ -> t, args
 
   let get_status = function
     | { Term.term = Term.Id f } ->
@@ -90,6 +100,10 @@ module Print = struct
           Format.fprintf fmt "(@[<hov>%a ->@ %a@])"
             CCFormat.(list ~sep:(return "@ -> ") (type_aux ~simplify:true)) tys
             (type_aux ~simplify:true) body
+        | `Pi when Term.Reduced.equal Term._Prop (Term.ty t) ->
+          quant ~fragile fmt "logic.forall" v t'
+        | `Binder Term.Forall -> quant ~fragile fmt "logic.forall" v t'
+        | `Binder Term.Exists -> quant ~fragile fmt "logic.exists" v t'
         | `Pi | `Binder Term.Lambda ->
           let sep, pp_arg = match kind with
             | `Pi -> "->", type_aux
@@ -100,8 +114,6 @@ module Print = struct
             (var_list sep) vars sep
             (pp_arg ~simplify:true) body
             (if fragile then ")" else "")
-        | `Binder Term.Forall -> quant ~fragile fmt "logic.forall" v t'
-        | `Binder Term.Exists -> quant ~fragile fmt "logic.exists" v t'
       end
 
   and type_aux ~simplify fmt ty =
@@ -114,6 +126,7 @@ module Print = struct
     Format.fprintf fmt "%s%a" wrapper (term_aux ~fragile ~simplify) ty
 
   and pp_app ~fragile fmt f args =
+    let f, args = get_variant f args in
     match get_status f, args with
     | None, [] ->
       Format.fprintf fmt "@[<hov>%a@]" (term_aux ~fragile:false ~simplify:true) f

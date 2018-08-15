@@ -14,6 +14,9 @@ exception Hypothesis_name_conflict of
 val init : Options.opts -> unit -> unit
 (** Initialize the formatters for proof output. *)
 
+val add_implicit : Term.id -> unit
+(** Add a new implicit symbol. *)
+
 val declare_id :
   ?loc:Dolmen.ParseLocation.t -> Options.proof_options ->
   Term.id list -> Term.id -> unit

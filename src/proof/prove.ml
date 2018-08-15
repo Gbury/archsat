@@ -49,6 +49,18 @@ let pp_lazy lang s o x pp =
         raise exn
     end
 
+(* Global  *)
+(* ************************************************************************ *)
+
+let global_implicits = ref []
+
+let add_implicit c =
+  global_implicits := c :: !global_implicits
+
+let get_global_implicits () =
+  let l = !global_implicits in
+  global_implicits := [];
+  l
 
 (* Proof hyps *)
 (* ************************************************************************ *)
@@ -108,7 +120,8 @@ let declare_id_aux ?loc opt id =
   pp_opt (Dedukti.declare_id ?loc) Options.(opt.dedukti.norm) id;
   ()
 
-let declare_implicits opt = function
+let declare_implicits opt l =
+  match (get_global_implicits () @ l) with
   | [] -> ()
   | l ->
     if Options.(opt.context) then begin
@@ -207,6 +220,8 @@ let print_context context proof_context print fmt proof =
   pp fmt proof
 
 let output_proof opt p =
+  (* Declare evantual implicits generated during rpof search *)
+  let () = declare_implicits opt [] in
   (* Simple proofs *)
   let () = pp_opt Unsat_core.print Options.(opt.unsat_core) p in
   let () = pp_opt Dot.print Options.(opt.dot.res) p in

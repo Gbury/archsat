@@ -13,7 +13,7 @@ all: $(TESTS)
 	@echo -e "\033[2K\r\e[32m[OK]\e[0m [$(NAME)]"
 
 %.res: % $(BIN)
-	@echo -ne "\033[2K\r$(NAME) -- $<"
+	@echo -ne "\033[2K\r[  ] [$(NAME)] -- $<"
 	@if ! $(BIN) $(FLAGS) $(OPT) $< > $(TMP_FILE); then 							\
 			echo -e "\033[2K\r\e[31m[KO]\e[0m [$(NAME)] $<";			\
 			echo -e "$(BIN) $(FLAGS) $(OPT) $<";									\
@@ -22,7 +22,7 @@ all: $(TESTS)
 		fi
 
 %.sat: % $(BIN)
-	@echo -ne "\033[2K\r$(NAME) -- $<"
+	@echo -ne "\033[2K\r[  ] [$(NAME)] -- $<"
 	@if ! $(BIN) $(FLAGS) $(OPT) $< | tee $(TMP_FILE) | grep Unsat > /dev/null; then 							\
 			echo -e "\033[2K\r\e[31m[KO]\e[0m [$(NAME)] $<";			\
 			echo -e "$(BIN) $(FLAGS) $(OPT) $<";									\
@@ -31,7 +31,7 @@ all: $(TESTS)
 		fi
 
 %.unsat: % $(BIN)
-	@echo -ne "\033[2K\r$(NAME) -- $<"
+	@echo -ne "\033[2K\r[  ] [$(NAME)] -- $<"
 	@if ! $(BIN) $(FLAGS) $(OPT) $< | tee $(TMP_FILE) | grep Unsat > /dev/null; then 	\
 			echo -e "\033[2K\r\e[31m[KO]\e[0m [$(NAME)] $<";							\
 			echo -e "$(BIN) $(FLAGS) $(OPT) $<";													\
@@ -40,7 +40,7 @@ all: $(TESTS)
 		fi
 
 %.dk: % $(BIN)
-	@echo -ne "\033[2K\r$(NAME) -- dk -- $<"
+	@echo -ne "\033[2K\r[  ] [$(NAME)] -- dk -- $<"
 	@if ! $(BIN) $(FLAGS) $(OPT) --dkterm $(DK_TERM_FILE) --dknorm $(DK_NORM_FILE) $< > $(TMP_FILE); then 		\
 			echo -e "\033[2K\r\e[31m[FAIL]\e[0m [$(NAME)] $<";											\
 			echo -e "$(BIN) $(FLAGS) $(OPT) --dkterm $(DK_TERM_FILE) --dknorm $(DK_NORM_FILE) $<"; \
@@ -60,7 +60,7 @@ all: $(TESTS)
 
 
 %.coq: % $(BIN)
-	@echo -ne "\033[2K\r$(NAME) -- coq -- $<"
+	@echo -ne "\033[2K\r[  ] [$(NAME)] -- coq -- $<"
 	@if ! $(BIN) $(FLAGS) $(OPT) --coq $(COQ_PROOF_FILE) --coqscript $(COQ_SCRIPT_FILE) $< > $(TMP_FILE); then 		\
 			echo -e "\033[2K\r\e[31m[FAIL]\e[0m [$(NAME)] $<";											\
 			echo -e "$(BIN) $(FLAGS) $(OPT) --coq $(COQ_PROOF_FILE) --coqscript $(COQ_SCRIPT_FILE) $<"; \
@@ -79,7 +79,7 @@ all: $(TESTS)
 		fi
 
 %.coqfull: % $(BIN)
-	@echo -ne "\033[2K\r$(NAME) -- coq -- $<"
+	@echo -ne "\033[2K\r[  ] [$(NAME)] -- coq -- $<"
 	@if ! $(BIN) $(FLAGS) $(OPT) --coq $(COQ_PROOF_FILE) --coqscript $(COQ_SCRIPT_FILE) --coqterm $(COQ_TERM_FILE) --coqnorm $(COQ_NORM_FILE) $< > $(TMP_FILE); then 		\
 			echo -e "\033[2K\r\e[31m[FAIL]\e[0m [$(NAME)] $<";											\
 			echo -e "$(BIN) $(FLAGS) $(OPT) --coq $(COQ_PROOF_FILE) --coqscript $(COQ_SCRIPT_FILE) --coqterm $(COQ_TERM_FILE) --coqnorm $(COQ_NORM_FILE) $<"; \

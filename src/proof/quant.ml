@@ -57,10 +57,26 @@ let not_ex_not_all =
 let not_ex_all_not_term = Term.id not_ex_all_not
 let not_ex_not_all_term = Term.id not_ex_not_all
 
+let not_ex_not_all_type = Term.declare "not_ex_not_all_type" Term._Type
+let not_ex_all_not_type = Term.declare "not_ex_all_not_type" Term._Type
+
 let () =
   tag not_ex_all_not  ~dk:"classical.not_ex_all_not"  ~coq:"not_ex_all_not";
   tag not_ex_not_all  ~dk:"classical.not_ex_not_all"  ~coq:"not_ex_not_all";
+  tag not_ex_all_not_type ~dk:"classical.not_ex_all_not_type"     ?coq:None;
+  tag not_ex_not_all_type ~dk:"classical.not_ex_not_all_type"     ?coq:None;
+  Expr.Id.tag not_ex_all_not Dedukti.Print.variant (function
+      | u :: r when Term.Reduced.equal Term._Type u ->
+        Term.id not_ex_all_not_type, r
+      | l -> not_ex_all_not_term, l
+    );
+  Expr.Id.tag not_ex_not_all Dedukti.Print.variant (function
+      | u :: r when Term.Reduced.equal Term._Type u ->
+        Term.id not_ex_not_all_type, r
+      | l -> not_ex_not_all_term, l
+    );
   ()
+
 
 (* Quantified formula matching *)
 (* ************************************************************************ *)
@@ -233,13 +249,42 @@ let not_all_not_ex =
 let not_all_ex_not_term = Term.id not_all_ex_not
 let not_all_not_ex_term = Term.id not_all_not_ex
 
+let epsilon_type = Term.declare "epsilon_type" Term._Type
+let epsilon_type_spec = Term.declare "epsilon_type_spec" Term._Type
+let not_all_ex_not_type = Term.declare "not_all_ex_not_type" Term._Type
+let not_all_not_ex_type = Term.declare "not_all_not_ex_type" Term._Type
+
 let () =
-  tag inhabited       ~dk:"logic.inhabited"           ~coq:"inhabited";
-  tag inhabits        ~dk:"logic.inhabits"            ~coq:"inhabits";
-  tag epsilon         ~dk:"epsilon.epsilon"           ~coq:"epsilon";
-  tag epsilon_spec    ~dk:"epsilon.epsilon_spec"      ~coq:"epsilon_spec";
-  tag not_all_ex_not  ~dk:"classical.not_all_ex_not"  ~coq:"not_all_ex_not";
-  tag not_all_not_ex  ~dk:"classical.not_all_not_ex"  ~coq:"not_all_not_ex";
+  tag inhabited         ~dk:"logic.inhabited"           ~coq:"inhabited";
+  tag inhabits          ~dk:"logic.inhabits"            ~coq:"inhabits";
+  tag epsilon           ~dk:"epsilon.epsilon"           ~coq:"epsilon";
+  tag epsilon_spec      ~dk:"epsilon.epsilon_spec"      ~coq:"epsilon_spec";
+  tag epsilon_type      ~dk:"epsilon.epsilon_type"      ?coq:None;
+  tag epsilon_type_spec ~dk:"epsilon.epsilon_type_spec" ?coq:None;
+  Expr.Id.tag epsilon Dedukti.Print.variant (function
+      | u :: _ :: r when Term.Reduced.equal Term._Type u ->
+        Term.id epsilon_type, r
+      | l -> epsilon_term, l
+    );
+  Expr.Id.tag epsilon_spec Dedukti.Print.variant (function
+      | u :: _ :: r when Term.Reduced.equal Term._Type u ->
+        Term.id epsilon_type_spec, r
+      | l -> epsilon_spec_term, l
+    );
+  tag not_all_ex_not      ~dk:"classical.not_all_ex_not"      ~coq:"not_all_ex_not";
+  tag not_all_not_ex      ~dk:"classical.not_all_not_ex"      ~coq:"not_all_not_ex";
+  tag not_all_ex_not_type ~dk:"classical.not_all_ex_not_type" ?coq:None;
+  tag not_all_not_ex_type ~dk:"classical.not_all_not_ex_type" ?coq:None;
+  Expr.Id.tag not_all_ex_not Dedukti.Print.variant (function
+      | u :: r when Term.Reduced.equal Term._Type u ->
+        Term.id not_all_ex_not_type, r
+      | l -> not_all_ex_not_term, l
+    );
+  Expr.Id.tag not_all_not_ex Dedukti.Print.variant (function
+      | u :: r when Term.Reduced.equal Term._Type u ->
+        Term.id not_all_not_ex_type, r
+      | l -> not_all_not_ex_term, l
+    );
   ()
 
 (* Term building for espilon instanciation *)
@@ -278,4 +323,5 @@ let rec inst_epsilon f = function
             raise (Invalid_argument "Quant.inst_epsilon")
         end
     end
+
 

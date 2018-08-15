@@ -14,6 +14,9 @@ module Print : sig
   val assoc : Pretty.assoc Expr.tag
   (** Pretty-printing tags. *)
 
+  val variant : (Term.t list -> Term.t * Term.t list) Expr.tag
+  (** Provide opportunity to have variants of a given function symbol. *)
+
   val id : Format.formatter -> _ Expr.id -> unit
   (** Print an identifier (using correct escape rules). *)
 
