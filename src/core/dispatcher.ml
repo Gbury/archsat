@@ -63,7 +63,7 @@ type 'a job = {
   job_section : Section.t;
   job_callback : unit -> unit;
   job_formula : Expr.formula option;
-  mutable job_done : int;
+  mutable job_lvl : int;
   mutable watched : Expr.term list;
   mutable not_watched : Expr.term list;
 }
@@ -357,8 +357,6 @@ let pre_process f =
 let stack = Backtrack.Stack.create (
     Section.make ~parent:section "backtrack")
 
-let last_backtrack = ref 0
-
 (* Current asusmptions *)
 (* ************************************************************************ *)
 
@@ -384,35 +382,32 @@ let get_absolute_truth f =
 (* Evaluation/Watching functions *)
 (* ************************************************************************ *)
 
-(* The current assignment map, term -> value *)
-let eval_map = B.create stack
+(* Exceptions *)
+exception Not_assigned of Expr.term
+
+(* The current assignment map, term -> level * value *)
+let eval_map : (int * Expr.Term.t) B.t = B.create stack
+
+(* Is a term assigned ? *)
+let is_assigned t =
+  try ignore (B.find eval_map t); true with Not_found -> false
+
+(* Get the value assigned to a term *)
+let get_assign t =
+  try snd @@ B.find eval_map t with Not_found -> raise (Not_assigned t)
+
+let get_assign_level t =
+  try fst @@ B.find eval_map t with Not_found -> raise (Not_assigned t)
+
 
 (* Dependency map for assignments, term -> term list.
    an empty list denotes no dependencies,
    a non-empty list signifies that the term is actually evaluated
    (and not assigned), but its vaue can be derived from the values
    of the terms in the list. *)
-let eval_depends = B.create stack
+let eval_depends : Expr.Term.t list B.t = B.create stack
 
-(* Map of terms watched by extensions *)
-let watch_map = H.create 4096
-
-
-(* Exceptions *)
-exception Not_assigned of Expr.term
-
-(* Convenience function *)
-let hpop assoc key =
-  let res = H.find assoc key in
-  H.remove assoc key;
-  res
-
-let is_assigned t =
-  try ignore (B.find eval_map t); true with Not_found -> false
-
-let get_assign t =
-  try B.find eval_map t with Not_found -> raise (Not_assigned t)
-
+(** Compute the transitive closure of dependencies *)
 let rec resolve_deps_aux t =
   match B.find eval_depends t with
   | [] -> [t]
@@ -429,24 +424,110 @@ let rec resolve_deps_aux t =
 and resolve_deps l =
   CCList.flat_map resolve_deps_aux l
 
+
+(* Map of jobs watched by each term *)
+let watch_map : Plugin.id job list H.t = H.create 4096
+
+(* A convenince function *)
+let get_watched t =
+  match H.find watch_map t with
+  | exception Not_found -> []
+  | res ->
+    H.remove watch_map t;
+    res
+
+(** Add a job watched by [t] *)
 let add_job job t =
   let l = try H.find watch_map t with Not_found -> [] in
   H.replace watch_map t (job :: l)
 
+
+(** Jobs are queue in a trail before being called and executed.
+    This is done for 2 reasons:
+    - jobs may raise Absurd, thus in some contexts a watch can be registered,
+      but it is unsafe to call the job (even if it shoul be called), thus enqueuing
+      jobs offer a way to delay calling them until we are in an adequate context
+    - some watchs may eb registered lately (i.e far after all the watched terms
+      are assigned), in which case, if we backtrack to before the job was registered
+      but after its watched terms are assigned, the job should be re-run.
+
+    For each backtrack point recorded by mSAT, we thus store the length of
+    the job trail, to knwo where to backtrack to.
+*)
+(** The index (in job_trail) of the first non-called job *)
+let job_idx = ref 0
+(** the trail of jobs (all jobs with index < !job_idx have been executed)*)
+let job_trail = CCVector.create ()
+(** A vector which stores at position [i] the length of the job trail at backtrack point i. *)
+let job_level = CCVector.create ()
+
+(* Enqueue a new job (without executing it) *)
+let enqueue_job j lvl =
+  if j.job_lvl >= 0 then ()
+  else begin
+    j.job_lvl <- lvl;
+    CCVector.push job_trail j
+  end
+
+let current_assign_level () =
+  CCVector.length job_level
+
+let stack_assign_level () =
+  let n = CCVector.length job_level in
+  let () = CCVector.push job_level (current_assign_level ()) in
+  n
+
+
+(** Call/execute a single job *)
 let call_job j =
   if not CCOpt.(get_or ~default:true (j.job_formula >>= get_truth)) then
     Util.debug ~section "Ignoring job because of false formula:@ %a"
       Expr.Formula.print (CCOpt.get_exn j.job_formula)
-  else if j.job_done >= !last_backtrack then
-    Util.debug ~section
-      "Ignoring job because it has already been executed since the last backtrack"
   else begin
     Util.debug ~section "Calling job from %s"
       Plugin.((get j.job_ext).name);
-    j.job_done <- !last_backtrack;
     profile j.job_section j.job_callback ()
   end
 
+(* Call all jobs on the job trail.
+   Executing jobs may : 1) raise Absurd
+                        2) add new assignments/evluations,
+                           and hence add new jobs on the trail
+   In the loop, job_idx is incremented *after* calling the job
+   in order to ensure that [!job_idx = CCVector.length job_trail]
+   indicates that all jobs have run without raising Absurd.
+*)
+let do_all_jobs () =
+  while !job_idx < CCVector.length job_trail do
+    let j = CCVector.get job_trail !job_idx in
+    let () = call_job j in
+    job_idx := !job_idx + 1
+  done
+
+(* Backtrack the jobs
+   There are two main tasks to perform:
+   - reset job_lvl to -1 for undone jobs
+   - re-call jobs that were called late and thus have a level
+     lower (or equal) to the one we backtrack to. *)
+let cancel_jobs lvl =
+  let j_lvl = CCVector.get job_level lvl in
+  let new_size = ref j_lvl in
+  for i = j_lvl to CCVector.length job_trail - 1 do
+    let j = CCVector.get job_trail i in
+    if j.job_lvl > lvl then
+      j.job_lvl <- -1
+    else begin
+      CCVector.set job_trail !new_size j;
+      new_size := !new_size + 1
+    end
+  done;
+  let () = CCVector.shrink job_trail !new_size in
+  let () = CCVector.shrink job_level lvl in
+  job_idx := j_lvl
+
+
+(* Update watches for job [j] given that [x] has been assigned (and is
+   in the watch set of the job). *)
 let update_watch x j =
   let rec find p acc = function
     | [] -> raise Not_found
@@ -463,8 +544,8 @@ let update_watch x j =
       j.watched <- y :: old_watched;
       add_job j y
     with Not_found ->
-      add_job j x;
-      call_job j
+      enqueue_job j (get_assign_level x);
+      add_job j x
   with Not_found ->
     let ext = Plugin.get j.job_ext in
     Util.error ~section
@@ -474,6 +555,7 @@ let update_watch x j =
       CCFormat.(list ~sep:(return " ||@ ") Expr.Print.term) j.not_watched;
     assert false
 
+(* Create a new job *)
 let new_job ?formula id k section watched not_watched f =
   Stats.incr stats_watchers section;
   {
@@ -484,48 +566,55 @@ let new_job ?formula id k section watched not_watched f =
     job_formula = formula;
     not_watched = not_watched;
     job_callback = f;
-    job_done = - 1;
+    job_lvl = - 1;
   }
 
-let rec assign_watch t = function
-  | [] -> Util.exit_prof section
-  | j :: r ->
-    begin
-      try
-        update_watch t j
-      with Absurd _ as e ->
-        List.iter (fun job -> add_job job t) r;
-        Util.exit_prof section;
-        raise e
-    end;
-    assign_watch t r
-
-and set_assign t v =
+(* Add a new assignment, and if needed update watches (and maybe enqueue some jobs) *)
+let set_assign t v =
   Util.enter_prof section;
-  try
-    let v' = B.find eval_map t in
+  match B.find eval_map t with
+  (* Term is already assigned, check that the values are equal. *)
+  | _, v' ->
     Util.debug ~section "Assigned:@ @[<hov>%a ->@ %a@]@\nAssigning:@ @[<hov>%a ->@ %a@]"
       Expr.Print.term t Expr.Print.term v'
       Expr.Print.term t Expr.Print.term v;
     if not (Expr.Term.equal v v') then
       _fail "Incoherent assignments";
     Util.exit_prof section
-  with Not_found ->
+  (* Term is not already assigned, update the watches. *)
+  | exception Not_found ->
     Util.debug ~section "Assign:@ @[<hov>%a ->@ %a@]"
       Expr.Print.term t Expr.Print.term v;
-    B.add eval_map t v;
-    let l = try hpop watch_map t with Not_found -> [] in
+    B.add eval_map t (current_assign_level (), v);
+    let l = get_watched t in
     Util.debug ~section "Found %d watchers" (List.length l);
-    assign_watch t l
+    let () = List.iter (update_watch t) l in
+    Util.exit_prof section
 
+(* watch fuction added to evaluate a term [t],
+   using function [f], which itself need terms in [l] to be assigned.
+   Since this is registered as a regular watch function, it will be called
+   again if needed, so there is no need to compute the exact level of assignment
+   for [t]. *)
 let ensure_assign_aux t l f = (fun () ->
     Stats.incr stats_evaluations section;
     set_assign t (f ());
     B.add eval_depends t l
   )
 
+(* Tag used to only register evaluation watchers once per term.
+   NOTE: it only prevents watches from the same physical representation of terms
+         (since terms are not hashconsed, two term with different tag sets can be equal),
+         thus it mght be intersting to turn this into a hashtbl. *)
 let eval_tag = Tag.create ()
 
+(* Ensure that [t] will be gven a value at one point or another.
+   There are two possibilities:
+   - either [t] will be given a value (assigned)
+   - or [t] will be evaluated using values for its subterms (in case of
+     terms with an interpreted function at the top, such as [+(1,2)]).
+     In this case, we must register a watcher to propagate the value for [t]
+     once its subterms are assigned. *)
 let rec ensure_assign t =
   if not Expr.(Ty.equal Ty.prop t.t_type) then
     match Expr.Term.valuation t with
@@ -541,19 +630,10 @@ let rec ensure_assign t =
           watch_aux plugin_section plugin_id 1 to_watch (ensure_assign_aux t to_watch f)
       end
 
-(* TODO: protect watch against raised exceptions during job calling.
-         -> the "watch" function can actually raise Absurd since it can
-            call the job if conditions are met, but since thre are recursive
-            calls to it (due to ensure_assign),
-            1) some watches may be lost becasue of the exception
-            2) it may raise outside of the "assume" exception trap,
-               particularly during the set_watchers phase, which would be problematic
-   TODO: watchers with an empty list are called immediately, and thus their effect
-         may be forgotten when backtracking. This may happen particularly for evaluators
-         of expressions that are introduced lately (e.g. expressions created for conflicts).
-         also a problem for all late watchers.
+(* Register a new watch function [f], watching [k] terms among [l].
+   Watch functions are called once there are strictly less than [k]
+   non-assigned terms among [l]. Usually [k = 1] or [k = 2].
 *)
-
 and watch_aux ?formula section plugin_id k args f =
   List.iter ensure_assign args;
   assert (k > 0);
@@ -562,11 +642,13 @@ and watch_aux ?formula section plugin_id k args f =
       let j = new_job ?formula plugin_id k section not_assigned (List.rev_append l assigned) f in
       List.iter (add_job j) not_assigned
     | [] (* i > 0 *) ->
+      let lvls = List.map get_assign_level assigned in
+      let lvl = List.fold_left max 0 lvls in
       let l = List.rev_append not_assigned assigned in
       let to_watch, not_watched = CCList.take_drop k l in
       let j = new_job ?formula plugin_id k section to_watch not_watched f in
       List.iter (add_job j) to_watch;
-      call_job j
+      enqueue_job j lvl
     | y :: r (* i > 0 *) ->
       if is_assigned y then
         split (y :: assigned) not_assigned i r
@@ -576,6 +658,11 @@ and watch_aux ?formula section plugin_id k args f =
   Util.debug ~section "Watch added";
   split [] [] k (List.sort_uniq Expr.Term.compare args)
 
+(* Make a function to register new watches. This should be the only watch function
+   exposed in the public interface.
+   It takes a module as argument in order to provide function that can avoid
+   registering watches with the same key twice (and make that key type polymorphic).
+*)
 and mk_watch (type t) (module A : Hashtbl.HashedType with type t = t) ext_name =
   let module H = Hashtbl.Make(A) in
   let h = H.create 4013 in
@@ -594,7 +681,11 @@ and mk_watch (type t) (module A : Hashtbl.HashedType with type t = t) ext_name =
      end
   )
 
-let model () = B.snapshot eval_map
+(* Return a snapshot of the current model *)
+let model () =
+  let h = B.H.create 4013 in
+  let () = B.iter (fun key (_, v) -> B.H.add h key v) eval_map in
+  h
 
 (* Delayed propagation *)
 (* ************************************************************************ *)
@@ -655,23 +746,27 @@ module SolverTheory = struct
 
   type proof = lemma
 
-  type level = Backtrack.Stack.level
+  type level = int * Backtrack.Stack.level
 
-  let dummy = Backtrack.Stack.dummy_level
+  let dummy = -1, Backtrack.Stack.dummy_level
 
-  let current_level () = Backtrack.Stack.level stack
+  let current_level () =
+    stack_assign_level (), Backtrack.Stack.level stack
 
-  let backtrack lvl =
+  let backtrack (j_lvl, lvl) =
     Util.debug ~section:slice_section "Backtracking";
-    incr last_backtrack;
-    Stack.clear propagate_stack;
-    Backtrack.Stack.backtrack stack lvl
+    let () = Stack.clear propagate_stack in
+    let () = Backtrack.Stack.backtrack stack lvl in
+    let () = cancel_jobs j_lvl in
+    ()
 
   let assume s =
     let open Msat.Plugin_intf in
     Util.enter_prof section;
     Util.debug ~section:slice_section "New slice of length %d" s.length;
     try
+      Util.debug ~section "Performing enqueued jobs";
+      let () = do_all_jobs () in
       let assume_aux = plugin_assume () in
       for i = s.start to s.start + s.length - 1 do
         match s.get i with
@@ -685,9 +780,11 @@ module SolverTheory = struct
             Expr.Print.term t Expr.Print.term v;
           set_assign t v
       done;
-      Util.exit_prof section;
+      Util.debug ~section "Perfoming enqueued jobs";
+      let () = do_all_jobs () in
       do_propagate s.propagate;
       do_push s.push;
+      Util.exit_prof section;
       Sat
     with Absurd (l, p) ->
       Stats.incr stats_conflicts (find_section p.plugin_name);
