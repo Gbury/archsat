@@ -174,9 +174,6 @@ let equiv_trans_id =
   let p = Term.var "P" Term._Prop in
   let q = Term.var "Q" Term._Prop in
   let r = Term.var "R" Term._Prop in
-  let () = Term.coq_implicit p in
-  let () = Term.coq_implicit q in
-  let () = Term.coq_implicit r in
   let p_t = Term.id p in
   let q_t = Term.id q in
   let r_t = Term.id r in
@@ -211,7 +208,7 @@ let () =
   tag or_elim_id      ~dk:"logic.or_elim"       ?coq:None;
   tag equiv_not_id    ~dk:"logic.equiv_not"     ~coq:"not_iff_compat";
   tag equiv_refl_id   ~dk:"logic.equiv_refl"    ~coq:"iff_refl";
-  tag equiv_trans_id   ~dk:"logic.equiv_trans"  ~coq:"iff_trans";
+  tag equiv_trans_id   ~dk:"logic.equiv_trans"  ~coq:"@iff_trans";
   ()
 
 

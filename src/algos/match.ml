@@ -57,13 +57,25 @@ let rec term subst pat t =
       raise (Impossible_term (pat, t))
   | _ -> raise (Impossible_term (pat, t))
 
+let eq_order eq =
+  match eq with
+  | { Expr.formula = Expr.Equal (a, b) } ->
+    begin match Expr.Formula.get_tag eq Expr.t_order with
+      | Some Expr.Same -> a, b
+      | Some Expr.Inverse -> b, a
+      | None -> assert false
+    end
+  | _ -> assert false
+
 let rec atomic subst pat a =
   match pat, a with
   | { Expr.formula = Expr.Pred t },
     { Expr.formula = Expr.Pred t' } ->
     term subst t t'
-  | { Expr.formula = Expr.Equal (a, b) },
-    { Expr.formula = Expr.Equal (c, d) } ->
+  | { Expr.formula = Expr.Equal _ },
+    { Expr.formula = Expr.Equal _ } ->
+    let c, d = eq_order a in
+    let a, b = eq_order pat in
     begin
       try term (term subst a c) b d
       with

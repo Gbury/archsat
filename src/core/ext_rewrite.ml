@@ -666,48 +666,56 @@ let rec proof_chain goal l pos =
     Util.debug ~section "@[<hv 2>current rewrite goal:@ %a@]" Term.print goal;
     begin match Rewrite.Subst.info s with
       | Rewrite.Rule.C (Rewrite.Rule.Term, { Rewrite.Rule.trigger; result }) ->
-        let trigger_t = Term.of_term trigger in
-        let result_t = Term.of_term result in
-        begin match Position.Proof.find trigger_t goal with
-          | Some p ->
-            pos
-            |> Eq.subst p goal ~by:result_t ~eq:(proof_inst s)
-            |> proof_chain (CCOpt.get_exn @@ Position.Proof.substitute p ~by:result_t goal) r
-          | None ->
-            raise (Proof.Failure ("Ext_rewrite.proof_chain", pos))
-        end
+        if Expr.Ty.equal Expr.Ty.prop Expr.(trigger.t_type) then begin
+          proof_prop goal r s (Expr.Formula.pred trigger) (Expr.Formula.pred result) pos
+        end else
+          proof_term goal r s (trigger : Expr.term) (result : Expr.term) pos
       | Rewrite.Rule.C (Rewrite.Rule.Formula, { Rewrite.Rule.trigger; result }) ->
-        Util.debug ~section "@[<hv>chaining (prop):@ r: %a@ m: %a@ triger: %a@ result: %a@]"
-          Expr.Formula.print (Rewrite.Subst.formula s)
-          Mapping.print (Rewrite.Subst.inst s)
-          Expr.Formula.print trigger
-          Expr.Formula.print result;
-        let trigger_t = Term.of_formula trigger in
-        let result_t = Term.of_formula result in
-        Util.debug ~section "@[<v>trigger_t: %a@ result_t: %a@]"
-          Term.print trigger_t Term.print result_t;
-        let (left, right) = CCOpt.get_exn @@ Logic.match_equiv goal in
-        begin match Position.Proof.find trigger_t goal with
-          | Some p ->
-            if Term.Reduced.equal left trigger_t ||
-               Term.Reduced.equal right trigger_t then begin
-              pos
-              |> Logic.equiv_replace trigger_t ~by:result_t ~equiv:(proof_inst s)
-              |> proof_chain (CCOpt.get_exn @@ Position.Proof.substitute p ~by:result_t goal) r
-            end else begin
-              pos
-              |> Logic.equiv_replace
-                (Term.app Term.not_term trigger_t)
-                ~by:(Term.app Term.not_term result_t)
-                ~equiv:(proof_inst_not s)
-              |> proof_chain (CCOpt.get_exn @@ Position.Proof.substitute p ~by:result_t goal) r
-            end
-          | None ->
-            Util.error ~section "@[<hv>Position not found for@ %a@ in@ %a@]"
-              Term.print trigger_t Term.print goal;
-            raise (Proof.Failure ("Ext_rewrite.proof_chain", pos))
-        end
+        proof_prop goal r s (trigger : Expr.formula) (result : Expr.formula) pos
     end
+
+and proof_term goal r s trigger result pos =
+  let trigger_t = Term.of_term trigger in
+  let result_t = Term.of_term result in
+  match Position.Proof.find trigger_t goal with
+  | Some p ->
+    pos
+    |> Eq.subst p goal ~by:result_t ~eq:(proof_inst s)
+    |> proof_chain (CCOpt.get_exn @@ Position.Proof.substitute p ~by:result_t goal) r
+  | None ->
+    raise (Proof.Failure ("Ext_rewrite.proof_chain", pos))
+
+and proof_prop goal r s trigger result pos =
+  Util.debug ~section "@[<hv>chaining (prop):@ r: %a@ m: %a@ triger: %a@ result: %a@]"
+    Expr.Formula.print (Rewrite.Subst.formula s)
+    Mapping.print (Rewrite.Subst.inst s)
+    Expr.Formula.print trigger
+    Expr.Formula.print result;
+  let trigger_t = Term.of_formula trigger in
+  let result_t = Term.of_formula result in
+  Util.debug ~section "@[<v>trigger_t: %a@ result_t: %a@]"
+    Term.print trigger_t Term.print result_t;
+  let (left, right) = CCOpt.get_exn @@ Logic.match_equiv goal in
+  begin match Position.Proof.find trigger_t goal with
+    | Some p ->
+      if Term.Reduced.equal left trigger_t ||
+         Term.Reduced.equal right trigger_t then begin
+        pos
+        |> Logic.equiv_replace trigger_t ~by:result_t ~equiv:(proof_inst s)
+        |> proof_chain (CCOpt.get_exn @@ Position.Proof.substitute p ~by:result_t goal) r
+      end else begin
+        pos
+        |> Logic.equiv_replace
+          (Term.app Term.not_term trigger_t)
+          ~by:(Term.app Term.not_term result_t)
+          ~equiv:(proof_inst_not s)
+        |> proof_chain (CCOpt.get_exn @@ Position.Proof.substitute p ~by:result_t goal) r
+      end
+    | None ->
+      Util.error ~section "@[<hv>Position not found for@ %a@ in@ %a@]"
+        Term.print trigger_t Term.print goal;
+      raise (Proof.Failure ("Ext_rewrite.proof_chain", pos))
+  end
 
 let coq_proof = function
   | Subst (f, f', l) ->
