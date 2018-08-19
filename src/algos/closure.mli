@@ -1,3 +1,4 @@
+(* This file is free software, part of Archsat. See file "LICENSE" for more details. *)
 
 (** Equality closure using an union-find structure.
     This module implements a equality closure algorithm using an union-find structure.

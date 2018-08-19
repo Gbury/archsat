@@ -1,3 +1,4 @@
+(* This file is free software, part of Archsat. See file "LICENSE" for more details. *)
 
 (** Index on terms for fast unification.
     This module implements indexing on terms in order

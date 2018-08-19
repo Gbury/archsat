@@ -1,3 +1,4 @@
+(* This file is free software, part of Archsat. See file "LICENSE" for more details. *)
 
 let section = Section.make ~parent:Proof.section "quant"
 

@@ -1,3 +1,4 @@
+(* This file is free software, part of Archsat. See file "LICENSE" for more details. *)
 
 open Misc_test.Infix
 module E = Expr_test

@@ -1,3 +1,4 @@
+(* This file is free software, part of Archsat. See file "LICENSE" for more details. *)
 
 (** Heuristics about unifiers.
     This module implements heuristics to give scores to instantiations

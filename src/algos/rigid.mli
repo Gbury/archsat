@@ -1,3 +1,4 @@
+(* This file is free software, part of Archsat. See file "LICENSE" for more details. *)
 
 val unify : ?max_depth: int ->
   (Expr.term * Expr.term) list ->

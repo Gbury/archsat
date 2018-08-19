@@ -1,3 +1,4 @@
+(* This file is free software, part of Archsat. See file "LICENSE" for more details. *)
 
 (** Provides helpers for backtracking.
     This module defines backtracking stacks, i.e stacks of undo actions

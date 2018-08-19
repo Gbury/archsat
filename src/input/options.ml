@@ -1,3 +1,4 @@
+(* This file is free software, part of Archsat. See file "LICENSE" for more details. *)
 
 let misc_section = Section.make "misc"
 open Cmdliner

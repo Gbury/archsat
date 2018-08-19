@@ -1,3 +1,4 @@
+(* This file is free software, part of Archsat. See file "LICENSE" for more details. *)
 (*
    Arbitrary tags for expressions.
    Uses a mixed map (see containers.data.CCMixmap)

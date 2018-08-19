@@ -1,3 +1,4 @@
+(* This file is free software, part of Archsat. See file "LICENSE" for more details. *)
 (*
 Copyright (c) 2013, Simon Cruanes
 All rights reserved.

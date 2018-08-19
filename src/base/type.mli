@@ -1,3 +1,4 @@
+(* This file is free software, part of Archsat. See file "LICENSE" for more details. *)
 
 (** Typechecking of terms from Dolmen.Term.t
     This module provides functions to parse terms from the untyped syntax tree

@@ -1,3 +1,4 @@
+(* This file is free software, part of Archsat. See file "LICENSE" for more details. *)
 
 exception Abort of string * string
 exception Extension_not_found of string * string * string list

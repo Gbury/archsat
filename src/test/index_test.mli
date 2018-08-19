@@ -1,3 +1,4 @@
+(* This file is free software, part of Archsat. See file "LICENSE" for more details. *)
 
 val correct_tests : OUnit2.test
 val correct_qtests : QCheck.Test.t list

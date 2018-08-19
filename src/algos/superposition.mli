@@ -1,3 +1,4 @@
+(* This file is free software, part of Archsat. See file "LICENSE" for more details. *)
 
 (** Unification between terms using unitary supperposisiton.
     This module uses unitary supperposition to derive potential unifiers. *)

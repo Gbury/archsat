@@ -1,3 +1,4 @@
+(* This file is free software, part of Archsat. See file "LICENSE" for more details. *)
 (*
    This module uses unitary supperposition to
    unify terms modulo equality.
