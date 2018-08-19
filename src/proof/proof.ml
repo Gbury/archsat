@@ -891,21 +891,21 @@ let intro =
   mk_step ~prelude ~dot ~coq ~compute ~elaborate "intro"
 
 let letin =
-  let prelude _ = [] in
-  let compute ctx (prefix, t) =
+  let prelude (l, _, _) = l in
+  let compute ctx (preludes, prefix, t) =
     let id, e = Env.intro (env ctx) prefix (Term.ty t) in
     Util.debug ~section "let_binding %a = @[<hov>%a@]" Expr.Id.print id Term.print t;
-    (id, t), [| mk_sequent e (goal ctx) |]
+    (preludes, id, t), [| mk_sequent e (goal ctx) |]
   in
-  let elaborate (id, t) = function
+  let elaborate (_, id, t) = function
     | [| body |] -> Term.letin id t body
     | _ -> assert false
   in
-  let coq = Last_but_not_least, (fun fmt (id, t) ->
+  let coq = Last_but_not_least, (fun fmt (_, id, t) ->
       Format.fprintf fmt "@[<hv 2>pose proof (@,%a@;<0 -2>) as %a.@]"
         Coq.Print.term t Coq.Print.id id
     ) in
-  let dot = Branching, Dot.box (fun fmt (id, t) ->
+  let dot = Branching, Dot.box (fun fmt (_, id, t) ->
       Format.fprintf fmt "%a = @[<hov>%a@]"
         Dot.Print.Proof.id id Dot.Print.Proof.term t
     ) in

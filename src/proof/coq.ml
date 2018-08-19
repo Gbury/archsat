@@ -99,10 +99,18 @@ module Print = struct
           Format.fprintf fmt "@[<hov>(%a)@]" CCFormat.(list ~sep (term_arg ~fragile:true)) args
       end
     | Term.Let (v, e, body) ->
-      Format.fprintf fmt "@[<v>@[<hv>let %a := @[<hov>%a@]@ in@]@ @]%a"
-        id v
-        (term_aux ~fragile:false ~simplify:true) e
-        (term_aux ~fragile:false ~simplify:true) body
+      (* This conditional is there to keep pretty-printing
+         tail-rec for long lists of letins *)
+      if fragile then
+        Format.fprintf fmt "(@[<v>@[<hv>let %a := @[<hov>%a@]@ in@]@ @]%a)"
+          id v
+          (term_aux ~fragile:false ~simplify:true) e
+          (term_aux ~fragile:false ~simplify:true) body
+      else
+        Format.fprintf fmt "@[<v>@[<hv>let %a := @[<hov>%a@]@ in@]@ @]%a"
+          id v
+          (term_aux ~fragile:false ~simplify:true) e
+          (term_aux ~fragile:false ~simplify:true) body
     | Term.Binder (b, _, _) ->
       let kind, vars, body = Term.flatten_binder t in
       begin match kind with

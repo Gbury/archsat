@@ -203,7 +203,7 @@ val apply : (Term.t * int * Prelude.t list,
     using the integer provided as arity i.e the number of arguments
     expected by the term, and thus also of branhces generated. *)
 
-val letin : (string * Term.t, Term.id * Term.t) step
+val letin : (Prelude.t list * string * Term.t, Prelude.t list * Term.id * Term.t) step
 (** Let-binding in proofs. Given a prefix string, and a term,
     generate a new id and bind it to the given term for the
     remainder of the proof. *)

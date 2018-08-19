@@ -22,7 +22,7 @@ prove: solve $(BIN)
 	@cd equality && $(MAKE) -f Makefile.prove --no-print-directory
 	@cd quant && $(MAKE) -f Makefile.prove --no-print-directory
 	@cd poly && $(MAKE) -f Makefile.prove --no-print-directory
-#	@cd rewr && $(MAKE) -f Makefile.prove --no-print-directory
+	@cd rewr && $(MAKE) -f Makefile.prove --no-print-directory
 
 clean:
 	rm -rf $(BIN)
@@ -40,6 +40,7 @@ clean:
 	@cd equality 	&& $(MAKE) clean -f Makefile.prove --no-print-directory
 	@cd quant 		&& $(MAKE) clean -f Makefile.prove --no-print-directory
 	@cd poly 			&& $(MAKE) clean -f Makefile.prove --no-print-directory
+	@cd rewr 			&& $(MAKE) clean -f Makefile.prove --no-print-directory
 
 $(BIN):
 	@ln -f -s ../archsat $(BIN)

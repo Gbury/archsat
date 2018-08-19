@@ -84,15 +84,39 @@ module Rule : sig
 
 end
 
+(** {2 Rewrite substitution} *)
+
+module Subst : sig
+
+  type t
+  (** The type of a rewrite substitution. *)
+
+  val print : Format.formatter -> t -> unit
+  (** print a substitution *)
+
+  val rule : t -> Rule.t
+  (** Returns the rewrite rule used for the substitution *)
+
+  val inst : t -> Mapping.t
+  (** Returns the mappping used to instantiate the rule for the substitution *)
+
+  val formula : t -> Expr.formula
+  (** hortcut to directly extract the formula from the rewrite rule of the subst *)
+
+  val info : t -> Rule.contents
+  (** Returns the exact contents that have been substituted. *)
+
+end
+
 (** {2 Term normalization} *)
 
 module Normalize : sig
 
   val normalize_term :
-    Rule.t list -> Rule.t list -> Expr.term -> Expr.term * Rule.t list
+    Rule.t list -> Subst.t list -> Expr.term -> Expr.term * Subst.t list
 
   val normalize_atomic :
-    Rule.t list -> Rule.t list -> Expr.formula -> Expr.formula * Rule.t list
+    Rule.t list -> Subst.t list -> Expr.formula -> Expr.formula * Subst.t list
 
 end
 
@@ -105,7 +129,7 @@ module Narrow : sig
   (** Tries and narrow the given term/formula, and returns a list of triples
       (rule, rule_inst, meta_inst) that allows to unify with the term.
       Instances of simple rewrite rule (which require no meta instanciation), are
-      stripped away from the lsit of returned results. Addtionally, each mapping
+      stripped away from the list of returned results. Addtionally, each mapping
       may refer to some fresh variables. *)
 
 end

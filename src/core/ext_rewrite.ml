@@ -22,7 +22,7 @@ let tag = Tag.create ()
 let normalized = Tag.create ()
 let normal_form = Tag.create ()
 
-type lemma_info = Subst of Expr.formula * Rewrite.Rule.t list
+type lemma_info = Subst of Expr.formula * Expr.formula * Rewrite.Subst.t list
 
 type Dispatcher.lemma_info += Rewrite of lemma_info
 
@@ -550,7 +550,7 @@ let substitute f =
   | f', [] ->
     assert (Expr.Formula.equal f f');
     Expr.Formula.tag f normal_form true; (* already in normal form, nothing to do *)
-  | f', rules ->
+  | f', substs ->
     assert (not (Expr.Formula.equal f f'));
     assert (not (Expr.Formula.get_tag f normal_form = Some true));
     substitution_used := true;
@@ -558,11 +558,13 @@ let substitute f =
     Util.debug ~section:section_subst "@[<hv 2>Normalized term@ %a@ into@ %a@ using@ @[<hv>%a@]"
       Expr.Print.formula f
       Expr.Print.formula f'
-      CCFormat.(list ~sep:(return "@ ") Rewrite.Rule.print) rules;
+      CCFormat.(list ~sep:(return "@ ") Rewrite.Subst.print) substs;
     let cond =
-      List.map (fun r -> Expr.Formula.neg r.Rewrite.Rule.formula) rules
+      List.map (fun s ->
+          Expr.Formula.neg (Rewrite.Subst.rule s).Rewrite.Rule.formula
+        ) substs
     in
-    let lemma = Dispatcher.mk_proof name "subst" (Rewrite (Subst (f, rules))) in
+    let lemma = Dispatcher.mk_proof name "subst" (Rewrite (Subst (f, f', substs))) in
     Dispatcher.push ((Expr.Formula.equiv f f') :: cond) lemma
 
 (* Rule addition callback *)
@@ -637,14 +639,88 @@ let do_narrowing () =
 (* ************************************************************************ *)
 
 let dot_info = function
-  | Subst (f, l) ->
+  | Subst (f, f', l) ->
     Some "PURPLE", (
       CCFormat.const Dot.Print.formula f ::
+      CCFormat.const Dot.Print.formula f' ::
       List.map (fun r ->
           CCFormat.const (
             Rewrite.Rule.print ~term:Dot.Print.term ~formula:Dot.Print.formula
-          ) r
+          ) (Rewrite.Subst.rule r)
         ) l
+    )
+
+let proof_inst s pos =
+  pos
+  |> Inst.proof (Rewrite.Subst.formula s) (Rewrite.Subst.inst s)
+  |> Logic.ensure Logic.trivial
+
+let proof_inst_not s pos =
+  pos |> Logic.equiv_not |> proof_inst s
+
+let rec proof_chain goal l pos =
+  match l with
+  | [] -> pos
+  | s :: r ->
+    Util.debug ~section "@[<hv 2>current rewrite goal:@ %a@]" Term.print goal;
+    begin match Rewrite.Subst.info s with
+      | Rewrite.Rule.C (Rewrite.Rule.Term, { Rewrite.Rule.trigger; result }) ->
+        let trigger_t = Term.of_term trigger in
+        let result_t = Term.of_term result in
+        begin match Position.Proof.find trigger_t goal with
+          | Some p ->
+            pos
+            |> Eq.subst p goal ~by:result_t ~eq:(proof_inst s)
+            |> proof_chain (CCOpt.get_exn @@ Position.Proof.substitute p ~by:result_t goal) r
+          | None ->
+            raise (Proof.Failure ("Ext_rewrite.proof_chain", pos))
+        end
+      | Rewrite.Rule.C (Rewrite.Rule.Formula, { Rewrite.Rule.trigger; result }) ->
+        Util.debug ~section "@[<hv>chaining (prop):@ r: %a@ m: %a@ triger: %a@ result: %a@]"
+          Expr.Formula.print (Rewrite.Subst.formula s)
+          Mapping.print (Rewrite.Subst.inst s)
+          Expr.Formula.print trigger
+          Expr.Formula.print result;
+        let trigger_t = Term.of_formula trigger in
+        let result_t = Term.of_formula result in
+        Util.debug ~section "@[<v>trigger_t: %a@ result_t: %a@]"
+          Term.print trigger_t Term.print result_t;
+        let (left, right) = CCOpt.get_exn @@ Logic.match_equiv goal in
+        begin match Position.Proof.find trigger_t goal with
+          | Some p ->
+            if Term.Reduced.equal left trigger_t ||
+               Term.Reduced.equal right trigger_t then begin
+              pos
+              |> Logic.equiv_replace trigger_t ~by:result_t ~equiv:(proof_inst s)
+              |> proof_chain (CCOpt.get_exn @@ Position.Proof.substitute p ~by:result_t goal) r
+            end else begin
+              pos
+              |> Logic.equiv_replace
+                (Term.app Term.not_term trigger_t)
+                ~by:(Term.app Term.not_term result_t)
+                ~equiv:(proof_inst_not s)
+              |> proof_chain (CCOpt.get_exn @@ Position.Proof.substitute p ~by:result_t goal) r
+            end
+          | None ->
+            Util.error ~section "@[<hv>Position not found for@ %a@ in@ %a@]"
+              Term.print trigger_t Term.print goal;
+            raise (Proof.Failure ("Ext_rewrite.proof_chain", pos))
+        end
+    end
+
+let coq_proof = function
+  | Subst (f, f', l) ->
+    Util.debug ~section "@[<hv>Normalized@ %a@ into@ %a@]"
+      Expr.Formula.print f Expr.Formula.print f';
+    (fun pos ->
+       pos
+       |> Logic.introN "Q" (List.length l + 1)
+       |> Logic.fold (fun s ->
+           Logic.not_not_elim "Q" (Term.of_formula (Rewrite.Subst.formula s))) l
+       |> Logic.find (Term.app Term.not_term @@ Term.of_formula (Expr.Formula.equiv f f'))
+         (Logic.apply1 [])
+       |> proof_chain (Term.of_formula (Expr.Formula.equiv f f')) l
+       |> Logic.equiv_refl (Term.of_formula f')
     )
 
 (* Plugin *)
@@ -675,6 +751,7 @@ let set_watcher = register_formula
 
 let handle : type ret. ret Dispatcher.msg -> ret option = function
   | Dot.Info Rewrite info -> Some (dot_info info)
+  | Proof.Lemma Rewrite info -> Some (coq_proof info)
   | Solver.Found_sat _ ->
     if do_narrowing () then Some (Solver.Assume []) else Some Solver.Sat_ok
   | _ -> None

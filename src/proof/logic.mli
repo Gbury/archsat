@@ -26,6 +26,7 @@ val true_proof : Term.t
 val match_not : Term.t -> Term.t option
 val match_or : Term.t -> (Term.t * Term.t) option
 val match_and : Term.t -> (Term.t * Term.t) option
+val match_equiv : Term.t -> (Term.t * Term.t) option
 (** Some wrappers around {!Term.pmatch}. *)
 
 (** {2 Simple tactics} *)
@@ -48,6 +49,9 @@ val intro : ?post:(Term.t -> (pos, pos) tactic) -> string -> (pos, pos) tactic
 val introN : ?post:(Term.t -> (pos, pos) tactic) -> string -> int -> (pos, pos) tactic
 (** Introduction tactic. The string given is used as prefix
     for the name of the newly introduced hypothesis. *)
+
+val letin : Proof.Prelude.t list -> string -> Term.t -> (pos, pos) tactic
+(** Let-binding of proof terms. *)
 
 val cut :
   f:((pos, unit) tactic) ->
@@ -105,6 +109,20 @@ val or_intro : Term.t -> (pos, pos) tactic
 
 val and_elim : Term.t -> (pos, pos) tactic
 (** Eliminate a conjunction, introducing its individual terms in the env. *)
+
+val equiv_refl : Term.t -> (pos, unit) tactic
+(** Prov an equivalence reflexivity [p <=> p]. *)
+
+val equiv_not : (pos, pos) tactic
+(** Prove a equivalence [~ a <=> ~ b] by proving [a <=> b]. *)
+
+val equiv_replace :
+  equiv:((pos, unit) tactic) ->
+  by:Term.t -> Term.t -> (pos, pos) tactic
+(** [equiv_replace equiv ~by:v u] expects a goal of the form [a <=> u]
+    (resp. [u <=> a]), and replaces [u] by [v] in that goal. Uses the provided
+    [equiv] function to prove the equivalence [v <=> u] (resp. [u <=> v]),
+    and returns a position where the goal is [a <=> v] (resp. [v <=> a]). *)
 
 val not_not_elim : string -> Term.t -> (pos, pos) tactic
 (** Given a goal of the form [False], and with [~ ~ t] in the env,

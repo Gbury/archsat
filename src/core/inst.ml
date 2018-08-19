@@ -574,6 +574,26 @@ let dot_info = function
       CCFormat.const Dot.Print.formula f;
     ]
 
+let proof f t =
+  match f with
+  | { Expr.formula = Expr.All ((v_tys, v_ts), _, body) } ->
+    let args =
+      List.map (fun x -> Term.of_ty (Mapping.Var.get_ty t x)) v_tys @
+      List.map (fun x -> Term.of_term (Mapping.Var.get_term t x)) v_ts
+    in
+    (fun pos -> pos
+                |> Logic.find (Term.of_formula f) @@ (fun f ->
+                    Logic.letin [] "I" (Term.apply f args)))
+  | { Expr.formula = Expr.Not { Expr.formula = Expr.Ex ((v_tys, v_ts), _, body) } } ->
+    let args =
+      List.map (fun x -> Term.of_ty (Mapping.Var.get_ty t x)) v_tys @
+      List.map (fun x -> Term.of_term (Mapping.Var.get_term t x)) v_ts
+    in
+    (fun pos -> pos
+                |> Logic.find (Term.of_formula f) @@ (fun f ->
+                    Logic.letin [Logic.classical] "I" (Quant.inst_not_ex f args)))
+  | _ -> raise (Invalid_argument "Inst.proof")
+
 let coq_proof = function
   (* We want to prove ~ ~ [forall l, body] -> ~ [forall (tys ts), body{l/t}] -> False *)
   | Formula ({ Expr.formula = Expr.All ((v_tys, v_ts), _, body) } as f, t, q, tys, ts) ->

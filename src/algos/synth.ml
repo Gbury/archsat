@@ -237,9 +237,12 @@ let remove_metas ty =
     Mapping.apply_ty ~fix:false m ty
   | _ -> assert false
 
-let synth_name =
-  let r = ref 0 in
-  (fun () -> incr r; Format.asprintf "synth#%d" !r)
+let synth_term =
+  let w =
+    let a = Expr.Id.ttype "a" in
+    Expr.Id.term_fun "##w" [a] [] (Expr.Ty.of_id a)
+  in
+  (fun ty -> Expr.Term.apply w [ty] [])
 
 let term_aux goal =
   Util.debug ~section "Trying to find a term of type: %a" Expr.Ty.print goal;
@@ -256,9 +259,8 @@ let term_aux goal =
     Util.warn ~section
       "@[<hv>Couldn't find a term of type@ @[<hov>%a@]@ (originally @[<hov>%a@])@\n%s@]"
       Expr.Ty.print ty Expr.Ty.print goal
-      "This will prevent proof outputs from type-checking";
-    let c = Expr.Id.term_fun (synth_name ()) [] [] ty in
-    let t = Expr.Term.apply c [] [] in
+      "The output proof will have some added some hypothesis to type-check";
+    let t = synth_term ty in
     n.descr <- Done t;
     t
 

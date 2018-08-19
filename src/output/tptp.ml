@@ -106,6 +106,9 @@ module Print = struct
       elim_implicits body (List.tl args)
     | _ -> args
 
+  let is_binder t =
+    match t.Term.term with | Term.Binder _ -> true | _ -> false
+
   let rec term fmt t =
     match t.Term.term with
     | Term.Type -> Format.fprintf fmt "$tType"
@@ -136,9 +139,19 @@ module Print = struct
         | `Arrow ->
           let tys = List.map (fun id -> id.Expr.id_type) vars in
           Format.fprintf fmt "@[<hov>%a >@ %a@]" product_type tys term body
+        | `Pi when Term.Reduced.equal Term._Type body ->
+          let tys = List.map (fun id -> id.Expr.id_type) vars in
+          Format.fprintf fmt "@[<hov>%a >@ %a@]" product_type tys term body
+        | `Pi when Term.Reduced.equal Term._Type (Term.ty body) ->
+          if is_binder body then
+            Format.fprintf fmt "(@[<hov 2>!> @[<hov>[%a]@]%s@ ( %a ) @])"
+              var_list vars (binder_sep Term.Forall) term body
+          else
+            Format.fprintf fmt "(@[<hov 2>!> @[<hov>[%a]@]%s@ %a@])"
+              var_list vars (binder_sep Term.Forall) term body
         | `Pi ->
-          Format.fprintf fmt "(@[<hov 2>!> @[<hov>[%a]@]%s@ ( %a ) @])"
-            var_list vars (binder_sep Term.Forall) term body
+          Format.fprintf fmt "(@[<hov 2>%s @[<hov>[%a]@]%s@ %a@])"
+            (binder_name Term.Forall) var_list vars (binder_sep Term.Forall) term body
         | `Binder b ->
           Format.fprintf fmt "(@[<hov 2>%s @[<hov>[%a]@]%s@ %a@])"
             (binder_name b) var_list vars (binder_sep b) term body
@@ -198,7 +211,8 @@ let declare_id ?loc fmt (name, id) =
     Format.fprintf fmt "%a@\n%s(@[<hv>%a, type, (@ @[<hov>%a : %a ) )@]@].@\n@."
       declare_loc loc (kind @@ ho_id id)
       Print.dolmen name
-      Print.cst id Print.term id.Expr.id_type
+      Print.cst id
+      Print.term id.Expr.id_type
   end
 
 let declare_hyp ?loc fmt id =

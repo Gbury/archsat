@@ -84,10 +84,12 @@ module Print = struct
 
     (* Let-binding *)
     | Term.Let (v, e, body) ->
-      Format.fprintf fmt "(%a =>@ %a@;) %a"
+      Format.fprintf fmt "%s(%a =>@ %a@;) %a%s"
+        (if fragile then "(" else "")
         var_type v
         (term_aux ~fragile:false ~simplify:true) body
         (term_aux ~fragile:true ~simplify:true) e
+        (if fragile then ")" else "")
 
     (* Other binders *)
     | Term.Binder (b, v, t') ->

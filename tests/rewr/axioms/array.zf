@@ -16,3 +16,6 @@ rewrite forall (a: type) (t: array a) (x: a) (i j: int).
 rewrite forall (a: type) (t: array a) (x: a) (i j: int).
   ~ (i = j) => get _ i (set _ j x t) = get _ i t.
 
+# Ensure that each type is inhabited.
+val w : pi (a: type). a.
+

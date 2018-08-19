@@ -326,9 +326,7 @@ let fresh =
   let r = ref 0 in
   (fun ty -> incr r; Term.var (Format.sprintf "?%d" !r) ty)
 
-let subst ~eq u path pos =
-  let seq = Logic.extract_open pos in
-  let goal = Proof.goal seq in
+let subst ~eq ~by:u path goal pos =
   let t =
     match Position.Proof.apply path goal with
     | None -> raise (Proof.Failure ("Eq.subst", pos))
@@ -346,10 +344,9 @@ let subst ~eq u path pos =
   p2
 
 let replace ~eq ~by:u v pos =
-  let seq = Logic.extract_open pos in
-  let goal = Proof.goal seq in
+  let goal = Proof.goal @@ Logic.extract_open pos in
   match Position.Proof.find v goal with
-  | Some p -> subst ~eq u p pos
+  | Some p -> subst ~eq ~by:u p goal pos
   | None ->
     Util.error ~section "Couldn't @[<v>find: %a@   in: %a@]"
       Term.print v Term.print goal;

@@ -96,7 +96,8 @@ module Print = struct
       else hd :: elim_implicits body tl
     | _ -> args
 
-    let rec term fmt t =
+  let rec term fmt t =
+    let t = Term.contract t in
       match t.Term.term with
       | Term.Type -> Format.fprintf fmt "Type"
       | Term.Id v -> id fmt v

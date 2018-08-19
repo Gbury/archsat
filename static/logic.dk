@@ -101,6 +101,37 @@ def or_elim (p : prop) (q: prop) (r: prop)
   H : proof (or p q) => f : (proof p -> proof r) => g : (proof q -> proof r) => H r f g.
 
 
+(; Equivalence ;)
+
+def equiv_refl (p : prop) : proof (equiv p p) :=
+  and_intro (imp p p) (imp p p) (x : proof p => x) (x : proof p => x).
+
+def equiv_trans (p : prop) (q : prop) (r : prop)
+  : proof (equiv p q) -> proof (equiv q r) -> proof (equiv p r) :=
+  H1 : proof (equiv p q) => H2 : proof (equiv q r) =>
+  and_intro (imp p r) (imp r p)
+    (x : proof p => and_elim (imp p q) (imp q p) r H1
+      (pq : proof (imp p q) => _ : proof (imp q p) =>
+        and_elim (imp q r) (imp r q) r H2
+          (qr : proof (imp q r) => _ : proof (imp r q) =>
+            qr (pq x) ) ) )
+    (x : proof r => and_elim (imp p q) (imp q p) p H1
+      (_ : proof (imp p q) => qp : proof (imp q p) =>
+        and_elim (imp q r) (imp r q) p H2
+          (_ : proof (imp q r) => rq : proof (imp r q) =>
+            qp (rq x) ) ) ).
+
+def equiv_not (p : prop) (q : prop)
+  : proof (equiv p q) -> proof (equiv (not p) (not q)) :=
+  H : proof (equiv p q) =>
+    and_elim (imp p q) (imp q p) (equiv (not p) (not q)) H
+      (pq : proof (imp p q) => qp : proof (imp q p) =>
+        and_intro (imp (not p) (not q)) (imp (not q) (not p))
+          (x : proof (not p) => y : proof q => x (qp y))
+          (x : proof (not q) => y : proof p => x (pq y))
+      ).
+
+
 (; Equality ;)
 
 def eq_subst (a : type) (x : term a) (y: term a) (p : term a -> prop)

@@ -70,11 +70,6 @@ let imply_left p =
   | { Expr.formula = Expr.And l } -> l
   | p -> [p]
 
-let pattern_imply_left = function
-  | { Expr.formula = Expr.And _ } as p ->
-    CCOpt.get_exn @@ Expr.Formula.get_tag p Expr.f_order
-  | p -> Expr.(L [F p])
-
 let imply_right = function
   | { Expr.formula = Expr.Or l } -> l
   | q -> [q]

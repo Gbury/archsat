@@ -690,19 +690,11 @@ let rec parse_expr (env : env) t =
       end
 
     (* Binders *)
-    | { Ast.term = Ast.Binder (Ast.All, vars, f) } ->
-      let ttype_vars, ty_vars, env' =
-        parse_quant_vars (expect env (Typed Expr.Ty.base)) vars in
-      Formula (
-        mk_quant env' (Expr.Formula.all ~status:env.status)
-          (ttype_vars, ty_vars) (parse_formula env' f))
+    | { Ast.term = Ast.Binder (Ast.All, _, _) } ->
+      parse_quant (Expr.Formula.all ~status:env.status) Ast.All env [] [] t
 
     | { Ast.term = Ast.Binder (Ast.Ex, vars, f) } ->
-      let ttype_vars, ty_vars, env' =
-        parse_quant_vars (expect env (Typed Expr.Ty.base)) vars in
-      Formula (
-        mk_quant env' (Expr.Formula.ex ~status:env.status)
-          (ttype_vars, ty_vars) (parse_formula env' f))
+      parse_quant (Expr.Formula.ex ~status:env.status) Ast.Ex env [] [] t
 
     (* (Dis)Equality *)
     | { Ast.term = Ast.App ({Ast.term = Ast.Builtin Ast.Eq}, l) } as t ->
@@ -783,6 +775,15 @@ and parse_attrs env ast acc = function
           Dolmen.ParseLocation.fmt (get_loc t) msg;
         parse_attrs env ast acc r
     end
+
+and parse_quant mk b env ttype_acc ty_acc = function
+  | { Ast.term = Ast.Binder (b', vars, f) } when b = b' ->
+    let ttype_vars, ty_vars, env' =
+      parse_quant_vars (expect env (Typed Expr.Ty.base)) vars in
+    parse_quant mk b env' (ttype_acc @ ttype_vars) (ty_acc @ ty_vars) f
+  | ast ->
+    Formula (
+      mk_quant env mk (ttype_acc, ty_acc) (parse_formula env ast))
 
 and parse_var env = function
   | { Ast.term = Ast.Colon ({ Ast.term = Ast.Symbol s }, e) } ->

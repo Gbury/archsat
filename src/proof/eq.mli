@@ -16,6 +16,16 @@ val trans : (Term.t * Term.t) list -> (pos, unit) tactic
 (** Prove an equality using transitivity with the chains of equalities
     given as argument. *)
 
+val replace : eq:((pos, unit) tactic) -> by:Term.t -> Term.t -> (pos, pos) tactic
+(** [replace ~eq ~by:u t] is a tactic that, in the current goal, replace
+    [t] by [u], using the [eq] tactic to prove the equality [t = u]. *)
+
+val subst :
+  eq:((pos, unit) tactic) -> by:Term.t ->
+  Position.t -> Term.t -> (pos, pos) tactic
+(** More low-level version of replace. Given the position and the goal
+    (allows to avoid normalisation of the goal). *)
+
 val congruence_term : Term.t -> (Term.t * Term.t) list -> (pos, unit) tactic
 (** Prove an equality [f x1 ... xn = f y1 .. yn] given that
     [x1 = y1], ... [xn = yn] are in the hypotheses.*)

@@ -124,6 +124,41 @@ module Rule = struct
 
 end
 
+(* Rule substitution *)
+(* ************************************************************************ *)
+
+module Subst = struct
+
+  type t = {
+    rule : Rule.t;
+    inst : Mapping.t;
+    pos  : Position.t;
+  }
+
+  let mk rule inst pos = { rule; inst; pos; }
+
+  let print fmt { rule; inst; pos; } =
+    Format.fprintf fmt "@[<hv>%a@ %a@ @@%a@]"
+      (Rule.print ~term:Expr.Term.print ~formula:Expr.Formula.print) rule
+      Mapping.print inst Position.print pos
+
+  let map_rewrite f { Rule.trigger; result; } =
+    { Rule.trigger = f trigger; result = f result; }
+
+  let rule { rule; _} = rule
+  let inst { inst; _ } = inst
+
+  let formula s = (rule s).Rule.formula
+
+  let info { rule; inst; _ } =
+    match rule.Rule.contents with
+    | Rule.C (Rule.Term, r) ->
+      Rule.C (Rule.Term, map_rewrite (Mapping.apply_term inst) r)
+    | Rule.C (Rule.Formula, r) ->
+      Rule.C (Rule.Formula, map_rewrite (Mapping.apply_formula inst) r)
+
+end
+
 (* Normalization by rules (no matching modulo eq) *)
 (* ************************************************************************ *)
 
@@ -140,7 +175,7 @@ module Normalize = struct
         | Rule.C (Rule.Term, { Rule.trigger = pat; result = res; }) ->
           begin match Match.term Mapping.empty pat t with
             | m ->
-              Some (rule, Mapping.apply_term ~fix:false m res)
+              Some (rule, m, Mapping.apply_term ~fix:false m res)
             | exception Match.Impossible_ty _ -> None
             | exception Match.Impossible_term _ -> None
           end
@@ -153,7 +188,7 @@ module Normalize = struct
 
   let find_term_match rules t =
     let aux pos t' =
-      let aux (rule, res) = (rule, res, pos) in
+      let aux (rule, m, res) = (rule, m, res, pos) in
       CCOpt.map aux (match_term_head t' rules)
     in
     Position.Term.find_map aux t
@@ -161,23 +196,26 @@ module Normalize = struct
   let rec normalize_term rules acc t =
     match find_term_match rules t with
     | None -> t, List.rev acc
-    | Some (rule, res, pos) ->
+    | Some (rule, m, res, pos) ->
       begin match Position.Term.substitute pos ~by:res t with
         | None -> assert false
-        | Some res -> normalize_term rules (rule :: acc) res
+        | Some res ->
+          let subst = Subst.mk rule m pos in
+          normalize_term rules (subst :: acc) res
       end
 
   let match_atomic f rules =
     let aux f rule =
       if rule.Rule.guards = [] then
         match rule.Rule.contents with
-        (* SKip formula rewrite rules *)
+        (* Skip formula rewrite rules *)
         | Rule.C (Rule.Term, _) -> None
         (** Match&instanciate on terms *)
         | Rule.C (Rule.Formula, { Rule.trigger = pat; result = res; }) ->
           begin match Match.atomic Mapping.empty pat f with
             | m ->
-              Some (rule, Mapping.apply_formula ~fix:false m res)
+              Some (Subst.mk rule m Position.root,
+                    Mapping.apply_formula ~fix:false m res)
             | exception Match.Impossible_ty _ -> None
             | exception Match.Impossible_term _ -> None
             | exception Match.Impossible_atomic _ -> None
@@ -191,8 +229,8 @@ module Normalize = struct
 
   let rec normalize_atomic rules acc f =
     match match_atomic f rules with
-    | Some (rule, res) ->
-      normalize_atomic rules (rule :: acc) res
+    | Some (s, res) ->
+      normalize_atomic rules (s :: acc) res
     | None ->
       begin match f with
         | { Expr.formula = Expr.Not p } ->

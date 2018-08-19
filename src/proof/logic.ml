@@ -146,6 +146,46 @@ let or_elim_id, or_elim_alias =
   id, Proof.Prelude.alias id (function
       | Proof.Coq -> Some t | Proof.Dot | Proof.Dedukti -> None)
 
+let equiv_refl_id =
+  let p = Term.var "P" Term._Prop in
+  let p_t = Term.id p in
+  Term.declare "equiv_refl" @@
+  Term.forall p @@
+  Term.apply Term.equiv_term [p_t; p_t]
+
+let equiv_not_id =
+  let p = Term.var "P" Term._Prop in
+  let q = Term.var "Q" Term._Prop in
+  let () = Term.coq_implicit q in
+  let () = Term.coq_implicit p in
+  let p_t = Term.id p in
+  let q_t = Term.id q in
+  Term.declare "equiv_not" @@
+  Term.foralls [p; q] @@
+  Term.arrow
+    (Term.apply Term.equiv_term [p_t; q_t])
+    (Term.apply Term.equiv_term [
+        Term.app Term.not_term p_t;
+        Term.app Term.not_term q_t;
+      ])
+
+let equiv_trans_id =
+  let p = Term.var "P" Term._Prop in
+  let q = Term.var "Q" Term._Prop in
+  let r = Term.var "R" Term._Prop in
+  let () = Term.coq_implicit p in
+  let () = Term.coq_implicit q in
+  let () = Term.coq_implicit r in
+  let p_t = Term.id p in
+  let q_t = Term.id q in
+  let r_t = Term.id r in
+  Term.declare "equiv_trans" @@
+  Term.foralls [p; q; r] @@
+  Term.arrows [
+    Term.apply Term.equiv_term [p_t; q_t];
+    Term.apply Term.equiv_term [q_t; r_t];
+  ] (Term.apply Term.equiv_term [p_t; r_t])
+
 let nnpp_term = Term.id nnpp_id
 let exfalso_term = Term.id exfalso_id
 let or_elim_term = Term.id or_elim_id
@@ -153,19 +193,26 @@ let and_elim_term = Term.id and_elim_id
 let or_introl_term = Term.id or_introl_id
 let or_intror_term = Term.id or_intror_id
 let and_intro_term = Term.id and_intro_id
+let equiv_not_term = Term.id equiv_not_id
+let equiv_refl_term = Term.id equiv_refl_id
+let equiv_trans_term = Term.id equiv_trans_id
 
 let () =
-  tag true_proof_id ~dk:"logic.true_intro"  ~coq:"I";
-  tag exfalso_id    ~dk:"logic.false_elim"  ~coq:"False_ind";
-  tag nnpp_id       ~dk:"classical.nnpp"    ~coq:"NNPP";
-  tag and_intro_id  ~dk:"logic.and_intro"   ~coq:"conj";
-  tag and_ind       ~dk:"logic.and_ind"     ~coq:"and_ind";
-  tag and_elim_id   ~dk:"logic.and_elim"    ?coq:None;
-  tag or_introl_id  ~dk:"logic.or_introl"   ~coq:"or_introl";
-  tag or_intror_id  ~dk:"logic.or_intror"   ~coq:"or_intror";
-  tag or_ind        ~dk:"logic.or_ind"      ~coq:"or_ind";
-  tag or_elim_id    ~dk:"logic.or_elim"     ?coq:None;
+  tag true_proof_id   ~dk:"logic.true_intro"    ~coq:"I";
+  tag exfalso_id      ~dk:"logic.false_elim"    ~coq:"False_ind";
+  tag nnpp_id         ~dk:"classical.nnpp"      ~coq:"NNPP";
+  tag and_intro_id    ~dk:"logic.and_intro"     ~coq:"conj";
+  tag and_ind         ~dk:"logic.and_ind"       ~coq:"and_ind";
+  tag and_elim_id     ~dk:"logic.and_elim"      ?coq:None;
+  tag or_introl_id    ~dk:"logic.or_introl"     ~coq:"or_introl";
+  tag or_intror_id    ~dk:"logic.or_intror"     ~coq:"or_intror";
+  tag or_ind          ~dk:"logic.or_ind"        ~coq:"or_ind";
+  tag or_elim_id      ~dk:"logic.or_elim"       ?coq:None;
+  tag equiv_not_id    ~dk:"logic.equiv_not"     ~coq:"not_iff_compat";
+  tag equiv_refl_id   ~dk:"logic.equiv_refl"    ~coq:"iff_refl";
+  tag equiv_trans_id   ~dk:"logic.equiv_trans"  ~coq:"iff_trans";
   ()
+
 
 (* Some generic tactic manipulations *)
 (* ************************************************************************ *)
@@ -219,8 +266,8 @@ let name prefix pos =
   | _ -> assert false
 
 (** Letin *)
-let letin prefix t pos =
-  match Proof.apply_step pos Proof.letin (prefix, t) with
+let letin preludes prefix t pos =
+  match Proof.apply_step pos Proof.letin (preludes, prefix, t) with
   | _, [| res |] -> res
   | _ -> assert false
 
@@ -397,6 +444,32 @@ let match_not t =
     Util.error ~section "Absent binding after pattern matching";
     assert false
 
+let equiv_left = Term.var "p" Term._Prop
+let equiv_right = Term.var "q" Term._Prop
+let equiv_pat = Term.apply Term.equiv_term
+    [Term.id equiv_left; Term.id equiv_right]
+
+let match_equiv t =
+  try
+    let s = Term.pmatch ~pat:equiv_pat t in
+    let left_term = Term.S.Id.get equiv_left s in
+    let right_term = Term.S.Id.get equiv_right s in
+    Some (left_term, right_term)
+  with
+  | Term.Match_Impossible _ -> None
+  | Not_found ->
+    Util.error ~section "Absent binding after pattern matching";
+    assert false
+
+let match_equiv_not t =
+  match match_equiv t with
+  | Some (a, b) ->
+    begin match match_not a, match_not b with
+      | Some c, Some d -> Some (c, d)
+      | _ -> None
+    end
+  | None -> None
+
 let match_not_not t = CCOpt.(match_not t >>= match_not)
 
 let shortcut_not_not t =
@@ -478,6 +551,45 @@ let or_intro t pos =
   | None ->
     raise (Proof.Failure ("Couldn't find the given atom in disjunction", pos))
 
+let equiv_refl t pos =
+  let goal = Proof.goal @@ extract_open pos in
+  match match_equiv goal with
+  | None -> raise (Proof.Failure ("expected en equivalence as goal", pos))
+  | Some (a, b) when Term.Reduced.equal a b ->
+    exact [] (Term.app equiv_refl_term t) pos
+  | Some _ ->
+    and_intro pos
+      ~f:(fun _ pos -> pos |> intro "E" |> ensure trivial)
+
+let equiv_not pos =
+  let goal = Proof.goal @@ extract_open pos in
+  match match_equiv_not goal with
+  | Some (p, q) -> apply1 [] (Term.apply equiv_not_term [p; q]) pos
+  | None -> raise (Proof.Failure ("Expected a goal of the form equiv-not", pos))
+
+let equiv_replace ~equiv ~by:q r pos =
+  let ctx = extract_open pos in
+  let goal = Proof.goal ctx in
+  match match_equiv goal with
+  | None ->
+    Util.error ~section
+      "@[<hov>Tried to apply tactic equiv_trans but the goal is not an equivalence:@ %a@]"
+      Term.print goal;
+    raise (Proof.Failure ("Expected an equivalence", pos))
+  | Some (p, b) when Term.Reduced.equal r b ->
+    let pos1, pos2 = apply2 [] (Term.apply equiv_trans_term [p; q; r]) pos in
+    let () = equiv pos2 in
+    pos1
+  | Some (a, p) when Term.Reduced.equal r a ->
+    let pos1, pos2 = apply2 [] (Term.apply equiv_trans_term [r; q; p]) pos in
+    let () = equiv pos1 in
+    pos2
+  | Some (a, b) ->
+    Util.error ~section "@[<v 2>equiv_replace:@ q: %a@ r: %a@ left: %a@ right: %a@ goal: %a@]"
+      Term.print q Term.print r Term.print a Term.print b Term.print goal;
+    raise (Proof.Failure ("Expected to find q on one side of the equivalence", pos))
+
+
 (* Logical connective elimination *)
 (* ************************************************************************ *)
 
@@ -488,7 +600,7 @@ let rec or_elim_aux ~shallow ~f t pos =
   | None ->
     let pos' =
       if shallow && not (Proof.Env.mem (Proof.env ctx) @@ Term.ty t)
-      then letin "O" t pos
+      then letin [] "O" t pos
       else pos
     in
     Util.debug ~section "Couldn't split %a: %a" Term.print t Term.print t.Term.ty;
