@@ -1,3 +1,5 @@
+(; This file is free software, part of Archsat. See file "LICENSE" for more details. ;)
+
 
 (; Law of excluded middle,
    defined directly as the elimination of the (p \/ ~ p) disjunction ;)

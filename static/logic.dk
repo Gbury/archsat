@@ -1,3 +1,5 @@
+(; This file is free software, part of Archsat. See file "LICENSE" for more details. ;)
+
 #NAME logic.
 
 (; Polymorphic First-order logic for Archsat ;)
