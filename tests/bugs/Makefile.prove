@@ -1,0 +1,11 @@
+
+BIN=../archsat
+OPT=
+NAME=prove/bugs
+TESTS= \
+			 eq_diamond2.smt2.coqfull 	eq_diamond2.smt2.dk 			\
+			 eq_diamond20.smt2.coq 			eq_diamond20.smt2.dk 			\
+			 list1.smt2.coqfull					list1.smt2.dk
+
+include ../Makefile.shared
+

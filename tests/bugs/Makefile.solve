@@ -1,0 +1,11 @@
+
+BIN=../archsat
+OPT=
+NAME=solve/bugs
+TESTS= \
+			 eq_diamond2.smt2.unsat				\
+			 eq_diamond20.smt2.unsat			\
+			 list1.smt2.unsat
+
+include ../Makefile.shared
+
