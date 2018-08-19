@@ -4,6 +4,7 @@ let section = Section.make "core"
 let solver_section = Section.make "sat"
 let plugin_section = Section.make ~parent:section "plugin"
 let slice_section = Section.make ~parent:section "slice"
+let watch_section = Section.make ~parent:section "watch"
 
 let dummy_section = Section.make "DUMMY"
 
@@ -59,6 +60,7 @@ type lemma = {
 }
 
 type 'a job = {
+  job_id : int;
   job_ext : 'a;
   job_n : int;
   job_section : Section.t;
@@ -383,6 +385,11 @@ let get_absolute_truth f =
 (* Evaluation/Watching functions *)
 (* ************************************************************************ *)
 
+(* Print a job succintly *)
+let pp_job fmt j =
+  Format.fprintf fmt "#%d (%s/%d)[%d]"
+    j.job_id Plugin.((get j.job_ext).name) j.job_n j.job_lvl
+
 (* Exceptions *)
 exception Not_assigned of Expr.term
 
@@ -457,36 +464,40 @@ let add_job job t =
 *)
 (** The index (in job_trail) of the first non-called job *)
 let job_idx = ref 0
-(** the trail of jobs (all jobs with index < !job_idx have been executed)*)
+(** the trail of jobs (all jobs with index < !job_idx have been executed) *)
 let job_trail = CCVector.create ()
 (** A vector which stores at position [i] the length of the job trail at backtrack point i. *)
 let job_level = CCVector.create ()
 
-(* Enqueue a new job (without executing it) *)
-let enqueue_job j lvl =
-  if j.job_lvl >= 0 then ()
-  else begin
-    j.job_lvl <- lvl;
-    CCVector.push job_trail j
-  end
-
 let current_assign_level () =
   CCVector.length job_level
 
+(* Enqueue a new job (without executing it) *)
+let enqueue_job j lvl =
+  if j.job_lvl >= 0 then begin
+    Util.debug ~section:watch_section "Ignoring enqueued job %a" pp_job j
+  end else begin
+    j.job_lvl <- lvl;
+    Util.debug ~section:watch_section "Enqueueing job (current: %d) : %a"
+      (current_assign_level ()) pp_job j;
+    CCVector.push job_trail j
+  end
+
 let stack_assign_level () =
-  let n = CCVector.length job_level in
-  let () = CCVector.push job_level (current_assign_level ()) in
-  n
+  Util.debug ~section:watch_section "Stack assign: %d :: %d"
+    (CCVector.length job_level) (CCVector.length job_trail);
+  assert (!job_idx = CCVector.length job_trail);
+  let () = CCVector.push job_level (CCVector.length job_trail) in
+  (CCVector.length job_level - 1)
 
 
 (** Call/execute a single job *)
 let call_job j =
   if not CCOpt.(get_or ~default:true (j.job_formula >>= get_truth)) then
-    Util.debug ~section "Ignoring job because of false formula:@ %a"
-      Expr.Formula.print (CCOpt.get_exn j.job_formula)
+    Util.debug ~section:watch_section "Ignoring job %a because of false formula:@ %a"
+      pp_job j Expr.Formula.print (CCOpt.get_exn j.job_formula)
   else begin
-    Util.debug ~section "Calling job from %s"
-      Plugin.((get j.job_ext).name);
+    Util.debug ~section:watch_section "Calling job %a" pp_job j;
     profile j.job_section j.job_callback ()
   end
 
@@ -512,12 +523,15 @@ let do_all_jobs () =
      lower (or equal) to the one we backtrack to. *)
 let cancel_jobs lvl =
   let j_lvl = CCVector.get job_level lvl in
+  Util.debug ~section:watch_section "Cancelling jobs to lvl %d(%d)" lvl j_lvl;
   let new_size = ref j_lvl in
   for i = j_lvl to CCVector.length job_trail - 1 do
     let j = CCVector.get job_trail i in
-    if j.job_lvl > lvl then
+    if j.job_lvl > lvl then begin
+      Util.debug ~section:watch_section "Unset job %a" pp_job j;
       j.job_lvl <- -1
-    else begin
+    end else begin
+      Util.debug ~section:watch_section "Late job re-enqueued: %a" pp_job j;
       CCVector.set job_trail !new_size j;
       new_size := !new_size + 1
     end
@@ -539,8 +553,8 @@ let update_watch x j =
     let _, old_watched = find (Expr.Term.equal x) [] j.watched in
     try
       let y, old_not_watched = find (fun y -> not (is_assigned y)) [] j.not_watched in
-      Util.debug ~section "New watcher for job from %s:@ @[<hov>%a@]"
-        Plugin.((get j.job_ext).name) Expr.Print.term y;
+      Util.debug ~section:watch_section "New watcher for job %a:@ @[<hov>%a@]"
+        pp_job j Expr.Print.term y;
       j.not_watched <- x :: old_not_watched;
       j.watched <- y :: old_watched;
       add_job j y
@@ -548,18 +562,20 @@ let update_watch x j =
       enqueue_job j (get_assign_level x);
       add_job j x
   with Not_found ->
-    let ext = Plugin.get j.job_ext in
-    Util.error ~section
-      "Error for job from %s@ looking for %d, called by %a@\nwatched:@ @[<hov>%a@]@\nnot_watched:@ @[<hov>%a@]"
-      ext.Plugin.name j.job_n Expr.Print.term x
+    Util.error ~section:watch_section
+      "Error for job %a@ looking for %d, called by %a@\nwatched:@ @[<hov>%a@]@\nnot_watched:@ @[<hov>%a@]"
+      pp_job j j.job_n Expr.Print.term x
       CCFormat.(list ~sep:(return " ||@ ") Expr.Print.term) j.watched
       CCFormat.(list ~sep:(return " ||@ ") Expr.Print.term) j.not_watched;
     assert false
 
 (* Create a new job *)
+let _jobs = ref 0
 let new_job ?formula id k section watched not_watched f =
   Stats.incr stats_watchers section;
+  incr _jobs;
   {
+    job_id = !_jobs;
     job_ext = id;
     job_n = k;
     job_section = section;
@@ -572,25 +588,25 @@ let new_job ?formula id k section watched not_watched f =
 
 (* Add a new assignment, and if needed update watches (and maybe enqueue some jobs) *)
 let set_assign t v =
-  Util.enter_prof section;
+  Util.enter_prof watch_section;
   match B.find eval_map t with
   (* Term is already assigned, check that the values are equal. *)
   | _, v' ->
-    Util.debug ~section "Assigned:@ @[<hov>%a ->@ %a@]@\nAssigning:@ @[<hov>%a ->@ %a@]"
+    Util.debug ~section:watch_section "Assigned:@ @[<hov>%a ->@ %a@]@\nAssigning:@ @[<hov>%a ->@ %a@]"
       Expr.Print.term t Expr.Print.term v'
       Expr.Print.term t Expr.Print.term v;
     if not (Expr.Term.equal v v') then
       _fail "Incoherent assignments";
-    Util.exit_prof section
+    Util.exit_prof watch_section
   (* Term is not already assigned, update the watches. *)
   | exception Not_found ->
-    Util.debug ~section "Assign:@ @[<hov>%a ->@ %a@]"
-      Expr.Print.term t Expr.Print.term v;
+    Util.debug ~section:watch_section "Assign (%d):@ @[<hov>%a ->@ %a@]"
+      (current_assign_level ()) Expr.Print.term t Expr.Print.term v;
     B.add eval_map t (current_assign_level (), v);
     let l = get_watched t in
-    Util.debug ~section "Found %d watchers" (List.length l);
+    Util.debug ~section:watch_section "Found %d watchers" (List.length l);
     let () = List.iter (update_watch t) l in
-    Util.exit_prof section
+    Util.exit_prof watch_section
 
 (* watch fuction added to evaluate a term [t],
    using function [f], which itself need terms in [l] to be assigned.
@@ -641,22 +657,23 @@ and watch_aux ?formula section plugin_id k args f =
   let rec split assigned not_assigned i = function
     | l when i <= 0 ->
       let j = new_job ?formula plugin_id k section not_assigned (List.rev_append l assigned) f in
-      List.iter (add_job j) not_assigned
+      let () = List.iter (add_job j) not_assigned in
+      Util.debug ~section:watch_section "Watch added: %a" pp_job j
     | [] (* i > 0 *) ->
       let lvls = List.map get_assign_level assigned in
       let lvl = List.fold_left max 0 lvls in
       let l = List.rev_append not_assigned assigned in
       let to_watch, not_watched = CCList.take_drop k l in
       let j = new_job ?formula plugin_id k section to_watch not_watched f in
-      List.iter (add_job j) to_watch;
-      enqueue_job j lvl
+      let () = List.iter (add_job j) to_watch in
+      let () = enqueue_job j lvl in
+      Util.debug ~section:watch_section "Watch added: %a" pp_job j
     | y :: r (* i > 0 *) ->
       if is_assigned y then
         split (y :: assigned) not_assigned i r
       else
         split assigned (y :: not_assigned) (i - 1) r
   in
-  Util.debug ~section "Watch added";
   split [] [] k (List.sort_uniq Expr.Term.compare args)
 
 (* Make a function to register new watches. This should be the only watch function
@@ -671,11 +688,11 @@ and mk_watch (type t) (module A : Hashtbl.HashedType with type t = t) ext_name =
      let plugin = Plugin.find ext_name in
      let section = Plugin.(plugin.ext.section) in
      let tag = Plugin.(plugin.id) in
-     Util.debug ~section "New watch from %s, %d among:@ @[<hov>%a@]"
+     Util.debug ~section:watch_section "New watch from %s, %d among:@ @[<hov>%a@]"
        Plugin.((get tag).name) k
        CCFormat.(list ~sep:(return " ||@ ") Expr.Print.term) args;
      if H.mem h key then
-       Util.debug ~section "redundant watch"
+       Util.debug ~section:watch_section "redundant watch"
      else begin
        H.add h key ();
        watch_aux ?formula section tag k args f

@@ -177,20 +177,23 @@ let eq_assign x =
     Util.debug ~section "Looking up tag for: %a" Expr.Print.term x;
     begin match E.find_tag st x with
       | _, Some (_, v) ->
-        Util.debug ~section "Found tag : %a" Expr.Print.term v;
+        Util.debug ~section "  Found tag : %a" Expr.Print.term v;
         v
-      | x, None ->
-        Util.debug ~section "Looking up repr : %a" Expr.Print.term x;
-        let res = try D.get_assign x with D.Not_assigned _ -> x in
+      | y, None ->
+        Util.debug ~section "  No tag found, Looking up repr : %a" Expr.Print.term y;
+        let res = try D.get_assign y with D.Not_assigned _ -> y in
         res
     end
   with E.Unsat (a, b, l) ->
+    Util.error ~section "Wut ?!";
     raise (D.Absurd (mk_expl (a, b, l), mk_proof l))
 
 let assume = function
   | { Expr.formula = Expr.Equal (a, b)} ->
+    Util.debug ~section "Assume: %a == %a" Expr.Term.print a Expr.Term.print b;
     wrap E.add_eq a b;
   | { Expr.formula = Expr.Not { Expr.formula = Expr.Equal (a, b)} } ->
+    Util.debug ~section "Assume: %a <> %a" Expr.Term.print a Expr.Term.print b;
     wrap E.add_neq a b;
   | _ -> ()
 
