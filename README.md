@@ -7,7 +7,7 @@ modulo rewriting.
 
 ## LICENSE
 
-TODO
+MIT (see file LICENSE).
 
 ## Installation
 
