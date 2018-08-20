@@ -36,7 +36,7 @@ let pp_lazy lang s o x pp =
   | Some fmt ->
     begin try
         let p = Lazy.force x in
-        CCOpt.iter (Util.info ~section "Printing proof for %s") lang;
+        CCOpt.iter (Util.log ~section "Printing proof for %s") lang;
         Util.enter_prof s;
         Format.fprintf fmt "%a@." pp p;
         CCOpt.iter (Util.info ~section "Finished printing proof for %s") lang;
@@ -235,7 +235,7 @@ let output_proof opt p =
   let g = gid.Expr.id_type in
   (* Lazuly compute the proof using the msat backend *)
   let proof = lazy (
-    Util.info ~section "Computing proof";
+    Util.log ~section "Computing proof";
     Util.enter_prof proof_section;
     let hyps = get_hyps () in
     let env =
@@ -252,7 +252,7 @@ let output_proof opt p =
   ) in
   (* Lazily compute the script *)
   let script = lazy (
-    Util.info ~section "Computing script";
+    Util.log ~section "Computing script";
     Util.enter_prof script_section;
     let hyps = get_hyps () in
     let env =
@@ -270,7 +270,7 @@ let output_proof opt p =
   (* Lazily compute the script term *)
   let term = lazy (
     let p = Lazy.force script in
-    Util.info ~section "Computing proof term";
+    Util.log ~section "Computing proof term";
     Util.enter_prof elaboration_section;
     let t = Proof.elaborate p in
     Util.exit_prof elaboration_section;
@@ -279,7 +279,7 @@ let output_proof opt p =
   (* Lazily compute the script normalized term *)
   let norm = lazy (
     let p, t = Lazy.force term in
-    Util.info ~section "Computing normalized proof term";
+    Util.log ~section "Computing normalized proof term";
     Util.enter_prof normalisation_section;
     let t' = Term.reduce t in
     Util.exit_prof normalisation_section;
