@@ -11,9 +11,9 @@ module H = Backtrack.Hashtbl(Expr.Term)
 
 type info =
   | Fun of Expr.term list * Expr.term list *
-           Expr.Id.Const.t * Expr.term * Expr.term
+           Expr.Id.Const.t * Expr.ty list * Expr.term * Expr.term
   | Pred of Expr.term list * Expr.term list *
-            Expr.Id.Const.t * Expr.formula * Expr.formula
+            Expr.Id.Const.t * Expr.ty list * Expr.formula * Expr.formula
 
 type Dispatcher.lemma_info += UF of info
 
@@ -44,18 +44,18 @@ let set_interpretation t = fun () ->
               let l' = List.map Expr.Formula.neg eqs in
               if Expr.(Term.equal u_v Builtin.Misc.p_true) then begin
                 let res = p :: Expr.Formula.neg p' :: l' in
-                let proof = mk_proof (Pred (l, r, f, p, p')) in
+                let proof = mk_proof (Pred (l, r, f, tys, p, p')) in
                 raise (Dispatcher.Absurd (res, proof))
               end else begin
                 let res = p' :: Expr.Formula.neg p :: l' in
-                let proof = mk_proof (Pred (r, l, f, p', p)) in
+                let proof = mk_proof (Pred (r, l, f, tys, p', p)) in
                 raise (Dispatcher.Absurd (res, proof))
               end
             | { Expr.term = Expr.App (_, _, r) } ->
               let eqs = List.map2 (fun a b -> Expr.Formula.eq a b) l r in
               let l' = List.map Expr.Formula.neg eqs in
               let res = Expr.Formula.eq t t' :: l' in
-              let proof = mk_proof (Fun (l, r, f, t, t')) in
+              let proof = mk_proof (Fun (l, r, f, tys, t, t')) in
               raise (Dispatcher.Absurd (res, proof))
             | _ -> assert false
           end
@@ -87,17 +87,18 @@ let rec set_watcher = function
 (* ************************************************************************ *)
 
 let dot_info = function
-  | Fun (_, _, _, t, t') ->
+  | Fun (_, _, _, _, t, t') ->
     None, List.map (CCFormat.const Dot.Print.term) [t; t']
-  | Pred (_, _, _, t, t') ->
+  | Pred (_, _, _, _, t, t') ->
     None, List.map (CCFormat.const Dot.Print.formula) [t; t']
 
 
 let coq_proof = function
-  | Fun (l, r, f, a, b) -> (* We want to prove:
+  | Fun (l, r, f, tys, a, b) -> (* We want to prove:
                                ~ ~ x1 = y1 -> ... -> ~ ~ xn = yn -> ~ f(x1,.., xn) = f(y1,..,yn) -> False
                                with l = [x1; ..; xn], r = [y1; ..; yn] *)
-    let t = Term.(of_id ~kind:`Cst @@ of_function_descr of_ttype of_ty) f in
+    let t_f = Term.(of_id ~kind:`Cst @@ of_function_descr of_ttype of_ty) f in
+    let t = Term.apply t_f (List.map Term.of_ty tys) in
     let eqs = List.combine (List.map Term.of_term l) (List.map Term.of_term r) in
     let a_t = Term.of_term a in
     let b_t = Term.of_term b in
@@ -109,10 +110,11 @@ let coq_proof = function
                 |> Logic.fold (Logic.normalize "E") !intros
                 |> Logic.find (Term.app Term.not_term goal) @@ Logic.apply1 []
                 |> Eq.congruence_term t eqs)
-  | Pred (l, r, f, a, b) -> (* We want to prove:
+  | Pred (l, r, f, tys, a, b) -> (* We want to prove:
                                ~ ~ x1 = y1 -> ... -> ~ ~ xn = yn -> ~ ~ f(x1,.., xn) -> ~ f(y1,..,yn) -> False
                                with l = [x1; ..; xn], r = [y1; ..; yn], a = f(x1, ..,xn), b = f(y1,..,yn) *)
-    let t = Term.(of_id ~kind:`Cst @@ of_function_descr of_ttype of_ty) f in
+    let t_f = Term.(of_id ~kind:`Cst @@ of_function_descr of_ttype of_ty) f in
+    let t = Term.apply t_f (List.map Term.of_ty tys) in
     let eqs = List.combine (List.map Term.of_term l) (List.map Term.of_term r) in
     let a_t = Term.of_formula a in
     let intros = ref [] in

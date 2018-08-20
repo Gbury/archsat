@@ -1,0 +1,10 @@
+
+BIN=../archsat
+OPT=-x +rwrt
+NAME=prove/rewriting
+TESTS= \
+	$(patsubst %,%.coqfull,$(shell find . -maxdepth 1 -name '*.smt2' -o -name '*.zf' | sort -n)) \
+	$(patsubst %,%.dk,$(shell find . -maxdepth 1 -name '*.smt2' -o -name '*.zf' | sort -n))
+
+include ../Makefile.shared
+

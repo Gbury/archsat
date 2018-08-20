@@ -361,7 +361,10 @@ let congruence_term f xys pos =
   | [] -> raise (Proof.Failure ("Eq.congruence", pos))
   | [x, y] ->
     begin match Proof.match_arrow @@ Term.ty f with
-      | None -> raise (Proof.Failure ("Eq.congruence", pos))
+      | None ->
+        Util.error ~section "@[<hv>Couldn't match arrow type for:@ %a : @[<hov>%a@]@]"
+          Term.print f Term.print (Term.ty f);
+        raise (Proof.Failure ("Eq.congruence", pos))
       | Some (a, b) ->
         assert (Term.Reduced.equal a @@ Term.ty x);
         assert (Term.Reduced.equal (Term.ty x) (Term.ty y));
