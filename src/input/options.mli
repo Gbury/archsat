@@ -112,6 +112,7 @@ type opts = {
 
   (* Typing options *)
   typing  : typing_options;
+  translate         : bool;
 
   (* Proof&model options *)
   proof   : proof_options;

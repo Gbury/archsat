@@ -56,6 +56,6 @@ let declare_goal ?loc opt implicit t =
   ()
 
 let declare_solve ?loc opt () =
-  let () =pp_opt (Tptp.declare_solve ?loc) Options.(opt.output.tptp) () in
+  let () = pp_opt (Tptp.declare_solve ?loc) Options.(opt.output.tptp) () in
   ()
 

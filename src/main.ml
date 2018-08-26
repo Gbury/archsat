@@ -104,7 +104,7 @@ let () =
               @>|> (f_map ~name:"typecheck" ~test:Pipe.run_typecheck Pipe.typecheck)
               @>|> (f_map ~name:"solve" Pipe.solve)
               @>|> (iter_ ~name:"print_res" Pipe.print_res)
-              @>>> (f_map ~name:"translate" Pipe.translate)
+              @>>> (f_map ~name:"translate" ~test:Pipe.run_translate Pipe.translate)
               @>|> (iter_ ~name:"export" Pipe.export)
               @>>> (iter_ ~name:"print_proof" Pipe.print_proof)
               @>>> (iter_ ~name:"print_model" Pipe.print_model)

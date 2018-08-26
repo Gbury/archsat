@@ -1076,6 +1076,11 @@ and of_tree ?callback t = function
   | Expr.F f -> of_formula ?callback f
   | Expr.L l -> apply_left t @@ List.map (of_tree ?callback t) l
 
+let trap, clean_traps =
+  let l = ref [] in
+  (fun f -> l := f :: !l),
+  (fun () -> List.iter (fun f -> f ()) (List.rev !l); l := [])
+
 (* Disambiguate terms *)
 (* ************************************************************************ *)
 

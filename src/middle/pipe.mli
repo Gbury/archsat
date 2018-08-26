@@ -119,6 +119,9 @@ val solve : Options.opts * typechecked stmt -> solved stmt
 val print_res : Options.opts * solved stmt -> unit
 (** Print the results of solved statements *)
 
+val run_translate : Options.opts -> bool
+(** Should translation (and subsequent passes) be run ? *)
+
 val translate : Options.opts * solved stmt -> translated stmt
 (** Translate statements into proof statements *)
 

@@ -376,7 +376,10 @@ let mk_callback () =
   in
   (fun () -> List.rev !l), callback
 
+let run_translate opt = Options.(opt.translate)
+
 let translate (opt, (c : solved stmt)) =
+  Term.clean_traps ();
   match c with
   | ({ contents = `Executed; _ } as res)
   | ({ contents = `Skipped; _ } as res)

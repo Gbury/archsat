@@ -108,6 +108,7 @@ type opts = {
 
   (* Typing options *)
   typing  : typing_options;
+  translate         : bool;
 
   (* Proof&model options *)
   proof   : proof_options;
@@ -260,7 +261,8 @@ let set_opts gc gc_opt bt quiet lvl log_time debug msat_log colors opt =
 
 let mk_opts
     input output typing
-    proof model
+    (proof  : proof_options)
+    (model  : model_options)
     profile stats
     no_solve
     plugins addons
@@ -268,12 +270,13 @@ let mk_opts
   =
   {
     status = Ok;
+    input; output;
+    typing; proof; model;
 
-    input;
-    output;
-    typing;
-    proof;
-    model;
+    translate =
+      model.active ||
+      proof.active ||
+      output.tptp <> None;
 
     solve = not no_solve;
     addons = List.concat addons;
@@ -365,11 +368,12 @@ let bool_opt s bool = if bool then Printf.sprintf "[%s]" s else ""
 let log_opts opt =
   Util.log "Limits : %s / %a"
     (time_string opt.time_limit) print_size opt.size_limit;
-  Util.log "Options : %s%s%s%s%s[in: %s][out: %s]"
+  Util.log "Options : %s%s%s%s%s%s[in: %s][out: %s]"
     (output_mode opt.input.mode)
     (bool_opt "type" opt.typing.typing)
     (bool_opt "solve" opt.solve)
     (bool_opt "prove" opt.proof.active)
+    (bool_opt "translate" opt.translate)
     (bool_opt "profile" opt.profile.enabled)
     (CCOpt.get_or ~default:"auto" @@
      CCOpt.map In.string_of_language @@ opt.input.format)

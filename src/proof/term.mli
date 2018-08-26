@@ -256,6 +256,16 @@ val trap_ty : Expr.ty -> t -> unit
 val trap_term : Expr.term -> t -> unit
 (** Force translation for given types and terms. *)
 
+val trap : (unit -> unit) -> unit
+(** Allow to register a "trap", basically a side-effect computation,
+    in relation to translation to proof terms. Since translation of complex
+    proof terms can be costly (most notably epsilon terms), it is advisable
+    to delay them until "after" proof search, and perform it only if proof ouptut
+    is activated. *)
+
+val clean_traps : unit -> unit
+(** Call all registered traps. *)
+
 
 (** {2 Term substitution} *)
 

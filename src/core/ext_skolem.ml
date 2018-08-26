@@ -116,26 +116,23 @@ let inst_epsilon get_tag tag trap inhabited e t =
     end
 
 let mk_proof f q types terms =
-  Util.debug ~section "mk_proof: @[<v>%a@ [@[<hov>%a]@]@ [@[<hov>%a]@]@ %a@]"
-    Expr.Formula.print f
-    CCFormat.(list ~sep:(return ";@ ") Expr.Ty.print) types
-    CCFormat.(list ~sep:(return ";@ ") Expr.Term.print) terms
-    Expr.Formula.print q;
-  let t = Term.of_formula f in
-  let t = List.fold_left (fun t e ->
-      let inhabited = Term.apply Quant.inhabits_term
-          [Term._Type; Term.of_ty ~callback:Prove.add_implicit Synth.ty] in
-      inst_epsilon Expr.Ty.get_tag Expr.Ty.tag Term.trap_ty inhabited e t
-    ) t types in
-  let t = List.fold_left (fun t e ->
-      let e_ty = e.Expr.t_type in
-      Util.debug ~section "  |- @[<hv>%a :@ %a@]"
-        Expr.Term.print e Expr.Ty.print e_ty;
-      let inhabited = Term.apply Quant.inhabits_term
-          [Term.of_ty e_ty; Term.of_term ~callback:Prove.add_implicit @@ Synth.term e_ty] in
-      inst_epsilon Expr.Term.get_tag Expr.Term.tag Term.trap_term inhabited e t
-    ) t terms in
-  assert (Term.Reduced.equal t (Term.of_formula q));
+  Term.trap (fun () ->
+      let t = Term.of_formula f in
+      let t = List.fold_left (fun t e ->
+          let inhabited = Term.apply Quant.inhabits_term
+              [Term._Type; Term.of_ty ~callback:Prove.add_implicit Synth.ty] in
+          inst_epsilon Expr.Ty.get_tag Expr.Ty.tag Term.trap_ty inhabited e t
+        ) t types in
+      let t = List.fold_left (fun t e ->
+          let e_ty = e.Expr.t_type in
+          Util.debug ~section "  |- @[<hv>%a :@ %a@]"
+            Expr.Term.print e Expr.Ty.print e_ty;
+          let inhabited = Term.apply Quant.inhabits_term
+              [Term.of_ty e_ty; Term.of_term ~callback:Prove.add_implicit @@ Synth.term e_ty] in
+          inst_epsilon Expr.Term.get_tag Expr.Term.tag Term.trap_term inhabited e t
+        ) t terms in
+      assert (Term.Reduced.equal t (Term.of_formula q))
+    );
   Dispatcher.mk_proof "skolem" "inst" (Sk (Inst (f, types, terms, q)))
 
 
