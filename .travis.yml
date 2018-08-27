@@ -1,12 +1,10 @@
 language: c
 env:
   # Check that the package installs correctly with and without its test dependencies using opam
-  - TO_TEST=install OPAMBUILDTEST=false OCAML_VERSION=4.03.0
-  - TO_TEST=install OPAMBUILDTEST=true OCAML_VERSION=4.03.0
+  - TO_TEST=install OPAMBUILDTEST=false OCAML_VERSION=4.04.2
+  - TO_TEST=install OPAMBUILDTEST=true OCAML_VERSION=4.04.2
   # Check build and unit tests
   # NOTE: testing needs OPAMBUILDTEST=true so that test deps are installed
-  - TO_TEST=tests OPAMBUILDTEST=true OCAML_VERSION=4.03.0
-  - TO_TEST=tests OPAMBUILDTEST=true OCAML_VERSION=4.03.0+flambda
   - TO_TEST=tests OPAMBUILDTEST=true OCAML_VERSION=4.04.2
   - TO_TEST=tests OPAMBUILDTEST=true OCAML_VERSION=4.04.2+flambda
   - TO_TEST=tests OPAMBUILDTEST=true OCAML_VERSION=4.05.0
@@ -45,8 +43,8 @@ before_install:
   - eval `${HOME}/opam config env`
   - export OPAMVERBOSE=1
   # Archsat requires the dev version of dolmen and msat currently
-  - ${HOME}/opam pin add --dev-repo msat
   - ${HOME}/opam pin add --dev-repo dolmen
+  - ${HOME}/opam pin add --dev-repo msat
 
 # Pin the archsat repo
 install:
