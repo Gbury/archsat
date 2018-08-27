@@ -19,7 +19,7 @@ static:
 
 test: test-lib test-bin
 
-test-lib: lib
+test-lib:
 	@echo "RUN API tests"
 	$(MAKE) -C src test
 

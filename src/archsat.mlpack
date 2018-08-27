@@ -54,12 +54,14 @@ Ext_functions
 Ext_constraints
 
 # Proof manipulations
+Eq
 Dot
 Coq
 Term
 Proof
+Prove
 Logic
-Tactics
+Quant
 Unsat_core
 
 ##### Testing Modules #####
@@ -88,7 +90,6 @@ Meta_test
 
 # Debug modules
 Time
-Logs
 Level
 Stats
 Section

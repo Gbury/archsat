@@ -23,7 +23,7 @@ true: inline(100), optimize(3), unbox_closures, unbox_closures_factor(20)
 
 # Pack management
 <util/*.*>: for-pack(Archsat)
-<base/*.*>:for-pack(Archsat)
+<base/*.*>: for-pack(Archsat)
 <misc/*.*>: for-pack(Archsat)
 <core/*.*>: for-pack(Archsat)
 <test/*.*>: for-pack(Archsat)

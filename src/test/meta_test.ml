@@ -56,7 +56,8 @@ let simple_cached () =
 
 let super_each rules =
   let res = ref [] in
-  let s = Superposition.empty ~rules section (fun m -> res := m :: !res) in
+  let s = Superposition.empty ~rules section
+      ~callback:(fun _ m -> res := m @ !res) in
   (fun acc t t' ->
      let _ = Superposition.solve (Superposition.add_neq s t t') in
      match !res with
@@ -70,7 +71,8 @@ let super_each rules =
 
 let super_all rules state =
   let res = ref S.empty in
-  let s = Superposition.empty ~rules section (fun m -> res := S.add m !res) in
+  let s = Superposition.empty ~rules section
+      ~callback:(fun _ m -> res := List.fold_right S.add m !res) in
   let s' = Ext_meta.fold_diff (fun acc a b -> Superposition.add_neq acc a b) s state in
   let _ = Superposition.solve s' in
   !res

@@ -56,7 +56,7 @@ install:
 # Test script
 script:
   # Build and launch the tests
-  - if [ "$TO_TEST" = "tests" ]; then make; fi
+  - if [ "$TO_TEST" = "tests" ]; then make test; fi
   # Try and install the package with opam
   - if [ "$TO_TEST" = "install" ]; then ${HOME}/opam install archsat.dev; fi
 
