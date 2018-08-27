@@ -27,6 +27,7 @@ remove: [
 depends: [
   "ocamlfind" { build }
   "ocamlbuild" { build }
+  "dedukti" { test }
   "qcheck" { test & >= "dev" }
   "dolmen" { >= "dev" }
   "msat" { >= "0.6.1" }
