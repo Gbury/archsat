@@ -1,0 +1,49 @@
+language: c
+env:
+  # Check that the package installs correctly with and without its test dependencies using opam
+  - TO_TEST=install OPAMBUILDTEST=false OCAML_VERSION=4.03.0
+  - TO_TEST=install OPAMBUILDTEST=true OCAML_VERSION=4.03.0
+  # Check build and unit tests
+  # NOTE: testing needs OPAMBUILDTEST=true so that test deps are installed
+  - TO_TEST=tests OPAMBUILDTEST=true OCAML_VERSION=4.03.0
+  - TO_TEST=tests OPAMBUILDTEST=true OCAML_VERSION=4.03.0+flambda
+  - TO_TEST=tests OPAMBUILDTEST=true OCAML_VERSION=4.04.2
+  - TO_TEST=tests OPAMBUILDTEST=true OCAML_VERSION=4.04.2+flambda
+  - TO_TEST=tests OPAMBUILDTEST=true OCAML_VERSION=4.05.0
+  - TO_TEST=tests OPAMBUILDTEST=true OCAML_VERSION=4.05.0+flambda
+  - TO_TEST=tests OPAMBUILDTEST=true OCAML_VERSION=4.06.1
+  - TO_TEST=tests OPAMBUILDTEST=true OCAML_VERSION=4.06.1+flambda
+  - TO_TEST=tests OPAMBUILDTEST=true OCAML_VERSION=4.07.0
+  - TO_TEST=tests OPAMBUILDTEST=true OCAML_VERSION=4.07.0+flambda
+#matrix:
+#  allow_failures:
+#    #- env: TO_TEST=tests OPAMBUILDTEST=true OCAML_VERSION=4.06.0
+#    #- env: TO_TEST=tests OPAMBUILDTEST=true OCAML_VERSION=4.06.0+flambda
+# Caching may take a lot of space with so many ocaml versions
+#cache:
+#  directories:
+#    - $HOME/.opam
+before_install:
+  # Download and use opam2
+  - wget -O ${HOME}/opam https://github.com/ocaml/opam/releases/download/2.0-alpha4/opam-2.0-alpha4-x86_64-Linux
+  - chmod +x ${HOME}/opam
+  # Some opam boilerplate
+  - export OPAMYES=1
+  - export OPAMJOBS=2
+  # Init opam, and the default switch with the right ocaml version
+  - ${HOME}/opam init --compiler=${OCAML_VERSION}
+  - eval `${HOME}/opam config env`
+  - export OPAMVERBOSE=1
+  # Testing requires the dev version of dolmen and msat currently
+  - if [ "$OPAMBUILDTEST" = "true" ]; then ${HOME}/opam pin add --dev-repo msat; fi
+  - if [ "$OPAMBUILDTEST" = "true" ]; then ${HOME}/opam pin add --dev-repo dolmen; fi
+install:
+  # Install dependencies
+  - ${HOME}/opam pin add --no-action archsat .
+  - ${HOME}/opam install --deps-only archsat.dev
+script:
+  # Build and launch the tests
+  - if [ "$TO_TEST" = "tests" ]; then make; fi
+  # Try and install the package with opam
+  - if [ "$TO_TEST" = "install" ]; then ${HOME}/opam install archsat.dev; fi
+
