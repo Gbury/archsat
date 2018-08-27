@@ -351,9 +351,9 @@ let unif_f st = function
         | _ -> acc
       ) t (Ext_rewrite.get_active ()) in
     (* saturating equalities *)
-    Util.debug ~section "Saturating equalities.";
+    Util.info ~section "Saturating equalities.";
     let t = Superposition.solve t in
-    Util.debug ~section "Saturation complete.";
+    Util.info ~section "Saturation complete.";
     (* adding unification targets *)
     let n = fold_diff (fun acc _ _ -> acc + 1) 0 st in
     Util.info ~section "Folding over %d pair of terms" n;
@@ -415,9 +415,9 @@ let unif_f st = function
         | _ -> acc
       ) t (Ext_rewrite.get_active ()) in
     let t = lazy (
-      Util.debug ~section "Saturating equalities.";
+      Util.info ~section "Saturating equalities and rewrite rules.";
       let res = Superposition.solve t in
-      Util.debug ~section "Saturation complete.";
+      Util.info ~section "Saturation complete.";
       res
     ) in
     let n = fold_diff (fun acc _ _ -> acc + 1) 0 st in

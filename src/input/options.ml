@@ -212,6 +212,7 @@ let proof_opts prove no_context coq dot dedukti unsat_core =
                || dot.incr <> None
                || dot.res <> None
                || dot.full <> None
+               || coq.msat <> None
                || coq.script <> None
                || coq.term <> None
                || coq.norm <> None

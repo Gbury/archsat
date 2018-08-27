@@ -54,8 +54,17 @@ let attach t group =
 (* Print statistics *)
 (* ************************************************************************ *)
 
+let ignore_group g =
+  g.sections = [] || g.stats = [] || (
+    List.for_all (fun s ->
+        List.for_all (fun stat ->
+            get stat s = 0
+          ) g.stats
+    ) g.sections
+  )
+
 let print_stats_group g =
-  if g.sections = [] || g.stats = [] then ()
+  if ignore_group g then ()
   else begin
     let l = "Sections" :: (List.map (fun s -> s.name) g.stats) in
     let sections = PrintBox.(vlist ~bars:false (

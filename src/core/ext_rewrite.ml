@@ -27,6 +27,37 @@ type lemma_info = Subst of Expr.formula * Expr.formula * Rewrite.Subst.t list
 
 type Dispatcher.lemma_info += Rewrite of lemma_info
 
+(* Statistics *)
+(* ************************************************************************ *)
+
+let stats_static = Stats.mk "static"
+
+let stats_norm = Stats.mk "rewrites"
+let stats_steps = Stats.mk "steps"
+let stats_eqmatch = Stats.mk "match modulo eq"
+let stats_narrow = Stats.mk "narrow"
+
+let static_group = Stats.bundle [
+    stats_static;
+    stats_norm;
+    stats_steps;
+    stats_eqmatch;
+    stats_narrow;
+  ]
+
+let stats_dynamic = Stats.mk "dynamic"
+let stats_triggered = Stats.mk "triggered"
+let stats_applied = Stats.mk "applied"
+
+let dynamic_group = Stats.bundle [
+    stats_dynamic;
+    stats_triggered;
+    stats_applied;
+  ]
+
+let () = Stats.attach section static_group
+let () = Stats.attach section dynamic_group
+
 (* Plugin state *)
 (* ************************************************************************ *)
 
@@ -412,6 +443,7 @@ let insts = CCCache.unbounded 4013
 
 let instanciate rule subst =
   CCCache.with_cache insts (fun (rule, subst) ->
+      Stats.incr stats_triggered section;
       Util.debug ~section "@[<hov 2>Instanciate %a@ with@ %a"
         (Rewrite.Rule.print ~term:Expr.Print.term ~formula:Expr.Print.formula)
         rule Mapping.print subst;
@@ -437,6 +469,7 @@ let instanciate rule subst =
                Util.debug ~section "False condition:@ %a"
                  (Rewrite.Guard.print ~term:Expr.Term.print) g
              with Not_found ->
+               Stats.incr stats_applied section;
                Util.debug ~section "All conditions true, pushing rewrite";
                let clause, lemma =
                  Inst.soft_subst ~name:"trigger" rule.Rewrite.Rule.formula subst in
@@ -453,8 +486,10 @@ let match_and_instantiate ~pat ~expr ~only_eq ~match_fun (rule, t, c) =
       Util.debug ~section:section_trigger "match found:@ %a" Mapping.print subst;
       if only_eq && not eq_used then
         Util.debug ~section "Ignoring match because no equality was used to match"
-      else
+      else begin
+        Stats.incr stats_eqmatch section;
         instanciate rule subst
+      end
     ) seq
 
 let match_and_instantiate_term =
@@ -554,6 +589,8 @@ let substitute f =
   | f', substs ->
     assert (not (Expr.Formula.equal f f'));
     assert (not (Expr.Formula.get_tag f normal_form = Some true));
+    Stats.incr stats_norm section;
+    Stats.incr stats_steps section ~k:(List.length substs);
     substitution_used := true;
     Expr.Formula.tag f' normal_form true;
     Util.debug ~section:section_subst "@[<hv 2>Normalized term@ %a@ into@ %a@ using@ @[<hv>%a@]"
@@ -580,8 +617,12 @@ let rec add_rule r =
   | false, Some Auto, false ->
     let kind = split r in
     let () = match kind with
-      | Substitution -> active_subst_rules := r :: !active_subst_rules
-      | Trigger -> active_trigger_rules := r :: !active_trigger_rules
+      | Substitution ->
+        Stats.incr stats_static section;
+        active_subst_rules := r :: !active_subst_rules
+      | Trigger ->
+        Stats.incr stats_dynamic section;
+        active_trigger_rules := r :: !active_trigger_rules
     in
     Expr.Formula.tag r.Rewrite.Rule.formula tag true;
     callback_rule r kind
@@ -593,7 +634,7 @@ let rec add_rule r =
     inactive_rules := r :: !inactive_rules
   | false, Some Auto, true ->
     if is_current_mode_forced () then begin
-      Util.warn ~section "@[<hov>%s,@ %s@]"
+      Util.error ~section "@[<hov>%s,@ %s@]"
         "Manual rule detected while in forced auto mode"
         "please check that everything is as should be...";
     end else begin
@@ -611,6 +652,8 @@ let rec add_rule r =
             Rewrite.Rule.print ~term:Expr.Print.term ~formula:Expr.Print.formula)
           ) (!active_subst_rules @ !active_trigger_rules);
       let l = !inactive_rules in
+      Stats.set stats_static section 0;
+      Stats.set stats_dynamic section 0;
       inactive_rules := !active_trigger_rules @ !active_subst_rules;
       active_subst_rules := [];
       active_trigger_rules := [];
@@ -630,7 +673,9 @@ let do_narrowing () =
           Util.debug ~section:section_narrow
             "@[<hv 2>Found a unifier:@ %a@]" Mapping.print m;
           List.iter (fun m ->
-              ret := Inst.add ~name:"narrowing" m || !ret
+              let b = Inst.add ~name:"narrowing" m in
+              if b then Stats.incr stats_narrow section;
+              ret := b || !ret
             ) (Inst.partition @@ Inst.generalize m)
         ) l
     );
