@@ -44,9 +44,9 @@ before_install:
   - ${HOME}/opam init --compiler=${OCAML_VERSION}
   - eval `${HOME}/opam config env`
   - export OPAMVERBOSE=1
-  # Testing requires the dev version of dolmen and msat currently
-  - if [ "$OPAMBUILDTEST" = "true" ]; then ${HOME}/opam pin add --dev-repo msat; fi
-  - if [ "$OPAMBUILDTEST" = "true" ]; then ${HOME}/opam pin add --dev-repo dolmen; fi
+  # Archsat requires the dev version of dolmen and msat currently
+  - ${HOME}/opam pin add --dev-repo msat; fi
+  - ${HOME}/opam pin add --dev-repo dolmen; fi
 
 # Pin the archsat repo
 install:
