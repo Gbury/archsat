@@ -28,7 +28,7 @@ depends: [
   "ocamlfind" { build }
   "ocamlbuild" { build }
   "dedukti" { test }
-  "qcheck" { test & >= "dev" }
+  "qcheck" { test & >= "0.8" }
   "dolmen" { >= "dev" }
   "msat" { >= "0.6.1" }
   "containers" { >= "2.0" }
