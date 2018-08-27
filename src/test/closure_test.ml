@@ -146,10 +146,3 @@ let closure_qtests = [
   closure_check;
 ]
 
-let closure_tests =
-  let open OUnit2 in
-  "Closure" >:::
-  List.map QCheck_runner.to_ounit2_test closure_qtests
-
-
-

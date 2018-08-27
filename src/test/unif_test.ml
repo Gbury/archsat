@@ -68,11 +68,6 @@ let unif_qtests = [
   fixpoint_proj;
 ]
 
-let unif_tests =
-  let open OUnit2 in
-  "Unif" >:::
-  List.map QCheck_runner.to_ounit2_test unif_qtests
-
 (* Problem generation *)
 (* ************************************************************************ *)
 
@@ -126,10 +121,5 @@ let robinson_qtests = [
   robinson_subst;
   subst_robinson;
 ]
-
-let robinson_tests =
-  let open OUnit2 in
-  "Robinson" >:::
-  List.map QCheck_runner.to_ounit2_test robinson_qtests
 
 

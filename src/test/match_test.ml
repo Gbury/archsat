@@ -83,8 +83,3 @@ let match_qtests = [
   subst_match;
 ]
 
-let match_tests =
-  let open OUnit2 in
-  "Match" >:::
-  List.map QCheck_runner.to_ounit2_test match_qtests
-

@@ -140,11 +140,6 @@ let correct_qtests = [
   fingerprint_correct_unify;
 ]
 
-let correct_tests =
-  let open OUnit2 in
-  "Index_correct" >:::
-  List.map QCheck_runner.to_ounit2_test correct_qtests
-
 (* Completeness check *)
 (* ************************************************************************ *)
 
@@ -239,9 +234,5 @@ let complete_qtests = [
   fingerprint_complete_unify;
 ]
 
-let complete_tests =
-  let open OUnit2 in
-  "Index_complete" >:::
-  List.map QCheck_runner.to_ounit2_test complete_qtests
 
 
