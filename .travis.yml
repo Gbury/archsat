@@ -42,7 +42,8 @@ before_install:
   - ${HOME}/opam init --compiler=${OCAML_VERSION}
   - eval `${HOME}/opam config env`
   - export OPAMVERBOSE=1
-  # Archsat requires the dev version of dolmen and msat currently
+  # Archsat requires the dev version of qcheck, dolmen, and msat currently
+  - ${HOME}/opam pin add --dev-repo qcheck
   - ${HOME}/opam pin add --dev-repo dolmen
   - ${HOME}/opam pin add --dev-repo msat
 
