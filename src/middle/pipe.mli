@@ -65,7 +65,7 @@ type proof_sequent = [
 ]
 
 type solve = [
-  | `Solve
+  | `Solve of Expr.formula list
 ]
 (** Top-level solve instruction *)
 

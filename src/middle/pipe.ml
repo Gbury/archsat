@@ -69,7 +69,7 @@ type proof_sequent = [
 ]
 
 type solve = [
-  | `Solve
+  | `Solve of Expr.formula list
 ]
 
 type result = [
@@ -246,8 +246,11 @@ let typecheck (opt, c) : typechecked stmt =
       let () = add_synth ret in
       (simple (decl_id c) c.S.loc ret :> typechecked stmt)
     (** Hyps and goal statements *)
-    | { S.descr = S.Prove } ->
-      simple (prove_id c) c.S.loc `Solve
+    | { S.descr = S.Prove l } ->
+      start_section ~section:Type.section Util.debug "Assumption typing";
+      let env = type_wrap opt in
+      let l' = List.map (Type.new_formula env) l in
+      simple (prove_id c) c.S.loc (`Solve l')
     | { S.descr = S.Clause l } ->
       start_section ~section:Type.section Util.debug "Clause typing";
       let env = type_wrap opt in
@@ -322,14 +325,14 @@ let solve (opt, (c : typechecked stmt)) : solved stmt =
     let id = Solver.assume ~solve:Options.(opt.solve)
         [Expr.Formula.neg ~status:Expr.Status.goal f] in
     (simple res.id res.loc (`Right (id, f)) :> solved stmt)
-  | { contents = `Solve; _ } ->
+  | { contents = `Solve assumptions; _ } ->
     let ret =
       if opt.Options.solve then begin
         start_section ~section:Dispatcher.section Util.log "Solve";
         let check_model = Options.(opt.model.active) in
         let check_proof = Options.(opt.proof.active) in
         let export = Options.(opt.output.icnf) in
-        begin match Solver.solve ~check_model ~check_proof ?export () with
+        begin match Solver.solve ~check_model ~check_proof ~assumptions ?export () with
           | Solver.Sat m -> `Model m
           | Solver.Unsat p -> `Proof p
           | Solver.Unknown -> `Unknown

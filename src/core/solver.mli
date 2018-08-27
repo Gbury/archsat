@@ -58,7 +58,9 @@ val assume : solve:bool -> Expr.formula list -> id
 val solve :
   ?check_model:bool ->
   ?check_proof:bool ->
-  ?export:Format.formatter -> unit -> res
+  ?export:Format.formatter ->
+  ?assumptions:Expr.formula list ->
+  unit -> res
 (** Try and solve the current set of assumptions.
     @param export output an iCNF problem file equivalent to
         the solved problems on the formatter.

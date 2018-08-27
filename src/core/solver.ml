@@ -200,9 +200,9 @@ let rec solve_aux
     end;
     Unsat proof
 
-let solve ?check_model ?check_proof ?export () =
+let solve ?check_model ?check_proof ?export ?assumptions () =
   try
-    solve_aux ?check_model ?check_proof ?export ()
+    solve_aux ?check_model ?check_proof ?export ?assumptions ()
   with
   | Extension.Abort (ext, msg) ->
     Util.warn ~section "Extension '%s' aborted proof search with message:@\n%s" ext msg;
