@@ -86,6 +86,7 @@ endif
 			echo -e "$(COQC) $(COQ_PROOF_FILE)";							\
 			cat $(COQ_PROOF_FILE);														\
 			cat $(TMP_FILE);																			\
+			$(COQC) --version;																			\
 			exit 1;																											\
 		fi
 	@if ! $(COQC) $(COQ_SCRIPT_FILE) &> $(TMP_FILE); then											\
@@ -93,6 +94,7 @@ endif
 			echo -e "$(COQC) $(COQ_SCRIPT_FILE)";							\
 			cat $(COQ_SCRIPT_FILE);														\
 			cat $(TMP_FILE);																			\
+			$(COQC) --version;																			\
 			exit 1;																											\
 		fi
 
@@ -112,6 +114,7 @@ endif
 			echo -e "$(COQC) $(COQ_PROOF_FILE)";							\
 			cat $(COQ_PROOF_FILE);														\
 			cat $(TMP_FILE);																			\
+			$(COQC) --version;																			\
 			exit 1;																											\
 		fi
 	@if ! $(COQC) $(COQ_SCRIPT_FILE) &> $(TMP_FILE); then											\
@@ -119,6 +122,7 @@ endif
 			echo -e "$(COQC) $(COQ_SCRIPT_FILE)";							\
 			cat $(COQ_SCRIPT_FILE);														\
 			cat $(TMP_FILE);																			\
+			$(COQC) --version;																			\
 			exit 1;																											\
 		fi
 	@if ! $(COQC) $(COQ_TERM_FILE) &> $(TMP_FILE); then											\
@@ -126,6 +130,7 @@ endif
 			echo -e "$(COQC) $(COQ_TERM_FILE)";							\
 			cat $(COQ_TERM_FILE);														\
 			cat $(TMP_FILE);																			\
+			$(COQC) --version;																			\
 			exit 1;																											\
 		fi
 	@if ! $(COQC) $(COQ_NORM_FILE) &> $(TMP_FILE); then											\
@@ -133,6 +138,7 @@ endif
 			echo -e "$(COQC) $(COQ_NORM_FILE)";							\
 			cat $(COQ_NORM_FILE);														\
 			cat $(TMP_FILE);																			\
+			$(COQC) --version;																			\
 			exit 1;																											\
 		fi
 
