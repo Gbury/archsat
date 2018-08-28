@@ -46,8 +46,9 @@ let term_of_atom a =
 
 let prove_function lemma clause =
   let name = lemma.Dispatcher.plugin_name in
+  let p_name = lemma.Dispatcher.proof_name in
   let section = Dispatcher.find_section name in
-  Util.debug ~section "Proving lemma (%s): %a" name P.St.print_clause clause;
+  Util.debug ~section "Proving lemma (%s.%s): %a" name p_name P.St.print_clause clause;
   match Dispatcher.(ask name (Proof.Lemma lemma.proof_info)) with
   | Some f -> (fun pos -> f (Proof.switch section pos))
   | None -> (fun _ -> ())

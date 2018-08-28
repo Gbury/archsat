@@ -375,7 +375,7 @@ let find_absurd pos env atom =
               | Proof.Env.Not_introduced _ ->
                 Util.warn ~section
                   "@[<hv>Couldn't find an absurd situation using@ @[<hov>%a@]@ in env:@ %a@]"
-                  Term.print atom Proof.Env.print env;
+                  Term.print p Proof.Env.print env;
                 raise (Proof.Failure ("Logic.absurd", pos))
             end
         end

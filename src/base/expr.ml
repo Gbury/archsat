@@ -463,7 +463,7 @@ module Id = struct
   type 'a t = 'a id
 
   (* Hash & comparisons *)
-  let hash v = CCHash.int v.index
+  let hash v = v.index
 
   let compare: 'a. 'a id -> 'a id -> int =
     fun v1 v2 -> compare v1.index v2.index
@@ -670,7 +670,7 @@ module Meta = struct
   type 'a t = 'a meta
 
   (* Hash & Comparisons *)
-  let hash m = CCHash.(combine2 (int m.meta_id.index) (int m.meta_index))
+  let hash m = CCHash.(combine2 m.meta_id.index (int m.meta_index))
 
   let compare m1 m2 =
     CCOrd.(compare m1.meta_index m2.meta_index
@@ -793,10 +793,9 @@ module Ty = struct
 
   (* Hash & Comparisons *)
   let rec hash_aux t = match t.ty with
-    | TyVar v -> Id.hash v
-    | TyMeta m -> Meta.hash m
-    | TyApp (f, args) ->
-      CCHash.combine2 (Id.hash f) (CCHash.list hash args)
+    | TyVar v -> CCHash.combine2 3 (Id.hash v)
+    | TyMeta m -> CCHash.combine2 5 (Meta.hash m)
+    | TyApp (f, args) -> CCHash.combine3 7 (Id.hash f) (CCHash.list hash args)
 
   and hash t =
     if t.ty_hash = -1 then t.ty_hash <- hash_aux t;
@@ -913,8 +912,8 @@ module Term = struct
 
   (* Hash & Comparisons *)
   let rec hash_aux t = match t.term with
-    | Var v -> Id.hash v
-    | Meta m -> Meta.hash m
+    | Var v -> CCHash.combine2 3 (Id.hash v)
+    | Meta m -> CCHash.combine2 5 (Meta.hash m)
     | App (f, tys, args) ->
       CCHash.combine3
         (Id.hash f)
@@ -1233,11 +1232,13 @@ module Formula = struct
     else if (Ty.equal Ty.prop a.t_type) then
       equiv (pred a) (pred b) (* no need to order propositions *)
     else begin
-      let order, res =
+      let order, res = Same, mk_formula ?status (Equal (a, b))
+        (* Re-ordering equalities doe snot help much
         if Term.compare a b < 0 then
           Same, mk_formula ?status (Equal (a, b))
         else
           Inverse, mk_formula ?status (Equal (b, a))
+        *)
       in
       let () = tag res t_order order in
       res

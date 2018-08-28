@@ -97,6 +97,37 @@ module Class = struct
 
 end
 
+(* Link equalities and non-ordered tuples *)
+(* ************************************************************************ *)
+
+module H = Backtrack.Hashtbl(struct
+    type t = Expr.term * Expr.term
+    let equal = CCPair.equal Expr.Term.equal Expr.Term.equal
+    let hash (a, b) = CCHash.combine2 (Expr.Term.hash a) (Expr.Term.hash b)
+  end)
+
+let eq_table = H.create Dispatcher.stack
+let neq_table = H.create Dispatcher.stack
+
+let fetch_eq a b =
+  let x, y = if Expr.Term.compare a b < 0 then a, b else b, a in
+  try H.find eq_table (x, y)
+  with Not_found -> Expr.Formula.eq a b
+
+let add_eq_table f a b =
+  let x, y = if Expr.Term.compare a b < 0 then a, b else b, a in
+  H.add eq_table (x, y) f
+
+let fetch_neq a b =
+  let x, y = if Expr.Term.compare a b < 0 then a, b else b, a in
+  try H.find neq_table (x, y)
+  with Not_found -> Expr.Formula.neg @@ Expr.Formula.eq a b
+
+let add_neq_table f a b =
+  let x, y = if Expr.Term.compare a b < 0 then a, b else b, a in
+  H.add neq_table (x, y) f
+
+
 (* McSat Plugin for equality *)
 (* ************************************************************************ *)
 
@@ -138,9 +169,9 @@ let mk_expl (a, b, l) =
   let rec aux acc = function
     | [] | [_] -> acc
     | x :: ((y :: _) as r) ->
-      aux (Expr.Formula.eq x y :: acc) r
+      aux (fetch_eq x y :: acc) r
   in
-  (Expr.Formula.eq a b) :: (List.rev_map Expr.Formula.neg (aux [] l))
+  (Expr.Formula.neg (fetch_neq a b)) :: (List.rev_map Expr.Formula.neg (aux [] l))
 
 let mk_proof l =
   match l with
@@ -189,12 +220,14 @@ let eq_assign x =
     raise (D.Absurd (mk_expl (a, b, l), mk_proof l))
 
 let assume = function
-  | { Expr.formula = Expr.Equal (a, b)} ->
+  | { Expr.formula = Expr.Equal (a, b)} as f ->
     Util.debug ~section "Assume: %a == %a" Expr.Term.print a Expr.Term.print b;
-    wrap E.add_eq a b;
-  | { Expr.formula = Expr.Not { Expr.formula = Expr.Equal (a, b)} } ->
+    add_eq_table f a b;
+    wrap E.add_eq a b
+  | { Expr.formula = Expr.Not { Expr.formula = Expr.Equal (a, b)} } as f ->
     Util.debug ~section "Assume: %a <> %a" Expr.Term.print a Expr.Term.print b;
-    wrap E.add_neq a b;
+    add_neq_table f a b;
+    wrap E.add_neq a b
   | _ -> ()
 
 let set_handler_aux v =
