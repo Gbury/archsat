@@ -44,9 +44,7 @@ all: $(TESTS)
 		fi
 
 %.dk: % $(BIN)
-ifndef DKC
-	$(error "dkcheck is not available, please install dedukti")
-endif
+ifdef DKC
 	@echo -ne "\033[2K\r[  ] [$(NAME)] -- dk -- $<"
 	@if ! $(BIN) $(FLAGS) $(OPT) --dkterm $(DK_TERM_FILE) --dknorm $(DK_NORM_FILE) $< > $(TMP_FILE); then 		\
 			echo -e "\033[2K\r\e[31m[FAIL]\e[0m [$(NAME)] $<";											\
@@ -68,12 +66,11 @@ endif
 			cat $(TMP_FILE);																			\
 			exit 1;																											\
 		fi
+endif
 
 
 %.coq: % $(BIN)
-ifndef COQC
-	$(error "coqc is not available, please install coq")
-endif
+ifdef COQC
 	@echo -ne "\033[2K\r[  ] [$(NAME)] -- coq -- $<"
 	@if ! $(BIN) $(FLAGS) $(OPT) --coq $(COQ_PROOF_FILE) --coqscript $(COQ_SCRIPT_FILE) $< > $(TMP_FILE); then 		\
 			echo -e "\033[2K\r\e[31m[FAIL]\e[0m [$(NAME)] $<";											\
@@ -97,11 +94,10 @@ endif
 			$(COQC) --version;																			\
 			exit 1;																											\
 		fi
+endif
 
 %.coqfull: % $(BIN)
-ifndef COQC
-	$(error "coqc is not available, please install coq")
-endif
+ifdef COQC
 	@echo -ne "\033[2K\r[  ] [$(NAME)] -- coq -- $<"
 	@if ! $(BIN) $(FLAGS) $(OPT) --coq $(COQ_PROOF_FILE) --coqscript $(COQ_SCRIPT_FILE) --coqterm $(COQ_TERM_FILE) --coqnorm $(COQ_NORM_FILE) $< > $(TMP_FILE); then 		\
 			echo -e "\033[2K\r\e[31m[FAIL]\e[0m [$(NAME)] $<";											\
@@ -141,6 +137,7 @@ endif
 			$(COQC) --version;																			\
 			exit 1;																											\
 		fi
+endif
 
 clean:
 	rm -rf *.res *.sat *.unsat *.coq $(TMP_FILE) *$(DK_TERM_FILE)* *$(DK_NORM_FILE)* *$(COQ_PROOF_FILE)* *$(COQ_SCRIPT_FILE)* *$(COQ_TERM_FILE)* *$(COQ_NORM_FILE)* *.vo *.glob

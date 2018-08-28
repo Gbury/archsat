@@ -24,12 +24,6 @@ env:
 #  directories:
 #    - $HOME/.opam
 
-# Coq is a test dependency but building it for each build would take a ridiculous time
-addons:
-  apt:
-    packages:
-      - coq
-
 # Install opam, create the switch and pin dev repos
 before_install:
   # Download and use opam2
