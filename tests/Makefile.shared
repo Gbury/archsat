@@ -66,6 +66,8 @@ ifdef DKC
 			cat $(TMP_FILE);																			\
 			exit 1;																											\
 		fi
+else
+	@echo -ne "\033[2K\r[  ] [$(NAME)] -- dk -- skipping $<"
 endif
 
 
@@ -94,6 +96,8 @@ ifdef COQC
 			$(COQC) --version;																			\
 			exit 1;																											\
 		fi
+else
+	@echo -ne "\033[2K\r[  ] [$(NAME)] -- coq -- skipping $<"
 endif
 
 %.coqfull: % $(BIN)
@@ -137,6 +141,8 @@ ifdef COQC
 			$(COQC) --version;																			\
 			exit 1;																											\
 		fi
+else
+	@echo -ne "\033[2K\r[  ] [$(NAME)] -- coq -- skipping $<"
 endif
 
 clean:
