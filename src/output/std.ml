@@ -126,11 +126,11 @@ let print_exn opt fmt = function
   | Term.Function_expected t ->
     Format.fprintf Format.std_formatter
       "@[<hv>Proof term@ %a :@ %a@ was expected to be a function@]"
-      Term.print t Term.print t.Term.ty
+      Term.print t Term.print (Term.ty t)
   | Term.Type_mismatch (t, ty) ->
     Format.fprintf Format.std_formatter
       "Proof term@ %a@ was expected to have type@ %a@ but has type@ %a"
-      Term.print t Term.print ty Term.print Term.(t.ty)
+      Term.print t Term.print ty Term.print (Term.ty t)
 
   (** Generic catch *)
   | exn ->

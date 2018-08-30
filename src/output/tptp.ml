@@ -116,7 +116,7 @@ module Print = struct
     | Term.Id v -> if Term.is_var v then var fmt v else cst fmt v
     | Term.App _ ->
       let f, args = Term.uncurry ~assoc t in
-      let args = elim_implicits f.Term.ty args in
+      let args = elim_implicits (Term.ty f) args in
       begin match get_status f, args with
         | None, [] ->
           Format.fprintf fmt "@[<hov>%a@]" term f

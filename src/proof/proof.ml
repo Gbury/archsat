@@ -822,7 +822,7 @@ let apply =
     | None ->
       Util.warn ~section
         "@[<hv 2>Expected a non-dependant product type but got:@ %a@ while applying:@ %a@]"
-        Term.print f.Term.ty Term.print f;
+        Term.print (Term.ty f) Term.print f;
       assert false
     | Some (l, ret) ->
       (** Check that the application proves the current goal *)

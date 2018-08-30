@@ -601,7 +601,7 @@ let rec or_elim_aux ~shallow ~f t pos =
       then letin [] "O" t pos
       else pos
     in
-    Util.debug ~section "Couldn't split %a: %a" Term.print t Term.print t.Term.ty;
+    Util.debug ~section "Couldn't split %a: %a" Term.print t Term.print (Term.ty t);
     f (Term.ty t) pos'
   | Some (left_term, right_term) ->
     let t' = Term.apply or_elim_term [left_term; right_term; goal; t] in

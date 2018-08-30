@@ -313,7 +313,7 @@ let trans l pos =
   let seq = Logic.extract_open pos in
   let env = Proof.env seq in
   let l' = List.map (fun (x, y) ->
-      let eq = Term.apply Term.equal_term [x.Term.ty; x; y] in
+      let eq = Term.apply Term.equal_term [Term.ty x; x; y] in
       let proof = Proof.Env.find env eq in
       (x, y, proof)) l in
   Logic.exact [] (aux_fixpoint l') pos
