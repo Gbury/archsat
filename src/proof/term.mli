@@ -30,7 +30,7 @@ and descr = private
 (** Term descriptors. *)
 
 and t = private {
-  ty : t;
+  ty : t Lazy.t;
   hash : int;
   index : int;
   term : descr;

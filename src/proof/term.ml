@@ -22,7 +22,7 @@ and descr =
   | Binder of binder * id * t
 
 and t = {
-  ty : t;
+  ty : t Lazy.t;
   hash : int;
   index : int;
   term : descr;
@@ -80,7 +80,7 @@ let hash t = t.hash
 let compare t t' = Pervasives.compare t.index t'.index
 let equal t t' = compare t t' = 0
 
-let ty t = t.ty
+let ty t = Lazy.force t.ty
 let free_vars t = t.free
 let reduce t = Lazy.force t.reduced
 let is_reduced t = t == (reduce t)
@@ -157,7 +157,7 @@ let declare s ty =
 let definitions = Hs.create 17
 
 let define s def =
-  let v = Expr.Id.mk_new ~builtin:(Defined def) s def.ty in
+  let v = Expr.Id.mk_new ~builtin:(Defined def) s (ty def) in
   let () = new_name v in
   Hs.add definitions def v;
   Hs.add definitions (reduce def) v;
@@ -302,7 +302,7 @@ let all_terms = H.create 99997
     hand since it is its own type. *)
 let rec _Type = {
   index   = 0;
-  ty      = _Type;
+  ty      = lazy _Type;
   term    = Type;
   reduced = lazy _Type;
   hash    = 13; (* TODO: better base hash ? *)
@@ -355,8 +355,8 @@ let id v =
   let t = Id v in
   let ty = v.Expr.id_type in
   match v.Expr.builtin with
-  | Var | Declared -> mk_reduced ty t
-  | Defined t' -> mk_normal ty t (lazy (reduce t'))
+  | Var | Declared -> mk_reduced (lazy ty) t
+  | Defined t' -> mk_normal (lazy ty) t (lazy (reduce t'))
   (** Variables should have one of these as builtins *)
   | _ -> assert false
 
@@ -390,11 +390,13 @@ let _assert t t_ty =
 let rec app f arg =
   (* Format.eprintf "app: @[<hv>%a@ @@@ %a@]@." pp f pp arg; *)
   let t = App (f, arg) in
-  let v, ty = extract_fun_ty f in
-  let expected_arg_ty = v.Expr.id_type in
-  _assert arg expected_arg_ty;
-  let s = S.Id.bind S.empty v arg in
-  let res_ty = subst s ty in
+  let res_ty = lazy (
+    let v, ty = extract_fun_ty f in
+    let expected_arg_ty = v.Expr.id_type in
+    _assert arg expected_arg_ty;
+    let s = S.Id.bind S.empty v arg in
+    subst s ty
+  ) in
   (* check for normal forms *)
   match f with
   | { term = Binder (Lambda, v, body) } ->
@@ -415,17 +417,17 @@ and letin v e body =
   assert (is_var v);
   _assert e v.Expr.id_type;
   let reduced = lazy (reduce_beta v e body) in
-  mk_normal (ty body) (Let (v, e, body)) reduced
+  mk_normal body.ty (Let (v, e, body)) reduced
 
 and bind b v body =
   assert (is_var v);
   let t = Binder (b, v, body) in
-  let ty =
+  let ty = lazy (
     match b with
     | Lambda -> bind Forall v (ty body)
     (* TODO: check the type of a forall / see typical PTS ? *)
     | Forall | Exists -> ty body
-  in
+  ) in
   let v_ty = v.Expr.id_type in
   if is_reduced v_ty && is_reduced body then begin
     mk_reduced ty t
@@ -455,9 +457,9 @@ and subst_aux s t =
     let e' = subst_aux s e in
     let s' = S.Id.remove v s in
     let v', s'' =
-      if e.ty == e'.ty then v, s'
+      if ty e == ty e' then v, s'
       else
-        let v' = var_typed v e'.ty in
+        let v' = var_typed v (ty e') in
         v', S.Id.bind s' v (id v')
     in
     let body' = subst_aux s'' body in
@@ -764,8 +766,8 @@ let flatten_binder t =
     | Binder (Forall, v, body) ->
       if is_type_var v () then is_type_var, Forall, `Pi
       else if occurs v body then occurs, Forall, `Binder Forall
-      else if equal _Type t.ty then not_occurs, Forall, `Arrow
-      else if equal _Prop t.ty then not_occurs, Forall, `Arrow
+      else if equal _Type (ty t) then not_occurs, Forall, `Arrow
+      else if equal _Prop (ty t) then not_occurs, Forall, `Arrow
       else not_type_var, Forall, `Binder Forall
     | Binder (b, _, _) -> (fun _ _ -> true), b, `Binder b
     | _ -> assert false
@@ -860,7 +862,7 @@ and print_aux fmt t =
 let print = CCFormat.hovbox print_aux
 
 let print_typed fmt t =
-  Format.fprintf fmt "@[<hv 2>%a :@ %a@]" print t print t.ty
+  Format.fprintf fmt "@[<hv 2>%a :@ %a@]" print t print (ty t)
 
 (* Pattern matching *)
 (* ************************************************************************ *)
@@ -870,7 +872,7 @@ let rec match_aux subst pat t =
   | { term = Id v }, _ when is_var v ->
     begin match S.Id.get v subst with
       | exception Not_found ->
-        S.Id.bind (match_aux subst v.Expr.id_type t.ty) v t
+        S.Id.bind (match_aux subst v.Expr.id_type (ty t)) v t
       | t' ->
         if equal t t' then subst
         else raise (Match_Impossible (pat, t))
@@ -1043,7 +1045,7 @@ and of_formula_aux ?callback f =
   | Expr.Equal (x, y) ->
     let x' = of_term ?callback x in
     let y' = of_term ?callback y in
-    let ty = x'.ty in
+    let ty = ty x' in
     let a, b =
       match CCOpt.get_exn @@ Expr.Formula.get_tag f Expr.t_order with
       | Expr.Same -> x', y'
