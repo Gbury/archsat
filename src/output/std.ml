@@ -110,6 +110,9 @@ let print_exn opt fmt = function
       Dolmen.ParseLocation.fmt loc' Expr.Id.print h'
 
   (** Internal errors. This is BAD, it should *not* happen *)
+  | Expr.Cannot_valuate t ->
+    Format.fprintf Format.std_formatter
+      "@[<hv 2>Cannot valuate: %a@]" Expr.Term.print t;
   | Dispatcher.Bad_assertion msg ->
     Format.fprintf Format.std_formatter "%s@." msg
   | Dispatcher.Not_assigned t ->

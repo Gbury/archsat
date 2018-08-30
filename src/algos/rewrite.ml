@@ -41,6 +41,19 @@ module Guard = struct
     | Eq (a, b) -> Expr.Term.equal a b
     | Neq (a, b) -> not @@ Expr.Term.equal a b
 
+  let fv = function
+    | Pred_true p | Pred_false p ->
+      Expr.Term.fv p
+    | Eq (a, b) | Neq (a, b) ->
+      Expr.Id.merge_fv (Expr.Term.fv a) (Expr.Term.fv b)
+
+  let fv_list =
+    let rec aux acc = function
+      | [] -> acc
+      | g :: r -> aux (Expr.Id.merge_fv acc (fv g)) r
+    in
+    aux ([], [])
+
 end
 
 (* Rewrite rules definition *)
@@ -72,28 +85,6 @@ module Rule = struct
   let compare r r' = compare r.id r'.id
   let equal r r' = compare r r' = 0
 
-  (* Rule creation *)
-  let _nb_rules = ref 0
-  let mk_aux witness ?(guards=[]) manual trigger result =
-    let () = incr _nb_rules in
-    {
-      id = !_nb_rules; manual; guards;
-      formula = Expr.Formula.f_true;
-      contents = C (witness, {trigger; result; });
-    }
-
-  let mk_term = mk_aux Term
-  let mk_formula = mk_aux Formula
-
-  (* Some queries/manipulation of rules *)
-  let is_manual { manual; } = manual
-
-  let add_guards guards rule =
-    { rule with guards = guards @ rule.guards }
-
-  let set_formula formula rule =
-    { rule with formula }
-
   (* Printing functions *)
   let rec print_guards ?term fmt = function
     | [] -> ()
@@ -122,6 +113,59 @@ module Rule = struct
       (print_guards ~term) guards
       (print_contents ~term ~formula) contents
       formula f
+
+  let error_fv s r (l, l') =
+    if l = [] && l' = [] then () else
+      Util.error ~section
+        "@[<hv>Created rewrite rule with unbound variables in %s:@ @[<hov>%a@ %a@]@ in@ %a@]"
+        s
+        CCFormat.(list ~sep:(return "@ ") Expr.Id.print) l
+        CCFormat.(list ~sep:(return "@ ") Expr.Id.print) l'
+        (print ~term:Expr.Term.print ~formula:Expr.Formula.print) r
+
+  (* convenience function *)
+  let fv_of_witness
+    : type a. a witness -> (a -> Expr.Id.Ttype.t list * Expr.Id.Ty.t list)
+    = function
+    | Term -> Expr.Term.fv
+    | Formula -> Expr.Formula.fv
+
+  (* Rule creation *)
+  let _nb_rules = ref 0
+  let mk_aux witness ?(guards=[]) manual trigger result =
+    let () = incr _nb_rules in
+    let fv = fv_of_witness witness in
+    let r = {
+      id = !_nb_rules; manual; guards;
+      formula = Expr.Formula.f_true;
+      contents = C (witness, {trigger; result; });
+    } in
+    let v_g = Guard.fv_list guards in
+    let v_t = fv trigger in
+    let v_r = fv result in
+    error_fv "conditions" r (Expr.Id.remove_fv v_g v_t);
+    error_fv "result" r (Expr.Id.remove_fv v_r v_t);
+    r
+
+  let mk_term = mk_aux Term
+  let mk_formula = mk_aux Formula
+
+  (* Some queries/manipulation of rules *)
+  let is_manual { manual; } = manual
+
+  let add_guards guards rule =
+    let r = { rule with guards = guards @ rule.guards } in
+    let v_t =
+      match rule.contents with
+      | C (Term, { trigger; _}) -> Expr.Term.fv trigger
+      | C (Formula, { trigger; _}) -> Expr.Formula.fv trigger
+    in
+    let v_g = Guard.fv_list guards in
+    error_fv "conditions" r (Expr.Id.remove_fv v_g v_t);
+    r
+
+  let set_formula formula rule =
+    { rule with formula }
 
 end
 

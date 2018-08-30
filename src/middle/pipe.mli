@@ -89,9 +89,12 @@ type translated  = [ executed | decl | def | proof_sequent | result ]
 
 (** {2 Pipes} *)
 
-val parse : Options.opts -> Options.opts * (Options.opts -> Dolmen.Statement.t option)
-(** Parsing function. Reads the input options and returns a tuple of the new options
-    (including the detected input language), togethter with a statement generator. *)
+val parse :
+  Dolmen.Statement.t list -> Options.opts ->
+  Options.opts * (Options.opts -> Dolmen.Statement.t option)
+(** Parsing function. Reads a list of prelude statements, and the input options and
+    returns a tuple of the new options (including the detected input language),
+    together with a statement generator. *)
 
 val execute : Options.opts * Dolmen.Statement.t ->
   [ `Continue of Options.opts * Dolmen.Statement.t | `Done of Options.opts ]

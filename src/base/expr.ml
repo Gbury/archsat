@@ -1133,7 +1133,9 @@ module Formula = struct
   let rec free_vars f = match f.formula with
     | Pred t -> Term.fv t
     | True | False -> Id.null_fv
-    | Equal (a, b) -> Id.merge_fv (Term.fv a) (Term.fv b)
+    | Equal (a, b) ->
+      Id.merge_fv (Ty.fv a.t_type) @@
+      Id.merge_fv (Term.fv a) (Term.fv b)
     | Not p -> fv p
     | And l | Or l ->
       let l' = List.map fv l in

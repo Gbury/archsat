@@ -70,6 +70,18 @@ let parse_smtlib env ast s args =
     Some (parse_f env ast (Dolmen.Term.xor_t ()) args)
   | Type.Id { Id.name = "=>"; ns = Id.Term } ->
     Some (parse_f env ast (Dolmen.Term.implies_t ()) args)
+  | Type.Id { Id.name = "ite"; ns = Id.Term } ->
+    begin match args with
+      | [c; a; b] ->
+        let loc = ast.Dolmen.Term.loc in
+        let ast = Dolmen.Term.ite ?loc c a b in
+        Some (Type.Formula (Type.parse_formula env ast))
+      | _ ->
+        raise (Type.Typing_error (
+            Format.asprintf
+              "'ite' should be applied to exactly 3 argument but it is applied to %d"
+              (List.length args), env, ast))
+    end
 
   (** Equality *)
   | Type.Id { Id.name = "distinct"; ns = Id.Term } ->
@@ -82,6 +94,10 @@ let parse_smtlib env ast s args =
       | _ -> Expr.Formula.f_and l'
     in
     Some (Type.Formula res)
+
+  (** Rewrite rules *)
+  | Type.Id id when Id.equal id Id.rwrt_rule ->
+    Some (Type.Tags [Type.Any (Tag.rwrt, ())])
 
   | _ -> None
 
@@ -187,6 +203,71 @@ module Misc = struct
     (fun ty -> Expr.Term.apply c [ty] [])
 
 end
+
+(* Arrays *)
+(* ************************************************************************ *)
+
+module Array = struct
+
+  let array_id = Expr.Id.ty_fun "array" 2
+
+  let mk_array_type x y = Expr.Ty.apply array_id [x; y]
+
+  let match_array_type ty =
+    match ty with
+    | { Expr.ty = Expr.TyApp (f, [a; b]) } when
+        Expr.Id.equal f array_id -> Some (a, b)
+    | _ -> None
+
+  let select_id =
+    let x = Expr.Id.ttype "x" in
+    let y = Expr.Id.ttype "y" in
+    let x_t = Expr.Ty.of_id x in
+    let y_t = Expr.Ty.of_id y in
+    Expr.Id.term_fun "select" [x; y] [mk_array_type x_t y_t; x_t] y_t
+
+  let select a i =
+    begin match match_array_type a.Expr.t_type with
+      | Some (x, y) ->
+        assert (Expr.Ty.equal x i.Expr.t_type);
+        Expr.Term.apply select_id [x; y] [a; i]
+      | None -> raise (Invalid_argument "Builtin.select")
+    end
+
+  let store_id =
+    let x = Expr.Id.ttype "x" in
+    let y = Expr.Id.ttype "y" in
+    let x_t = Expr.Ty.of_id x in
+    let y_t = Expr.Ty.of_id y in
+    let a_t = mk_array_type x_t y_t in
+    Expr.Id.term_fun "store" [x; y] [a_t; x_t; y_t] a_t
+
+  let store a i v =
+    begin match match_array_type a.Expr.t_type with
+      | Some (x, y) ->
+        assert (Expr.Ty.equal x i.Expr.t_type);
+        assert (Expr.Ty.equal y v.Expr.t_type);
+        Expr.Term.apply store_id [x; y] [a; i; v]
+      | None -> raise (Invalid_argument "Builtin.select")
+    end
+
+  let parse_smtlib env ast s args =
+    match s with
+    | Type.Id { Id.name = "Array"; ns = Id.Sort } ->
+      Some (Type.parse_app_ty env ast array_id args)
+    | Type.Id { Id.name = "select"; ns = Id.Term } ->
+      Some (Type.parse_app_term env ast select_id args)
+    | Type.Id { Id.name = "store"; ns = Id.Term } ->
+      Some (Type.parse_app_term env ast store_id args)
+    | _ -> None
+
+end
+
+let _ =
+  Semantics.Addon.register "array"
+    ~descr:"Builtin symbols for arrays (currently only for smtlib)"
+    (Semantics.mk_ext ~smtlib:Array.parse_smtlib ())
+
 
 (* Arithmetic *)
 (* ************************************************************************ *)
@@ -504,9 +585,8 @@ module Arith = struct
 
 end
 
-;;
-Semantics.Addon.register "arith"
-  ~descr:"Builtin symbols for arithmetic, and arithmetic constants of arbitrary precision"
-  (Semantics.mk_ext ~tptp:Arith.parse_tptp ~zf:Arith.parse_zf ())
-;;
+let _ =
+  Semantics.Addon.register "arith"
+    ~descr:"Builtin symbols for arithmetic, and arithmetic constants of arbitrary precision"
+    (Semantics.mk_ext ~tptp:Arith.parse_tptp ~zf:Arith.parse_zf ())
 

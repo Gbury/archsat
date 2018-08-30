@@ -49,7 +49,7 @@ let () =
       at_exit Util.clean_exit;
 
       (* Syntax extensions *)
-      Semantics.Addon.set_exts "+base,+arith";
+      Semantics.Addon.set_exts "+base,+array,+arith";
       List.iter Semantics.Addon.set_ext opt.addons;
 
       (* Extensions options *)
@@ -67,8 +67,8 @@ let () =
       Export.init opt ();
       Prove.init opt ();
 
-      (* Return the parsor generator *)
-      Pipe.parse opt
+      (* Return the parsor generator (with the preludes given by the extensions). *)
+      Pipe.parse (Ext.extra_hyps ()) opt
 
     with e ->
       if Printexc.backtrace_status () then
@@ -76,6 +76,7 @@ let () =
       Util.error "%a" (Out.print_exn opt) e;
       exit 2
   in
+
   let opt'' =
     Pipeline.(
       run

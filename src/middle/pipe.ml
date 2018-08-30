@@ -97,7 +97,7 @@ let wrap_parser g =
       Format.printf "%s@?" (Out.prelude opt);
     g ()
 
-let parse opt =
+let parse prelude opt =
   (** Parse the input *)
   let opt', g =
     match Options.(opt.input.file) with
@@ -130,7 +130,7 @@ let parse opt =
       (Gen.singleton s')
   in
   (** Wrap the resulting parser *)
-  opt', wrap_parser g
+  opt', wrap_parser (Gen.append (Gen.of_list prelude) g)
 
 (* Execute statements *)
 (* ************************************************************************ *)

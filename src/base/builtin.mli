@@ -55,6 +55,31 @@ module Misc : sig
 
 end
 
+(** Array builtins *)
+
+module Array : sig
+
+  val array_id : Expr.Id.TyCstr.t
+  (** The type constructor for the polymorphic array type.
+      Takes two arguments, the key type, and the element type. *)
+
+  val select_id : Expr.Id.Const.t
+  (** Select function for polymorphic arrays. *)
+
+  val store_id : Expr.Id.Const.t
+  (** Store function for polymorphic arrays *)
+
+  val mk_array_type : Expr.ty -> Expr.ty -> Expr.ty
+  (** Convenience function to build an array type. *)
+
+  val select : Expr.term -> Expr.term -> Expr.term
+  (** Convenience function to apply the store function on arrays. *)
+
+  val store : Expr.term -> Expr.term -> Expr.term -> Expr.term
+  (** Convenience function to apply the store function on arrays. *)
+
+end
+
 (** Arithmetic builtins *)
 module Arith : sig
 

@@ -135,7 +135,7 @@ let add_callback, call =
 (* ************************************************************************ *)
 
 let print_matching pat expr fmt (t, s) =
-  Format.fprintf fmt "@[<hov>%a@ =?@[<hv>%a@]@]" pat t expr s
+  Format.fprintf fmt "@[<hov>%a@ =? @[<hv>%a@]@]" pat t expr s
 
 (* Registering parent-child relations between terms *)
 (* ************************************************************************ *)
@@ -203,23 +203,23 @@ let find_indexed_term f =
   S.fold (fun t acc -> T.add (C.find t) acc) s T.empty
 
 let find_all_indexed_term ty =
-  Util.debug ~section "Finding all indexed terms of type:@ %a" Expr.Print.ty ty;
+  (* Util.debug ~section "Finding all indexed terms of type:@ %a" Expr.Print.ty ty; *)
   M.fold (fun f s acc ->
-      Util.debug ~section "Examining term indexed by: %a" Expr.Print.const_ty f;
+      (* Util.debug ~section "Examining term indexed by: %a" Expr.Print.const_ty f; *)
       match Match.ty Mapping.empty Expr.(f.id_type.fun_ret) ty with
       | _ ->
         S.fold (fun t acc ->
             if Expr.Ty.equal Expr.(t.t_type) ty
             then begin
-              Util.debug ~section "Adding:@ %a" Expr.Print.term t;
+              (* Util.debug ~section "Adding:@ %a" Expr.Print.term t; *)
               T.add (C.find t) acc
             end else begin
-              Util.debug ~section "Skipping:@ %a" Expr.Print.term t;
+              (* Util.debug ~section "Skipping:@ %a" Expr.Print.term t; *)
               acc
             end
           ) s acc
       | exception Match.Impossible_ty _ ->
-        Util.debug ~section "Types incompatible";
+        (* Util.debug ~section "Types incompatible"; *)
         acc)
     index T.empty
 
@@ -459,21 +459,26 @@ let instanciate rule subst =
           CCList.sort_uniq ~cmp:Expr.Term.compare @@
           CCList.flat_map Rewrite.Guard.to_list l
         in
+        let applied = ref false in
         (* Add a watch to instantiate the rule when the condition is true *)
         (* TODO: make sure the function is called only once *)
         watch ~formula:rule.Rewrite.Rule.formula subst 1 watched
           (fun () ->
-             let l' = List.map (Rewrite.Guard.map Dispatcher.get_assign) l in
-             try
-               let g = List.find (fun g -> not (Rewrite.Guard.check g)) l' in
-               Util.debug ~section "False condition:@ %a"
-                 (Rewrite.Guard.print ~term:Expr.Term.print) g
-             with Not_found ->
-               Stats.incr stats_applied section;
-               Util.debug ~section "All conditions true, pushing rewrite";
-               let clause, lemma =
-                 Inst.soft_subst ~name:"trigger" rule.Rewrite.Rule.formula subst in
-               Dispatcher.push clause lemma
+             if !applied then ()
+             else begin
+               let l' = List.map (Rewrite.Guard.map Dispatcher.get_assign) l in
+               try
+                 let g = List.find (fun g -> not (Rewrite.Guard.check g)) l' in
+                 Util.debug ~section "False condition:@ %a"
+                   (Rewrite.Guard.print ~term:Expr.Term.print) g
+               with Not_found ->
+                 applied := true;
+                 Stats.incr stats_applied section;
+                 Util.debug ~section "All conditions true, pushing rewrite";
+                 let clause, lemma =
+                   Inst.soft_subst ~name:"trigger" rule.Rewrite.Rule.formula subst in
+                 Dispatcher.push clause lemma
+             end
           )
     ) (rule, subst)
 
@@ -579,19 +584,27 @@ let callback_rule r kind =
          "already been rewritten. This is not a supported use case," ^
          "since it may change normal forms of already noramlized terms")
 
-let substitute f =
+let rec set_substitution_used () =
+  if !substitution_used then ()
+  else begin
+    substitution_used := true;
+    Sequence.iter substitute @@
+    Sequence.append (find_indexed_eqs ()) (find_indexed_pred ())
+  end
+
+and substitute f =
   (** Substitution rules *)
   Util.debug ~section:section_subst "Trying to normalize@ %a" Expr.Print.formula f;
   match Rewrite.Normalize.(normalize_atomic !active_subst_rules [] f) with
   | f', [] ->
     assert (Expr.Formula.equal f f');
-    Expr.Formula.tag f normal_form true; (* already in normal form, nothing to do *)
+    () (* In some cases, liteals at level 0 may come before some rewrite rules... *)
   | f', substs ->
     assert (not (Expr.Formula.equal f f'));
     assert (not (Expr.Formula.get_tag f normal_form = Some true));
     Stats.incr stats_norm section;
     Stats.incr stats_steps section ~k:(List.length substs);
-    substitution_used := true;
+    let () = set_substitution_used () in
     Expr.Formula.tag f' normal_form true;
     Util.debug ~section:section_subst "@[<hv 2>Normalized term@ %a@ into@ %a@ using@ @[<hv>%a@]"
       Expr.Print.formula f
@@ -619,9 +632,13 @@ let rec add_rule r =
     let () = match kind with
       | Substitution ->
         Stats.incr stats_static section;
+        Util.info ~section "@[New substitution rewrite rule:@ %a@]"
+          (Rewrite.Rule.print ~term:Expr.Print.term ~formula:Expr.Print.formula) r;
         active_subst_rules := r :: !active_subst_rules
       | Trigger ->
         Stats.incr stats_dynamic section;
+        Util.info ~section "@[New trigger rewrite rule:@ %a@]"
+          (Rewrite.Rule.print ~term:Expr.Print.term ~formula:Expr.Print.formula) r;
         active_trigger_rules := r :: !active_trigger_rules
     in
     Expr.Formula.tag r.Rewrite.Rule.formula tag true;
@@ -783,13 +800,8 @@ let coq_proof = function
 let assume f =
   (* Detect rewrite rules *)
   let () = match parse_rule f with
-    | None ->
-      Util.debug ~section "@[<hov 2>Failed to detect rewrite rule with:@ %a@]"
-        Expr.Print.formula f;
-    | Some r ->
-      Util.debug ~section "@[<hov 2>Detected a new rewrite rule:@ %a@]"
-        (Rewrite.Rule.print ~term:Expr.Print.term ~formula:Expr.Print.formula) r;
-      add_rule r
+    | None -> ()
+    | Some r -> add_rule r
   in
   (* Apply substitution rules *)
   let () =

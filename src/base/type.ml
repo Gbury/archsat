@@ -395,9 +395,11 @@ let mk_expl preface env fmt t =
     Format.fprintf fmt "%s\n%a" preface (explain ~full:true env) t
 
 (* Convenience functions *)
-let _infer_var env t =
-  let msg = Format.asprintf
-      "Inferring type for a variable, please check the scope of your quantifications"
+let _infer_var env t v =
+  let msg =
+    Format.asprintf
+      "Inferring type for variable %a, please check the scope of your quantifications"
+      Id.print v
   in
   raise (Typing_error (msg, env, t))
 
@@ -592,7 +594,7 @@ let promote env ast t =
   | _ -> t
 
 let infer env ast s args loc =
-  if Dolmen.Id.(s.ns = Var) then _infer_var env ast;
+  if Dolmen.Id.(s.ns = Var) then _infer_var env ast s;
   match env.expect with
   | Nothing -> None
   | Type ->
@@ -625,9 +627,9 @@ let apply_tag env ast tag v = function
 (* ************************************************************************ *)
 
 let rec parse_expr (env : env) t =
-  Util.debug ~section
+  (* Util.debug ~section
     "parsing: @[<hov>%a@]@\nin env: @[<hov>%a@]"
-    Ast.print t pp_env env;
+    Ast.print t pp_env env; *)
   let res = match t with
 
     (* Ttype & builtin types *)
