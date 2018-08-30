@@ -484,10 +484,9 @@ let enqueue_job j lvl =
   end
 
 let stack_assign_level () =
-  Util.debug ~section:watch_section "Stack assign: %d :: %d"
-    (CCVector.length job_level) (CCVector.length job_trail);
-  assert (!job_idx = CCVector.length job_trail);
-  let () = CCVector.push job_level (CCVector.length job_trail) in
+  Util.debug ~section:watch_section "Stack assign: %d :: %d (%d)"
+    (CCVector.length job_level) (CCVector.length job_trail) !job_idx;
+  let () = CCVector.push job_level !job_idx in
   (CCVector.length job_level - 1)
 
 

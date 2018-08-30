@@ -474,7 +474,8 @@ let instanciate rule subst =
                  Stats.incr stats_applied section;
                  Util.debug ~section "All conditions true, pushing rewrite";
                  let clause, lemma =
-                   Inst.soft_subst ~name:"trigger" rule.Rewrite.Rule.formula subst in
+                   Inst.soft_subst ~name:"trigger"
+                     rule.Rewrite.Rule.formula (Inst.generalize subst) in
                  Dispatcher.push clause lemma
              end
           )
