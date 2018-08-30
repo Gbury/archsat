@@ -642,6 +642,7 @@ module Id = struct
     init_term_skolems t_vars (ty_args @ ty_vars, t_args)
 
   let copy_term_skolem v v' =
+    Util.debug "copying skolem from %a to %a" Print.id v Print.id v';
     let old = term_skolem v in
     Hashtbl.add term_skolems v'.index old
 

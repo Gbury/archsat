@@ -584,13 +584,12 @@ let callback_rule r kind =
          "already been rewritten. This is not a supported use case," ^
          "since it may change normal forms of already noramlized terms")
 
+(* TODO: Scan input clauses instead of assumptions in order to find static rewrite rules ?
+         or automatically consider rewrite rules found after a term to be dynamic/trigger *)
+
 let rec set_substitution_used () =
   if !substitution_used then ()
-  else begin
-    substitution_used := true;
-    Sequence.iter substitute @@
-    Sequence.append (find_indexed_eqs ()) (find_indexed_pred ())
-  end
+  else substitution_used := true
 
 and substitute f =
   (** Substitution rules *)

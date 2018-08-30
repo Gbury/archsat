@@ -1078,8 +1078,15 @@ and of_tree ?callback t = function
 
 let trap, clean_traps =
   let l = ref [] in
-  (fun f -> l := f :: !l),
-  (fun () -> List.iter (fun f -> f ()) (List.rev !l); l := [])
+  let rec aux () =
+    match !l with
+    | [] -> ()
+    | fl ->
+      l := [];
+      List.iter (fun f -> f ()) (List.rev fl);
+      aux ()
+  in
+  (fun f -> l := f :: !l), aux
 
 (* Disambiguate terms *)
 (* ************************************************************************ *)

@@ -38,6 +38,9 @@ let epsilon_name =
 module Sty = Set.Make(Expr.Ty)
 module Sterm = Set.Make(Expr.Term)
 
+module Hty = Hashtbl.Make(Expr.Ty)
+module Hte = Hashtbl.Make(Expr.Term)
+
 (** Here we consider skolems applications as as epsilon terms, as is done
     in coq proof output.
 
@@ -71,6 +74,8 @@ and find_all_deps (tys, ts) l l' =
       List.fold_left find_deps_ty (tys, ts) l) l'
 
 (* Proof generation *)
+let eps_ty = Hty.create 13
+let eps_term = Hte.create 13
 let prelude_tag = Tag.create ()
 
 let prelude_of_deps (tys, ts) =
@@ -81,17 +86,24 @@ let prelude_of_deps (tys, ts) =
       CCOpt.get_exn (Expr.Ty.get_tag ty prelude_tag) :: l
     ) tys [Quant.epsilon_prelude]
 
-let inst_epsilon get_tag tag trap inhabited e t =
+let inst_epsilon get_eps add_eps get_tag tag trap inhabited e t =
   match Quant.match_ex t with
   | Some (x, body) ->
-    let p = Term.lambda x body in
-    let eps_term = Term.apply Quant.epsilon_term [x.Expr.id_type; inhabited; p] in
-    let eps = Term.define (epsilon_name ()) eps_term in
-    let eps_t = Term.id eps in
-    let deps = prelude_of_deps @@ CCOpt.get_exn @@ get_tag e dep_tag in
-    let alias = Proof.Prelude.alias ~deps eps (fun _ -> Some eps_term) in
-    let () = tag e prelude_tag alias in
-    let () = trap e eps_t in
+    let eps_t =
+      match get_eps e with
+      | eps_t -> eps_t
+      | exception Not_found ->
+        let p = Term.lambda x body in
+        let eps_term = Term.apply Quant.epsilon_term [x.Expr.id_type; inhabited; p] in
+        let eps = Term.define (epsilon_name ()) eps_term in
+        let eps_t = Term.id eps in
+        let deps = prelude_of_deps @@ CCOpt.get_exn @@ get_tag e dep_tag in
+        let alias = Proof.Prelude.alias ~deps eps (fun _ -> Some eps_term) in
+        let () = add_eps e eps_t in
+        let () = tag e prelude_tag alias in
+        let () = trap e eps_t in
+        eps_t
+    in
     Term.(subst (S.Id.bind S.empty x eps_t)) body
   | _ ->
     begin match CCOpt.(Logic.match_not t >>= Quant.match_all) with
@@ -100,14 +112,21 @@ let inst_epsilon get_tag tag trap inhabited e t =
           match Logic.match_not body with
           | Some body' -> body' | None -> Term.app Term.not_term body
         in
-        let p = Term.lambda x body in
-        let eps_term = Term.apply Quant.epsilon_term [x.Expr.id_type; inhabited; p] in
-        let eps = Term.define (epsilon_name ()) eps_term in
-        let eps_t = Term.id eps in
-        let deps = prelude_of_deps @@ CCOpt.get_exn @@ get_tag e dep_tag in
-        let alias = Proof.Prelude.alias ~deps eps (fun _ -> Some eps_term) in
-        let () = tag e prelude_tag alias in
-        let () = trap e eps_t in
+        let eps_t =
+          match get_eps e with
+          | eps_t -> eps_t
+          | exception Not_found ->
+            let p = Term.lambda x body in
+            let eps_term = Term.apply Quant.epsilon_term [x.Expr.id_type; inhabited; p] in
+            let eps = Term.define (epsilon_name ()) eps_term in
+            let eps_t = Term.id eps in
+            let deps = prelude_of_deps @@ CCOpt.get_exn @@ get_tag e dep_tag in
+            let alias = Proof.Prelude.alias ~deps eps (fun _ -> Some eps_term) in
+            let () = add_eps e eps_t in
+            let () = tag e prelude_tag alias in
+            let () = trap e eps_t in
+            eps_t
+        in
         Term.(subst (S.Id.bind S.empty x eps_t)) body
       | _ ->
         Util.error ~section
@@ -116,22 +135,33 @@ let inst_epsilon get_tag tag trap inhabited e t =
     end
 
 let mk_proof f q types terms =
+  Util.debug ~section "@[Registering epsilon trap for: %a@]" Expr.Formula.print f;
   Term.trap (fun () ->
       let t = Term.of_formula f in
-      let t = List.fold_left (fun t e ->
+      Util.debug ~section "@[<hv>Generating epsilons for:@ %a@ types:@ %a@ term:@ %a@]"
+        Expr.Formula.print f
+        CCFormat.(list ~sep:(return "@ ") Expr.Ty.print) types
+        CCFormat.(list ~sep:(return "@ ") Expr.Term.print) terms;
+      let t' = List.fold_left (fun t e ->
           let inhabited = Term.apply Quant.inhabits_term
               [Term._Type; Term.of_ty ~callback:Prove.add_implicit Synth.ty] in
-          inst_epsilon Expr.Ty.get_tag Expr.Ty.tag Term.trap_ty inhabited e t
+          inst_epsilon
+            (Hty.find eps_ty) (Hty.add eps_ty)
+            Expr.Ty.get_tag Expr.Ty.tag
+            Term.trap_ty inhabited e t
         ) t types in
-      let t = List.fold_left (fun t e ->
+      let t'' = List.fold_left (fun t e ->
           let e_ty = e.Expr.t_type in
-          Util.debug ~section "  |- @[<hv>%a :@ %a@]"
+          Util.debug ~section "  |- New epsilon: @[<hv>%a :@ %a@]"
             Expr.Term.print e Expr.Ty.print e_ty;
           let inhabited = Term.apply Quant.inhabits_term
               [Term.of_ty e_ty; Term.of_term ~callback:Prove.add_implicit @@ Synth.term e_ty] in
-          inst_epsilon Expr.Term.get_tag Expr.Term.tag Term.trap_term inhabited e t
-        ) t terms in
-      assert (Term.Reduced.equal t (Term.of_formula q))
+          inst_epsilon
+            (Hte.find eps_term) (Hte.add eps_term)
+            Expr.Term.get_tag Expr.Term.tag
+            Term.trap_term inhabited e t
+        ) t' terms in
+      assert (Term.Reduced.equal t'' (Term.of_formula q))
     );
   Dispatcher.mk_proof "skolem" "inst" (Sk (Inst (f, types, terms, q)))
 
@@ -231,7 +261,7 @@ let tau = function
 
 let dot_info = function
   | Inst (f, l, l', _) ->
-    Some "LIGHTBLUE", (
+    Some "BLUE", (
       List.map (CCFormat.const Dot.Print.ty) l @
       List.map (CCFormat.const Dot.Print.term) l' @
       [ CCFormat.const Dot.Print.formula f ]
