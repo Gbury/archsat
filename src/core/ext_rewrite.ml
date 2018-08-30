@@ -20,8 +20,6 @@ let section_narrow = Section.make ~parent:section "narrow"
 let section_trigger = Section.make ~parent:section "trigger"
 
 let tag = Tag.create ()
-let normalized = Tag.create ()
-let normal_form = Tag.create ()
 
 type lemma_info = Subst of Expr.formula * Expr.formula * Rewrite.Subst.t list
 
@@ -61,6 +59,8 @@ let () = Stats.attach section dynamic_group
 (* Plugin state *)
 (* ************************************************************************ *)
 
+let normalized_formulas = F.create 113
+
 let inactive_rules = ref []
 let active_subst_rules = ref []
 let active_trigger_rules = ref []
@@ -86,7 +86,6 @@ let mode_conv =
 
 let forced_mode = ref None
 let allow_mixed = ref false
-let substitution_used = ref false
 
 let current_mode () =
   match !forced_mode with
@@ -461,7 +460,6 @@ let instanciate rule subst =
         in
         let applied = ref false in
         (* Add a watch to instantiate the rule when the condition is true *)
-        (* TODO: make sure the function is called only once *)
         watch ~formula:rule.Rewrite.Rule.formula subst 1 watched
           (fun () ->
              if !applied then ()
@@ -560,6 +558,30 @@ let potential_formula_matches = function
     ) } -> find_indexed_negs ()
   | _ -> assert false
 
+(* Normalization/Substitution in formulas *)
+let substitute f =
+  (** Substitution rules *)
+  Util.debug ~section:section_subst "Trying to normalize@ %a" Expr.Print.formula f;
+  match Rewrite.Normalize.(normalize_atomic !active_subst_rules [] f) with
+  | f', [] ->
+    assert (Expr.Formula.equal f f');
+    () (* In some cases, liteals at level 0 may come before some rewrite rules... *)
+  | f', substs ->
+    assert (not (Expr.Formula.equal f f'));
+    Stats.incr stats_norm section;
+    Stats.incr stats_steps section ~k:(List.length substs);
+    Util.debug ~section:section_subst "@[<hv 2>Normalized term@ %a@ into@ %a@ using@ @[<hv>%a@]"
+      Expr.Print.formula f
+      Expr.Print.formula f'
+      CCFormat.(list ~sep:(return "@ ") Rewrite.Subst.print) substs;
+    let cond =
+      List.map (fun s ->
+          Expr.Formula.neg (Rewrite.Subst.rule s).Rewrite.Rule.formula
+        ) substs
+    in
+    let lemma = Dispatcher.mk_proof name "subst" (Rewrite (Subst (f, f', substs))) in
+    Dispatcher.push ((Expr.Formula.equiv f f') :: cond) lemma
+
 (* Callback used on new rewrite rules *)
 let callback_rule r kind =
   Util.debug ~section "New rule introduced";
@@ -578,44 +600,7 @@ let callback_rule r kind =
           ) (potential_formula_matches trigger)
     end
   | Substitution ->
-    if !substitution_used then
-      Util.warn ~section:section_subst "@[<hov>%a@]" CCFormat.text
-        ("Adding a substitution rewrite rule after a term has" ^
-         "already been rewritten. This is not a supported use case," ^
-         "since it may change normal forms of already noramlized terms")
-
-(* TODO: Scan input clauses instead of assumptions in order to find static rewrite rules ?
-         or automatically consider rewrite rules found after a term to be dynamic/trigger *)
-
-let rec set_substitution_used () =
-  if !substitution_used then ()
-  else substitution_used := true
-
-and substitute f =
-  (** Substitution rules *)
-  Util.debug ~section:section_subst "Trying to normalize@ %a" Expr.Print.formula f;
-  match Rewrite.Normalize.(normalize_atomic !active_subst_rules [] f) with
-  | f', [] ->
-    assert (Expr.Formula.equal f f');
-    () (* In some cases, liteals at level 0 may come before some rewrite rules... *)
-  | f', substs ->
-    assert (not (Expr.Formula.equal f f'));
-    assert (not (Expr.Formula.get_tag f normal_form = Some true));
-    Stats.incr stats_norm section;
-    Stats.incr stats_steps section ~k:(List.length substs);
-    let () = set_substitution_used () in
-    Expr.Formula.tag f' normal_form true;
-    Util.debug ~section:section_subst "@[<hv 2>Normalized term@ %a@ into@ %a@ using@ @[<hv>%a@]"
-      Expr.Print.formula f
-      Expr.Print.formula f'
-      CCFormat.(list ~sep:(return "@ ") Rewrite.Subst.print) substs;
-    let cond =
-      List.map (fun s ->
-          Expr.Formula.neg (Rewrite.Subst.rule s).Rewrite.Rule.formula
-        ) substs
-    in
-    let lemma = Dispatcher.mk_proof name "subst" (Rewrite (Subst (f, f', substs))) in
-    Dispatcher.push ((Expr.Formula.equiv f f') :: cond) lemma
+    F.iter (fun f () -> substitute f) normalized_formulas
 
 (* Rule addition callback *)
 (* ************************************************************************ *)
@@ -798,19 +783,14 @@ let coq_proof = function
 
 let assume f =
   (* Detect rewrite rules *)
-  let () = match parse_rule f with
-    | None -> ()
-    | Some r -> add_rule r
-  in
-  (* Apply substitution rules *)
-  let () =
-    match Expr.Formula.get_tag f normalized with
-    | Some true -> ()
-    | None | Some false ->
-      let () = substitute f in
-      Expr.Formula.tag f normalized true
-  in
-  ()
+  match parse_rule f with
+  | Some r -> add_rule r
+  | None ->
+    (* Apply substitution rules *)
+    if not (F.mem normalized_formulas f) then begin
+      F.add normalized_formulas f ();
+      substitute f
+    end
 
 let set_watcher = register_formula
 

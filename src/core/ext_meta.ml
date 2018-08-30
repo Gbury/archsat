@@ -38,8 +38,6 @@ let sup_simplifications = ref true
 let rigid_max_depth = ref 5
 let rigid_round_incr = ref 1.
 
-let ignore_normalized = ref false
-
 (* Ignore tags. Formulas marked with
    these tags should not be used for meta-generation. *)
 let ignore_tags = ref []
@@ -471,11 +469,7 @@ let handle : type ret. ret Dispatcher.msg -> ret option = function
       | _ ->
         (* Analysing assummed formulas *)
         Util.debug ~section "Parsing input formulas";
-        let ignore f = !ignore_normalized
-                       && Expr.Formula.get_tag f Ext_rewrite.normalized = Some true
-                       && Expr.Formula.get_tag f Ext_rewrite.normal_form <> Some true
-        in
-        let st = parse_slice ~ignore model in
+        let st = parse_slice model in
         Util.debug ~section "%a" print st;
         (* Search for instanciations *)
         Util.debug ~section "Applying unification";
@@ -544,15 +538,10 @@ let opts =
          Each tag may be %s" (Cmdliner.Arg.doc_alts_enum ~quoted:true tag_list) in
     Cmdliner.Arg.(value & opt (list tag_conv) [Ext_rewrite.tag] & info ["meta.ignore"] ~docs ~doc)
   in
-  let ignore_norm =
-    let doc = "Ignore normalized formulas when looking for instanciations" in
-    Cmdliner.Arg.(value & opt bool false & info ["meta.ignore_normalized"] ~docs ~doc)
-  in
   let set_opts
-      ignore_list ignore_norm heur start max inst incr delay
+      ignore_list heur start max inst incr delay
       s_coef s_const s_simpl rigid_depth rigid_incr =
     ignore_tags := ignore_list;
-    ignore_normalized := ignore_norm;
     heuristic_setting := heur;
     meta_start := start;
     meta_max := max;
@@ -565,7 +554,7 @@ let opts =
     rigid_max_depth := rigid_depth;
     rigid_round_incr := rigid_incr
   in
-  Cmdliner.Term.(pure set_opts $ ignore_list $ ignore_norm $ heuristic $
+  Cmdliner.Term.(pure set_opts $ ignore_list $ heuristic $
                  start $ max $ inst $ incr $ delay $ sup_coef $
                  sup_const $ sup_simpl $ rigid_depth $ rigid_incr)
 
