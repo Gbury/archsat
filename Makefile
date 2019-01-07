@@ -26,6 +26,10 @@ test-lib:
 test-bin: bin static
 	@echo "run BIN tests…"
 	@cd tests && $(MAKE) --no-print-directory
+	$(MAKE) test-clean
+
+test-clean:
+	@cd tests && $(MAKE) --no-print-directory clean
 
 install: bin
 	./$(BIN) --help=groff > $(MANDIR)/man1/$(BIN).1

@@ -34,7 +34,7 @@ type res =
   | Term    : Expr.term -> res
   | Formula : Expr.formula -> res
   | Tags    : tag list -> res (**)
-(** The results of parsing an untyped term.  *)
+(** The results of parsing an untyped term. *)
 
 type inferred =
   | Ty_fun of Expr.Id.TyCstr.t

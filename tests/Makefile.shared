@@ -146,5 +146,5 @@ else
 endif
 
 clean:
-	rm -rf *.res *.sat *.unsat *.coq $(TMP_FILE) *$(DK_TERM_FILE)* *$(DK_NORM_FILE)* *$(COQ_PROOF_FILE)* *$(COQ_SCRIPT_FILE)* *$(COQ_TERM_FILE)* *$(COQ_NORM_FILE)* *.vo *.glob
+	@rm -rf *.res *.sat *.unsat *.coq $(TMP_FILE) *$(DK_TERM_FILE)* *$(DK_NORM_FILE)* *$(COQ_PROOF_FILE)* *$(COQ_SCRIPT_FILE)* *$(COQ_TERM_FILE)* *$(COQ_NORM_FILE)* *.vo *.glob
 

@@ -27,7 +27,7 @@ prove: solve $(BIN)
 	@cd bugs && $(MAKE) -f Makefile.prove --no-print-directory
 
 clean:
-	rm -rf $(BIN)
+	@rm -rf $(BIN)
 	@cd parsing 	&& $(MAKE) clean --no-print-directory
 	@cd include 	&& $(MAKE) clean --no-print-directory
 	@cd typing 		&& $(MAKE) clean --no-print-directory
@@ -45,6 +45,7 @@ clean:
 	@cd poly 			&& $(MAKE) clean -f Makefile.prove --no-print-directory
 	@cd rewr 			&& $(MAKE) clean -f Makefile.prove --no-print-directory
 	@cd bugs 			&& $(MAKE) clean -f Makefile.prove --no-print-directory
+	@echo "Cleaned tests artifact files"
 
 $(BIN):
 	@ln -f -s ../archsat $(BIN)
