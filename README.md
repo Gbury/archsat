@@ -11,23 +11,6 @@ MIT (see file LICENSE).
 
 ## Installation
 
-### Dependencies
-
-Dependencies of archsat are listed in the opam file at the root of the repo.
-Most are relatively standard and easily instalable via opam (though you should
-not need to install them manually is you install archsat via opam), however,
-some of the work done for archsat was splitted into standalone packages,
-which are currently still under developpement and need to be pinned (since
-bugfixes happen from time to time). More specifically, the `dolmen` package used
-for parsing many different input languages, and the `msat` package providing
-a functorized sat/smt/mcsat solver should be pinned to their dev repo using the
-following command:
-
-```
-opam pin add --dev-repo msat
-opam pin add --dev-repo dolmen
-```
-
 ### Using opam
 
 The easiest way to install archsat is to pin the repo and let opam
@@ -64,6 +47,7 @@ make test
 ```
 
 For unit tests of internal functions, see `src/README.md`.
+
 
 ## Usage
 
