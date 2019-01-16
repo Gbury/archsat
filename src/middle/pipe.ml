@@ -91,13 +91,19 @@ let simple id loc contents = { id; loc; contents; }
 (* Parsing *)
 (* ************************************************************************ *)
 
+let parse_section = Section.make "parse"
+
 let wrap_parser g =
   fun opt ->
     if Options.(opt.input.mode = Interactive) then
       Format.printf "%s@?" (Out.prelude opt);
-    g ()
+    Util.enter_prof parse_section;
+    let ret = g () in
+    Util.exit_prof parse_section;
+    ret
 
 let parse prelude opt =
+  Util.enter_prof parse_section;
   (** Parse the input *)
   let opt', g =
     match Options.(opt.input.file) with
@@ -129,6 +135,7 @@ let parse prelude opt =
       Options.({ opt with input = { opt.input with format = Some l } }),
       (Gen.singleton s')
   in
+  Util.exit_prof parse_section;
   (** Wrap the resulting parser *)
   opt', wrap_parser (Gen.append (Gen.of_list prelude) g)
 
@@ -147,31 +154,37 @@ let execute (opt, c) =
 (* Expand dolmen statements *)
 (* ************************************************************************ *)
 
+let expand_section = Section.make "expand"
+
 let expand (opt, c) =
-  match c with
-  | { S.descr = S.Pack l } ->
-    opt, `Gen (true, Gen.of_list l)
-  (* TODO: filter the statements by passing some options *)
-  | { S.descr = S.Include f } ->
-    let language = Options.(opt.input.format) in
-    let dir = Options.(opt.input.dir) in
-    begin
-      match In.find ?language ~dir f with
-      | None -> raise (Options.File_not_found f)
-      | Some file ->
-        (* TODO: cleanup files after having read them ?
-           only useful if there happens to be a very long long
-           (i.e. at least a few thousands) chain of nested includes) *)
-        let l, gen, _ = In.parse_input ?language (`File file) in
-        let opt' = Options.({
-            opt with input = {
-            opt.input with format = Some l;
-                           file = `File file;
-                           mode = Regular }
-          } ) in
-        opt', `Gen (false, gen)
-    end
-  | _ -> (opt, `Ok)
+  Util.enter_prof expand_section;
+  let ret = match c with
+    | { S.descr = S.Pack l } ->
+      opt, `Gen (true, Gen.of_list l)
+    (* TODO: filter the statements by passing some options *)
+    | { S.descr = S.Include f } ->
+      let language = Options.(opt.input.format) in
+      let dir = Options.(opt.input.dir) in
+      begin
+        match In.find ?language ~dir f with
+        | None -> raise (Options.File_not_found f)
+        | Some file ->
+          (* TODO: cleanup files after having read them ?
+             only useful if there happens to be a very long long
+             (i.e. at least a few thousands) chain of nested includes) *)
+          let l, gen, _ = In.parse_input ?language (`File file) in
+          let opt' = Options.({
+              opt with input = {
+              opt.input with format = Some l;
+                             file = `File file;
+                             mode = Regular }
+            } ) in
+          opt', `Gen (false, gen)
+      end
+    | _ -> (opt, `Ok)
+  in
+  Util.exit_prof expand_section;
+  ret
 
 
 (* Typechecking *)
@@ -205,9 +218,9 @@ let type_wrap ?(goal=false) opt =
     if Options.(opt.typing.infer) then
       Type.Typed Expr.Ty.prop
     else match Options.(opt.input.format) with
-    | Some In.Tptp -> Type.Typed Expr.Ty.prop
-    | Some In.Dimacs -> Type.Typed Expr.Ty.prop
-    | _ -> Type.Nothing
+      | Some In.Tptp -> Type.Typed Expr.Ty.prop
+      | Some In.Dimacs -> Type.Typed Expr.Ty.prop
+      | _ -> Type.Nothing
   in
   let infer_hook env = function
     | Type.Ty_fun _ -> ()
@@ -302,45 +315,45 @@ let solve (opt, (c : typechecked stmt)) : solved stmt =
   Util.enter_prof Solver.section;
   let res =
     match c with
-  | ({contents = `Executed; _ } as res)
-  | ({ contents = `Type_def _; _ } as res)
-  | ({ contents = `Term_def _; _ } as res)
-  | ({ contents = `Type_decl _; _ } as res)
-  | ({ contents = `Term_decl _; _ } as res) ->
-    res
-  | ({ contents = `Clause l; _ } as res) ->
-    start_section ~section:Dispatcher.section Util.debug "Assume clause";
-    let id = Solver.assume ~solve:Options.(opt.solve) l in
-    let f = match l with
-      | [] -> assert false | [p] -> p
-      | _ -> Expr.Formula.f_or l
-    in
-    (simple res.id res.loc (`Left (id, f)) :> solved stmt)
-  | ({ contents = `Hyp f; _ } as res) ->
-    start_section ~section:Dispatcher.section Util.debug "Assume hyp";
-    let id = Solver.assume ~solve:Options.(opt.solve) [f] in
-    (simple res.id res.loc (`Left (id, f)) :> solved stmt)
-  | ({ contents = `Goal f; _ } as res) ->
-    start_section ~section:Dispatcher.section Util.info "Assume goal";
-    let id = Solver.assume ~solve:Options.(opt.solve)
-        [Expr.Formula.neg ~status:Expr.Status.goal f] in
-    (simple res.id res.loc (`Right (id, f)) :> solved stmt)
-  | { contents = `Solve assumptions; _ } ->
-    let ret =
-      if opt.Options.solve then begin
-        start_section ~section:Dispatcher.section Util.log "Solve";
-        let check_model = Options.(opt.model.active) in
-        let check_proof = Options.(opt.proof.active) in
-        let export = Options.(opt.output.icnf) in
-        begin match Solver.solve ~check_model ~check_proof ~assumptions ?export () with
-          | Solver.Sat m -> `Model m
-          | Solver.Unsat p -> `Proof p
-          | Solver.Unknown -> `Unknown
-        end
-      end else
-        `Unknown
-    in
-    { c with contents = ret }
+    | ({contents = `Executed; _ } as res)
+    | ({ contents = `Type_def _; _ } as res)
+    | ({ contents = `Term_def _; _ } as res)
+    | ({ contents = `Type_decl _; _ } as res)
+    | ({ contents = `Term_decl _; _ } as res) ->
+      res
+    | ({ contents = `Clause l; _ } as res) ->
+      start_section ~section:Dispatcher.section Util.debug "Assume clause";
+      let id = Solver.assume ~solve:Options.(opt.solve) l in
+      let f = match l with
+        | [] -> assert false | [p] -> p
+        | _ -> Expr.Formula.f_or l
+      in
+      (simple res.id res.loc (`Left (id, f)) :> solved stmt)
+    | ({ contents = `Hyp f; _ } as res) ->
+      start_section ~section:Dispatcher.section Util.debug "Assume hyp";
+      let id = Solver.assume ~solve:Options.(opt.solve) [f] in
+      (simple res.id res.loc (`Left (id, f)) :> solved stmt)
+    | ({ contents = `Goal f; _ } as res) ->
+      start_section ~section:Dispatcher.section Util.info "Assume goal";
+      let id = Solver.assume ~solve:Options.(opt.solve)
+          [Expr.Formula.neg ~status:Expr.Status.goal f] in
+      (simple res.id res.loc (`Right (id, f)) :> solved stmt)
+    | { contents = `Solve assumptions; _ } ->
+      let ret =
+        if opt.Options.solve then begin
+          start_section ~section:Dispatcher.section Util.log "Solve";
+          let check_model = Options.(opt.model.active) in
+          let check_proof = Options.(opt.proof.active) in
+          let export = Options.(opt.output.icnf) in
+          begin match Solver.solve ~check_model ~check_proof ~assumptions ?export () with
+            | Solver.Sat m -> `Model m
+            | Solver.Unsat p -> `Proof p
+            | Solver.Unknown -> `Unknown
+          end
+        end else
+          `Unknown
+      in
+      { c with contents = ret }
   in
   Util.exit_prof Solver.section;
   res
@@ -504,7 +517,7 @@ let print_model (opt, (c : translated stmt)) =
     if Options.(opt.model.active) then
       Util.warn "Model check/output activated, but a proof was found"
   | { contents = `Unknown; _ } ->
-  if Options.(opt.model.active) then
+    if Options.(opt.model.active) then
       Util.warn "Model check/output activated, but no model was found"
 
   (* Interesting parts *)
