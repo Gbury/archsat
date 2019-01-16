@@ -7,6 +7,7 @@ license: "BSD-2-clauses"
 build: [
   [make "bin"]
   [make "test"] { with-test }
+  [make "static"] { dedukti:installed }
 ]
 install:[
   [make
@@ -14,9 +15,21 @@ install:[
     "BINDIR=%{archsat:bin}%"
     "SHAREDIR=%{archsat:share}%"
     "install"]
+  [make
+    "-C" "static"
+    "MANDIR=%{man}%"
+    "BINDIR=%{archsat:bin}%"
+    "SHAREDIR=%{archsat:share}%"
+    "install_dk"] { dedukti:installed }
 ]
 remove: [
   [make
+    "MANDIR=%{man}%"
+    "BINDIR=%{archsat:bin}%"
+    "SHAREDIR=%{archsat:share}%"
+    "uninstall"]
+  [make
+    "-C" "static"
     "MANDIR=%{man}%"
     "BINDIR=%{archsat:bin}%"
     "SHAREDIR=%{archsat:share}%"
@@ -40,6 +53,9 @@ depends: [
   "uucp"
   "uutf"        { >= "1.0" }
 ]
+depopts: [
+  "dedukti"
+]
 tags: [ "sat" "smt" "solver" "theorem prover" "tptp" "logic" "smtlib" "dimacs" ]
 homepage: "https://gforge.inria.fr/projects/archsat/"
 dev-repo: "git+https://scm.gforge.inria.fr/anonscm/git/archsat/archsat.git"
@@ -47,6 +63,7 @@ bug-reports: "https://gforge.inria.fr/tracker/?atid=14153&group_id=7473"
 synopsis: "An first-order theorem prover with formal proof output"
 description:
 "Archsat is an experimental SMT/McSat solver, aimed at solving first-order problems.
+Archsat integrates Tableau theory, superposition, and Rewriting into an McSat core.
 
 Archsat currently features builtin support for equality, uninterpreted functions
 and predicates, as well as rewriting. Additionally, whenever it finds a proof, it is
