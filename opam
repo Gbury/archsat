@@ -48,7 +48,7 @@ depends: [
   "ocamlgraph"
   "gen"
   "mtime"
-  "sequence"    { >= "0.5" }
+  "iter"        { >= "0.5" }
   "spelll"      { >= "0.3" }
   "uucp"
   "uutf"        { >= "1.0" }

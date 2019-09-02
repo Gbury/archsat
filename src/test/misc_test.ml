@@ -28,7 +28,7 @@ end
 (* ************************************************************************ *)
 
 (* Type for a sequence *)
-type 'a seq = ('a -> unit) -> unit
+type 'a iter = ('a -> unit) -> unit
 
 let iter_filter p seq k =
   seq (fun x -> if p x then k x)

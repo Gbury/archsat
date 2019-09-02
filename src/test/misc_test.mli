@@ -2,11 +2,11 @@
 
 (** {2 Helper functions} *)
 
-type 'a seq = ('a -> unit) -> unit
-(** Type of sequences, see the Sequence library.
-    TODO: insert link for Sequence. *)
+type 'a iter = ('a -> unit) -> unit
+(** Type of sequences, see the Iter library.
+    TODO: insert link for Iter. *)
 
-val iter_filter : ('a -> bool) -> 'a seq -> 'a seq
+val iter_filter : ('a -> bool) -> 'a iter -> 'a iter
 (** Filter a sequence. *)
 
 val split : int -> int -> int list QCheck.Gen.t

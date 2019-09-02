@@ -30,12 +30,12 @@ PKG gen
 PKG msat
 PKG uucp
 PKG uutf
+PKG iter
 PKG spelll
 PKG qcheck
 PKG dolmen
 PKG zarith
 PKG cmdliner
-PKG sequence
 PKG ocamlgraph
 PKG containers
 PKG containers.data

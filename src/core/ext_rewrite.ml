@@ -242,8 +242,8 @@ let rec register_formula = function
 let find_indexed_eqs () = F.keys eqs_tbl
 let find_indexed_pred () = F.keys pred_tbl
 let find_indexed_negs () =
-  Sequence.map Expr.Formula.neg @@
-  Sequence.append (find_indexed_eqs ()) (find_indexed_pred ())
+  Iter.map Expr.Formula.neg @@
+  Iter.append (find_indexed_eqs ()) (find_indexed_pred ())
 
 (* Matching modulo equivalence classes *)
 (* ************************************************************************ *)
@@ -595,7 +595,7 @@ let callback_rule r kind =
               ~only_eq:false ~match_fun:match_modulo_t (r, trigger, c)
           ) (potential_term_matches trigger)
       | Rewrite.Rule.(C (Formula, {trigger; _ })) ->
-        Sequence.iter (fun c ->
+        Iter.iter (fun c ->
             match_and_instantiate_formula
               ~only_eq:false ~match_fun:match_modulo_f (r, trigger, c)
           ) (potential_formula_matches trigger)

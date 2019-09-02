@@ -58,7 +58,7 @@ let rec is_arith_formula = function
 
 let handle : type ret. ret Dispatcher.msg -> ret option = function
   | Solver.Found_sat seq ->
-    if Sequence.exists is_arith_formula seq then
+    if Iter.exists is_arith_formula seq then
       Some Solver.Incomplete
     else
       Some Solver.Sat_ok

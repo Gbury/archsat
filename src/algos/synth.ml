@@ -165,8 +165,8 @@ let term_aux h ty =
   | { Expr.ty = Expr.TyApp (f, _) } as ty ->
     let l = CCFun.(
         iter_on_head f
-        |> Sequence.filter_map (term_try ty h)
-        |> Sequence.to_list) in
+        |> Iter.filter_map (term_try ty h)
+        |> Iter.to_list) in
     collapse ty l
 
 let rec perform h task =
