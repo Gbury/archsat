@@ -6,5 +6,5 @@ fof(all, axiom, ! [ X ] : p(X) ).
 
 fof(ex, axiom, ! [ Y ] : ~ p(Y) ).
 
-fof(goal, conjecture, false ).
+fof(goal, conjecture, $false ).
 
