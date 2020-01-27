@@ -504,7 +504,7 @@ let ty_apply env ast f args =
   with Expr.Bad_ty_arity _ ->
     _bad_term_arity env f (arity f) ast
 
-(* Wrapper aroun term application. Since wildcards are allowed in types,
+(* Wrapper around term application. Since wildcards are allowed in types,
    there may be some variables in [ty_args], so we have to find an appropriate
    substitution for these variables. To do that, we try and unify the expected type
    and the actual argument types. *)

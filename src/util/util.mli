@@ -30,7 +30,7 @@ val disable_time : unit -> unit
 
 type 'a logger =
   ?section:Section.t -> ('a, Format.formatter, unit, unit) format4 -> 'a
-(** Th type of a logger. *)
+(** The type of a logger. *)
 
 val log     : 'a logger
 val error   : 'a logger
