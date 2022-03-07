@@ -10,7 +10,7 @@ uninstall:
 	rm -rf $(SHAREDIR)/*
 
 clean:
-	rm .depend *.dko
+	rm -rf .depend *.dko
 
 
 # ========
