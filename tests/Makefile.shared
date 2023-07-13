@@ -52,14 +52,14 @@ ifdef DKC
 			cat $(TMP_FILE);																			\
 			exit 1;																											\
 		fi
-	@if ! $(DKC) -I ../../static $(DK_TERM_FILE) &> $(TMP_FILE); then											\
+	@if ! $(DKC) -I ../../static $(DK_TERM_FILE) > $(TMP_FILE) 2>&1; then											\
 			echo -e "\033[2K\r\e[31m[dkterm]\e[0m [$(NAME)] $<";										\
 			echo -e "$(DKC) -I static $(DK_TERM_FILE)";							\
 			cat $(DK_TERM_FILE);																	\
 			cat $(TMP_FILE);																			\
 			exit 1;																											\
 		fi
-	@if ! $(DKC) -I ../../static $(DK_NORM_FILE) &> $(TMP_FILE); then											\
+	@if ! $(DKC) -I ../../static $(DK_NORM_FILE) > $(TMP_FILE) 2>&1; then											\
 			echo -e "\033[2K\r\e[31m[dknorm]\e[0m [$(NAME)] $<";										\
 			echo -e "$(DKC) -I static $(DK_NORM_FILE)";							\
 			cat $(DK_NORM_FILE);																	\
@@ -80,7 +80,7 @@ ifdef COQC
 			cat $(TMP_FILE);																			\
 			exit 1;																											\
 		fi
-	@if ! $(COQC) $(COQ_PROOF_FILE) &> $(TMP_FILE); then											\
+	@if ! $(COQC) $(COQ_PROOF_FILE) > $(TMP_FILE) 2>&1; then											\
 			echo -e "\033[2K\r\e[31m[coq]\e[0m [$(NAME)] $<";										\
 			echo -e "$(COQC) $(COQ_PROOF_FILE)";							\
 			cat $(COQ_PROOF_FILE);														\
@@ -88,7 +88,7 @@ ifdef COQC
 			$(COQC) --version;																			\
 			exit 1;																											\
 		fi
-	@if ! $(COQC) $(COQ_SCRIPT_FILE) &> $(TMP_FILE); then											\
+	@if ! $(COQC) $(COQ_SCRIPT_FILE) > $(TMP_FILE) 2>&1; then											\
 			echo -e "\033[2K\r\e[31m[coq]\e[0m [$(NAME)] $<";										\
 			echo -e "$(COQC) $(COQ_SCRIPT_FILE)";							\
 			cat $(COQ_SCRIPT_FILE);														\
@@ -109,7 +109,7 @@ ifdef COQC
 			cat $(TMP_FILE);																			\
 			exit 1;																											\
 		fi
-	@if ! $(COQC) $(COQ_PROOF_FILE) &> $(TMP_FILE); then											\
+	@if ! $(COQC) $(COQ_PROOF_FILE) > $(TMP_FILE) 2>&1; then											\
 			echo -e "\033[2K\r\e[31m[coq]\e[0m [$(NAME)] $<";										\
 			echo -e "$(COQC) $(COQ_PROOF_FILE)";							\
 			cat $(COQ_PROOF_FILE);														\
@@ -117,7 +117,7 @@ ifdef COQC
 			$(COQC) --version;																			\
 			exit 1;																											\
 		fi
-	@if ! $(COQC) $(COQ_SCRIPT_FILE) &> $(TMP_FILE); then											\
+	@if ! $(COQC) $(COQ_SCRIPT_FILE) > $(TMP_FILE) 2>&1; then											\
 			echo -e "\033[2K\r\e[31m[coq]\e[0m [$(NAME)] $<";										\
 			echo -e "$(COQC) $(COQ_SCRIPT_FILE)";							\
 			cat $(COQ_SCRIPT_FILE);														\
@@ -125,7 +125,7 @@ ifdef COQC
 			$(COQC) --version;																			\
 			exit 1;																											\
 		fi
-	@if ! $(COQC) $(COQ_TERM_FILE) &> $(TMP_FILE); then											\
+	@if ! $(COQC) $(COQ_TERM_FILE) > $(TMP_FILE) 2>&1; then											\
 			echo -e "\033[2K\r\e[31m[coqterm]\e[0m [$(NAME)] $<";										\
 			echo -e "$(COQC) $(COQ_TERM_FILE)";							\
 			cat $(COQ_TERM_FILE);														\
@@ -133,7 +133,7 @@ ifdef COQC
 			$(COQC) --version;																			\
 			exit 1;																											\
 		fi
-	@if ! $(COQC) $(COQ_NORM_FILE) &> $(TMP_FILE); then											\
+	@if ! $(COQC) $(COQ_NORM_FILE) > $(TMP_FILE) 2>&1; then											\
 			echo -e "\033[2K\r\e[31m[coqnorm]\e[0m [$(NAME)] $<";										\
 			echo -e "$(COQC) $(COQ_NORM_FILE)";							\
 			cat $(COQ_NORM_FILE);														\
